@@ -215,6 +215,19 @@ final class DecodingTests: XCTestCase {
     XCTAssertEqual(item.item?.headOid, "000000000000000000000000000009f6a052cc6f")
   }
 
+  // Approve isn't offered on the commit you already approved, as the desk's canApprove() has it; a newer commit asks again.
+  func testAnItemYouApproved() throws {
+    let read = { (reviews: String) in
+      try DeskJSON.decoder().decode(ItemDetail.Item.self, from: Data(#"{"state":"open","head_oid":"b2","reviews":\#(reviews)}"#.utf8))
+    }
+    XCTAssertFalse(try read("[]").approved(by: "me"))
+    XCTAssertTrue(try read(#"[{"author":"dana","state":"approved","commit":"b2"},{"author":"Me","state":"approved","commit":"b2"}]"#).approved(by: "me"))
+    XCTAssertFalse(try read(#"[{"author":"me","state":"approved","commit":"a1"}]"#).approved(by: "me"), "an earlier commit")
+    XCTAssertFalse(try read(#"[{"author":"me","state":"approved","commit":"b2"},{"author":"me","state":"commented","commit":"b2"}]"#).approved(by: "me"))
+    XCTAssertFalse(try read(#"[{"author":"dana","state":"approved","commit":"b2"}]"#).approved(by: "me"))
+    XCTAssertFalse(try XCTUnwrap((try Fixture.decode("item") as ItemDetail).item).approved(by: ""))
+  }
+
   // view.ts's handsOff(): through its review, not a draft, and somebody asked (or nobody needed).
   func testWhatIsHandedOffForMerge() throws {
     let card = { (more: String) in

@@ -10,6 +10,9 @@ struct ItemPage: View {
   @State private var detail: ItemDetail?
   @State private var failed: String?
   @State private var sawIt = false
+  // The commit this page first showed: what Approve, Merge and Request changes are pinned to, so a push while you read
+  // is refused by the desk ("it has new commits since you opened it") rather than approved unseen, as the window's.
+  @State private var read: String?
   @State private var review: ReviewRead?
   @State private var reviewFailed: String?
   @State private var replied: Set<String> = []
@@ -67,6 +70,7 @@ struct ItemPage: View {
       case .success(let d):
         detail = d
         failed = nil
+        if read == nil { read = d.item?.headOid }
         if !sawIt {
           sawIt = true
           store.seen(d.card)
@@ -99,9 +103,10 @@ struct ItemPage: View {
   @ViewBuilder
   private var bar: some View {
     if let c = card {
-      let main = c.act(open: open)
-      // Approve and Merge are pinned to the commit read; Reply needs what was said.
-      let notYet = (main == "approve" && detail?.item?.headOid == nil) || (main == "reply" && waiting.isEmpty)
+      // The desk refuses a second approval of the same commit: its page says so instead.
+      let main = approvedIt ? nil : c.act(open: open)
+      // Approve is pinned to the commit read; Reply needs what was said.
+      let notYet = (main == "approve" && read == nil) || (main == "reply" && waiting.isEmpty)
       BottomBar(
         cta: main.flatMap { Words.act[$0] }, off: store.busy(c.id) || notYet, press: { if let main { press(main, c) } }, quiet: quiet(c),
         hasMore: true
@@ -110,6 +115,9 @@ struct ItemPage: View {
       BottomBar()
     }
   }
+
+  private var approvedIt: Bool { card?.mine == false && detail?.item?.approved(by: store.me) == true }
+  private var moved: Bool { read != nil && detail?.item?.headOid != nil && detail?.item?.headOid != read }
 
   private func quiet(_ c: Card) -> [Quiet] {
     if c.inflight == true { return [Quiet(label: "Back to desk") { _ in press("takeback", c) }] }
@@ -147,15 +155,15 @@ struct ItemPage: View {
 
   // A press sends at once, as the window's buttons do, or opens the box its words go in.
   private func press(_ key: String, _ c: Card) {
-    let head = detail?.item?.headOid
+    let head = read
     switch key {
     case "approve": box = .approve
     case "comment": box = .comment
     case "request_changes", "changes": box = .changes
     case "reviewers": box = .reviewers
     case "reply": if let first = waiting.first { box = .reply(first) }
-    // Ready with nobody asked stays on the desk, and its page then offers Add reviewers.
-    case "ready": Task { await store.ready(c) }
+    // Ready with nobody asked stays on the desk, and its page then offers Add reviewers; one already asked leaves it.
+    case "ready": Task { if await store.ready(c), store.card(c.id)?.active != true { back() } }
     case "handoff": Task { if await store.handOff(c) { back() } }
     case "takeback": Task { if await store.backToDesk(c) { back() } }
     default:
@@ -180,7 +188,7 @@ struct ItemPage: View {
   private func sheet(_ box: Box) -> some View {
     if let c = card {
       let draft = Binding { drafts[box.id] ?? "" } set: { drafts[box.id] = $0 }
-      let head = detail?.item?.headOid ?? ""
+      let head = read ?? ""
       switch box {
       case .approve:
         WriteSheet(title: "Approve \(c.shortRef)", prompt: "A comment, if you like", button: "Approve", optional: true, draft: draft) { words in
@@ -307,6 +315,10 @@ struct ItemPage: View {
         Lead(label: (h.from ?? "").isEmpty ? "Handed to you:" : "From \(h.from!):", text: h.why ?? "", size: 14)
       }
       if c.inflight == true, c.resolved == nil { Dotted(parts: mergingParts(c)).sans(13) }
+      if approvedIt, open { Text("You approved this commit.").sans(13).foregroundStyle(Theme.pencil) }
+      if moved, open, c.isPR {
+        Text("It has new commits since you opened it. Open it again to approve or merge them.").sans(13).foregroundStyle(Theme.pencil)
+      }
       if !c.active, c.resolved == nil {
         Text(Words.capitalized(Words.clearedText(c, now: store.now)) + ".").sans(13).foregroundStyle(Theme.pencil)
       }

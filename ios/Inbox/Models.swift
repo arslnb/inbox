@@ -335,6 +335,19 @@ struct ItemDetail: Decodable, Sendable {
     var additions: Int?
     var deletions: Int?
     var commentsTotal: Int?
+    @Lossy var reviews: [Review]  // most recent last
+
+    struct Review: Decodable, Sendable {
+      var author: String?
+      var state: String?
+      var commit: String?
+    }
+
+    // Your latest review approved this very commit: the desk refuses a second one ("you approved this commit").
+    func approved(by me: String) -> Bool {
+      guard !me.isEmpty, let mine = reviews.last(where: { $0.author?.lowercased() == me.lowercased() }) else { return false }
+      return mine.state == "approved" && mine.commit == headOid
+    }
   }
 }
 
