@@ -40,6 +40,7 @@ cleanup() {
   xcrun simctl terminate "$UDID" "$BUNDLE" >/dev/null 2>&1 || true
   xcrun simctl status_bar "$UDID" clear >/dev/null 2>&1 || true
   xcrun simctl ui "$UDID" appearance light >/dev/null 2>&1 || true
+  xcrun simctl ui "$UDID" content_size large >/dev/null 2>&1 || true
 }
 trap cleanup EXIT INT TERM
 i=0
@@ -84,8 +85,25 @@ wanted merging && shot merging -deskURL "$DESK" -page merging
 wanted archive && shot archive -deskURL "$DESK" -page archive
 wanted item-pr && shot item-pr -deskURL "$DESK" -open "acme/api#4127"
 wanted item-issue && shot item-issue -deskURL "$DESK" -open "acme/worker#860"
+# Yours: one that owes a reply (what was said, and Reply), a draft, one through review, one in Merging.
+wanted item-reply && shot item-reply -deskURL "$DESK" -open "me/notes-app#12"
+wanted item-draft && shot item-draft -deskURL "$DESK" -open "acme/web#2303"
+wanted item-mine && shot item-mine -deskURL "$DESK" -open "acme/worker#875"
+wanted item-merging && shot item-merging -deskURL "$DESK" -page merging -open "acme/api#4122"
+# The boxes that write (-box opens one once its page has loaded).
+wanted approve && shot approve -deskURL "$DESK" -open "acme/api#4127" -box approve
+wanted reply && shot reply -deskURL "$DESK" -open "me/notes-app#12" -box reply
+wanted reviewers && shot reviewers -deskURL "$DESK" -open "acme/worker#875" -box reviewers
 wanted question && shot question -deskURL "$DESK" -open "inquiry:q1c0ffee"
+wanted answer && shot answer -deskURL "$DESK" -open "inquiry:q1c0ffee" -box answer
 wanted session && shot session -deskURL "$DESK" -open "session:5f1c2a90-7d3e-4b8a-9c11-2e6f0a4b7d21"
+wanted session-kick && shot session-kick -deskURL "$DESK" -open "session:a83e61d4-0b52-4f7c-8e3a-91c4d6b2f058"
+# An accessibility text size: the bar's quiet buttons fold into More rather than clip.
+if wanted item-large; then
+  xcrun simctl ui "$UDID" content_size accessibility-large
+  shot item-large -deskURL "$DESK" -open "acme/api#4127"
+  xcrun simctl ui "$UDID" content_size large
+fi
 wanted settings && shot settings -deskURL "$DESK" -settings
 # A desk that isn't there: nothing listens on port 9.
 wanted offline && shot offline -deskURL "http://localhost:9"

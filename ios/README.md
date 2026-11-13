@@ -5,9 +5,10 @@ computer over Tailscale. SwiftUI, iOS 17 or newer, iPhone only, no third-party p
 Simulator.
 
 The phone pairs as a **phone** (a bearer token the desk takes as its own window's, unlike a machine's, which is an
-agent's). So it shows everything, it triages (Done, Snooze, Mute, Back on the desk, Undo), and its store can send what
-the window sends: see [What the phone writes](#what-the-phone-writes-and-what-it-leaves). A phone paired before this
-(as a device) is still refused every write: disconnect it and pair again.
+agent's). So it shows everything, it triages (Done, Snooze, Mute, Back on the desk, Undo), and it does what an item is
+on your desk for: approve, comment, reply, mark ready, ask reviewers, merge, hand off for merge, answer a question, kick
+a session. See [What the phone does](#what-the-phone-does-and-what-it-leaves). A phone paired before this (as a device)
+is still refused every write: disconnect it and pair again.
 
 ## Build and test
 
@@ -59,6 +60,7 @@ xcrun simctl launch booted dev.inbox.ios -deskURL http://localhost:47841 -page m
 | `-page inbox\|blocked\|merging\|archive`       | that page                                                               |
 | `-open <owner/repo#n>`                         | an item's page; `-open inquiry:<id>` a question, `-open session:<id>` a session |
 | `-scrollTo standard`                           | the Inbox scrolled to a section (`urgent`, `standard`, `fyi`)           |
+| `-box approve\|comment\|changes\|reviewers\|reply\|answer` | with `-open`: that page's box, opened once the page has loaded |
 | `-settings`                                    | the settings sheet                                                      |
 | `-empty`                                       | the desk as if nothing were on it                                       |
 | `-connect [-connectAddress <text>] [-connectError "<words>"]` | the connect screen, with that address and those words in red |
@@ -72,14 +74,19 @@ ios/shots.sh inbox item-pr   # only these
 
 It builds, installs on the booted simulator, starts the mock on port 47841 (and stops it), and writes
 `ios/.shots/<state>-<light|dark>.png` for: `connect`, `connect-error`, `inbox`, `inbox-scrolled`, `inbox-empty`,
-`blocked`, `merging`, `archive`, `item-pr` (with an AI review), `item-issue`, `question`, `session`, `settings` and
-`offline` (a desk that isn't there). It won't shoot while something already answers on that port (a mock you started by
+`blocked`, `merging`, `archive`, `item-pr` (with an AI review; Approve), `item-issue` (Comment), `item-reply` (what
+waits on your reply), `item-draft` (Ready for review), `item-mine` (Hand off for merge), `item-merging` (Back to desk),
+the boxes `approve`, `reply`, `reviewers` and `answer`, `question`, `session`, `session-kick`, `item-large` (an
+accessibility text size, where the bar's quiet buttons fold into More), `settings` and `offline` (a desk that isn't
+there). It won't shoot while something already answers on that port (a mock you started by
 hand has whatever you did to it since): stop that first, or set `SHOTS_PORT`.
 
 Look at them after any change here, as `npm run shots` is looked at for the window: clipped or cut text, weights (a
 title is 500, a heading 650, a row's facts 400), the facts line when it runs out of room, both appearances, and the top
-and bottom edges. What a shot can't show (the page menu, a row's swipe and long press, the toast's Undo, pull to
-refresh), try by hand against the mock.
+and bottom edges: an opened page has no navigation bar, so its first line sits under the status bar and its bar at the
+foot stays on one line. What a shot can't show (the page menu, a row's swipe and long press, the More menu, a write and
+its toast or refusal, the toast's Undo, pull to refresh, and the swipe back from the left edge on each opened page, which
+`Views/Acting.swift` keeps alive with the bar hidden), try by hand against the mock.
 
 ## On a real phone
 
@@ -103,18 +110,30 @@ the token on every read, a refused write (403), a desk still starting (503, in i
 `tailscale serve` passes through as it comes. The first request after serving is turned on can time out once, while
 Tailscale gets the address its certificate: Connect again with the same code, which an unanswered try doesn't burn.
 
-## What the phone writes, and what it leaves
+## What the phone does, and what it leaves
 
-A paired phone is your hands like the window (`fromDesk()` in `src/server.ts`; README → Safety). `Store` has one method
-for each write, in the "Writing" part of `Inbox/Store.swift`: `approve`, `comment`, `reply`, `ready`, `askReviewers`,
-`github` (the row's Merge and the More menu: close, convert to draft, reopen, re-request review, remove me as a
-reviewer, request changes), `handOff`, `backToDesk`, `answer` and `kick`. Each sends once (`busy(id)` while it's on its
-way), says what the window says when it lands, shows the desk's own words when it's refused, and reads the desk again.
-The toast's Undo reopens a PR you closed and makes a converted draft ready again, as the window's does. The pages don't
-offer these yet: they still say an action is done on the desk's computer.
+A paired phone is your hands like the window (`fromDesk()` in `src/server.ts`; README → Safety). An opened page has one
+bar at its foot: Back, More, Snooze, Done, and the one call to action the item is there for, in the window's words.
+
+- **A PR or an issue.** The row's own call to action (Ready for review, Add reviewers, Reply, Merge); else Approve on
+  someone else's PR, Comment on an issue, Hand off for merge on yours once it's through review (`Card.act(open:)`). In
+  Merging the bar has Back to desk. More has Mute, Comment, Add reviewers, Hand off for merge, exactly the GitHub writes
+  the desk allows now (`Card.actions`: close, convert to draft, reopen, re-request review, remove me as a reviewer,
+  merge now, request changes), Open on GitHub and Copy GitHub link.
+- **A row that owes a reply** lists each conversation waiting on you (where, your agent's read, its last words); a
+  press opens the reply box.
+- **A question.** Each of its answers is a button that answers with it; Answer takes your own words; Dismiss lets the
+  agent decide.
+- **A session.** Kick or Resume, Done and Snooze.
+
+A press sends at once, as the window's buttons do. What takes words (Approve's optional comment, Comment, Reply, Request
+changes, Answer) is a sheet with a field and one named button; if the desk refuses, the sheet stays with your words and
+the desk's own. `Store` has one method per write ("Writing" in `Inbox/Store.swift`): each sends once (`busy(id)`
+meanwhile), says what the window says when it lands, and reads the desk again. The toast's Undo reopens a PR you closed
+and makes a converted draft ready again.
 
 Left for the computer: a comment on a diff line (the phone draws no diff), a session's Open and its attach command
-(both act on the desk's computer), Ask your agent, and everything in Settings.
+(they act on the desk's computer; the session's page says so once), Ask your agent, and everything in Settings.
 
 What it calls: reads (`/api/overview`, `/api/queue`, `/api/inflight`, `/api/item`, `/api/inquiries/:id`,
 `/api/reviewers/:id`, `/api/events`, `/health`), `POST /api/act` (done, snooze, mute, unmute, restore, seen, inflight,
@@ -139,6 +158,7 @@ Merging, people's pictures, notifications, themes other than the default light a
 | The pages and their lists, a row's menu     | `Inbox/Views/DeskView.swift`                                                           |
 | An item's page                              | `Inbox/Views/ItemPage.swift`                                                           |
 | A question, a session, Settings, bubbles    | `Inbox/Views/Pages.swift`                                                              |
+| An opened page's bar, the boxes that write  | `Inbox/Views/Acting.swift` (`BottomBar`, `WriteSheet`, `ReviewersSheet`, the swipe back) |
 | The connect screen                          | `Inbox/Views/ConnectView.swift`                                                        |
 | The fonts                                   | `Inbox/Fonts/` (copies of `web/src/fonts`, see its README)                             |
 | The app icon                                | `Inbox/Assets.xcassets/AppIcon.appiconset` (the mark, full-bleed on petrol)            |
