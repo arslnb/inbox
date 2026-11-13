@@ -95,6 +95,9 @@ enum Words {
     "merge": "Merge",
   ]
 
+  // An opened page's call to action: the row's own, then what the window's review offers where a row has none.
+  static let act: [String: String] = cta.merging(["approve": "Approve", "comment": "Comment", "handoff": "Hand off for merge"]) { a, _ in a }
+
   // The More menu's GitHub writes (Card.actions), by label, as More.tsx's MORE; an issue's close is "Close issue".
   static let more: [String: String] = [
     "close": "Close", "draft": "Convert to draft", "ready": "Ready for review", "merge": "Merge now", "reopen": "Reopen",

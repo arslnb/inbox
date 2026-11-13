@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		09B80DD034643D43D5C13A22 /* Acting.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58F1723D88F33B6D0D06287F /* Acting.swift */; };
 		243E4031449240A3110F26FE /* ActionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 191882B1EBFEB895A9C4608D /* ActionTests.swift */; };
 		2C63189910B7188FD6BA7657 /* reviewers.json in Resources */ = {isa = PBXBuildFile; fileRef = 83673558401C16BE791F742E /* reviewers.json */; };
 		38F13AE8579999BDD6881232 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 69F526FB674D4AAE51D71285 /* Assets.xcassets */; };
@@ -57,6 +58,7 @@
 		412FA186A30EEB5E95FAFA15 /* ConnectView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConnectView.swift; sourceTree = "<group>"; };
 		47B88BB7E7E38F244917BD42 /* overview.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = overview.json; sourceTree = "<group>"; };
 		58B8361D3A544EB208FEF985 /* inquiry.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = inquiry.json; sourceTree = "<group>"; };
+		58F1723D88F33B6D0D06287F /* Acting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Acting.swift; sourceTree = "<group>"; };
 		668AAD4DD3BC95A868ADD5FA /* jetbrains-mono-latin-wght-normal.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "jetbrains-mono-latin-wght-normal.ttf"; sourceTree = "<group>"; };
 		69F526FB674D4AAE51D71285 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		7402469F00F8F99EF3BDBD7B /* ItemPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ItemPage.swift; sourceTree = "<group>"; };
@@ -91,6 +93,7 @@
 		0204A58B18A40406BB82972D /* Views */ = {
 			isa = PBXGroup;
 			children = (
+				58F1723D88F33B6D0D06287F /* Acting.swift */,
 				412FA186A30EEB5E95FAFA15 /* ConnectView.swift */,
 				F04C3ACC667161B9AB92E023 /* DeskView.swift */,
 				7402469F00F8F99EF3BDBD7B /* ItemPage.swift */,
@@ -290,6 +293,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				8C819FD9C6D6EC8A529AE298 /* APIClient.swift in Sources */,
+				09B80DD034643D43D5C13A22 /* Acting.swift in Sources */,
 				6000C1A98ED0E02EE64D9449 /* Address.swift in Sources */,
 				E89DC73D38524E692F477FD9 /* ConnectView.swift in Sources */,
 				CD92BDD8280FEC25648B3419 /* DeskView.swift in Sources */,

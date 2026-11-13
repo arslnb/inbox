@@ -586,6 +586,7 @@ final class Store {
     //   -deskURL http://localhost:47841   use this desk (localhost only), without touching the saved one
     //   -connect [-connectError "<words>"] [-connectAddress <text>]   the connect screen
     //   -page inbox|blocked|merging|archive   -open <item id>|inquiry:<id>|session:<id>   -settings   -empty
+    //   -box approve|comment|changes|reviewers|reply|answer   with -open: that page's box, opened once it has loaded
     func applyLaunchArguments(_ args: UserDefaults = .standard, flags: [String] = ProcessInfo.processInfo.arguments) {
       guard flags.contains(where: { ["-deskURL", "-connect"].contains($0) }) else { return }
       stopLive()
@@ -607,8 +608,10 @@ final class Store {
       }
       showSettings = flags.contains("-settings")
       scrollTo = args.string(forKey: "scrollTo")
+      debugBox = args.string(forKey: "box")
     }
 
     var scrollTo: String?
+    var debugBox: String?
   #endif
 }

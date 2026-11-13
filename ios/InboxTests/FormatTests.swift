@@ -176,4 +176,20 @@ final class FormatTests: XCTestCase {
     XCTAssertEqual(parts.map(\.1), [false, true, false, true, false])
     XCTAssertEqual(InquiryPage.place("https://www.github.com/me/notes-app/pull/12#discussion_r1"), "github.com/me/notes-app/pull/12#discussion_r1")
   }
+
+  // An opened page's one call to action: the row's own first, then what the item is there for.
+  func testAPagesCallToAction() throws {
+    let queue: QueueView = try Fixture.decode("queue")
+    let cards = (queue.inbox?.urgent ?? []) + (queue.inbox?.standard ?? []) + (queue.inbox?.fyi ?? [])
+    let act = { (id: String) in cards.first { $0.id == id }?.act(open: true) }
+    XCTAssertEqual(act("acme/api#4127"), "approve", "someone else's PR")
+    XCTAssertEqual(act("me/notes-app#12"), "reply", "the row's own call to action wins")
+    XCTAssertEqual(act("acme/web#2303"), "ready")
+    XCTAssertEqual(act("acme/worker#875"), "handoff", "yours, approved")
+    XCTAssertEqual(act("acme/worker#860"), "comment", "an issue")
+    XCTAssertNil(act("acme/api#4154"), "yours with changes requested: nothing to press but More")
+    XCTAssertNil(cards.first { $0.id == "acme/api#4127" }?.act(open: false), "closed or merged")
+    for key in ["ready", "reviewers", "reply", "merge", "approve", "comment", "handoff"] { XCTAssertNotNil(Words.act[key], key) }
+    XCTAssertEqual(Words.act["ready"], Words.cta["ready"], "a row's call to action keeps the row's words")
+  }
 }

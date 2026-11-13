@@ -1,8 +1,8 @@
 import SwiftUI
 
-// A PR or an issue, opened: what it is, why it's here, the AI review, its stack and what happened lately, then what this
-// phone may do with it. Drawn at once from its row's card; the rest lands from GET /api/item (never /api/review, which
-// carries the diff and starts the owner's AI review).
+// A PR or an issue, opened: what it is, why it's here, what waits on your reply, the AI review, its stack and what
+// happened lately; at its foot, what you do with it. Drawn at once from its row's card; the rest lands from GET /api/item.
+// Only a row that owes a reply reads /api/review (with ?ahead=1: it carries the diff, and without it starts the AI review).
 struct ItemPage: View {
   @Environment(Store.self) private var store
   @Environment(\.openURL) private var openURL
@@ -10,8 +10,31 @@ struct ItemPage: View {
   @State private var detail: ItemDetail?
   @State private var failed: String?
   @State private var sawIt = false
+  @State private var review: ReviewRead?
+  @State private var reviewFailed: String?
+  @State private var replied: Set<String> = []
+  @State private var box: Box?
+  @State private var drafts: [String: String] = [:]
+
+  // A box that writes, as a sheet.
+  enum Box: Identifiable {
+    case approve, comment, changes, reviewers
+    case reply(Conversation)
+
+    var id: String {
+      switch self {
+      case .approve: "approve"
+      case .comment: "comment"
+      case .changes: "changes"
+      case .reviewers: "reviewers"
+      case .reply(let c): "reply:\(c.id)"
+      }
+    }
+  }
 
   private var card: Card? { store.card(id) ?? detail?.card }
+  private var open: Bool { card?.resolved == nil && (detail?.item?.state ?? "open") == "open" }
+  private var waiting: [Conversation] { (review?.conversation ?? []).filter { $0.waitingOnYou == true && !replied.contains($0.id) } }
 
   var body: some View {
     ScrollView {
@@ -19,12 +42,12 @@ struct ItemPage: View {
         if let card {
           header(card)
           why(card)
+          if card.cta == "reply" { owed() }
           if card.isPR { aiBlock(card) }
           if let stack = detail?.stack { stackBlock(stack) }
           activity(card)
           if detail == nil, failed == nil { LoadingLines() }
           if let failed { Text(failed).sans(13).foregroundStyle(Theme.red) }
-          actions(card)
         } else if let failed {
           Text(failed).sans(14).foregroundStyle(Theme.red)
         } else {
@@ -32,13 +55,13 @@ struct ItemPage: View {
         }
       }
       .padding(.horizontal, Theme.pad)
-      .padding(.top, 14)
-      .padding(.bottom, 32)
+      .padding(.top, 8)
+      .padding(.bottom, 20)
       .frame(maxWidth: .infinity, alignment: .leading)
     }
-    .background(Theme.paper)
-    .navigationBarTitleDisplayMode(.inline)
-    .toolbarBackground(Theme.paper, for: .navigationBar)
+    .openedPage()
+    .safeAreaInset(edge: .bottom, spacing: 0) { bar }
+    .sheet(item: $box) { box in sheet(box) }
     .task(id: store.loads) {
       switch await store.fetchItem(id) {
       case .success(let d):
@@ -53,7 +76,175 @@ struct ItemPage: View {
         if detail == nil, e != .unreachable, e != .notDesk { failed = Words.capitalized(e.words) }
       case nil: break
       }
+      if review == nil, card?.cta == "reply" {
+        switch await store.fetchReview(id) {
+        case .success(let r):
+          review = r
+          reviewFailed = r.conversationError.map { Words.sentence($0) }
+        case .failure(let e): reviewFailed = Words.sentence(e.words)
+        case nil: break
+        }
+      }
+      #if DEBUG
+        if let want = store.debugBox, let c = card, detail != nil, want != "reply" || !waiting.isEmpty {
+          store.debugBox = nil
+          press(want, c)
+        }
+      #endif
     }
+  }
+
+  // MARK: What you do with it
+
+  @ViewBuilder
+  private var bar: some View {
+    if let c = card {
+      let main = c.act(open: open)
+      // Approve and Merge are pinned to the commit read; Reply needs what was said.
+      let notYet = (main == "approve" && detail?.item?.headOid == nil) || (main == "reply" && waiting.isEmpty)
+      BottomBar(
+        cta: main.flatMap { Words.act[$0] }, off: store.busy(c.id) || notYet, press: { if let main { press(main, c) } }, quiet: quiet(c),
+        hasMore: true
+      ) { more(c, main) }
+    } else {
+      BottomBar()
+    }
+  }
+
+  private func quiet(_ c: Card) -> [Quiet] {
+    if c.inflight == true { return [Quiet(label: "Back to desk") { _ in press("takeback", c) }] }
+    return [
+      c.active ? Quiet(label: "Done") { _ in act(c, "done") } : Quiet(label: "Back on the desk") { _ in act(c, "restore") },
+      Quiet(label: "Snooze", options: [SnoozeOption.times + [SnoozeOption.activity], SnoozeOption.waits(c)]) { act(c, "snooze", $0) },
+    ]
+  }
+
+  // Everything else, in the window's words: triage, the boxes, what the desk allows on GitHub now, the way out.
+  @ViewBuilder
+  private func more(_ c: Card, _ main: String?) -> some View {
+    if c.inflight != true, !c.mine {
+      Button(c.status == "muted" ? "Unmute" : "Mute") { act(c, c.status == "muted" ? "unmute" : "mute") }
+    }
+    if open, main != "comment" { Button("Comment") { box = .comment } }
+    if open, c.isPR, c.mine, c.draft != true, c.inflight != true, main != "reviewers" { Button("Add reviewers") { box = .reviewers } }
+    if open, c.handsOff, c.mine || c.review == "approved", main != "handoff" { Button("Hand off for merge") { press("handoff", c) } }
+    ForEach((c.actions ?? []).filter { $0 != main && Words.more[$0] != nil }, id: \.self) { a in
+      Button(a == "close" && !c.isPR ? "Close issue" : Words.more[a] ?? a) { press(a, c) }
+    }
+    if let url = c.url.flatMap(URL.init(string:)) {
+      Divider()
+      Button("Open on GitHub") { openURL(url) }
+      Button("Copy GitHub link") {
+        UIPasteboard.general.string = url.absoluteString
+        store.flash("Copied the GitHub link to \(c.shortRef)")
+      }
+    }
+  }
+
+  // A press sends at once, as the window's buttons do, or opens the box its words go in.
+  private func press(_ key: String, _ c: Card) {
+    let head = detail?.item?.headOid
+    switch key {
+    case "approve": box = .approve
+    case "comment": box = .comment
+    case "request_changes", "changes": box = .changes
+    case "reviewers": box = .reviewers
+    case "reply": if let first = waiting.first { box = .reply(first) }
+    // Ready with nobody asked stays on the desk, and its page then offers Add reviewers.
+    case "ready": Task { await store.ready(c) }
+    case "handoff": Task { if await store.handOff(c) { back() } }
+    case "takeback": Task { if await store.backToDesk(c) { back() } }
+    default:
+      Task {
+        if await store.github(c, key, head: head), ["close", "merge", "unrequest"].contains(key) { back() }
+      }
+    }
+  }
+
+  // What the desk took and took off the list goes back to the list, where its toast is.
+  private func leave(_ took: Bool) -> Bool {
+    if took { back() }
+    return took
+  }
+
+  // Back to the list, if this page is still the one on top.
+  private func back() {
+    if store.path.last == .item(id) { store.path.removeLast() }
+  }
+
+  @ViewBuilder
+  private func sheet(_ box: Box) -> some View {
+    if let c = card {
+      let draft = Binding { drafts[box.id] ?? "" } set: { drafts[box.id] = $0 }
+      let head = detail?.item?.headOid ?? ""
+      switch box {
+      case .approve:
+        WriteSheet(title: "Approve \(c.shortRef)", prompt: "A comment, if you like", button: "Approve", optional: true, draft: draft) { words in
+          leave(await store.approve(c, head: head, body: words.isEmpty ? nil : words))
+        }
+      case .comment:
+        WriteSheet(title: "Comment on \(c.shortRef)", prompt: "Your comment", button: "Comment", draft: draft) { leave(await store.comment(c, body: $0)) }
+      case .changes:
+        WriteSheet(title: "Request changes on \(c.shortRef)", prompt: "What needs to change", button: "Request changes", draft: draft) {
+          leave(await store.github(c, "request_changes", head: head, body: $0))
+        }
+      case .reviewers:
+        ReviewersSheet(card: c, keep: c.cta != "reviewers" && c.draft != true) { back() }
+      case .reply(let conversation):
+        WriteSheet(title: "Reply to \(conversation.comments.last?.author ?? "them")", prompt: "Your reply", button: "Reply", draft: draft) { words in
+          let sent = await store.reply(c, to: conversation, body: words)
+          if sent { replied.insert(conversation.id) }
+          // The last one answered: nothing more waits on you here.
+          return sent && waiting.isEmpty ? leave(true) : sent
+        } above: {
+          said(conversation, whole: true)
+        }
+      }
+    }
+  }
+
+  // MARK: Waiting on your reply
+
+  // What was said in each conversation that waits on you, briefly: where, its last words, and Reply.
+  @ViewBuilder
+  private func owed() -> some View {
+    if let reviewFailed {
+      Text(reviewFailed).sans(13).foregroundStyle(Theme.red)
+    } else if review == nil {
+      LoadingLines()
+    } else if !waiting.isEmpty {
+      VStack(alignment: .leading, spacing: 10) {
+        SmallHead(text: "Waiting on your reply")
+        ForEach(waiting) { c in
+          Button {
+            box = .reply(c)
+          } label: {
+            said(c, whole: false)
+          }
+          .buttonStyle(.plain)
+          .accessibilityHint("Reply")
+        }
+      }
+    }
+  }
+
+  // One conversation: where it is, your agent's read of it, then its last words (on the sheet, the last few comments).
+  private func said(_ c: Conversation, whole: Bool) -> some View {
+    VStack(alignment: .leading, spacing: 6) {
+      if let path = c.path {
+        Text(path + (c.line.map { ":\($0)" } ?? "")).mono(12).foregroundStyle(Theme.pencil).lineLimit(1).truncationMode(.head)
+      }
+      if !whole, let gist = c.take?.gist, !gist.isEmpty { Lead(label: "\(store.agent):", text: gist) }
+      ForEach(c.comments.suffix(whole ? 3 : 1)) { m in
+        // Briefly: its paragraphs run on as one.
+        let body = whole ? m.body ?? "" : (m.body ?? "").split(whereSeparator: \.isNewline).joined(separator: " ")
+        Lead(label: m.author ?? "", text: body, color: Theme.ink).lineLimit(whole ? 8 : 4)
+      }
+    }
+    .padding(.leading, 12)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .overlay(alignment: .leading) { Theme.ruleStrong.frame(width: 2) }
+    .contentShape(Rectangle())
   }
 
   // MARK: Header
@@ -68,17 +259,15 @@ struct ItemPage: View {
           Text("\(pos)/\(size)").sans(13, tabular: true).foregroundStyle(Theme.pencil).fixedSize().padding(.leading, 6)
             .accessibilityLabel("\(pos) of \(size) open PRs in its stack")
         }
+        Spacer(minLength: 8)
+        if c.isPR, let item = detail?.item, (item.additions ?? 0) + (item.deletions ?? 0) > 0 {
+          (Text("+\(item.additions ?? 0)").foregroundStyle(Theme.green) + Text("  \u{2212}\(item.deletions ?? 0)").foregroundStyle(Theme.red))
+            .sans(13, 550, tabular: true).fixedSize()
+        }
       }
       Text(c.title).sans(22, 650, tracking: -0.015).foregroundStyle(Theme.ink).lineSpacing(1)
         .fixedSize(horizontal: false, vertical: true)
       Dotted(parts: facts(c)).sans(13, tabular: true)
-      if c.isPR, let item = detail?.item, (item.additions ?? 0) + (item.deletions ?? 0) > 0 {
-        HStack(spacing: 6) {
-          Text("+\(item.additions ?? 0)").foregroundStyle(Theme.green)
-          Text("\u{2212}\(item.deletions ?? 0)").foregroundStyle(Theme.red)
-        }
-        .sans(13, 550, tabular: true)
-      }
     }
   }
 
@@ -96,6 +285,7 @@ struct ItemPage: View {
       out.append(.init(stage, stage == "changes requested" && c.mine && c.inflight != true ? Theme.amber : Theme.pencil))
     }
     out.append(.init(Words.age(c.resolvedAt ?? c.doneAt ?? c.waitingSince, now: store.now)))
+    if let n = detail?.item?.commentsTotal, n > 0 { out.append(.init(Words.plural(n, "comment"))) }
     return out
   }
 
@@ -107,7 +297,7 @@ struct ItemPage: View {
       if let resolved = c.resolved {
         Lead(label: "Resolved:", text: "\(resolved). It comes back on its own if that stops being true.")
       } else if let why = c.why, !why.isEmpty, c.inflight != true {
-        Prose(text: Words.capitalized(why), size: 14).foregroundStyle(Theme.ink)
+        Prose(text: Words.capitalized(why), size: 15, weight: 550).foregroundStyle(Theme.ink)
       }
       if let h = c.handoff {
         Lead(label: (h.from ?? "").isEmpty ? "Handed to you:" : "From \(h.from!):", text: h.why ?? "", size: 14)
@@ -116,10 +306,7 @@ struct ItemPage: View {
       if !c.active, c.resolved == nil {
         Text(Words.capitalized(Words.clearedText(c, now: store.now)) + ".").sans(13).foregroundStyle(Theme.pencil)
       }
-      if let item = detail?.item, !(item.labels ?? []).isEmpty || (item.commentsTotal ?? 0) > 0 {
-        Dotted(parts: [.init((item.labels ?? []).joined(separator: ", ")), .init(Words.plural(item.commentsTotal ?? 0, "comment"))])
-          .sans(13)
-      }
+      if let labels = detail?.item?.labels, !labels.isEmpty { Text(labels.joined(separator: ", ")).sans(13).foregroundStyle(Theme.pencil) }
     }
   }
 
@@ -151,7 +338,7 @@ struct ItemPage: View {
         if let concerns = ai.concerns, !concerns.isEmpty {
           VStack(alignment: .leading, spacing: 8) {
             ForEach(concerns, id: \.self) { concern in
-              Prose(text: concern, size: 13).foregroundStyle(Theme.ink2).lineSpacing(3)
+              Prose(text: concern, size: 13.5).foregroundStyle(Theme.ink).lineSpacing(3)
                 .padding(.leading, 12)
                 .overlay(alignment: .leading) { Theme.ruleStrong.frame(width: 2) }
             }
@@ -220,67 +407,11 @@ struct ItemPage: View {
     }
   }
 
-  // MARK: What this phone may do
-
-  @ViewBuilder
-  private func actions(_ c: Card) -> some View {
-    VStack(alignment: .leading, spacing: 12) {
-      Theme.ruleStrong.frame(height: 1)
-      if let held = heldBack(c) { Text(held).sans(13).foregroundStyle(Theme.pencil) }
-      FlowLine(spacing: 8) {
-        if let url = c.url.flatMap(URL.init(string:)) {
-          Button("Open on GitHub") { openURL(url) }.buttonStyle(PlainAct())
-        }
-        if c.inflight != true {
-          if c.active {
-            Button("Done") { act(c, "done") }.buttonStyle(PlainAct())
-          } else {
-            Button("Back on the desk") { act(c, "restore") }.buttonStyle(PlainAct())
-          }
-          Menu {
-            ForEach(SnoozeOption.times + [SnoozeOption.activity]) { option in
-              Button(option.label) { act(c, "snooze", option) }
-            }
-            let waits = SnoozeOption.waits(c)
-            if !waits.isEmpty {
-              Divider()
-              ForEach(waits) { option in Button(option.label) { act(c, "snooze", option) } }
-            }
-          } label: {
-            Text("Snooze")
-          }
-          .buttonStyle(PlainAct())
-          if !c.mine {
-            Button(c.status == "muted" ? "Unmute" : "Mute") { act(c, c.status == "muted" ? "unmute" : "mute") }
-              .buttonStyle(PlainAct())
-          }
-        }
-      }
-    }
-    .padding(.top, 4)
-  }
-
   // What takes it off its list goes back to the list, where the toast offers Undo; anything else stays on its page.
   private func act(_ c: Card, _ action: String, _ snooze: SnoozeOption? = nil) {
     let leaves = store.leaves(c.id, action)
     store.act(c.id, name: c.shortRef, action, snooze: snooze)
-    if leaves, !store.path.isEmpty { store.path.removeLast() }
-  }
-
-  // The window's call to action for this item, which only the desk's own window may press: said once, plainly.
-  private func heldBack(_ c: Card) -> String? {
-    guard c.resolved == nil, c.active else { return nil }
-    switch c.cta {
-    case "ready": return "Marking it ready for review is done on the desk's computer."
-    case "reply": return "Replying is done on the desk's computer."
-    case "reviewers": return "Adding reviewers is done on the desk's computer."
-    case "merge": return "Merging it is done on the desk's computer."
-    default:
-      if c.inflight == true { return "Your agent has it: bringing it back to the desk is done on the desk's computer." }
-      if c.isPR, !c.mine { return "Approving and commenting are done on the desk's computer." }
-      if !c.isPR { return "Commenting is done on the desk's computer." }
-      return nil
-    }
+    if leaves { back() }
   }
 }
 

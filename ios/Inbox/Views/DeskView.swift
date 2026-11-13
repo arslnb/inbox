@@ -17,7 +17,6 @@ struct DeskView: View {
           }
         }
     }
-    .safeAreaInset(edge: .bottom, spacing: 0) { NoticeStack() }
     .sheet(isPresented: $store.showSettings) { SettingsSheet() }
     .confirmationDialog("Snooze", isPresented: Binding(get: { store.snoozing != nil }, set: { if !$0 { store.snoozing = nil } }), presenting: store.snoozing) { card in
       ForEach(SnoozeOption.all(card)) { option in
@@ -41,6 +40,8 @@ struct ListPage: View {
       }
     }
     .background(Theme.sheet)
+    // An opened page has them above its own bar.
+    .safeAreaInset(edge: .bottom, spacing: 0) { NoticeStack() }
     .navigationTitle(store.page.name)
     .navigationBarTitleDisplayMode(.inline)
     .toolbarBackground(Theme.paper, for: .navigationBar)
@@ -161,7 +162,7 @@ struct CardLine: View {
   }
 }
 
-// A row's menu, in the window's order and words, less what only the desk's own window may do; then its way out to GitHub.
+// A row's menu, in the window's order and words: triage, then its way out to GitHub. What writes is on its page.
 struct CardMenu: View {
   @Environment(Store.self) private var store
   @Environment(\.openURL) private var openURL
@@ -221,7 +222,8 @@ struct InboxList: View {
       let fyi = cards(view.inbox?.fyi)
       let due = view.notes?.due ?? []
       let open = view.notes?.open ?? []
-      let lead = view.inquiries.count + active.count + due.count
+      let asked = view.inquiries.filter { !store.leaving.contains($0.id) }
+      let lead = asked.count + active.count + due.count
       let any = lead + urgent.count + open.count + standard.count + fyi.count > 0
       let first = view.firstPass?.line
       ScrollViewReader { proxy in
@@ -229,7 +231,7 @@ struct InboxList: View {
           if let first, any { QuietLine(text: first, size: 14).deskLine() }
           if lead + urgent.count > 0 {
             section("urgent", "Urgent", lead + urgent.count) {
-              ForEach(view.inquiries) { q in
+              ForEach(asked) { q in
                 Button {
                   store.path.append(.inquiry(q.id))
                 } label: {
@@ -488,7 +490,7 @@ struct MergingList: View {
     .contextMenu { CardMenu(card: row.card) }
   }
 
-  // One quiet line: how your agent is, and where to watch it. Waking it and attaching to it are the desk's computer's.
+  // One quiet line: how your agent is, and where to watch it.
   @ViewBuilder
   private func agentLine(_ c: InflightView.Coordinator) -> some View {
     Group {

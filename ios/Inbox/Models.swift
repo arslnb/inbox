@@ -190,6 +190,16 @@ struct Card: Decodable, Identifiable, Sendable {
   var handsOff: Bool {
     isPR && draft != true && inflight != true && (cta != "reviewers" || reviewOptional == true) && !["required", "changes_requested"].contains(review ?? "")
   }
+  // The one thing its page is there for (Words.act names it): the row's own call to action, else Approve on someone's
+  // PR, Comment on an issue, Hand off for merge on yours once it's through review. None in Merging or once it's closed.
+  func act(open: Bool) -> String? {
+    guard open, resolved == nil, inflight != true else { return nil }
+    if let cta, Words.cta[cta] != nil { return cta }
+    if !isPR { return "comment" }
+    if !mine { return "approve" }
+    return handsOff ? "handoff" : nil
+  }
+
   var shortRef: String { "\(repo.split(separator: "/").last.map(String.init) ?? repo)#\(number)" }
 }
 

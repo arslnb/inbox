@@ -1,13 +1,15 @@
 import SwiftUI
 
-// An agent's question on its own page, to read: what it's about, everything it said, its links, and each answer with what
-// it leads to. Answering is the desk's own window's; this never marks anything read. Its text is the agent's: text only.
+// An agent's question on its own page: what it's about, everything it said, each answer with what it leads to (a press
+// answers with it), then its links. Answer at its foot takes your own words. Its text is the agent's: text only.
 struct InquiryPage: View {
   @Environment(Store.self) private var store
   @Environment(\.openURL) private var openURL
   let id: String
   @State private var loaded: Inquiry?
   @State private var failed: String?
+  @State private var writing = false
+  @State private var draft = ""
 
   private var q: Inquiry? { loaded ?? store.queue?.inquiries.first { $0.id == id } }
 
@@ -18,8 +20,8 @@ struct InquiryPage: View {
           head(q)
           if let item = q.itemId { about(item, q.card ?? store.card(item)) }
           context(q)
+          if let answer = q.answer { answered(answer) } else if !q.options.isEmpty { options(q) }
           if !q.links.isEmpty { links(q) }
-          if let answer = q.answer { answered(answer) } else { options(q) }
         } else if let failed {
           Text(failed).sans(14).foregroundStyle(Theme.red)
         } else {
@@ -27,15 +29,27 @@ struct InquiryPage: View {
         }
       }
       .padding(.horizontal, Theme.pad)
-      .padding(.top, 14)
-      .padding(.bottom, 32)
+      .padding(.top, 8)
+      .padding(.bottom, 20)
       .frame(maxWidth: .infinity, alignment: .leading)
     }
-    .background(Theme.paper)
-    .navigationTitle("Question")
-    .navigationBarTitleDisplayMode(.inline)
-    .toolbar { ToolbarItem(placement: .principal) { Text("") } }
-    .toolbarBackground(Theme.paper, for: .navigationBar)
+    .openedPage()
+    .safeAreaInset(edge: .bottom, spacing: 0) {
+      if let q, q.answer == nil {
+        BottomBar(cta: "Answer", off: store.busy(q.id), press: { writing = true }, quiet: [Quiet(label: "Dismiss") { _ in answer(q, nil) }])
+      } else {
+        BottomBar()
+      }
+    }
+    .sheet(isPresented: $writing) {
+      if let q {
+        WriteSheet(title: "Answer \(Words.fromName(q.from, start: false))", prompt: "Your answer", button: "Answer", draft: $draft) { words in
+          let took = await store.answer(q, text: words)
+          if took { back() }
+          return took
+        }
+      }
+    }
     .task(id: store.loads) {
       switch await store.fetchInquiry(id) {
       case .success(let v):
@@ -45,14 +59,31 @@ struct InquiryPage: View {
         if q == nil, e != .unreachable, e != .notDesk { failed = Words.capitalized(e.words) }
       case nil: break
       }
+      #if DEBUG
+        if store.debugBox == "answer", q != nil {
+          store.debugBox = nil
+          writing = true
+        }
+      #endif
     }
+  }
+
+  // One of its answers, or nil to dismiss it: sent at once, and back to the list where the toast says so.
+  private func answer(_ q: Inquiry, _ text: String?) {
+    Task { if await store.answer(q, text: text) { back() } }
+  }
+
+  private func back() {
+    if store.path.last == .inquiry(id) { store.path.removeLast() }
   }
 
   private func head(_ q: Inquiry) -> some View {
     VStack(alignment: .leading, spacing: 6) {
       HStack(alignment: .firstTextBaseline, spacing: 8) {
-        Text("Agent").sans(13, 600).foregroundStyle(Theme.accentInk)
-        Dotted(parts: [.init(Words.fromName(q.from)), .init(Words.age(q.at, now: store.now))]).sans(13, tabular: true)
+        // "Your agent" already says whose question it is.
+        if !Words.isCoordinator(q.from) { Text("Agent").sans(13, 600).foregroundStyle(Theme.accentInk) }
+        Dotted(parts: [.init(Words.fromName(q.from), Words.isCoordinator(q.from) ? Theme.accentInk : Theme.pencil), .init(Words.age(q.at, now: store.now))])
+          .sans(13, tabular: true)
       }
       Text(q.question ?? "").sans(22, 650, tracking: -0.015).foregroundStyle(Theme.ink).lineSpacing(1)
         .fixedSize(horizontal: false, vertical: true)
@@ -97,15 +128,16 @@ struct InquiryPage: View {
 
   // Each link by its label, then where it goes: an agent's link is shown before it's followed.
   private func links(_ q: Inquiry) -> some View {
-    VStack(alignment: .leading, spacing: 8) {
+    VStack(alignment: .leading, spacing: 0) {
       SmallHead(text: "Links")
       ForEach(Array(q.links.enumerated()), id: \.offset) { _, l in
         let url = (l.url ?? "").hasPrefix("https://") ? URL(string: l.url ?? "") : nil
         Button {
           if let url { openURL(url) }
         } label: {
-          VStack(alignment: .leading, spacing: 1) {
-            Text(l.label ?? "").sans(14).underline(url != nil, color: Theme.ruleStrong).foregroundStyle(Theme.ink2)
+          HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Text(l.label ?? "").sans(14).underline(url != nil, color: Theme.ruleStrong).foregroundStyle(Theme.ink2).lineLimit(1)
+              .layoutPriority(1)
             Text(Self.place(l.url ?? "")).sans(12.5).foregroundStyle(Theme.pencil).lineLimit(1).truncationMode(.middle)
           }
           .frame(maxWidth: .infinity, minHeight: 36, alignment: .leading)
@@ -124,31 +156,36 @@ struct InquiryPage: View {
       + (u.fragment.map { "#\($0)" } ?? "")
   }
 
-  // The answers, to read: the first is the agent's pick. They're picked in the desk's own window.
+  // The answers, each a button that answers with it: the first is the agent's pick.
   private func options(_ q: Inquiry) -> some View {
-    VStack(alignment: .leading, spacing: 12) {
-      if !q.options.isEmpty {
-        VStack(alignment: .leading, spacing: 0) {
-          ForEach(Array(q.options.enumerated()), id: \.offset) { i, o in
-            VStack(alignment: .leading, spacing: 3) {
-              HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Text(o.answer ?? "").sans(15, 550).foregroundStyle(Theme.ink)
-                if i == 0 { Text("its pick").sans(12.5).foregroundStyle(Theme.pencil).fixedSize() }
-              }
-              if let next = o.next, !next.isEmpty {
-                Prose(text: next, size: 13.5).foregroundStyle(Theme.ink2).lineSpacing(3).fixedSize(horizontal: false, vertical: true)
-              }
+    VStack(alignment: .leading, spacing: 0) {
+      ForEach(Array(q.options.enumerated()), id: \.offset) { i, o in
+        Button {
+          answer(q, o.answer)
+        } label: {
+          VStack(alignment: .leading, spacing: 3) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+              Text(o.answer ?? "").sans(15, 600).foregroundStyle(Theme.accentInk).multilineTextAlignment(.leading)
+              if i == 0 { Text("its pick").sans(12.5).foregroundStyle(Theme.pencil).fixedSize() }
             }
-            .padding(.init(top: 11, leading: 14, bottom: 12, trailing: 14))
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .overlay(alignment: .top) { if i > 0 { Theme.rule.frame(height: 1) } }
+            if let next = o.next, !next.isEmpty {
+              Prose(text: next, size: 13.5).foregroundStyle(Theme.ink2).lineSpacing(3).multilineTextAlignment(.leading)
+                .fixedSize(horizontal: false, vertical: true)
+            }
           }
+          .padding(.init(top: 11, leading: 14, bottom: 12, trailing: 14))
+          .frame(maxWidth: .infinity, alignment: .leading)
+          .overlay(alignment: .top) { if i > 0 { Theme.rule.frame(height: 1) } }
+          .contentShape(Rectangle())
         }
-        .background(Theme.sheet, in: RoundedRectangle(cornerRadius: 10))
-        .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(Theme.rule, lineWidth: 1))
+        .buttonStyle(RowPress())
+        .disabled(store.busy(q.id))
+        .accessibilityHint("Answers with it")
       }
-      Text("Answering is done on the desk's computer.").sans(13).foregroundStyle(Theme.pencil)
     }
+    .background(Theme.sheet, in: RoundedRectangle(cornerRadius: 10))
+    .clipShape(RoundedRectangle(cornerRadius: 10))
+    .overlay(RoundedRectangle(cornerRadius: 10).strokeBorder(Theme.rule, lineWidth: 1))
   }
 
   private func answered(_ a: Inquiry.Answer) -> some View {
@@ -163,65 +200,80 @@ struct InquiryPage: View {
   }
 }
 
-// A Claude Code or Codex session that needs you, to read: why it's here, what it last said and where it runs. It lives
-// on the desk's computer, and so do Kick, Resume and Open.
+// A Claude Code or Codex session that needs you: why it's here, what it last said and where it runs. Kick and Resume
+// carry it on in the background on the desk's computer; Open and its attach command are for that computer.
 struct SessionPage: View {
   @Environment(Store.self) private var store
   let id: String
 
+  private var s: SessionCard? { store.queue?.sessions.first { $0.id == id } }
+
   var body: some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 12) {
-        if let s = store.queue?.sessions.first(where: { $0.id == id }) {
+        if let s {
           VStack(alignment: .leading, spacing: 6) {
-            Text("Session").sans(13, 600).foregroundStyle(Theme.pencil)
+            Dotted(parts: facts(s)).sans(13)
             Text(s.name ?? "").sans(22, 650, tracking: -0.015).foregroundStyle(Theme.ink).lineSpacing(1)
               .fixedSize(horizontal: false, vertical: true)
           }
           .padding(.bottom, 4)
-          Lead(label: Words.capitalized(s.reason ?? ""), text: "for \(Words.age(s.since, now: store.now)).", size: 14)
+          Lead(label: Words.capitalized(s.reason ?? ""), text: "for \(Words.age(s.since, now: store.now)).", size: 15)
           if let excerpt = s.excerpt, !excerpt.isEmpty {
-            Text(excerpt).sans(13).foregroundStyle(Theme.pencil).lineSpacing(3)
+            Text(excerpt).sans(13.5).foregroundStyle(Theme.ink2).lineSpacing(3)
               .padding(.leading, 12)
               .overlay(alignment: .leading) { Theme.ruleStrong.frame(width: 2) }
           }
-          Dotted(parts: facts(s)).sans(13)
           if s.kind == "cli", s.alive == true {
-            Text("It runs in a terminal: go back to it there.").sans(13).foregroundStyle(Theme.ink2)
+            Text("It runs in a terminal: go back to it there.").sans(13).foregroundStyle(Theme.pencil)
           } else if let resets = Words.date(s.resetsAt), resets > store.now {
-            Text("Kick it once its rate limit resets.").sans(13).foregroundStyle(Theme.ink2)
+            Text("Kick it once its rate limit resets.").sans(13).foregroundStyle(Theme.pencil)
+          } else if kick(s) == nil, s.actions?.isEmpty == false {
+            // Said once, where its button would be: Open and its attach command act on the computer it runs on.
+            Text("Open it on the desk's computer, where it runs.").sans(13).foregroundStyle(Theme.pencil)
           }
-          Theme.ruleStrong.frame(height: 1).padding(.top, 4)
-          if let held = held(s) { Text(held).sans(13).foregroundStyle(Theme.pencil) }
-          Button("Done") {
-            store.act(s.id, name: s.name ?? "", "done")
-            if !store.path.isEmpty { store.path.removeLast() }
-          }
-          .buttonStyle(PlainAct())
         } else {
           Text("This session doesn't need you any more.").sans(15).foregroundStyle(Theme.pencil)
         }
       }
       .padding(.horizontal, Theme.pad)
-      .padding(.top, 14)
-      .padding(.bottom, 32)
+      .padding(.top, 8)
+      .padding(.bottom, 20)
       .frame(maxWidth: .infinity, alignment: .leading)
     }
-    .background(Theme.paper)
-    .navigationBarTitleDisplayMode(.inline)
-    .toolbarBackground(Theme.paper, for: .navigationBar)
+    .openedPage()
+    .safeAreaInset(edge: .bottom, spacing: 0) {
+      if let s {
+        BottomBar(
+          cta: kick(s).flatMap { Words.sessionAction[$0] }, off: store.busy(s.id), press: { Task { if await store.kick(s) { back() } } },
+          quiet: [
+            Quiet(label: "Done") { _ in act(s, "done", nil) },
+            // A session snoozes until a time; done brings it back when it moves on.
+            Quiet(label: "Snooze", options: [SnoozeOption.times]) { act(s, "snooze", $0) },
+          ])
+      } else {
+        BottomBar()
+      }
+    }
   }
 
+  private func kick(_ s: SessionCard) -> String? { s.actions?.first { $0 == "kick" || $0 == "resume" } }
+
+  private func act(_ s: SessionCard, _ action: String, _ snooze: SnoozeOption?) {
+    store.act(s.id, name: s.name ?? "", action, snooze: snooze)
+    back()
+  }
+
+  private func back() {
+    if store.path.last == .session(id) { store.path.removeLast() }
+  }
+
+  // What it is and where: its kind, whether it runs, its folder (the last of its path) and branch.
   private func facts(_ s: SessionCard) -> [Dotted.Part] {
-    var out: [Dotted.Part] = [.init(Words.sessionKind[s.kind ?? ""] ?? (s.kind ?? "")), .init(s.cwd ?? ""), .init(s.branch ?? "")]
+    let folder = (s.cwd ?? "").split(whereSeparator: { $0 == "/" || $0 == "\\" }).last.map(String.init) ?? (s.cwd ?? "")
+    var out: [Dotted.Part] = [.init("\(Words.sessionKind[s.kind ?? ""] ?? (s.kind ?? "")) session")]
     if s.kind != "codex" { out.append(.init(s.alive == true ? "running" : "no process")) }
-    return out
-  }
-
-  private func held(_ s: SessionCard) -> String? {
-    let labels = (s.actions ?? []).compactMap { Words.sessionAction[$0] }
-    guard let first = labels.first else { return nil }
-    return "\(first) is done on the desk's computer, where it runs."
+    return out + [.init(folder), .init(s.branch ?? "")]
   }
 }
 
