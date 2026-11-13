@@ -193,6 +193,7 @@ desk pair
 ```
 
 - **A browser** (phone, laptop): open the link it prints, `https://<name>/pair#<code>`.
+- **The iPhone app**: the desk's address and the code. It pairs as a phone, and what you tap there counts as your click in the window.
 - **Another machine with an Inbox checkout**: `bin/desk connect https://<name> --code <code>` (add `codex` or `opencode`). It pairs and connects that machine's agent.
 - **A machine without a checkout**: run `desk pair --print` on the desk's computer and paste the commands it prints. They carry a token: treat it as a password.
 - **Codex and OpenCode** read the token from `INBOX_TOKEN`; the commands above print the `export` line.
@@ -202,7 +203,7 @@ Settings → Network → Tailscale lists paired devices; **Revoke** shuts one ou
 
 ## On your phone
 
-A small native iPhone app lives in [`ios/`](ios/README.md) (v0, Simulator only so far). It pairs as a device with `desk pair`, shows your Inbox, Blocked, Merging and the Archive, and triages (Done, Snooze, Mute, Undo). Approving, replying, merging and answering an agent stay in the desk's own window. [ios/README.md](ios/README.md) says how to build and run it.
+A small native iPhone app lives in [`ios/`](ios/README.md) (v0, Simulator only so far). It pairs as a phone with `desk pair`, shows your Inbox, Blocked, Merging and the Archive, and triages (Done, Snooze, Mute, Undo). The desk takes a paired phone as its own window, so anything the window does is open to it; the app is still growing into that. [ios/README.md](ios/README.md) says how to build and run it.
 
 ## Coordinator
 
@@ -288,7 +289,7 @@ A run that added something, couldn't, or failed notifies you. When a question's 
 - Merge on your PR's row, when it's approved (or needs no review), green, not a draft, not stacked and mergeable. It uses the repo's merge method, pinned to the commit the desk checked.
 - The More menu, when the desk allows it for that item: close, reopen, convert to draft or merge your PR, or re-request review from who reviewed it; request changes on someone else's, or take yourself off its reviewers; close an issue you opened or are assigned. The toast's Undo reopens or marks ready again.
 
-Everything else is read-only: GraphQL queries, GETs of your notifications (never marking them read) and of a PR's files. Agents can't reach the writer. Hand off for merge, Back to desk and hand-backs write nothing. The coordinator pushes and merges with your own `git` and `gh`.
+Everything else is read-only: GraphQL queries, GETs of your notifications (never marking them read) and of a PR's files. Agents can't reach the writer; a tap on your paired phone counts as your click. Hand off for merge, Back to desk and hand-backs write nothing. The coordinator pushes and merges with your own `git` and `gh`.
 
 **What it never does:**
 

@@ -112,7 +112,7 @@ Used by `when`, `filter` and criteria. No JS eval; only known signal fields.
 | merge (pinned with `expectedHeadOid`)              | press Merge on your own ready PR (its row's call to action, or the More menu) |
 | close, draft, reopen, request changes, close issue | use the More menu or a row's right-click menu                                 |
 
-Every write comes from a click in the desk's own window, is logged, and is recorded in the action log as something undo can't reverse. `Desk.actions()` decides which More-menu writes an item allows; anything else is a 409. No MCP tool or CLI command reaches `write.ts`. Adding a mutation is a product decision (AGENTS.md → Rules).
+Every write comes from a click in the desk's own window or a tap on your paired phone, is logged, and is recorded in the action log as something undo can't reverse. `Desk.actions()` decides which More-menu writes an item allows; anything else is a 409. No MCP tool or CLI command reaches `write.ts`. Adding a mutation is a product decision (AGENTS.md → Rules).
 
 ### Sync
 
@@ -249,9 +249,9 @@ Who it answers:
 
 - It binds `127.0.0.1` only.
 - It rejects a `Host` that isn't `localhost`/`127.0.0.1` (DNS rebinding), a foreign `Origin`, and API requests a browser marks `cross-site` or `same-site`.
-- GitHub writes and Ask your agent take only the desk's own page (`same-origin`, with its `Origin`).
+- GitHub writes and Ask your agent take only the desk's own page (`same-origin`, with its `Origin`) or, over Tailscale, a paired phone's token.
 - Allowed dev origins: the Vite dev server with `DESK_DEV=1` (5173, 5174 or `DESK_DEV_PORT`), and exactly `DESK_UI_ORIGIN` when the app runs from a checkout.
-- From other devices, only through `tailscale serve`, with a paired device's token (`src/remote.ts`; [api.md → Security model](api.md#security-model)).
+- From other devices, only through `tailscale serve`, with a paired device's token: a browser's cookie, a machine's (agents, the CLI) or a phone's (`src/remote.ts`; [api.md → Security model](api.md#security-model)).
 
 `GET /api/events` is SSE: `update` with a revision after any change, so clients refetch.
 

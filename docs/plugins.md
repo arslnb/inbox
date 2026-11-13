@@ -250,7 +250,7 @@ Required: `id`, `look`, `resolved`, `row`. The rest are optional; GitHub uses th
 
 **Pushing out.**
 
-- Writes go only through `write`, only via `Desk.write`, only from the window's routes (`fromDesk`), logged every time.
+- Writes go only through `write`, only via `Desk.write`, only from the window's routes (`fromDesk`: the window or your paired phone), logged every time.
 - GitHub's `write` is a plain switch over its writer. `src/github/write.ts` and its `ALLOWED` stay the complete list of mutations; the read client keeps refusing every `mutation`.
 - Only `write` gets the writer, so `look`, `react` and the loops never hold it.
 - Without a writer, GitHub's row leaves out `cta` and `actions`, as today. Reply isn't gated on a writer, as today.
@@ -282,7 +282,7 @@ queries = ["is:open is:pr review-requested:{me}"]
 
 - Each has a stable id, a name, one plain line of what it does, whether it's on by default, and its definition (trigger, `when`, `decide`, `can`, a rule's action and why).
 - The core runs them through `src/automations.ts` as yours, with every guarantee yours have, as `<plugin>.<id>`.
-- The owner only switches one (kv `automations_builtin`, from the window only). A release that changes one takes effect; one dropped from code is gone. To change one: Copy to your automations (an editable copy, off).
+- The owner only switches one (kv `automations_builtin`, from the window or your paired phone only). A release that changes one takes effect; one dropped from code is gone. To change one: Copy to your automations (an editable copy, off).
 - Generic only: no person, repo or topic. Rule-only ones may be on by default; anything needing a model is off.
 - GitHub's, on: Pick a reviewer, Follow up on silent reviewers, Team reviews someone else took, Wide team pings. Off: Snooze while CI is red, Questions in mentions.
 
@@ -319,7 +319,7 @@ Your own Claude Code and Codex sessions on this computer that are blocked on you
 - **Follows the one rule already.** Each pass derives the fact (blocked or stalled, and why). An item exists only while the fact holds, so a session that moves on, ends, or is archived resolves itself.
 - **Core verbs work on it.** Done, snooze, mute and undo act on its id (`session:<id>`), in the `state` table and action log like any item.
 - **Not a `Connector` yet**, because the recompute still reads every item as GitHub's. Its cards live in memory and reach the core the way questions do: `QueueView.sessions`, `FocusView.sessions`, `Desk.sessionAct()`, `desk_list`, `desk_item` (`GET /api/sessions/:id`).
-- **Its writes are a session's, never GitHub's,** from the window only: Kick and Resume (`claude --resume <id> --bg`, through the coordinator's `halt()`), and Open (the desktop app's or Codex's link).
+- **Its writes are a session's, never GitHub's,** from the window or your paired phone only: Kick and Resume (`claude --resume <id> --bg`, through the coordinator's `halt()`), and Open (the desktop app's or Codex's link).
 - **Settings:** its own part, Sessions (`sessions.enabled`, `sessions.ask`, `sessions.quiet_minutes`). No built-in automations (`automations: false`).
 
 When the core takes plugins:
