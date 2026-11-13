@@ -78,14 +78,20 @@ final class Store {
 
   private static let addressKey = "desk.address"
   private static let deviceKey = "desk.device"
+  private static let phoneKey = "desk.phone"  // paired as a phone: an older pairing's token is a machine's, refused every write
 
   init(defaults: UserDefaults = .standard, session: URLSession = APIClient.plain) {
     self.defaults = defaults
     self.session = session
     if let saved = defaults.string(forKey: Store.addressKey), case .success(let parsed) = DeskAddress.parse(saved) {
       let token = Keychain.read(for: parsed.address.text)
-      // A tailnet address without its token can't ask anything: back to pairing.
-      if parsed.address.isLocal || token != nil {
+      if !parsed.address.isLocal, token != nil, !defaults.bool(forKey: Store.phoneKey) {
+        Keychain.delete(for: parsed.address.text)
+        lastAddress = parsed.address.text
+        connectNote =
+          "This phone was paired before it could act for you. Pair it again: desk pair on the desk's computer prints a code. Its old pairing can be revoked there, in Settings → This device."
+      } else if parsed.address.isLocal || token != nil {
+        // A tailnet address without its token can't ask anything: back to pairing.
         address = parsed.address
         deviceName = defaults.string(forKey: Store.deviceKey)
         client = APIClient(address: parsed.address, token: token, session: session)
@@ -131,6 +137,7 @@ final class Store {
     }
     defaults.set(address.text, forKey: Store.addressKey)
     defaults.set(device, forKey: Store.deviceKey)
+    defaults.set(!address.isLocal, forKey: Store.phoneKey)
     adopt(address, device: device, client: fresh)
     return nil
   }
@@ -175,6 +182,7 @@ final class Store {
     stopLive()
     if let address { Keychain.delete(for: address.text) }
     defaults.removeObject(forKey: Store.deviceKey)
+    defaults.removeObject(forKey: Store.phoneKey)
     if note == nil { defaults.removeObject(forKey: Store.addressKey) }
     lastAddress = note == nil ? "" : (address?.text ?? "")
     address = nil

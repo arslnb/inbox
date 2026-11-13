@@ -245,6 +245,25 @@ final class StoreTests: XCTestCase {
     XCTAssertEqual(again.deviceName, "Greg's iPhone")
   }
 
+  // Paired by a build that paired as a machine: its token is refused every write, in words that point at the window.
+  // The next launch forgets it and asks to pair again, with the address kept.
+  func testAPhonePairedAsAMachinePairsAgain() async {
+    defaults.set(address, forKey: "desk.address")
+    defaults.set("Greg's iPhone", forKey: "desk.device")
+    XCTAssertTrue(Keychain.save("inbox_old", for: address))
+    let store = Store(defaults: defaults, session: StubProtocol.session())
+    XCTAssertNil(store.address)
+    XCTAssertEqual(store.connectNote?.contains("Pair it again"), true)
+    XCTAssertEqual(store.lastAddress, address)
+    XCTAssertNil(Keychain.read(for: address))
+    // Paired again, as a phone, it stays.
+    StubProtocol.reset(["/api/pair": pair])
+    let said = await store.connect(typed: address, code: "ABCD-2345")
+    store.stopLive()
+    XCTAssertNil(said)
+    XCTAssertEqual(Store(defaults: defaults, session: StubProtocol.session()).address?.text, address)
+  }
+
   // A code typed before (and already tried) never rides along with a pasted link: the link's own code is the one traded.
   func testAPairingLinksCodeWinsOverOneTypedBefore() async throws {
     StubProtocol.reset(["/api/pair": pair])
