@@ -239,7 +239,7 @@ After you answer, the question leaves the main page and is owed to whoever asked
 | ------ | -------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------ |
 | GET    | `/api/sessions/:id`        | `SessionCard` of a session that needs you now; 404 once it doesn't ([Sessions](#sessions))                                                                                                            |              |
 | POST   | `/api/sessions/:id/kick`   | `{ ok, args, note }`: Kick or Resume in background. Own page only. 409 while its process runs, before its rate limit resets, or for a kind it isn't for                                               | ✓            |
-| POST   | `/api/sessions/:id/open`   | `{ ok, url }`: opens its `claude://` or `codex://` link on the desk's computer. Own page only; 409 with no link                                                                                       | ✓            |
+| POST   | `/api/sessions/:id/open`   | `{ ok, url }`: opens its `claude://` or `codex://` link on the desk's computer. Own page only, and not a phone (403); 409 with no link                                                                | ✓            |
 | GET    | `/api/automations`         | `AutomationView[]` ([Automations](#automations))                                                                                                                                                      |              |
 | PUT    | `/api/automations/:id`     | `AutomationBody` → `{ ok, automation }`: creates or replaces one of yours. From the own page `on` is as sent; from anything else a new or changed automation is off. 400 for a plugin's or a bad body | ✓ (`on`)     |
 | PUT    | `/api/automations/:id/on`  | `{ on }` → `{ ok, automation }`: switches a plugin's (`github.<id>`). Own page only; 404 for one of yours (its switch is its PUT)                                                                     | ✓            |
@@ -1165,7 +1165,7 @@ The Inbox's sections, Urgent, Standard and FYI, and their order come from `src/u
 
 - Yours are in kv `criteria` (`Criterion` in `src/types.ts`). A plugin's are in its file (`Connector.criteria`; GitHub's in `src/connectors/github-criteria.ts`), switched in kv `criteria_builtin`.
 - Each has an id, a name, and at least one of: `when` (the rules' language, free and exact, compiled on save) and `ask` (a question for a model, asked only of items whose `when` passes). `urgent`: a yes puts the item in Urgent whatever its score. A plugin's may carry a `weight`: the points a yes adds to the desk's own score (1 unless set), and the scorer reads it as "counts 3 times".
-- A criterion only orders the Inbox and never acts on an item, so one an agent saves is on at once (`by: "an agent"`). Any local client may save or delete yours; only the window switches one (403 otherwise).
+- A criterion only orders the Inbox and never acts on an item, so one an agent saves is on at once (`by: "an agent"`). Any local client may save or delete yours; only the window or your paired phone switches one (403 otherwise).
 - An urgent yes brings even an item the rules or the judge hid onto the Inbox.
 
 GitHub's are rule-only, so a fresh desk sections from its first sync:

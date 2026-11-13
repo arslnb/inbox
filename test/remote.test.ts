@@ -261,6 +261,70 @@ test("a phone's token is a phone's only over the tailnet, as a bearer, for the o
   assert.equal((await answer(bearer(phone))).status, 401);
 });
 
+test("every route kept for the window takes a phone's token and refuses a machine's; a phone's from another origin is refused, and one that isn't spelled phone is a machine's", async (c) => {
+  const t = await setup([myPr(3, { ci: "pending" })]);
+  c.after(t.cleanup);
+  const phone = await t.token("phone");
+  const machine = await t.token();
+  const send = (tok: string, method: string, p: string, body: unknown = {}, headers: Record<string, string> = {}) =>
+    t.viaTailnet(p, { method, headers: { ...t.json, ...bearer(tok), ...headers }, body: JSON.stringify(body) });
+  // Each past the check for the phone, to whatever the route says of a body or an id that isn't there.
+  const routes: [string, string, unknown, number][] = [
+    ["POST", "/api/github", { id: "acme/web#3", action: "nope" }, 400],
+    ["POST", "/api/review/acme%2Fweb%233/comment", { body: "" }, 400],
+    ["POST", "/api/review/acme%2Fweb%233/reply", {}, 400],
+    ["POST", "/api/ask", {}, 400],
+    ["POST", "/api/sessions/nope/kick", {}, 404],
+    ["PUT", "/api/automations/nope/on", {}, 400],
+    ["DELETE", "/api/automations/nope", {}, 404],
+    ["PUT", "/api/criteria/nope/on", {}, 400],
+    ["PUT", "/api/settings", { reset: ["agent.decision_key"] }, 200],
+  ];
+  for (const [method, p, body, past] of routes) {
+    assert.equal((await send(machine, method, p, body)).status, 403, `a machine's token: ${method} ${p}`);
+    assert.equal((await send(phone, method, p, body)).status, past, `a phone's token: ${method} ${p}`);
+  }
+  // Open starts an app on the desk's computer: a window's only.
+  assert.equal((await send(phone, "POST", "/api/sessions/nope/open")).status, 403);
+  const devices = (await (await t.local("/api/remote")).json()) as { devices: { id: string }[] };
+  assert.equal((await send(machine, "DELETE", `/api/devices/${devices.devices[0]!.id}`)).status, 403, "a machine revokes nothing");
+  // The token alone is enough only from no page at all: another site's page holding it is still refused.
+  assert.equal((await send(phone, "POST", "/api/ask", {}, { origin: "https://evil.example" })).status, 403);
+  assert.equal((await send(phone, "POST", "/api/ask", {}, { "sec-fetch-site": "cross-site" })).status, 403);
+  for (const kind of ["Phone", ["phone"], "phone "]) {
+    const res = await t.viaTailnet("/api/pair", { method: "POST", headers: t.json, body: JSON.stringify({ code: await t.mint(), kind }) });
+    const paired = (await res.json()) as { token: string; device: { kind: string } };
+    assert.equal(paired.device.kind, "device", JSON.stringify(kind));
+    assert.equal((await send(paired.token, "POST", "/api/ask")).status, 403);
+  }
+});
+
+test("MCP called with a phone's token is still an agent: its tools reach no route kept for the window", async (c) => {
+  const t = await setup([myPr(3, { ci: "pending" })]);
+  c.after(t.cleanup);
+  const phone = await t.token("phone");
+  const post = (p: string, body: unknown) =>
+    t.viaTailnet(p, { method: "POST", headers: { ...t.json, ...bearer(phone) }, body: JSON.stringify(body) });
+  assert.equal((await post("/api/act", { id: "acme/web#3", action: "inflight" })).status, 200);
+  const back = (await (await post("/api/act", { id: "acme/web#3", action: "takeback" })).json()) as { undo_seq: number };
+  const far = remoteFetch(t.app);
+  const client = new Client({ name: "test", version: "0" });
+  await client.connect(
+    new StreamableHTTPClientTransport(new URL(`${AT}/mcp`), {
+      fetch: (url, init) => {
+        const headers = new Headers(init?.headers);
+        headers.set("tailscale-user-login", OWNER);
+        return Promise.resolve(far(new Request(url, { ...init, headers })));
+      },
+      requestInit: { headers: bearer(phone) },
+    }),
+  );
+  const undone = await client.callTool({ name: "desk_undo", arguments: { seq: back.undo_seq } });
+  assert.ok(undone.isError, JSON.stringify(undone.content));
+  await client.close();
+  assert.equal((await post("/api/undo", { seq: back.undo_seq })).status, 200, "the phone itself may");
+});
+
 test("MCP over /mcp from another device: with a token it lists the tools; without one it's 401", async (c) => {
   const t = await setup();
   c.after(t.cleanup);

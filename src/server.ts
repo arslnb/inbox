@@ -761,7 +761,7 @@ export function createApp(desk: Desk, port: number, remote: Remote = new Remote(
     });
     return respond(c, answer, { log });
   });
-  // Sessions that need you (src/connectors/sessions.ts): anyone may read one; only the desk's window or your paired phone starts or opens one.
+  // Sessions that need you (src/connectors/sessions.ts): anyone may read one; only the desk's window or your paired phone starts one, and only a window opens one (its link opens on the desk's computer).
   app.get("/api/sessions/:id", (c) => respond(c, desk.session(c.req.param("id")), { log, read: true }));
   app.post("/api/sessions/:id/kick", (c) => {
     const kick = Effect.gen(function* () {
@@ -772,7 +772,7 @@ export function createApp(desk: Desk, port: number, remote: Remote = new Remote(
   });
   app.post("/api/sessions/:id/open", (c) => {
     const open = Effect.gen(function* () {
-      if (!fromDesk(c)) return yield* new Forbidden({ message: "open a session from the desk's window" });
+      if (!fromDesk(c) || VIA.get(c.req.raw) === "phone") return yield* new Forbidden({ message: "open a session from the desk's window" });
       return { ok: true, ...(yield* desk.openSession(c.req.param("id"))) };
     });
     return respond(c, open, { log });
