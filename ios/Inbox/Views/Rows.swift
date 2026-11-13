@@ -3,8 +3,8 @@ import SwiftUI
 // The window's two-line row (CardRow's `compact`, web/src/styles.css `.c-row`): the title, at most two lines; then one
 // line of facts with a dot between them, the row's call to action as accent text, and its age at the right.
 
-// A row's facts on one line. When they don't fit, a long repo name gives way first, then the why, then the last fact,
-// each down to a few letters; the rest never shrink.
+// A row's facts on one line. When they don't fit, a long repo name gives way first, then the last fact (its stage), then
+// the why, which is what the row is there to say; each down to a few letters; the rest never shrink.
 struct MetaLine: Layout {
   struct Shrink: LayoutValueKey {
     static let defaultValue: (order: Int, floor: CGFloat)? = nil
@@ -140,7 +140,7 @@ struct RowLines: View {
     if let s = fact.shrink {
       text.shrinks(s.order, floor: s.floor)
     } else if last {
-      text.shrinks(2, floor: 56)
+      text.shrinks(1, floor: 56)
     } else {
       text.fixedSize()
     }
@@ -200,13 +200,15 @@ struct CardRow: View {
     var out: [Fact] = []
     switch variant {
     case .active:
-      if let reason = card.reason, !reason.isEmpty { out.append(Fact(text: Words.capitalized(reason), shrink: (1, 70))) }
+      if let reason = card.reason, !reason.isEmpty { out.append(Fact(text: Words.capitalized(reason), shrink: (2, 70))) }
     case .note(let note):
-      if !note.isEmpty { out.append(Fact(text: note, shrink: (1, 70))) }
+      if !note.isEmpty { out.append(Fact(text: note, shrink: (2, 70))) }
     case .blocked: break
     }
     // A call to action says the row is yours: there "by you" goes, so its stage keeps its room.
-    if let by = card.by, !(cta != nil && card.mine) { out.append(Fact(text: "by \(by)", tone: card.mine ? .ink2 : .pencil)) }
+    // Nor where the why already names them ("Priya waits on your review").
+    let named = !card.mine && (card.reason ?? "").lowercased().contains((card.by ?? "").lowercased())
+    if let by = card.by, !(cta != nil && card.mine), !named { out.append(Fact(text: "by \(by)", tone: card.mine ? .ink2 : .pencil)) }
     // Amber only on yours, where it's work for you.
     if case .active = variant, let stage = card.stage {
       out.append(Fact(text: stage, tone: stage == "changes requested" && card.mine ? .amber : .pencil))
@@ -234,11 +236,12 @@ struct SessionRow: View {
 
   var body: some View {
     let folder = (s.cwd ?? "").split(whereSeparator: { $0 == "/" || $0 == "\\" }).last.map(String.init) ?? (s.cwd ?? "")
-    let first = s.actions?.first
+    // Only what this phone can press: Open and the attach command are for the desk's computer.
+    let first = s.actions?.first { $0 == "kick" || $0 == "resume" }
     // At a phone's width the reason stays and the kind goes, as the window's narrow table has it.
     RowLines(
       kind: "Session", title: s.name ?? "", repo: folder, facts: [Fact(text: s.reason ?? "")],
-      cta: first == "attach" ? nil : first.flatMap { Words.sessionAction[$0] }, age: Words.age(s.since, now: now)
+      cta: first.flatMap { Words.sessionAction[$0] }, age: Words.age(s.since, now: now)
     )
     .accessibilityElement(children: .combine)
   }
