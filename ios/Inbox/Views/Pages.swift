@@ -1,7 +1,7 @@
 import SwiftUI
 
-// An agent's question on its own page: what it's about, everything it said, each answer with what it leads to (a press
-// answers with it), then its links. Answer at its foot takes your own words. Its text is the agent's: text only.
+// An agent's question on its own page: the question, each answer with what it leads to (a press answers with it), then
+// what it's about, everything it said and its links. Answer at its foot takes your own words. Its text is the agent's: text only.
 struct InquiryPage: View {
   @Environment(Store.self) private var store
   @Environment(\.openURL) private var openURL
@@ -18,9 +18,10 @@ struct InquiryPage: View {
       VStack(alignment: .leading, spacing: 24) {
         if let q {
           head(q)
+          // Its answers straight under the question, where a press reaches them without a scroll.
+          if let answer = q.answer { answered(answer) } else if !q.options.isEmpty { options(q) }
           if let item = q.itemId { about(item, q.card ?? store.card(item)) }
           context(q)
-          if let answer = q.answer { answered(answer) } else if !q.options.isEmpty { options(q) }
           if !q.links.isEmpty { links(q) }
         } else if let failed {
           Text(failed).sans(14).foregroundStyle(Theme.red)
@@ -165,7 +166,8 @@ struct InquiryPage: View {
         } label: {
           VStack(alignment: .leading, spacing: 3) {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
-              Text(o.answer ?? "").sans(15, 600).foregroundStyle(Theme.accentInk).multilineTextAlignment(.leading)
+              // Ink: the page's one accent is the bar's Answer.
+              Text(o.answer ?? "").sans(15, 600).foregroundStyle(Theme.ink).multilineTextAlignment(.leading)
               if i == 0 { Text("its pick").sans(12.5).foregroundStyle(Theme.pencil).fixedSize() }
             }
             if let next = o.next, !next.isEmpty {
