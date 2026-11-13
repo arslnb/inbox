@@ -345,9 +345,17 @@ final class Store {
 
   func busy(_ id: String) -> Bool { sending.contains(id) }
 
+  // Why the last write wasn't taken, for a sheet to say (it covers the bubbles): the desk's own words where it gave any.
+  private(set) var whyNot: String?
+
   // `leaves`: the row goes at once, as in the window, and is back if the desk refuses.
   private func write(_ id: String, leaves: Bool = false, _ run: (APIClient) async throws -> Toast) async -> Bool {
-    guard let client, !sending.contains(id) else { return false }
+    guard let client else { return false }
+    if sending.contains(id) {
+      whyNot = "Something else is still on its way for it: try again in a moment."
+      return false
+    }
+    whyNot = nil
     sending.insert(id)
     if leaves { withAnimation(.easeOut(duration: 0.2)) { _ = leaving.insert(id) } }
     defer {
@@ -361,8 +369,18 @@ final class Store {
       return true
     } catch let e as APIError {
       took(e, action: true)
-      // A refusal often means what's on screen is old (new commits, already answered): read it again.
-      if case .refused = e { await load() }
+      switch e {
+      case .unreachable, .notDesk:
+        // No answer isn't a no: a write that reached the desk lands whether or not its answer got back. Read what it has.
+        whyNot = "The desk didn't answer, so it may or may not have been sent. Look before sending it again."
+        Task { await load() }
+      case .starting(let m), .rules(let m): whyNot = m
+      case .refused(_, let m):
+        whyNot = m
+        // A refusal often means what's on screen is old (new commits, already answered): read it again.
+        await load()
+      case .unpaired: break
+      }
       return false
     } catch { return false }
   }

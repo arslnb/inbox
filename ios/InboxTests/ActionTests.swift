@@ -292,6 +292,30 @@ final class StoreWriteTests: XCTestCase {
     XCTAssertFalse(took)
     XCTAssertTrue(store.offline)
     XCTAssertNil(store.toast)
+    // No answer isn't a no: the desk may have taken it, so nothing says it wasn't sent, and the desk is read again.
+    XCTAssertEqual(store.whyNot, "The desk didn't answer, so it may or may not have been sent. Look before sending it again.")
+    for _ in 0..<150 where store.offline { try await Task.sleep(for: .milliseconds(20)) }
+    XCTAssertFalse(store.offline, "the desk answers its reads: it isn't away")
+  }
+
+  // A sheet covers the bubbles, so it says why itself: the desk's own words for a refusal and for a desk still starting.
+  func testWhyAWriteWasNotTaken() async throws {
+    let c = try card("acme/worker#860")
+    try desk(["/api/review/acme/worker#860/comment": no(503, "desk is starting; the first sync can take a minute")])
+    var took = await store.comment(c, body: "On it")
+    XCTAssertFalse(took)
+    XCTAssertEqual(store.whyNot, "desk is starting; the first sync can take a minute")
+    try desk(["/api/review/acme/worker#860/comment": no(409, "can't comment on acme/worker#860: it's closed")])
+    took = await store.comment(c, body: "On it")
+    XCTAssertEqual(store.whyNot, "can't comment on acme/worker#860: it's closed")
+    try desk(["/api/review/acme/worker#860/comment": Answer(hangs: true)])
+    let first = Task { await self.store.comment(c, body: "On it") }
+    for _ in 0..<150 where StubProtocol.requests().isEmpty { try await Task.sleep(for: .milliseconds(20)) }
+    XCTAssertNil(store.whyNot, "nothing yet")
+    took = await store.comment(c, body: "Again")
+    XCTAssertFalse(took)
+    XCTAssertEqual(store.whyNot, "Something else is still on its way for it: try again in a moment.")
+    first.cancel()
   }
 
   // While one is on its way, a second press sends nothing; the row has left at once.

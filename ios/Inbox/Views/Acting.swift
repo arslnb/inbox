@@ -193,10 +193,8 @@ extension WriteSheet where Above == EmptyView {
 // Runs a write from a sheet, which covers the bubbles: nil once the desk took it, else why not, in the desk's words.
 @MainActor
 func refusal(_ store: Store, _ write: () async -> Bool) async -> String? {
-  let before = store.failures.last?.id
   if await write() { return nil }
-  if let said = store.failures.last, said.id != before { return Words.sentence(said.title) }
-  return "The desk can't be reached: it wasn't sent."
+  return Words.sentence(store.whyNot ?? "It wasn't sent")
 }
 
 struct SheetHead: View {
