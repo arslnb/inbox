@@ -289,7 +289,7 @@ struct NoticeStack: View {
       if let toast = store.toast {
         HStack(spacing: 14) {
           Text(toast.text).sans(13).foregroundStyle(Theme.paper).lineLimit(2)
-          if toast.undo != nil {
+          if toast.undoable {
             Button {
               store.undo()
             } label: {
@@ -301,7 +301,7 @@ struct NoticeStack: View {
             .buttonStyle(.plain)
           }
         }
-        .padding(.init(top: 8, leading: 16, bottom: 8, trailing: toast.undo == nil ? 16 : 8))
+        .padding(.init(top: 8, leading: 16, bottom: 8, trailing: toast.undoable ? 8 : 16))
         .background(Theme.ink, in: RoundedRectangle(cornerRadius: 12))
         .shadow(color: .black.opacity(0.14), radius: 12, y: 6)
         .transition(.move(edge: .bottom).combined(with: .opacity))

@@ -95,6 +95,19 @@ enum Words {
     "merge": "Merge",
   ]
 
+  // The More menu's GitHub writes (Card.actions), by label, as More.tsx's MORE; an issue's close is "Close issue".
+  static let more: [String: String] = [
+    "close": "Close", "draft": "Convert to draft", "ready": "Ready for review", "merge": "Merge now", "reopen": "Reopen",
+    "request_changes": "Request changes", "rerequest": "Re-request review", "unrequest": "Remove me as a reviewer",
+  ]
+
+  // What each says it did, as App.tsx's DID; its toast adds ": <ref>".
+  static let did: [String: String] = [
+    "close": "Closed on GitHub", "draft": "Converted to a draft on GitHub", "merge": "Merged on GitHub", "reopen": "Reopened on GitHub",
+    "request_changes": "Requested changes on GitHub", "rerequest": "Asked them to review it again on GitHub",
+    "unrequest": "Took you off its reviewers on GitHub",
+  ]
+
   static let sessionKind: [String: String] = ["cli": "CLI", "background": "Background", "desktop": "Desktop", "codex": "Codex"]
   static let sessionAction: [String: String] = [
     "kick": "Kick", "resume": "Resume in background", "attach": "Copy attach command", "open": "Open",
@@ -293,7 +306,7 @@ enum Lists {
   // What the Inbox counts: Urgent and Standard, an agent's question and a session that needs you; less rows on their way off.
   static func inboxCount(_ v: QueueView, leaving: Set<String> = []) -> Int {
     let cards = (v.inbox?.urgent ?? []) + (v.inbox?.standard ?? [])
-    return cards.filter { !leaving.contains($0.id) }.count + v.inquiries.count
+    return cards.filter { !leaving.contains($0.id) }.count + v.inquiries.filter { !leaving.contains($0.id) }.count
       + v.sessions.filter { $0.status == "active" && !leaving.contains($0.id) }.count
   }
 

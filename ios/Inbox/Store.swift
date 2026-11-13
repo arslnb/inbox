@@ -26,6 +26,14 @@ struct Toast: Equatable {
   let id = UUID()
   let text: String
   var undo: Int?  // the action's undo_seq, while Undo is offered
+  var revert: Revert?  // a GitHub write Undo takes back with another: a closed PR reopened, a draft made ready again
+
+  struct Revert: Equatable {
+    let id: String
+    let to: String  // "reopen" | "ready"
+  }
+
+  var undoable: Bool { undo != nil || revert != nil }
 }
 
 // Everything the views draw from: which desk, what it last said, and what you just did. The desk decides what's on each
@@ -52,6 +60,7 @@ final class Store {
   private(set) var broken: String?
   private(set) var refused: String?  // the desk's words for a read it wouldn't give (another Tailscale login, a desk this app can't read)
   private(set) var leaving: Set<String> = []
+  private(set) var sending: Set<String> = []  // what has a write on its way: an item's, question's or session's id
   private(set) var toast: Toast?
   private(set) var failures: [Notice] = []
   private(set) var deskVersion: String?
@@ -152,6 +161,7 @@ final class Store {
     broken = nil
     refused = nil
     leaving = []
+    sending = []
     toast = nil
     failures = []
     dismissed = [:]
@@ -299,7 +309,7 @@ final class Store {
     return c.active && c.resolved == nil
   }
 
-  // done, snooze, mute, unmute, restore: what a paired device may do. The row leaves at once, and comes back if the desk refuses.
+  // done, snooze, mute, unmute, restore: triage, with the desk's own Undo. The row leaves at once, and comes back if the desk refuses.
   func act(_ id: String, name: String, _ action: String, snooze: SnoozeOption? = nil) {
     guard let client else { return }
     let leaves = leaves(id, action)
@@ -318,6 +328,160 @@ final class Store {
     }
   }
 
+  // MARK: Writing (a paired phone is your hands, like the desk's window)
+  //
+  // Each of these sends one write and answers whether the desk took it, so a page can keep a draft that wasn't sent:
+  //   Task { if await store.comment(card, body: draft) { draft = "" } }
+  // While it's on its way `busy(id)` is true and a second press sends nothing. A success shows the window's toast and
+  // reads the desk again; a refusal (403, 409, 5xx) shows the desk's own words in a bubble. Nothing asks twice.
+
+  func busy(_ id: String) -> Bool { sending.contains(id) }
+
+  // `leaves`: the row goes at once, as in the window, and is back if the desk refuses.
+  private func write(_ id: String, leaves: Bool = false, _ run: (APIClient) async throws -> Toast) async -> Bool {
+    guard let client, !sending.contains(id) else { return false }
+    sending.insert(id)
+    if leaves { withAnimation(.easeOut(duration: 0.2)) { _ = leaving.insert(id) } }
+    defer {
+      sending.remove(id)
+      leaving.remove(id)
+    }
+    do {
+      let said = try await run(client)
+      flash(said.text, revert: said.revert)
+      await load()
+      return true
+    } catch let e as APIError {
+      took(e, action: true)
+      // A refusal often means what's on screen is old (new commits, already answered): read it again.
+      if case .refused = e { await load() }
+      return false
+    } catch { return false }
+  }
+
+  // Approve, pinned to the commit the item was read at (ItemDetail.item.headOid). Offered on someone else's open PR;
+  // ReviewRead.approve says why not when the review was read, else the desk's 409 does. The window sends no comment with it.
+  @discardableResult
+  func approve(_ c: Card, head: String, body: String? = nil) async -> Bool {
+    await write(c.id, leaves: true) { client in
+      _ = try await client.approve(c.id, head: head, body: body)
+      return Toast(text: "Approved \(c.shortRef) on GitHub")
+    }
+  }
+
+  // A comment on a PR or an issue. The desk marks it done.
+  @discardableResult
+  func comment(_ c: Card, body: String) async -> Bool {
+    await write(c.id, leaves: true) { client in
+      _ = try await client.comment(c.id, body: body)
+      return Toast(text: "Commented on \(c.shortRef) on GitHub")
+    }
+  }
+
+  // A reply in one conversation of fetchReview()'s. The item leaves the desk only if this was the last one waiting on
+  // you, which the next read says; read the review again to see the reply in its conversation.
+  @discardableResult
+  func reply(_ c: Card, to conversation: Conversation, body: String) async -> Bool {
+    await write(c.id) { client in
+      _ = try await client.reply(c.id, to: conversation.id, body: body)
+      return Toast(text: "Sent your reply to \(conversation.comments.last?.author ?? "them")")
+    }
+  }
+
+  // Ready for review on your draft, asking whoever was picked from fetchReviewers() (nobody: the row's own button).
+  @discardableResult
+  func ready(_ c: Card, asking picked: [Reviewer] = []) async -> Bool {
+    let names = picked.map(\.login).joined(separator: ", ")
+    return await write(c.id, leaves: true) { client in
+      do {
+        let r = try await client.ready(c.id, users: picked.filter { $0.team != true }.map(\.id), teams: picked.filter { $0.team == true }.map(\.id))
+        let did = "Marked \(c.shortRef) ready for review\(names.isEmpty ? "" : " and asked \(names)") on GitHub"
+        return Toast(text: r.done == false ? "\(did). Nobody's asked to review it yet" : did)
+      } catch APIError.refused(let status, let m) where m.hasPrefix("Marked it ready") && !names.isEmpty {
+        // Half done (tag ReviewersNotAsked): it is ready, the requests weren't sent, and nothing is rolled back.
+        throw APIError.refused(status: status, message: "\(m). Ask \(names) on GitHub.")
+      }
+    }
+  }
+
+  // Ask reviewers on your ready PR. Without `keep` it leaves the desk (they have it now); `keep` adds one more and it stays.
+  @discardableResult
+  func askReviewers(_ c: Card, _ picked: [Reviewer], keep: Bool = false) async -> Bool {
+    let names = picked.map(\.login).joined(separator: ", ")
+    return await write(c.id, leaves: !keep) { client in
+      try await client.askReviewers(c.id, users: picked.filter { $0.team != true }.map(\.id), teams: picked.filter { $0.team == true }.map(\.id), keep: keep)
+      return Toast(text: "Asked \(names) to review \(c.shortRef) on GitHub")
+    }
+  }
+
+  // The row's Merge and the More menu: one of Card.actions (Words.more names them). `head` pins merge and request_changes
+  // to the commit read (request_changes needs it, and `body`: what needs to change). "ready" goes the way of ready().
+  // Close, merge, request changes and unrequest take it off the desk at once; the toast's Undo reopens a closed PR and
+  // makes a converted draft ready again.
+  @discardableResult
+  func github(_ c: Card, _ action: String, head: String? = nil, body: String? = nil) async -> Bool {
+    if action == "ready" { return await ready(c) }
+    return await write(c.id, leaves: ["close", "merge", "request_changes", "unrequest"].contains(action)) { client in
+      _ = try await client.github(c.id, action, head: head, body: body)
+      let to = action == "close" && c.isPR ? "reopen" : action == "draft" ? "ready" : nil
+      return Toast(text: "\(Words.did[action] ?? Words.capitalized(action)): \(c.shortRef)", revert: to.map { Toast.Revert(id: c.id, to: $0) })
+    }
+  }
+
+  // Undo of a close or a draft, as the window: another write. Ready for review took it off the desk, so that is undone too.
+  private func undoWrite(_ w: Toast.Revert) {
+    toast = nil
+    Task {
+      _ = await write(w.id) { client in
+        if w.to == "ready" {
+          if try await client.ready(w.id).done == true { _ = try await client.act(w.id, "undo") }
+        } else {
+          _ = try await client.github(w.id, "reopen")
+        }
+        let short = w.id.replacingOccurrences(of: #"^[^/]+/"#, with: "", options: .regularExpression)
+        return Toast(text: "Undid it on GitHub: \(short) is \(w.to == "ready" ? "ready for review" : "open") again")
+      }
+    }
+  }
+
+  // Hand off for merge: your agent gets it merged. Offer it when card.handsOff. No Undo: Back to desk is the undo.
+  @discardableResult
+  func handOff(_ c: Card) async -> Bool {
+    await write(c.id, leaves: true) { client in
+      _ = try await client.act(c.id, "inflight")
+      return Toast(text: "Handed off for merge: \(c.shortRef). Your agent gets it merged.")
+    }
+  }
+
+  // Back to desk, from Merging (card.inflight).
+  @discardableResult
+  func backToDesk(_ c: Card) async -> Bool {
+    await write(c.id, leaves: true) { client in
+      _ = try await client.act(c.id, "takeback")
+      return Toast(text: "Back on your desk: \(c.shortRef)")
+    }
+  }
+
+  // Your answer to an agent's question: one of its options' words or your own; nil dismisses it (the agent decides itself).
+  // Its row leaves the Inbox at once (`leaving` has its id). Answering the coordinator wakes it, as in the window.
+  @discardableResult
+  func answer(_ q: Inquiry, text: String?) async -> Bool {
+    await write(q.id, leaves: true) { client in
+      _ = try await client.answer(q.id, text: text)
+      return Toast(text: text == nil ? "Dismissed \(Words.fromName(q.from, start: false))'s question" : "Answered \(Words.fromName(q.from, start: false))")
+    }
+  }
+
+  // Kick or Resume (whichever SessionCard.actions has): the session carries on in the background on the desk's computer.
+  // Open and attach are for that computer and aren't offered from here.
+  @discardableResult
+  func kick(_ s: SessionCard) async -> Bool {
+    await write(s.id) { client in
+      _ = try await client.kick(s.id)
+      return Toast(text: "\(s.actions?.contains("resume") == true ? "Resumed" : "Kicked") \(s.name ?? "it"): it carries on in the background.")
+    }
+  }
+
   // Opening an item is seeing it: the desk clears its "new". Nothing to show, nothing to undo.
   func seen(_ card: Card) {
     guard let client, card.new == true else { return }
@@ -325,6 +489,7 @@ final class Store {
   }
 
   func undo() {
+    if let revert = toast?.revert { return undoWrite(revert) }
     guard let client, let seq = toast?.undo else { return }
     toast = nil
     Task {
@@ -339,9 +504,9 @@ final class Store {
     }
   }
 
-  func flash(_ text: String, undo: Int? = nil) {
+  func flash(_ text: String, undo: Int? = nil, revert: Toast.Revert? = nil) {
     toastTimer?.cancel()
-    toast = Toast(text: text, undo: undo)
+    toast = Toast(text: text, undo: undo, revert: revert)
     toastTimer = Task { [weak self] in
       try? await Task.sleep(for: .seconds(6))
       if !Task.isCancelled { self?.toast = nil }
@@ -384,6 +549,25 @@ final class Store {
   func fetchItem(_ id: String) async -> Result<ItemDetail, APIError>? {
     guard let client else { return nil }
     do { return .success(try await client.item(id)) } catch let e as APIError {
+      if case .unpaired = e { took(e) }
+      return .failure(e)
+    } catch { return nil }
+  }
+
+  // A PR's conversations and whether you may approve it, for Reply and Approve. A prefetch to the desk (?ahead=1):
+  // it starts no AI review and no agent read. Not for issues (400).
+  func fetchReview(_ id: String) async -> Result<ReviewRead, APIError>? {
+    guard let client else { return nil }
+    do { return .success(try await client.review(id)) } catch let e as APIError {
+      if case .unpaired = e { took(e) }
+      return .failure(e)
+    } catch { return nil }
+  }
+
+  // Who to ask to review your PR; an empty search is GitHub's own picks.
+  func fetchReviewers(_ id: String, search: String = "") async -> Result<[Reviewer], APIError>? {
+    guard let client else { return nil }
+    do { return .success(try await client.reviewers(id, search: search)) } catch let e as APIError {
       if case .unpaired = e { took(e) }
       return .failure(e)
     } catch { return nil }

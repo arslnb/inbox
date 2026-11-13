@@ -161,4 +161,74 @@ final class DecodingTests: XCTestCase {
     XCTAssertNotNil(UIFont(name: Typeface.mono.name, size: 12), "JetBrains Mono is registered (UIAppFonts)")
     XCTAssertEqual(Typeface.sans.font(15, weight: 650).familyName, "Instrument Sans")
   }
+
+  // GET /api/review/:id?ahead=1: only the conversation and the approval are read; the diff that rides along is skipped.
+  func testAReviewsConversationAndApproval() throws {
+    let r: ReviewRead = try Fixture.decode("review")
+    XCTAssertEqual(r.approve?.ok, false)
+    XCTAssertEqual(r.approve?.reason, "it's your PR")
+    XCTAssertNil(r.conversationError)
+    XCTAssertEqual(r.reading, false)
+    XCTAssertEqual(r.conversation.count, 5)
+    let first = try XCTUnwrap(r.conversation.first)
+    XCTAssertEqual(first.id, "PRRT_tomb", "what a reply goes to")
+    XCTAssertEqual(first.kind, "thread")
+    XCTAssertEqual([first.path, first.line.map(String.init)], ["src/sync/merge.ts", "88"])
+    XCTAssertEqual(first.waitingOnYou, true)
+    XCTAssertEqual(first.comments.map(\.author), ["azulus"])
+    XCTAssertEqual(first.comments.first?.body?.hasPrefix("Tombstones never go away here."), true)
+    XCTAssertEqual(first.take?.gist, "Tombstones are never compacted, so every sync ships all of them")
+    XCTAssertEqual(first.take?.take?.hasPrefix("Valid concern:"), true)
+    XCTAssertTrue(r.conversation.filter { $0.waitingOnYou == true }.count < r.conversation.count, "those waiting on you, then the rest")
+  }
+
+  func testAReviewFromAnotherDesk() throws {
+    let r = try DeskJSON.decoder().decode(
+      ReviewRead.self,
+      from: Data(#"{"conversation":[{"id":"a","comments":[{"id":"c"},{"nope":1}],"take":null,"side":"sideways"},{"no":"id"}],"conversation_error":"GitHub said no"}"#.utf8))
+    XCTAssertEqual(r.conversation.map(\.id), ["a"], "a conversation it can't read is dropped, not the page")
+    XCTAssertEqual(r.conversation[0].comments.map(\.id), ["c"])
+    XCTAssertNil(r.approve)
+    XCTAssertEqual(r.conversationError, "GitHub said no")
+  }
+
+  func testReviewers() throws {
+    let all = try DeskJSON.decoder().decode([Reviewer].self, from: try Fixture.data("reviewers"))
+    XCTAssertEqual(all.map(\.login), ["dana", "sam"])
+    XCTAssertEqual(all.map(\.id), ["U_dana", "U_sam"])
+    XCTAssertEqual(all.first?.name, "Dana Okafor")
+    XCTAssertEqual(all.map(\.suggested), [true, true])
+    XCTAssertEqual(all.map(\.team), [false, false])
+  }
+
+  // What the actions are offered by: the desk's own allowances on each card, and the commit an item was read at.
+  func testACardsAllowancesAndAnItemsCommit() throws {
+    let q: QueueView = try Fixture.decode("queue")
+    let rows = (q.inbox?.urgent ?? []) + (q.inbox?.standard ?? []) + (q.inbox?.fyi ?? [])
+    let card = { (id: String) in try XCTUnwrap(rows.first { $0.id == id }) }
+    XCTAssertEqual(try card("acme/api#4127").actions, ["request_changes", "unrequest"])
+    XCTAssertEqual(try card("acme/worker#875").actions, ["close", "draft", "rerequest", "merge"])
+    XCTAssertEqual(try card("acme/web#2303").actions, ["close", "ready"])
+    XCTAssertEqual(try card("acme/worker#860").actions, ["close"], "an issue")
+    XCTAssertEqual(try card("acme/web#2303").cta, "ready")
+    let item: ItemDetail = try Fixture.decode("item")
+    XCTAssertEqual(item.item?.headOid, "000000000000000000000000000009f6a052cc6f")
+  }
+
+  // view.ts's handsOff(): through its review, not a draft, and somebody asked (or nobody needed).
+  func testWhatIsHandedOffForMerge() throws {
+    let card = { (more: String) in
+      try DeskJSON.decoder().decode(Card.self, from: Data(#"{"id":"a/b#1","kind":"pr","repo":"a/b","number":1,"title":"t"\#(more)}"#.utf8))
+    }
+    XCTAssertTrue(try card(#","review":"approved""#).handsOff)
+    XCTAssertTrue(try card(#","review":"none""#).handsOff)
+    XCTAssertFalse(try card(#","review":"required""#).handsOff)
+    XCTAssertFalse(try card(#","review":"changes_requested""#).handsOff)
+    XCTAssertFalse(try card(#","review":"approved","draft":true"#).handsOff)
+    XCTAssertFalse(try card(#","review":"none","cta":"reviewers""#).handsOff, "add reviewers first")
+    XCTAssertTrue(try card(#","review":"none","cta":"reviewers","review_optional":true"#).handsOff, "its repo needs no review")
+    XCTAssertFalse(try card(#","review":"approved","inflight":true"#).handsOff, "in Merging already: Back to desk")
+    let issue = try DeskJSON.decoder().decode(Card.self, from: Data(#"{"id":"a/b#2","kind":"issue","repo":"a/b","number":2,"title":"t"}"#.utf8))
+    XCTAssertFalse(issue.handsOff)
+  }
 }

@@ -4,8 +4,10 @@ Your desk on your phone: the same lists as the window (Inbox, Blocked, Merging, 
 computer over Tailscale. SwiftUI, iOS 17 or newer, iPhone only, no third-party packages. So far it has only run in the
 Simulator.
 
-The phone pairs as a **device** (a bearer token), like the CLI or an agent. So it shows everything and it triages
-(Done, Snooze, Mute, Back on the desk, Undo), and that's all: see [What the phone can't do](#what-the-phone-cant-do-and-why).
+The phone pairs as a **phone** (a bearer token the desk takes as its own window's, unlike a machine's, which is an
+agent's). So it shows everything, it triages (Done, Snooze, Mute, Back on the desk, Undo), and its store can send what
+the window sends: see [What the phone writes](#what-the-phone-writes-and-what-it-leaves). A phone paired before this
+(as a device) is still refused every write: disconnect it and pair again.
 
 ## Build and test
 
@@ -101,20 +103,27 @@ the token on every read, a refused write (403), a desk still starting (503, in i
 `tailscale serve` passes through as it comes. The first request after serving is turned on can time out once, while
 Tailscale gets the address its certificate: Connect again with the same code, which an unanswered try doesn't burn.
 
-## What the phone can't do, and why
+## What the phone writes, and what it leaves
 
-The desk keeps every GitHub write, and everything that speaks for you to an agent, for its own window: a paired device's
-token is refused there (403) by design (`fromDesk()` in `src/server.ts`; README → Safety). So from the phone you can't
-approve, comment, reply, mark a draft ready, add reviewers, merge, hand off for merge or bring a PR back from Merging,
-answer an agent's question, ask your agent, or kick a session. Where the window shows such a call to action, the row
-still says it (it's why the row is there) and the item's page says once that it's done on the desk's computer, with
-**Open on GitHub** beside it.
+A paired phone is your hands like the window (`fromDesk()` in `src/server.ts`; README → Safety). `Store` has one method
+for each write, in the "Writing" part of `Inbox/Store.swift`: `approve`, `comment`, `reply`, `ready`, `askReviewers`,
+`github` (the row's Merge and the More menu: close, convert to draft, reopen, re-request review, remove me as a
+reviewer, request changes), `handOff`, `backToDesk`, `answer` and `kick`. Each sends once (`busy(id)` while it's on its
+way), says what the window says when it lands, shows the desk's own words when it's refused, and reads the desk again.
+The toast's Undo reopens a PR you closed and makes a converted draft ready again, as the window's does. The pages don't
+offer these yet: they still say an action is done on the desk's computer.
 
-What it does call: reads (`/api/overview`, `/api/queue`, `/api/inflight`, `/api/item`, `/api/inquiries/:id`,
-`/api/events`, `/health`), and `POST /api/act` (done, snooze, mute, unmute, restore, seen), `/api/undo`, `/api/sync`
-and, once, `/api/pair`. It never opens `/api/review/:id`, which would start your AI review and carries the whole diff.
+Left for the computer: a comment on a diff line (the phone draws no diff), a session's Open and its attach command
+(both act on the desk's computer), Ask your agent, and everything in Settings.
 
-Not in v0: the diff and what reviewers said, the filter, notes (shown, not written or finished), Claude's work on
+What it calls: reads (`/api/overview`, `/api/queue`, `/api/inflight`, `/api/item`, `/api/inquiries/:id`,
+`/api/reviewers/:id`, `/api/events`, `/health`), `POST /api/act` (done, snooze, mute, unmute, restore, seen, inflight,
+takeback), `/api/undo`, `/api/sync`, the writes above (`/api/review/:id/approve|comment|reply|ready|reviewers`,
+`/api/github`, `/api/inquiries/:id/answer`, `/api/sessions/:id/kick`) and, once, `/api/pair`. For what reviewers said it
+reads `/api/review/:id?ahead=1`, always with `ahead`: without it the desk would start your AI review and your agent's
+read. The whole diff rides along in that answer and is skipped.
+
+Not in v0: the diff, the filter, notes (shown, not written or finished), Claude's work on
 Merging, people's pictures, notifications, themes other than the default light and dark, iPad.
 
 ## Where things are

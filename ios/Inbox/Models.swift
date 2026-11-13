@@ -154,6 +154,8 @@ struct Card: Decodable, Identifiable, Sendable {
   var wakeOn: [String]?
   var doneAt: String?
   var cta: String?  // "ready" | "reply" | "reviewers" | "merge"
+  var reviewOptional: Bool?
+  var actions: [String]?  // the GitHub writes the desk allows on it now (Words.more names them); absent when none
   var resolved: String?
   var resolvedAt: String?
   var inflight: Bool?
@@ -183,6 +185,11 @@ struct Card: Decodable, Identifiable, Sendable {
   var isPR: Bool { kind == "pr" }
   var mine: Bool { by == "you" }
   var active: Bool { (status ?? "active") == "active" }
+  // Hand off for merge is for a PR through its review (view.ts's handsOff()): not a draft, not one awaiting review, nor
+  // one nobody's asked unless its repo needs no review. Offered on your own open PR; the desk refuses the rest in words.
+  var handsOff: Bool {
+    isPR && draft != true && inflight != true && (cta != "reviewers" || reviewOptional == true) && !["required", "changes_requested"].contains(review ?? "")
+  }
   var shortRef: String { "\(repo.split(separator: "/").last.map(String.init) ?? repo)#\(number)" }
 }
 
@@ -313,6 +320,7 @@ struct ItemDetail: Decodable, Sendable {
 
   struct Item: Decodable, Sendable {
     var state: String?  // "open" | "closed" | "merged"
+    var headOid: String?  // the commit this was read at: what Approve, Merge and Request changes are pinned to
     var labels: [String]?
     var additions: Int?
     var deletions: Int?
@@ -366,6 +374,58 @@ enum Loose: Decodable, Sendable, Equatable {
   var truthy: Bool { !text.isEmpty && self != .bool(false) }
 }
 
+// MARK: A PR's conversation, and who to ask
+
+// GET /api/review/:id?ahead=1, less its diff: only what Reply and Approve need.
+struct ReviewRead: Decodable, Sendable {
+  var approve: Allowance?
+  @Lossy var conversation: [Conversation]  // those waiting on you first
+  var conversationError: String?  // it couldn't be fetched
+  var reading: Bool?  // your agent is reading the ones waiting on you
+
+  struct Allowance: Decodable, Sendable {
+    var ok: Bool?
+    var reason: String?  // why not: "it's your PR", "you approved this commit"
+  }
+}
+
+struct Conversation: Decodable, Identifiable, Sendable {
+  let id: String  // what a reply goes to
+  var kind: String?  // "thread" | "comment" | "review"
+  var path: String?  // a thread's file; nil: on the PR
+  var line: Int?
+  var outdated: Bool?
+  var resolved: Bool?
+  var state: String?  // a review's: "approved" | "changes_requested" | "commented"
+  @Lossy var comments: [Comment]  // oldest first
+  var waitingOnYou: Bool?
+  var url: String?
+  var take: Take?
+
+  struct Comment: Decodable, Identifiable, Sendable {
+    let id: String
+    var author: String?
+    var bot: Bool?
+    var body: String?
+    var at: String?
+    var url: String?
+  }
+
+  // Your agent's read of one waiting on you. Untrusted: it read GitHub text.
+  struct Take: Decodable, Sendable {
+    var gist: String?
+    var take: String?
+  }
+}
+
+struct Reviewer: Decodable, Identifiable, Sendable, Equatable {
+  let id: String  // a node id: what Ready for review and Ask reviewers send
+  var login: String
+  var name: String?
+  var team: Bool?
+  var suggested: Bool?  // GitHub's own pick for this PR
+}
+
 // MARK: What the desk answers to a write
 
 struct PairAnswer: Decodable, Sendable {
@@ -389,4 +449,20 @@ struct UndoAnswer: Decodable, Sendable {
 
 struct Ok: Decodable, Sendable {
   var ok: Bool?
+}
+
+struct Wrote: Decodable, Sendable {
+  var url: String?  // what was written, on GitHub; empty for a write with nothing to link
+}
+
+struct ReadyAnswer: Decodable, Sendable {
+  var done: Bool?  // false: ready, but nobody's asked to review it, so it stays on the desk
+}
+
+struct AnswerAnswer: Decodable, Sendable {
+  var inquiry: Inquiry?
+}
+
+struct KickAnswer: Decodable, Sendable {
+  var note: String?
 }

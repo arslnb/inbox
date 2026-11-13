@@ -50,8 +50,8 @@ enum PairFailure: Error, Equatable {
   }
 }
 
-// One client for the desk's HTTP API. Over Tailscale it sends the device's token; on localhost nothing.
-// It calls only what a paired device may: reads, POST /api/act, /api/undo and /api/sync, and /api/pair once.
+// One client for the desk's HTTP API. Over Tailscale it sends the phone's token; on localhost nothing.
+// A paired phone is your hands like the desk's window, so it reads, triages and writes to GitHub; /api/pair once.
 struct APIClient: Sendable {
   let address: DeskAddress
   var token: String?
@@ -121,6 +121,19 @@ struct APIClient: Sendable {
     try await send(request("POST", path, body: body))
   }
 
+  // A body that isn't all strings: lists of ids, a flag.
+  func post<T: Decodable>(_ path: String, json: some Encodable) async throws -> T {
+    var req = request("POST", path)
+    req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    req.httpBody = try? JSONEncoder().encode(json)
+    return try await send(req)
+  }
+
+  // An id as one path segment: "acme/api#4127" is acme%2Fapi%234127, since "#" would end the path.
+  static func segment(_ id: String) -> String {
+    id.addingPercentEncoding(withAllowedCharacters: .alphanumerics.union(CharacterSet(charactersIn: "-._~"))) ?? id
+  }
+
   // MARK: What the phone asks
 
   func health() async throws -> Health { try await get("/health") }
@@ -130,11 +143,80 @@ struct APIClient: Sendable {
   func item(_ id: String) async throws -> ItemDetail { try await get("/api/item", query: ["id": id]) }
 
   func inquiry(_ id: String) async throws -> Inquiry {
-    let safe = id.addingPercentEncoding(withAllowedCharacters: .alphanumerics.union(CharacterSet(charactersIn: "-_"))) ?? id
-    return try await get("/api/inquiries/\(safe)")
+    try await get("/api/inquiries/\(APIClient.segment(id))")
   }
 
-  // done, snooze (with `until`), mute, unmute, restore, seen: all a paired device may do to an item.
+  // What reviewers said on a PR, and whether you may approve it. Always ?ahead=1: without it the desk takes the read as
+  // the window opening the PR and starts its AI review and your agent's read of the conversation. The diff rides along, unread.
+  func review(_ id: String) async throws -> ReviewRead {
+    try await get("/api/review/\(APIClient.segment(id))", query: ["ahead": "1"])
+  }
+
+  // Who you can ask to review your PR: GitHub's own picks for an empty search.
+  func reviewers(_ id: String, search: String = "") async throws -> [Reviewer] {
+    try await get("/api/reviewers/\(APIClient.segment(id))", query: ["q": search])
+  }
+
+  // MARK: What the phone writes (src/server.ts: everything fromDesk() lets a paired phone do)
+
+  // Approves the commit the item was read at; a newer push is refused (409) rather than approved unseen.
+  func approve(_ id: String, head: String, body: String? = nil) async throws -> Wrote {
+    var b = ["head_oid": head]
+    if let body, !body.isEmpty { b["body"] = body }
+    return try await post("/api/review/\(APIClient.segment(id))/approve", b)
+  }
+
+  // A comment on the PR or issue.
+  func comment(_ id: String, body: String) async throws -> Wrote {
+    try await post("/api/review/\(APIClient.segment(id))/comment", ["body": body])
+  }
+
+  // A reply in one of the PR's conversations (Conversation.id).
+  func reply(_ id: String, to conversation: String, body: String) async throws -> Wrote {
+    try await post("/api/review/\(APIClient.segment(id))/reply", ["id": conversation, "body": body])
+  }
+
+  private struct Asked: Encodable {
+    var users: [String]
+    var teams: [String]
+    var keep: Bool?
+  }
+
+  // Your draft, ready for review, asking whoever was picked (node ids). `done` false: nobody's asked, so it stays on the desk.
+  func ready(_ id: String, users: [String] = [], teams: [String] = []) async throws -> ReadyAnswer {
+    try await post("/api/review/\(APIClient.segment(id))/ready", json: Asked(users: users, teams: teams))
+  }
+
+  // Asks for reviews of your ready PR. Without `keep` the desk marks it done; `keep` adds one more and leaves it where it is.
+  func askReviewers(_ id: String, users: [String], teams: [String], keep: Bool = false) async throws {
+    let _: Ok = try await post("/api/review/\(APIClient.segment(id))/reviewers", json: Asked(users: users, teams: teams, keep: keep ? true : nil))
+  }
+
+  // The More menu's writes and the row's Merge: close, draft, merge, reopen, request_changes (head and body), rerequest, unrequest.
+  func github(_ id: String, _ action: String, head: String? = nil, body: String? = nil) async throws -> Wrote {
+    var b = ["id": id, "action": action]
+    if let head { b["head_oid"] = head }
+    if let body { b["body"] = body }
+    return try await post("/api/github", b)
+  }
+
+  private struct Dismiss: Encodable {
+    var dismiss = true
+  }
+
+  // Your answer to an agent's question; nil text leaves it unanswered (the agent decides itself).
+  func answer(_ inquiry: String, text: String?) async throws -> AnswerAnswer {
+    let path = "/api/inquiries/\(APIClient.segment(inquiry))/answer"
+    if let text { return try await post(path, ["text": text]) }
+    return try await post(path, json: Dismiss())
+  }
+
+  // Kick or Resume: the desk starts the session again in the background, on its own computer.
+  func kick(_ session: String) async throws -> KickAnswer {
+    try await post("/api/sessions/\(APIClient.segment(session))/kick")
+  }
+
+  // done, snooze (with `until`), mute, unmute, restore, seen; and inflight (Hand off for merge) and takeback (Back to desk).
   func act(_ id: String, _ action: String, until: String? = nil) async throws -> ActAnswer {
     var body = ["id": id, "action": action]
     if let until { body["until"] = until }
