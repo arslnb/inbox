@@ -135,7 +135,8 @@ extension BottomBar where More == EmptyView {
 }
 
 // A box that writes: what it's about, a field and one named button. The page keeps the words (`draft`), so a sheet
-// closed by mistake has them back; a write the desk refuses stays open with the desk's own words.
+// closed by mistake has them back; a write the desk refuses stays open with the desk's own words. As tall as what's
+// in it, so it sits on the keyboard with its button in reach and the page still showing above.
 struct WriteSheet<Above: View>: View {
   @Environment(Store.self) private var store
   @Environment(\.dismiss) private var dismiss
@@ -148,6 +149,7 @@ struct WriteSheet<Above: View>: View {
   @ViewBuilder var above: () -> Above
   @State private var sending = false
   @State private var failed: String?
+  @State private var tall: CGFloat = 200
   @FocusState private var typing: Bool
 
   var body: some View {
@@ -179,8 +181,10 @@ struct WriteSheet<Above: View>: View {
       }
       .padding(.horizontal, Theme.pad)
       .padding(.vertical, 14)
+      .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { tall = $0 }
     }
-    .presentationDetents([.medium, .large])
+    .scrollBounceBehavior(.basedOnSize)
+    .presentationDetents([.height(tall)])
     .presentationBackground(Theme.paper)
     .task {
       // Once the sheet has settled: a field focused as it rises doesn't take it.
