@@ -359,7 +359,7 @@ docs/api.md → Automations is the reference. A run on Claude Code is `claude -p
 - **Allow:** the core's (Read, Grep, Glob, WebSearch, WebFetch, the desk's read tools) + every plugin's `agent.allow` (GitHub: its `gh` read commands) + the automation's `tools` (F1).
 - **Deny:** your agent's list (`src/coordinator.ts`) + the core's (Write, Edit, NotebookEdit, the desk's mutating tools) + every plugin's `agent.deny` (GitHub: `git push`, `git commit`, the `gh` writes). Deny always wins.
 
-Your agent's own run keeps its list alone, because it pushes with `--force-with-lease` and merges; that list stays in coordinator.ts beside `ROLE` and `REBASE`. Each find goes to `push(ref, why, a)` through `hold`, so any plugin's `ref` can claim it. An agent's automation is on once saved, as yours is; only the window deletes one. With F1, `tools` is how a run reaches a system with no plugin: the data source is an MCP server, the rules are the prompt, the output is items on the desk.
+Your agent's own run keeps its list alone, because it pushes with `--force-with-lease` and merges; that list stays in coordinator.ts beside `ROLE` and `REBASE`. Each find goes to `push(ref, why, a)` through `hold`, so any plugin's `ref` can claim it. An agent's automation is on once saved, as yours is; only the window or your paired phone deletes one. With F1, `tools` is how a run reaches a system with no plugin: the data source is an MCP server, the rules are the prompt, the output is items on the desk.
 
 ### Your agent (the coordinator) and Merging (core)
 
@@ -397,7 +397,7 @@ Stays core:
 
 ## 5. AGENTS.md's rules, kept
 
-- **Writes.** A source is written only in its plugin's `write`. Only `Desk.write` calls it, with the writer only it holds, and only the window's routes call `Desk.write`. GitHub's writes stay in write.ts behind `ALLOWED`; adding to any plugin's list is a product decision. Hand off, Back to desk and a hand-back still write nothing. Live checks still stub the writer with `startServer({ writer })`, which becomes `{ github: writer }` inside.
+- **Writes.** A source is written only in its plugin's `write`. Only `Desk.write` calls it, with the writer only it holds, and only the routes kept for the window and your paired phone call `Desk.write`. GitHub's writes stay in write.ts behind `ALLOWED`; adding to any plugin's list is a product decision. Hand off, Back to desk and a hand-back still write nothing. Live checks still stub the writer with `startServer({ writer })`, which becomes `{ github: writer }` inside.
 - **State.** State stays on the desk. Lenses and rows are computed there; clients render `Card`, so the tray, MCP and notifications agree.
 - **One ordered list.** Parts and their order are the core's. A plugin picks a part and a weight; it adds no part, bucket or page.
 - **Untrusted text.** `wake()` and `about()` carry ids, URLs and kinds, never source text. Titles and agents' words still pass `line()`, `paragraphs()` and `INVISIBLE`.
