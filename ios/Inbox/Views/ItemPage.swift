@@ -264,22 +264,42 @@ struct ItemPage: View {
   @ViewBuilder
   private func header(_ c: Card) -> some View {
     VStack(alignment: .leading, spacing: 6) {
-      HStack(alignment: .firstTextBaseline, spacing: 0) {
-        Text(c.repo).sans(13, tracking: -0.005).foregroundStyle(Theme.pencil).lineLimit(1).truncationMode(.middle)
-        Text("#\(String(c.number))").sans(13, 550, tabular: true, tracking: -0.005).foregroundStyle(Theme.ink2).fixedSize()
-        if let s = c.stack, let pos = s.pos, let size = s.size {
-          Text("\(pos)/\(size)").sans(13, tabular: true).foregroundStyle(Theme.pencil).fixedSize().padding(.leading, 6)
-            .accessibilityLabel("\(pos) of \(size) open PRs in its stack")
+      // Its ref with the lines changed at the right; where they'd squeeze the repo's name (large text), under it.
+      ViewThatFits(in: .horizontal) {
+        HStack(alignment: .firstTextBaseline, spacing: 0) {
+          ref(c).fixedSize()
+          Spacer(minLength: 8)
+          changed
         }
-        Spacer(minLength: 8)
-        if c.isPR, let item = detail?.item, (item.additions ?? 0) + (item.deletions ?? 0) > 0 {
-          (Text("+\(item.additions ?? 0)").foregroundStyle(Theme.green) + Text("  \u{2212}\(item.deletions ?? 0)").foregroundStyle(Theme.red))
-            .sans(13, 550, tabular: true).fixedSize()
+        VStack(alignment: .leading, spacing: 4) {
+          ref(c)
+          changed
         }
       }
+      // A title this large stops growing where a long word would no longer fit on a line.
       Text(c.title).sans(22, 650, tracking: -0.015).foregroundStyle(Theme.ink).lineSpacing(1)
         .fixedSize(horizontal: false, vertical: true)
+        .dynamicTypeSize(...DynamicTypeSize.accessibility2)
       Dotted(parts: facts(c)).sans(13, tabular: true)
+    }
+  }
+
+  private func ref(_ c: Card) -> some View {
+    HStack(alignment: .firstTextBaseline, spacing: 0) {
+      Text(c.repo).sans(13, tracking: -0.005).foregroundStyle(Theme.pencil).lineLimit(1).truncationMode(.middle)
+      Text("#\(String(c.number))").sans(13, 550, tabular: true, tracking: -0.005).foregroundStyle(Theme.ink2).fixedSize()
+      if let s = c.stack, let pos = s.pos, let size = s.size {
+        Text("\(pos)/\(size)").sans(13, tabular: true).foregroundStyle(Theme.pencil).fixedSize().padding(.leading, 6)
+          .accessibilityLabel("\(pos) of \(size) open PRs in its stack")
+      }
+    }
+  }
+
+  @ViewBuilder
+  private var changed: some View {
+    if card?.isPR == true, let item = detail?.item, (item.additions ?? 0) + (item.deletions ?? 0) > 0 {
+      (Text("+\(item.additions ?? 0)").foregroundStyle(Theme.green) + Text("  \u{2212}\(item.deletions ?? 0)").foregroundStyle(Theme.red))
+        .sans(13, 550, tabular: true).fixedSize()
     }
   }
 
@@ -508,7 +528,7 @@ struct PlainAct: ButtonStyle {
     configuration.label
       .sans(13, 500)
       .foregroundStyle(Theme.ink)
-      .padding(.horizontal, 12)
+      .padding(.horizontal, 10)
       .frame(minHeight: 36)
       .background(configuration.isPressed ? Theme.wash : Theme.sheet, in: RoundedRectangle(cornerRadius: 9))
       .overlay(RoundedRectangle(cornerRadius: 9).strokeBorder(Theme.ruleStrong, lineWidth: 1))

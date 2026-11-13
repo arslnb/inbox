@@ -98,10 +98,16 @@ wanted question && shot question -deskURL "$DESK" -open "inquiry:q1c0ffee"
 wanted answer && shot answer -deskURL "$DESK" -open "inquiry:q1c0ffee" -box answer
 wanted session && shot session -deskURL "$DESK" -open "session:5f1c2a90-7d3e-4b8a-9c11-2e6f0a4b7d21"
 wanted session-kick && shot session-kick -deskURL "$DESK" -open "session:a83e61d4-0b52-4f7c-8e3a-91c4d6b2f058"
-# An accessibility text size: the bar's quiet buttons fold into More rather than clip.
+# Accessibility text sizes: the bar's quiet buttons fold into More rather than clip; at the largest, with the longest
+# call to action, More is its dots, the button keeps its words and the lines changed go under the ref.
 if wanted item-large; then
   xcrun simctl ui "$UDID" content_size accessibility-large
   shot item-large -deskURL "$DESK" -open "acme/api#4127"
+  xcrun simctl ui "$UDID" content_size large
+fi
+if wanted item-largest; then
+  xcrun simctl ui "$UDID" content_size accessibility-extra-extra-extra-large
+  shot item-largest -deskURL "$DESK" -open "acme/worker#875"
   xcrun simctl ui "$UDID" content_size large
 fi
 wanted settings && shot settings -deskURL "$DESK" -settings

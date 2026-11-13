@@ -33,8 +33,10 @@ struct AccentAct: ButtonStyle {
     configuration.label
       .sans(14, 600)
       .lineLimit(1)
+      // Its words are never cut: where nothing more can fold away (the largest text), they draw a little smaller.
+      .minimumScaleFactor(0.7)
       .foregroundStyle(Theme.onAccent)
-      .padding(.horizontal, 14)
+      .padding(.horizontal, 12)
       .frame(minHeight: 36)
       .background(Theme.accent.opacity(configuration.isPressed ? 0.8 : 1), in: RoundedRectangle(cornerRadius: 9))
       .opacity(enabled ? 1 : 0.45)
@@ -50,8 +52,9 @@ struct Quiet: Identifiable {
   var id: String { label }
 }
 
-// The foot of an opened page, in the thumb's reach: Back, then More, the quiet buttons and the call to action. What
-// doesn't fit on one line (a long name, large text) folds into More, the last of `quiet` first.
+// The foot of an opened page, in the thumb's reach: Back, then More, the quiet buttons and the call to action. When
+// they don't fit on one line (a long name, large text) More becomes its three dots, then the quiet ones fold into it,
+// the last of `quiet` first.
 struct BottomBar<More: View>: View {
   @Environment(Store.self) private var store
   var cta: String?
@@ -65,7 +68,10 @@ struct BottomBar<More: View>: View {
     VStack(spacing: 0) {
       NoticeStack()
       ViewThatFits(in: .horizontal) {
-        ForEach(0...quiet.count, id: \.self) { folded in line(folded) }
+        ForEach(0...quiet.count, id: \.self) { folded in
+          line(folded, dots: false)
+          line(folded, dots: true)
+        }
       }
       .dynamicTypeSize(...DynamicTypeSize.accessibility2)
       .padding(.horizontal, Theme.pad)
@@ -76,14 +82,14 @@ struct BottomBar<More: View>: View {
     }
   }
 
-  private func line(_ folded: Int) -> some View {
-    HStack(spacing: 8) {
+  private func line(_ folded: Int, dots: Bool) -> some View {
+    HStack(spacing: 6) {
       Button {
         if !store.path.isEmpty { store.path.removeLast() }
       } label: {
         Image(systemName: "chevron.left").font(.system(size: 17, weight: .semibold)).foregroundStyle(Theme.ink2)
-          .frame(width: 32, height: 44, alignment: .leading)
-          .contentShape(Rectangle().inset(by: -12))
+          .frame(width: 26, height: 44, alignment: .leading)
+          .contentShape(Rectangle().inset(by: -14))
       }
       .buttonStyle(.plain)
       .accessibilityLabel("Back")
@@ -94,7 +100,7 @@ struct BottomBar<More: View>: View {
           if folded > 0, hasMore { Divider() }
           more()
         } label: {
-          Text("More")
+          if dots { Image(systemName: "ellipsis").accessibilityLabel("More") } else { Text("More") }
         }
         .menuOrder(.fixed)
         .buttonStyle(PlainAct())
