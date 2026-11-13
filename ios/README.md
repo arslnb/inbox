@@ -76,8 +76,8 @@ It builds, installs on the booted simulator, starts the mock on port 47841 (and 
 `ios/.shots/<state>-<light|dark>.png` for: `connect`, `connect-error`, `inbox`, `inbox-scrolled`, `inbox-empty`,
 `blocked`, `merging`, `archive`, `item-pr` (with an AI review; Approve), `item-issue` (Comment), `item-reply` (what
 waits on your reply), `item-draft` (Ready for review), `item-mine` (Hand off for merge), `item-merging` (Back to desk),
-the boxes `approve`, `reply`, `reviewers` and `answer`, `question`, `session`, `session-kick`, `item-large` (an
-accessibility text size, where the bar's quiet buttons fold into More), `settings` and `offline` (a desk that isn't
+the boxes `approve`, `reply`, `reviewers` and `answer`, `question`, `session`, `session-kick`, `item-large` and `item-largest` (accessibility
+text sizes, where the bar's quiet buttons fold into More and the longest call to action keeps its words), `settings` and `offline` (a desk that isn't
 there). It won't shoot while something already answers on that port (a mock you started by
 hand has whatever you did to it since): stop that first, or set `SHOTS_PORT`.
 
@@ -105,35 +105,47 @@ UserDefaults. Settings → Disconnect forgets the token on the phone. The device
 it there (Settings → This device): if you do, the phone's next request is refused and it goes back to the connect
 screen.
 
-Checked in the Simulator on the desk's own Mac, through a desk served at its tailnet address: pairing with the link,
-the token on every read, a refused write (403), a desk still starting (503, in its words) and the event stream, which
-`tailscale serve` passes through as it comes. The first request after serving is turned on can time out once, while
+Checked in the Simulator on the desk's own Mac, through a desk served at its tailnet address, when the app still paired
+as a machine (kind `device`): pairing with the link, the token on every read, a desk still starting (503, in its words)
+and the event stream, which `tailscale serve` passes through as it comes. Not yet checked through a real tailnet:
+pairing as a phone (kind `phone`) and any write with its token; `test/remote.test.ts` holds the desk's side of both, and
+the app's writes are checked against the mock. The first request after serving is turned on can time out once, while
 Tailscale gets the address its certificate: Connect again with the same code, which an unanswered try doesn't burn.
+
+A phone paired by a build that paired as a machine holds a token the desk refuses every write: at its next launch the
+app forgets it and asks to pair again (revoke the old pairing in Settings → This device).
 
 ## What the phone does, and what it leaves
 
 A paired phone is your hands like the window (`fromDesk()` in `src/server.ts`; README → Safety). An opened page has one
 bar at its foot: Back, More, Snooze, Done, and the one call to action the item is there for, in the window's words.
+When they don't fit on one line More becomes its three dots, then Snooze and Done fold into it (large text only: at the
+default size all four fit beside the longest name, Hand off for merge).
 
 - **A PR or an issue.** The row's own call to action (Ready for review, Add reviewers, Reply, Merge); else Approve on
   someone else's PR, Comment on an issue, Hand off for merge on yours once it's through review (`Card.act(open:)`). In
-  Merging the bar has Back to desk. More has Mute, Comment, Add reviewers, Hand off for merge, exactly the GitHub writes
+  Merging the bar has Back to desk. More has Mute, Comment, Add reviewers (on your draft: Ready for review, asking
+  reviewers, which marks it ready and asks them in one go), Hand off for merge, exactly the GitHub writes
   the desk allows now (`Card.actions`: close, convert to draft, reopen, re-request review, remove me as a reviewer,
-  merge now, request changes), Open on GitHub and Copy GitHub link.
-- **A row that owes a reply** lists each conversation waiting on you (where, your agent's read, its last words); a
-  press opens the reply box.
-- **A question.** Each of its answers is a button that answers with it; Answer takes your own words; Dismiss lets the
-  agent decide.
-- **A session.** Kick or Resume, Done and Snooze.
+  merge now, request changes), Open on GitHub and Copy GitHub link. Approve, Merge and Request changes are pinned to the
+  commit the page first showed: after a push the desk refuses them and the page says to open it again. Approve isn't
+  offered on a commit you approved.
+- **A row that owes a reply** lists each conversation waiting on you (where, your agent's read, its last words, Reply);
+  a press opens its reply box. The bar's Reply answers the first.
+- **A question.** Its answers come straight under it, each a button that answers with it; Answer takes your own words;
+  Dismiss lets the agent decide.
+- **A session.** Kick or Resume (off until a rate limit resets), Done and Snooze.
 
 A press sends at once, as the window's buttons do. What takes words (Approve's optional comment, Comment, Reply, Request
-changes, Answer) is a sheet with a field and one named button; if the desk refuses, the sheet stays with your words and
-the desk's own. `Store` has one method per write ("Writing" in `Inbox/Store.swift`): each sends once (`busy(id)`
+changes, Answer) is a sheet with a field and one named button, as tall as what's in it so it sits on the keyboard; if the desk
+refuses, the sheet stays with your words and the desk's own. A write the desk never answered may still have landed: the
+sheet says so and the desk is read again, rather than claiming it wasn't sent. `Store` has one method per write ("Writing" in `Inbox/Store.swift`): each sends once (`busy(id)`
 meanwhile), says what the window says when it lands, and reads the desk again. The toast's Undo reopens a PR you closed
 and makes a converted draft ready again.
 
 Left for the computer: a comment on a diff line (the phone draws no diff), a session's Open and its attach command
-(they act on the desk's computer; the session's page says so once), Ask your agent, and everything in Settings.
+(they act on the desk's computer; the session's page says so once), Merging's Wake it, Start it now and Copy attach
+command for your agent, Ask your agent, and everything in Settings.
 
 What it calls: reads (`/api/overview`, `/api/queue`, `/api/inflight`, `/api/item`, `/api/inquiries/:id`,
 `/api/reviewers/:id`, `/api/events`, `/health`), `POST /api/act` (done, snooze, mute, unmute, restore, seen, inflight,

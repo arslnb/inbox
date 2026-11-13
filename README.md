@@ -203,7 +203,7 @@ Settings → Network → Tailscale lists paired devices; **Revoke** shuts one ou
 
 ## On your phone
 
-A small native iPhone app lives in [`ios/`](ios/README.md) (v0, Simulator only so far). It pairs as a phone with `desk pair`, shows your Inbox, Blocked, Merging and the Archive, and triages (Done, Snooze, Mute, Undo). The desk takes a paired phone as its own window, so anything the window does is open to it; the app is still growing into that. [ios/README.md](ios/README.md) says how to build and run it.
+A small native iPhone app lives in [`ios/`](ios/README.md) (v0, Simulator only so far). It pairs as a phone with `desk pair`, shows your Inbox, Blocked, Merging and the Archive, triages (Done, Snooze, Mute, Undo) and acts as the window does: Approve, Comment, Reply, Ready for review, Ask reviewers, Merge, the More menu's writes, Hand off for merge, answering a question and kicking a session. The desk takes a paired phone as its own window. Checked against the mock desk; pairing as a phone through a real tailnet hasn't been run yet. [ios/README.md](ios/README.md) says how to build and run it.
 
 ## Coordinator
 
@@ -289,7 +289,7 @@ A run that added something, couldn't, or failed notifies you. When a question's 
 - Merge on your PR's row, when it's approved (or needs no review), green, not a draft, not stacked and mergeable. It uses the repo's merge method, pinned to the commit the desk checked.
 - The More menu, when the desk allows it for that item: close, reopen, convert to draft or merge your PR, or re-request review from who reviewed it; request changes on someone else's, or take yourself off its reviewers; close an issue you opened or are assigned. The toast's Undo reopens or marks ready again.
 
-Everything else is read-only: GraphQL queries, GETs of your notifications (never marking them read) and of a PR's files. Agents can't reach the writer; a tap on your paired phone counts as your click. Hand off for merge, Back to desk and hand-backs write nothing. The coordinator pushes and merges with your own `git` and `gh`.
+Everything else is read-only: GraphQL queries, GETs of your notifications (never marking them read) and of a PR's files. Agents can't reach the writer through MCP, the CLI or a paired machine's token; a tap on your paired phone counts as your click. (A program running as you on the desk's machine is not held back by this: [Security model](docs/api.md#security-model).) Hand off for merge, Back to desk and hand-backs write nothing. The coordinator pushes and merges with your own `git` and `gh`.
 
 **What it never does:**
 
