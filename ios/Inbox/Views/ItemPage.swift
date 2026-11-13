@@ -126,10 +126,14 @@ struct ItemPage: View {
       Button(c.status == "muted" ? "Unmute" : "Mute") { act(c, c.status == "muted" ? "unmute" : "mute") }
     }
     if open, main != "comment" { Button("Comment") { box = .comment } }
-    if open, c.isPR, c.mine, c.draft != true, c.inflight != true, main != "reviewers" { Button("Add reviewers") { box = .reviewers } }
+    // On a draft the box marks it ready and asks them in one go, as the window's reviewers line above Ready for review.
+    if open, c.isPR, c.mine, c.inflight != true, main != "reviewers" {
+      Button(c.draft == true ? "Ready for review, asking reviewers" : "Add reviewers") { box = .reviewers }
+    }
     if open, c.handsOff, c.mine || c.review == "approved", main != "handoff" { Button("Hand off for merge") { press("handoff", c) } }
     ForEach((c.actions ?? []).filter { $0 != main && Words.more[$0] != nil }, id: \.self) { a in
-      Button(a == "close" && !c.isPR ? "Close issue" : Words.more[a] ?? a) { press(a, c) }
+      // Pinned to the commit read, so not before one is.
+      Button(a == "close" && !c.isPR ? "Close issue" : Words.more[a] ?? a) { press(a, c) }.disabled(a == "request_changes" && read == nil)
     }
     if let url = c.url.flatMap(URL.init(string:)) {
       Divider()

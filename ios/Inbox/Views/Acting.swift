@@ -228,6 +228,7 @@ struct ReviewersSheet: View {
     ScrollView {
       VStack(alignment: .leading, spacing: 12) {
         SheetHead(title: "Ask reviewers on \(card.shortRef)")
+        if card.draft == true { Text("Ready for review marks it ready, then asks them.").sans(13).foregroundStyle(Theme.pencil) }
         TextField("Search people and teams", text: $search)
           .sans(15).foregroundStyle(Theme.ink).textInputAutocapitalization(.never).autocorrectionDisabled()
           .padding(.init(top: 10, leading: 12, bottom: 10, trailing: 12))
