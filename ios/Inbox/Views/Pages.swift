@@ -245,7 +245,8 @@ struct SessionPage: View {
     .safeAreaInset(edge: .bottom, spacing: 0) {
       if let s {
         BottomBar(
-          cta: kick(s).flatMap { Words.sessionAction[$0] }, off: store.busy(s.id), press: { Task { if await store.kick(s) { back() } } },
+          // The desk refuses a kick before its rate limit resets, as the line above says.
+          cta: kick(s).flatMap { Words.sessionAction[$0] }, off: store.busy(s.id) || (Words.date(s.resetsAt) ?? .distantPast) > store.now, press: { Task { if await store.kick(s) { back() } } },
           quiet: [
             Quiet(label: "Done") { _ in act(s, "done", nil) },
             // A session snoozes until a time; done brings it back when it moves on.
