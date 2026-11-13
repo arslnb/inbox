@@ -954,7 +954,7 @@ function RemoteRows({
           <div className="s-label-col">
             <p className="s-label">{d.name}</p>
             <p className="s-help">
-              {d.kind === "browser" ? "A browser" : "A machine's agents"}, paired {ago(d.created_at, now)}
+              {d.kind === "browser" ? "A browser" : d.kind === "phone" ? "A phone" : "A machine's agents"}, paired {ago(d.created_at, now)}
               {d.last_used_at ? `, last used ${ago(d.last_used_at, now)}` : ", not used yet"}.
             </p>
           </div>

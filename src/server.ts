@@ -155,7 +155,7 @@ export function proxyUpgrades(server: Server, port: number, ui: string): () => v
 // Requests that came in on the listener only `tailscale serve` is pointed at, and how each proved it's a paired device.
 // By the connection, never a header: serve passes on the client's own Host, so a peer could send `Host: localhost`.
 const REMOTE = new WeakSet<Request>();
-const VIA = new WeakMap<Request, "cookie" | "bearer">();
+const VIA = new WeakMap<Request, "cookie" | "bearer" | "phone">();
 export const remoteFetch =
   (app: Hono) =>
   (req: Request, env?: unknown): Response | Promise<Response> => {
@@ -174,11 +174,13 @@ const SESSION = "__Host-inbox"; // a paired browser's token: HttpOnly, Secure, S
 
 // The desk's own page, for its GitHub writes (approve, a reply, ready for review, the More menu's), hand-offs and asks: a browser marks the request same-origin and sends an Origin, which
 // the check below lets through only when it's ours. curl, the CLI and agents send neither unless they forge both; from
-// another device it's also a paired browser's session, which a bearer token never is.
+// another device it's also a paired browser's session, which a machine's token (agents, the CLI) never is. A paired phone's
+// token counts by itself: a native app sends neither header, and the token is only ever a phone's over the tailnet.
 const fromDesk = (c: Context) =>
-  c.req.header("sec-fetch-site") === "same-origin" &&
-  !!c.req.header("origin") &&
-  (!REMOTE.has(c.req.raw) || VIA.get(c.req.raw) === "cookie");
+  VIA.get(c.req.raw) === "phone" ||
+  (c.req.header("sec-fetch-site") === "same-origin" &&
+    !!c.req.header("origin") &&
+    (!REMOTE.has(c.req.raw) || VIA.get(c.req.raw) === "cookie"));
 
 const PAIR_PAGE = `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Inbox</title>
 <style>body{font:15px/1.5 system-ui,sans-serif;margin:4em auto;max-width:32em;padding:0 1em;color-scheme:light dark}</style>
@@ -257,7 +259,8 @@ export function createApp(desk: Desk, port: number, remote: Remote = new Remote(
       return Effect.void;
     });
   // From another device, through `tailscale serve`: this desk's tailnet name, its owner's login as Tailscale names them,
-  // and a paired device's token; pairing itself, its page and its trade, is the only thing without one.
+  // and a paired device's token (a browser's cookie; a machine's or a phone's bearer); pairing itself, its page and its
+  // trade, is the only thing without one.
   const tailnet = (c: Context) =>
     Effect.suspend((): Effect.Effect<void, Forbidden | Unauthorized> => {
       const refused = (message: string) => Effect.fail(new Forbidden({ message }));
@@ -273,8 +276,11 @@ export function createApp(desk: Desk, port: number, remote: Remote = new Remote(
         return refused("only the desk's owner may use it from another device");
       if ((c.req.method === "GET" && c.req.path === "/pair") || (c.req.method === "POST" && c.req.path === "/api/pair")) return Effect.void;
       const bearer = /^Bearer (\S+)$/i.exec(c.req.header("authorization") ?? "")?.[1];
-      if (bearer ? remote.verify(bearer, "device") : remote.verify(getCookie(c, SESSION), "browser")) {
-        VIA.set(c.req.raw, bearer ? "bearer" : "cookie");
+      const dev = bearer
+        ? (remote.verify(bearer, "phone") ?? remote.verify(bearer, "device"))
+        : remote.verify(getCookie(c, SESSION), "browser");
+      if (dev) {
+        VIA.set(c.req.raw, !bearer ? "cookie" : dev.kind === "phone" ? "phone" : "bearer");
         return Effect.void;
       }
       return Effect.fail(new Unauthorized({ message: "pair this device first: run desk pair on the desk's machine" }));
@@ -447,7 +453,7 @@ export function createApp(desk: Desk, port: number, remote: Remote = new Remote(
     });
     return respond(c, ai, { log });
   });
-  // The desk's GitHub writes below: from its own window only (`refused` otherwise), once it's up, with the body read as
+  // The desk's GitHub writes below: from its own window or your paired phone only (`refused` otherwise), once it's up, with the body read as
   // each says. A write never takes the request's signal: once sent it lands and is recorded, whoever still listens.
   const write = <A, E>(c: Context, refused: string, then: (b: Record<string, unknown>) => Effect.Effect<A, E>) =>
     respond(
@@ -556,7 +562,7 @@ export function createApp(desk: Desk, port: number, remote: Remote = new Remote(
     });
     return respond(c, wake, { log });
   });
-  // Your words to the coordinator, from the desk's own window only: it's woken with them at once.
+  // Your words to the coordinator, from the desk's own window or your paired phone only: it's woken with them at once.
   app.post("/api/ask", (c) => {
     const ask = Effect.gen(function* () {
       yield* up;
@@ -744,7 +750,7 @@ export function createApp(desk: Desk, port: number, remote: Remote = new Remote(
       { log },
     ),
   );
-  // Your answer, from the desk's own window only: an agent can't answer its own question.
+  // Your answer, from the desk's own window or your paired phone only: an agent can't answer its own question.
   app.post("/api/inquiries/:id/answer", (c) => {
     const answer = Effect.gen(function* () {
       if (!fromDesk(c)) return yield* new Forbidden({ message: "answer it in the desk's window" });
@@ -755,7 +761,7 @@ export function createApp(desk: Desk, port: number, remote: Remote = new Remote(
     });
     return respond(c, answer, { log });
   });
-  // Sessions that need you (src/connectors/sessions.ts): anyone may read one; only the desk's window starts or opens one.
+  // Sessions that need you (src/connectors/sessions.ts): anyone may read one; only the desk's window or your paired phone starts or opens one.
   app.get("/api/sessions/:id", (c) => respond(c, desk.session(c.req.param("id")), { log, read: true }));
   app.post("/api/sessions/:id/kick", (c) => {
     const kick = Effect.gen(function* () {
@@ -1053,7 +1059,7 @@ export function createApp(desk: Desk, port: number, remote: Remote = new Remote(
       Effect.gen(function* () {
         if (!REMOTE.has(c.req.raw)) return yield* new Forbidden({ message: "pair from the other device, at the desk's tailnet address" });
         const { code, name, kind } = yield* bodyOf(c);
-        const paired = yield* remote.trade(code, name, kind === "browser" ? "browser" : "device");
+        const paired = yield* remote.trade(code, name, kind === "browser" || kind === "phone" ? kind : "device");
         log(`paired ${paired.device.kind} "${paired.device.name}" (${paired.device.id})`);
         if (kind !== "browser") return { ok: true, token: paired.token, device: paired.device };
         setCookie(c, SESSION, paired.token, { path: "/", httpOnly: true, secure: true, sameSite: "Strict", maxAge: 400 * 86_400 });

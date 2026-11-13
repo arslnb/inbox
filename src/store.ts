@@ -472,7 +472,7 @@ export class Store {
     return rows.map((r) => ({
       id: text(r.id),
       name: text(r.name),
-      kind: lit(["browser", "device"], r.kind),
+      kind: lit(["browser", "device", "phone"], r.kind),
       hash: text(r.hash),
       created_at: text(r.created_at),
       last_used_at: textOrNull(r.last_used_at),

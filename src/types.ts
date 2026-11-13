@@ -327,11 +327,12 @@ export interface SettingsView {
   judge: JudgeStatus;
 }
 
-// A device paired over Tailscale: a browser holds its token in a cookie, a machine's agents in their MCP config.
+// A device paired over Tailscale: a browser holds its token in a cookie, a machine's agents in their MCP config, a phone in
+// its Keychain. A browser and a phone act as you; a machine's agents as agents.
 export interface Device {
   id: string;
   name: string;
-  kind: "browser" | "device";
+  kind: "browser" | "device" | "phone";
   created_at: string;
   last_used_at: string | null;
 }

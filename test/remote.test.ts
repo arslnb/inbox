@@ -11,8 +11,13 @@ import { Desk } from "../src/desk.ts";
 import { Remote } from "../src/remote.ts";
 import { createApp, remoteFetch, startServer } from "../src/server.ts";
 import { unusedPort } from "./helpers/fake-api.ts";
+import { Effect } from "effect";
+import type { Item } from "../src/types.ts";
+import type { GitHubWriter } from "../src/github/write.ts";
+import { myPr, reviewAsk } from "./helpers/desk.ts";
 import { FakeGitHub, makeItem, NOW } from "./helpers/items.ts";
 import { run } from "./helpers/run.ts";
+import { refuseWrites } from "./helpers/writer.ts";
 
 delete process.env.DESK_UI_ORIGIN;
 delete process.env.DESK_DEV;
@@ -21,15 +26,17 @@ const NAME = "desk.tail1.ts.net";
 const OWNER = "owner@example.com";
 const AT = `https://${NAME}`;
 
-async function setup() {
+// `items` are on the desk (every search returns them); `writer` is its GitHub writer.
+async function setup(items?: Item[], writer?: GitHubWriter) {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), "desk-remote-"));
   fs.writeFileSync(path.join(home, "settings.json"), JSON.stringify({ "policy.judge": false }));
   const desk = new Desk({
     home,
-    github: new FakeGitHub([makeItem({ number: 7 })], () => []),
+    github: new FakeGitHub(items ?? [makeItem({ number: 7 })], () => (items ?? []).map((i) => i.id)),
     now: () => NOW,
     notify: () => {},
     log: () => {},
+    ...(writer ? { writer } : {}),
   });
   await run(desk.init());
   await run(desk.sync());
@@ -50,7 +57,7 @@ async function setup() {
   const mint = async (): Promise<string> => ((await (await local("/api/pair/code", { method: "POST" })).json()) as { code: string }).code;
   const trade = (code: string, kind = "device", headers: Record<string, string> = {}) =>
     viaTailnet("/api/pair", { method: "POST", headers: { ...json, ...headers }, body: JSON.stringify({ code, kind, name: "laptop" }) });
-  const token = async () => ((await (await trade(await mint())).json()) as { token: string }).token;
+  const token = async (kind = "device") => ((await (await trade(await mint(), kind)).json()) as { token: string }).token;
   return {
     desk,
     app,
@@ -178,6 +185,80 @@ test("a paired browser has an HttpOnly Secure SameSite=Strict session, and its w
     401,
     "a device token isn't a session",
   );
+});
+
+test("a paired phone is you: its token alone approves, answers, hands off and triages as the window does; a machine's is still refused", async (c) => {
+  const approved: string[][] = [];
+  const writer: GitHubWriter = {
+    ...refuseWrites(),
+    approve: (pr, commit) =>
+      Effect.sync(() => {
+        approved.push([pr, commit]);
+        return { url: "" };
+      }),
+  };
+  const t = await setup([reviewAsk(1), myPr(3, { ci: "pending" })], writer);
+  c.after(t.cleanup);
+  const phone = await t.token("phone");
+  const machine = await t.token();
+  // No Origin, no Sec-Fetch-Site: a native app sends neither.
+  const post = (tok: string, p: string, body: unknown) =>
+    t.viaTailnet(p, { method: "POST", headers: { ...t.json, ...bearer(tok) }, body: JSON.stringify(body) });
+  const approve = (tok: string) => post(tok, "/api/review/acme%2Fapi%231/approve", { head_oid: "abc" });
+  assert.equal((await approve(machine)).status, 403);
+  assert.deepEqual(approved, []);
+  assert.equal((await approve(phone)).status, 200);
+  assert.deepEqual(approved, [["PR_acme/api_1", "abc"]]);
+  const logged = t.desk.store.db.prepare("SELECT action, agent FROM events WHERE item_id = 'acme/api#1' AND undone = 1").all();
+  assert.deepEqual(
+    logged.map((r) => [r.action, r.agent]),
+    [["approve", null]],
+    "the write is logged",
+  );
+  const answer = (tok: string) => post(tok, "/api/inquiries/nope/answer", { text: "x" });
+  assert.equal((await answer(machine)).status, 403);
+  assert.equal((await answer(phone)).status, 404, "past the check, to a question that isn't there");
+  const act = (tok: string, action: string) => post(tok, "/api/act", { id: "acme/web#3", action });
+  assert.equal((await act(machine, "inflight")).status, 403);
+  assert.equal((await act(phone, "inflight")).status, 200);
+  const back = (await (await act(phone, "takeback")).json()) as { undo_seq: number };
+  assert.equal((await post(machine, "/api/undo", { seq: back.undo_seq })).status, 409, "an agent can't put it back in Merging");
+  assert.equal((await post(phone, "/api/undo", { seq: back.undo_seq })).status, 200);
+  assert.equal((await act(machine, "undo")).status, 409, "nor undo your hand-off");
+  assert.equal((await act(phone, "undo")).status, 200);
+  assert.equal((await act(machine, "done")).status, 200, "a machine still triages");
+});
+
+test("a phone's token is a phone's only over the tailnet, as a bearer, for the owner, until it's revoked", async (c) => {
+  const t = await setup();
+  c.after(t.cleanup);
+  const res = await t.trade(await t.mint(), "phone");
+  assert.equal(res.headers.get("set-cookie"), null);
+  const { token: phone, device } = (await res.json()) as { token: string; device: { id: string; kind: string } };
+  assert.match(phone, /^inbox_/);
+  assert.equal(device.kind, "phone");
+  const answer = (headers: Record<string, string>, login = OWNER) =>
+    t.viaTailnet("/api/inquiries/nope/answer", {
+      method: "POST",
+      headers: { ...t.json, ...headers },
+      body: JSON.stringify({ text: "x" }),
+      login,
+    });
+  assert.equal((await answer(bearer(phone))).status, 404, "past the check");
+  assert.equal((await answer(bearer(phone), "someone@else.com")).status, 403, "another Tailscale user");
+  const here = await t.local("/api/inquiries/nope/answer", { method: "POST", headers: { ...t.json, ...bearer(phone) }, body: "{}" });
+  assert.equal(here.status, 403, "on the desk's machine it's nothing");
+  assert.equal((await t.viaTailnet("/api/queue", { headers: { cookie: `__Host-inbox=${phone}` } })).status, 401, "not a session");
+  assert.equal((await t.viaTailnet("/api/pair/code", { method: "POST", headers: bearer(phone) })).status, 403, "a phone can't mint");
+  const view = (await (await t.local("/api/remote")).json()) as { devices: { name: string; kind: string }[] };
+  assert.deepEqual(
+    view.devices.map((d) => [d.name, d.kind]),
+    [["laptop", "phone"]],
+  );
+  assert.equal(t.remote.issue(undefined, "phone").device.name, "A phone");
+  // A phone revokes a device as the window does: here, itself.
+  assert.equal((await t.viaTailnet(`/api/devices/${device.id}`, { method: "DELETE", headers: bearer(phone) })).status, 200);
+  assert.equal((await answer(bearer(phone))).status, 401);
 });
 
 test("MCP over /mcp from another device: with a token it lists the tools; without one it's 401", async (c) => {

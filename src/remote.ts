@@ -127,7 +127,7 @@ export class Remote {
     const token = `inbox_${crypto.randomBytes(32).toString("base64url")}`;
     const device: Device = {
       id: crypto.randomBytes(8).toString("hex"),
-      name: nameOf(name, kind === "browser" ? "A browser" : "A device"),
+      name: nameOf(name, kind === "browser" ? "A browser" : kind === "phone" ? "A phone" : "A device"),
       kind,
       created_at: new Date(this.now()).toISOString(),
       last_used_at: null,
