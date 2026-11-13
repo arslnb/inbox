@@ -217,7 +217,7 @@ struct ItemPage: View {
 
   // MARK: Waiting on your reply
 
-  // What was said in each conversation that waits on you, briefly: where, its last words, and Reply.
+  // What was said in each conversation that waits on you, briefly: where, its last words, and Reply (the bar's answers the first).
   @ViewBuilder
   private func owed() -> some View {
     if let reviewFailed {
@@ -234,7 +234,6 @@ struct ItemPage: View {
             said(c, whole: false)
           }
           .buttonStyle(.plain)
-          .accessibilityHint("Reply")
         }
       }
     }
@@ -252,6 +251,7 @@ struct ItemPage: View {
         let body = whole ? m.body ?? "" : (m.body ?? "").split(whereSeparator: \.isNewline).joined(separator: " ")
         Lead(label: m.author ?? "", text: body, color: Theme.ink).lineLimit(whole ? 8 : 4)
       }
+      if !whole { Text("Reply").sans(13, 550).underline(color: Theme.ruleStrong).foregroundStyle(Theme.ink2) }
     }
     .padding(.leading, 12)
     .frame(maxWidth: .infinity, alignment: .leading)
