@@ -3,12 +3,15 @@ import SwiftUI
 // The window's two-line row (CardRow's `compact`, web/src/styles.css `.c-row`): the title, at most two lines; then one
 // line of facts with a dot between them, the row's call to action as accent text, and its age at the right.
 
-// A row's facts on one line. When they don't fit, a long repo name gives way first, then the last fact (its stage), then
-// the why, which is what the row is there to say; each down to a few letters; the rest never shrink.
+// A row's facts on one line. When they don't fit, a long repo name gives way first, down to a few letters; then who
+// it's by goes, then its stage, each whole (a floor of 0: "waiting…" says nothing); the why, which is what the row is
+// there to say, is cut last. The rest never shrink.
 struct MetaLine: Layout {
   struct Shrink: LayoutValueKey {
     static let defaultValue: (order: Int, floor: CGFloat)? = nil
   }
+
+  private func whole(_ v: LayoutSubview) -> Bool { v[Shrink.self]?.floor == 0 }
 
   private func widths(_ subviews: Subviews, in available: CGFloat?) -> [CGFloat] {
     var widths = subviews.map { $0.sizeThatFits(.unspecified).width }
@@ -16,17 +19,17 @@ struct MetaLine: Layout {
     var over = widths.reduce(0, +) - available
     let order = subviews.indices.filter { subviews[$0][Shrink.self] != nil }.sorted { subviews[$0][Shrink.self]!.order < subviews[$1][Shrink.self]!.order }
     for i in order where over > 0 {
-      let give = min(over, max(0, widths[i] - min(widths[i], subviews[i][Shrink.self]!.floor)))
+      let give = whole(subviews[i]) ? widths[i] : min(over, max(0, widths[i] - min(widths[i], subviews[i][Shrink.self]!.floor)))
       widths[i] -= give
       over -= give
     }
     // Still too wide: the last one that can shrink takes the rest.
-    if over > 0, let last = order.last { widths[last] = max(0, widths[last] - over) }
+    if over > 0, let last = order.last(where: { !whole(subviews[$0]) }) { widths[last] = max(0, widths[last] - over) }
     // A cut text draws narrower than its room: what that leaves goes back, to the last fact first.
     let ideal = subviews.map { $0.sizeThatFits(.unspecified).width }
     let drawn = subviews.indices.map { min(widths[$0], subviews[$0].sizeThatFits(ProposedViewSize(width: widths[$0], height: nil)).width) }
     var slack = available - drawn.reduce(0, +)
-    for i in order.reversed() where slack > 0 && widths[i] < ideal[i] {
+    for i in order.reversed() where slack > 0 && widths[i] < ideal[i] && !whole(subviews[i]) {
       widths[i] = min(ideal[i], drawn[i] + slack)
       slack -= widths[i] - drawn[i]
     }
@@ -44,6 +47,11 @@ struct MetaLine: Layout {
     let baseline = subviews.map { $0.dimensions(in: .unspecified)[.firstTextBaseline] }.max() ?? 0
     var x = bounds.minX
     for (i, v) in subviews.enumerated() {
+      // One that went whole is put out of sight, past the line's clipped edge.
+      if w[i] == 0, whole(v) {
+        v.place(at: CGPoint(x: bounds.maxX + 4000, y: bounds.minY), proposal: .unspecified)
+        continue
+      }
       let d = v.dimensions(in: ProposedViewSize(width: w[i], height: nil))
       v.place(at: CGPoint(x: x, y: bounds.minY + baseline - d[.firstTextBaseline]), proposal: ProposedViewSize(width: w[i], height: nil))
       // A cut text is drawn narrower than the room it was given: the next fact follows what's drawn.
@@ -53,7 +61,7 @@ struct MetaLine: Layout {
 }
 
 extension View {
-  // The order this fact gives way in (lowest first), and the width it keeps.
+  // The order this fact gives way in (lowest first), and the width it keeps; 0: it goes whole.
   func shrinks(_ order: Int, floor: CGFloat) -> some View { layoutValue(key: MetaLine.Shrink.self, value: (order, floor)) }
 }
 
@@ -108,8 +116,7 @@ struct RowLines: View {
             Text(stack).fixedSize().padding(.leading, 6).accessibilityLabel(stackSays ?? stack)
           }
           ForEach(Array(facts.enumerated()), id: \.offset) { i, fact in
-            if i > 0 || repo != nil || number != nil { Text("·").foregroundStyle(Theme.faint).padding(.horizontal, 6).fixedSize() }
-            factText(fact, last: i == facts.count - 1)
+            factText(fact, dot: i > 0 || repo != nil || number != nil, last: i == facts.count - 1)
           }
         }
         .sans(13, tabular: true)
@@ -133,10 +140,14 @@ struct RowLines: View {
     .contentShape(Rectangle())
   }
 
+  // A fact with the dot before it, as one: where the fact goes, its dot goes too.
   @ViewBuilder
-  private func factText(_ fact: Fact, last: Bool) -> some View {
-    let text = Text(fact.text).lineLimit(1).truncationMode(.tail)
-      .foregroundStyle(fact.tone == .amber ? Theme.amber : fact.tone == .ink2 ? Theme.ink2 : Theme.pencil)
+  private func factText(_ fact: Fact, dot: Bool, last: Bool) -> some View {
+    let text = HStack(alignment: .firstTextBaseline, spacing: 0) {
+      if dot { Text("·").foregroundStyle(Theme.faint).padding(.horizontal, 6).fixedSize() }
+      Text(fact.text).lineLimit(1).truncationMode(.tail)
+        .foregroundStyle(fact.tone == .amber ? Theme.amber : fact.tone == .ink2 ? Theme.ink2 : Theme.pencil)
+    }
     if let s = fact.shrink {
       text.shrinks(s.order, floor: s.floor)
     } else if last {
@@ -198,20 +209,27 @@ struct CardRow: View {
 
   private var facts: [Fact] {
     var out: [Fact] = []
+    // Amber only on yours, where it's work for you.
+    let amber = card.stage == "changes requested" && card.mine
+    // A stage the why already says ("Your draft", "Handed back: …") isn't said twice; the why takes its colour.
+    let said = Words.says(card.reason ?? "", card.stage ?? "")
     switch variant {
     case .active:
-      if let reason = card.reason, !reason.isEmpty { out.append(Fact(text: Words.capitalized(reason), shrink: (2, 70))) }
+      if let reason = card.reason, !reason.isEmpty {
+        out.append(Fact(text: Words.capitalized(reason), tone: said && amber ? .amber : .pencil, shrink: (3, 70)))
+      }
     case .note(let note):
-      if !note.isEmpty { out.append(Fact(text: note, shrink: (2, 70))) }
+      if !note.isEmpty { out.append(Fact(text: note, shrink: (3, 70))) }
     case .blocked: break
     }
     // A call to action says the row is yours: there "by you" goes, so its stage keeps its room.
     // Nor where the why already names them ("Priya waits on your review").
     let named = !card.mine && (card.reason ?? "").lowercased().contains((card.by ?? "").lowercased())
-    if let by = card.by, !(cta != nil && card.mine), !named { out.append(Fact(text: "by \(by)", tone: card.mine ? .ink2 : .pencil)) }
-    // Amber only on yours, where it's work for you.
-    if case .active = variant, let stage = card.stage {
-      out.append(Fact(text: stage, tone: stage == "changes requested" && card.mine ? .amber : .pencil))
+    if let by = card.by, !(cta != nil && card.mine), !named {
+      out.append(Fact(text: "by \(by)", tone: card.mine ? .ink2 : .pencil, shrink: out.isEmpty ? nil : (1, 0)))
+    }
+    if case .active = variant, let stage = card.stage, !said {
+      out.append(Fact(text: stage, tone: amber ? .amber : .pencil, shrink: (2, 0)))
     }
     return out
   }
