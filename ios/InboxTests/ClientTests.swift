@@ -28,7 +28,7 @@ final class ClientTests: XCTestCase {
   func testPairingTradesTheCodeOnce() async throws {
     StubProtocol.reset([
       "/api/pair": Answer(
-        body: #"{"ok":true,"token":"inbox_abc","device":{"id":"0123456789abcdef","name":"iPhone","kind":"device","created_at":"2026-11-12T09:00:00.000Z","last_used_at":null}}"#)
+        body: #"{"ok":true,"token":"inbox_abc","device":{"id":"0123456789abcdef","name":"iPhone","kind":"phone","created_at":"2026-11-12T09:00:00.000Z","last_used_at":null}}"#)
     ])
     let answer = try await client(token: nil).pair(code: "ABCD2345", name: "iPhone")
     XCTAssertEqual(answer.token, "inbox_abc")
@@ -40,7 +40,7 @@ final class ClientTests: XCTestCase {
     XCTAssertNil(sent[0].value(forHTTPHeaderField: "Authorization"))
     XCTAssertNil(sent[0].value(forHTTPHeaderField: "Origin"), "an Origin would be refused")
     let body = try JSONDecoder().decode([String: String].self, from: try XCTUnwrap(sent[0].sentBody))
-    XCTAssertEqual(body, ["code": "ABCD2345", "name": "iPhone", "kind": "device"])
+    XCTAssertEqual(body, ["code": "ABCD2345", "name": "iPhone", "kind": "phone"], "a phone, not a machine: a device's token is an agent's")
   }
 
   func testAWrongOrUsedCode() async {
@@ -173,7 +173,7 @@ final class ClientTests: XCTestCase {
     XCTAssertEqual(body, ["seq": 41])
   }
 
-  func testAQuestionIsOnlyRead() async throws {
+  func testReadingAQuestion() async throws {
     StubProtocol.reset(["/api/inquiries/q1c0ffee": Answer(body: String(decoding: try Fixture.data("inquiry"), as: UTF8.self))])
     let q = try await client().inquiry("q1c0ffee")
     XCTAssertEqual(q.options.count, 3)
@@ -225,7 +225,7 @@ final class StoreTests: XCTestCase {
     Keychain.delete(for: address)
   }
 
-  private let pair = StubProtocol.Answer(body: #"{"ok":true,"token":"inbox_abc","device":{"id":"0123456789abcdef","name":"Greg's iPhone","kind":"device"}}"#)
+  private let pair = StubProtocol.Answer(body: #"{"ok":true,"token":"inbox_abc","device":{"id":"0123456789abcdef","name":"Greg's iPhone","kind":"phone"}}"#)
 
   func testPairingKeepsTheTokenInTheKeychainAndTheAddressInDefaults() async throws {
     StubProtocol.reset(["/api/pair": pair])

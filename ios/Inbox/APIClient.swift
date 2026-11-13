@@ -152,9 +152,10 @@ struct APIClient: Sendable {
     let _: Ok = try await post("/api/sync")
   }
 
-  // Trades the pairing code for this device's token. Called once per press: any try burns the code, right or wrong.
+  // Trades the pairing code for this phone's token. Called once per press: any try burns the code, right or wrong.
+  // Kind "phone": over the tailnet its token counts as the desk's own window; a "device" would be an agent's, refused every write.
   func pair(code: String, name: String) async throws -> PairAnswer {
-    try await post("/api/pair", ["code": code, "name": name, "kind": "device"])
+    try await post("/api/pair", ["code": code, "name": name, "kind": "phone"])
   }
 
   // The desk's event stream: one value per `update`, the cue to refetch. Never with ?notify=1, which would take the
