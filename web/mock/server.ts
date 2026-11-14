@@ -3225,6 +3225,7 @@ const STEPS: Record<string, { title: string; body: string; check: string; note?:
       title: "Dispatch reads from a channel",
       body: "Dispatch asks Lease for work through a bounded channel and reports back with the token.",
       check: "A full channel slows leasing instead of dropping jobs.",
+      diagram: "d2",
       hunks: range(4, 10),
     },
     { title: "Errors, retries and config", body: "Moved from the old scheduler with the new names.", check: "", hunks: range(11, 20) },
@@ -3241,6 +3242,21 @@ const LEASE_SOURCE = [
   '  s["Old scheduler"]:::removed -.-> t',
 ].join("\n");
 const LEASE_FLOW = parseDiagram(LEASE_SOURCE);
+const RENEW_SOURCE = [
+  "sequenceDiagram",
+  "  participant D as Dispatch",
+  "  participant L as Lease",
+  "  participant T as jobs table",
+  "  D->>L: lease()",
+  "  L->>T: claim job, new token",
+  "  L-->>D: job + token",
+  "  Note over D, L: every 5 s while it runs",
+  "  D->>L: renew(token)",
+  "  L-->>D: refused: lease expired",
+  "  D->>L: report(token)",
+  "  L->>T: write if token matches",
+].join("\n");
+const RENEW_SEQ = parseDiagram(RENEW_SOURCE);
 
 // The newer review's parts on the scheduler split: a look range, an interface and an improvement, on its first file's change.
 function extras(path: string, line: number): Partial<AiReview> {
@@ -3285,6 +3301,9 @@ function extras(path: string, line: number): Partial<AiReview> {
             source: LEASE_SOURCE,
             graph: LEASE_FLOW.graph,
           },
+          ...(RENEW_SEQ.ok
+            ? [{ id: "d2", title: "A renewal after expiry", caption: "", source: RENEW_SOURCE, graph: RENEW_SEQ.graph }]
+            : []),
         ]
       : [],
   };

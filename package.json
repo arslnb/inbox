@@ -57,6 +57,7 @@
     "release:publish": "bash scripts/release-publish.sh"
   },
   "dependencies": {
+    "@excalidraw/excalidraw": "^0.18.1",
     "@hono/node-server": "^2.1.5",
     "@modelcontextprotocol/sdk": "^1.32.2",
     "effect": "^4.1.2",

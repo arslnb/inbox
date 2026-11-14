@@ -65,13 +65,21 @@ export const fontMeasure: Measure = (text, size, weight) => {
 
 // ---------------------------------------------------------------------------- layout
 
-export function layout(graph: DiagramGraph, elk: ElkLayout, measure: Measure): Promise<Drawn> {
-  return graph.kind === "sequence" ? Promise.resolve(sequence(graph, measure)) : fitted(graph, elk, measure);
+// maxW: the room it has, where that's known (the window); past it, a left-to-right flowchart is drawn top down.
+// shrink: how small its text may be drawn to fit maxW before it's drawn top down instead.
+export function layout(graph: DiagramGraph, elk: ElkLayout, measure: Measure, maxW = MAX_W, shrink = 1): Promise<Drawn> {
+  return graph.kind === "sequence" ? Promise.resolve(sequence(graph, measure)) : fitted(graph, elk, measure, maxW, shrink);
 }
 
-async function fitted(graph: Extract<DiagramGraph, { kind: "flow" }>, elk: ElkLayout, measure: Measure): Promise<Drawn> {
+async function fitted(
+  graph: Extract<DiagramGraph, { kind: "flow" }>,
+  elk: ElkLayout,
+  measure: Measure,
+  maxW: number,
+  shrink: number,
+): Promise<Drawn> {
   const drawn = await flow(graph, elk, measure, graph.direction);
-  if (graph.direction !== "LR" || drawn.w <= MAX_W) return drawn;
+  if (graph.direction !== "LR" || drawn.w * shrink <= maxW) return drawn;
   const down = await flow(graph, elk, measure, "TB");
   return down.w < drawn.w ? down : drawn;
 }
@@ -108,6 +116,8 @@ async function flow(
       "elk.layered.spacing.nodeNodeBetweenLayers": "40",
       "elk.spacing.nodeNode": "22",
       "elk.spacing.edgeLabel": "4",
+      "elk.spacing.edgeEdge": "16", // parallel edges stay apart, even drawn by hand
+      "elk.layered.spacing.edgeEdgeBetweenLayers": "14",
       "elk.hierarchyHandling": "INCLUDE_CHILDREN",
       "elk.padding": "[top=8,left=8,bottom=8,right=8]",
       "elk.edgeLabels.inline": "true",

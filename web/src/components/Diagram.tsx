@@ -1,12 +1,22 @@
 import { Effect } from "effect";
 import type { ELK } from "elkjs/lib/elk-api.js";
 import workerUrl from "elkjs/lib/elk-worker.min.js?url";
-import { createElement, useEffect, useId, useMemo, useState, type ReactNode } from "react";
+import { createElement, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { diagramText } from "../../../src/diagram.ts";
 import { layout, svg, type Drawn, type Measure } from "../../../src/diagram-layout.ts";
 import type { Kid } from "../../../src/html.ts";
 import type { DiagramGraph } from "../../../src/types.ts";
 import { LayoutFailed, runUi } from "../api.ts";
+import { loadSketchFont, Sketch, SKETCH_SHRINK, sketchMeasure } from "./Sketch.tsx";
+
+// Drawn by Excalidraw, hand-drawn, unless this device says otherwise (localStorage desk.sketch = "0").
+const sketching = () => {
+  try {
+    return localStorage.getItem("desk.sketch") !== "0";
+  } catch {
+    return true;
+  }
+};
 
 // An AI review's diagram (src/diagram.ts): laid out by ELK in a worker and drawn as SVG by src/diagram-layout.ts, the same
 // geometry a rendered review has (src/render.ts), in the theme's tokens.
@@ -15,13 +25,16 @@ const FONT = 12.5;
 
 export function Diagram({ graph, title = "", caption = "" }: { graph: DiagramGraph; title?: string; caption?: string }) {
   const [drawn, setDrawn] = useState<Drawn | "failed" | null>(null);
+  const [sketch, setSketch] = useState(sketching);
+  const fig = useRef<HTMLElement>(null);
   const lines = useMemo(() => diagramText(graph), [graph]);
   const descId = useId();
   useEffect(() => {
     setDrawn(null);
+    const room = fig.current?.clientWidth ?? 0;
     const stop = new AbortController();
     runUi(
-      laidOut(graph).pipe(
+      laidOut(graph, sketch, room > 0 ? room : 720).pipe(
         Effect.match({
           onFailure: (e) => {
             console.warn(`diagram drawn as text: ${e.message}`);
@@ -35,10 +48,10 @@ export function Diagram({ graph, title = "", caption = "" }: { graph: DiagramGra
     return () => {
       stop.abort();
     };
-  }, [graph]);
+  }, [graph, sketch]);
 
   return (
-    <figure className="dg">
+    <figure className="dg" ref={fig}>
       {(title || caption) && (
         <figcaption className="dg-head">
           {title && <span className="dg-title">{title}</span>}
@@ -52,6 +65,15 @@ export function Diagram({ graph, title = "", caption = "" }: { graph: DiagramGra
             <li key={i}>{l}</li>
           ))}
         </ul>
+      ) : drawn && sketch ? (
+        <Sketch
+          drawn={drawn}
+          label={title || "Diagram"}
+          onFail={(e) => {
+            console.warn("diagram drawn without Excalidraw", e);
+            setSketch(false);
+          }}
+        />
       ) : drawn ? (
         react(svg(drawn, { label: title || "Diagram", desc: lines.join("\n"), descId, measure }))
       ) : null}
@@ -90,15 +112,21 @@ let elk: Promise<ELK> | null = null;
 const loadElk = (): Promise<ELK> =>
   (elk ??= import("elkjs/lib/elk-api.js").then(({ default: Elk }) => new Elk({ workerUrl, algorithms: ["layered"] })));
 
-function laidOut(graph: DiagramGraph): Effect.Effect<Drawn, LayoutFailed> {
+function laidOut(graph: DiagramGraph, sketch: boolean, room: number): Effect.Effect<Drawn, LayoutFailed> {
   return Effect.gen(function* () {
     // Measured in the face it's drawn in, once that has loaded.
     yield* Effect.tryPromise({
-      try: () => document.fonts.load(`500 ${FONT}px "Instrument Sans"`),
+      try: async () => {
+        if (sketch) await loadSketchFont();
+        else await document.fonts.load(`500 ${FONT}px "Instrument Sans"`);
+      },
       catch: (cause) => new LayoutFailed({ cause }),
     }).pipe(Effect.ignore);
     return yield* Effect.tryPromise({
-      try: () => layout(graph, async (root) => (await loadElk()).layout(root), measure),
+      try: () =>
+        sketch
+          ? layout(graph, async (root) => (await loadElk()).layout(root), sketchMeasure, room, SKETCH_SHRINK)
+          : layout(graph, async (root) => (await loadElk()).layout(root), measure),
       catch: (cause) => new LayoutFailed({ cause }),
     }).pipe(
       // The worker never answers if its script didn't load.

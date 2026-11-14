@@ -6492,6 +6492,16 @@ p.rv-next {
   font-weight: 600;
 }
 
+.dg-sketch {
+  min-height: 40px;
+}
+
+.dg-sketch-svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+
 .dg-svg {
   display: block;
   max-width: 100%;
