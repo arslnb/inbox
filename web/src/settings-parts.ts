@@ -11,5 +11,4 @@ export const SETTINGS_PARTS: readonly { id: string; name: string; plugin?: true;
   { id: "tailscale", name: "Tailscale" },
   { id: "github", name: "GitHub", plugin: true },
   { id: "sessions", name: "Sessions", plugin: true, automations: false },
-  { id: "gmail", name: "Gmail", plugin: true, automations: false },
 ];
