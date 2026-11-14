@@ -2964,7 +2964,7 @@ function act(r: Rec, action: Action, until?: string): { ok: true; state: ItemSta
   else if (action === "seen") st.seen_at = now;
   else if (action === "urgent" || action === "standard" || action === "fyi") st.section = action;
   else if (action === "inflight") {
-    if (r.seed.resolved || (r.seed.kind ?? "pr") !== "pr")
+    if (itemOf(r).state !== "open" || (r.seed.kind ?? "pr") !== "pr")
       throw new HttpError(409, `only open PRs are handed off for merge; ${r.id} isn't one`);
     if (!mineOf(r.seed) && itemOf(r).review_decision !== "approved")
       throw new HttpError(409, `${r.id} isn't yours, so it's handed off for merge once it's approved`);

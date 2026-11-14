@@ -1352,8 +1352,8 @@ export function App() {
     else if (k === "a" && c.cta === "merge") runUi(github(c, "merge"));
     else if (k === "a" && c.cta === "reviewers")
       openCard(c); // its review, with the reviewers box ready
-    // Yours (or a bot's for you), or anyone's approved PR; the desk says no to the rest.
-    else if (k === "handoff" && c.kind === "pr" && !c.resolved) {
+    // Yours (or a bot's for you), or anyone's approved PR, resolved by your approval or not; the desk says no to the rest.
+    else if (k === "handoff" && c.kind === "pr") {
       if (awaitsReview(c)) flash(`${shortRef(c)} isn't approved yet`);
       else handOff(c);
     } else if (k === "o") {
