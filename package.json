@@ -57,7 +57,6 @@
     "release:publish": "bash scripts/release-publish.sh"
   },
   "dependencies": {
-    "@excalidraw/excalidraw": "^0.18.1",
     "@hono/node-server": "^2.1.5",
     "@modelcontextprotocol/sdk": "^1.32.2",
     "effect": "^4.1.2",
@@ -68,6 +67,7 @@
     "zod": "^4.6.7"
   },
   "devDependencies": {
+    "@excalidraw/excalidraw": "^0.18.1",
     "@pierre/diffs": "1.6.2",
     "@sentry/hono": "^11.11.0",
     "@sentry/node": "^11.11.0",
@@ -110,7 +110,8 @@
       "web/src/fonts/**",
       "skills/**",
       "assets/**",
-      "package.json"
+      "package.json",
+      "!**/node_modules/**/*.{ts,mts,cts,map}"
     ],
     "npmRebuild": false,
     "publish": [
@@ -156,7 +157,8 @@
             "x64"
           ]
         }
-      ]
+      ],
+      "artifactName": "${productName}-${version}.${ext}"
     },
     "nsis": {
       "artifactName": "${productName}-Setup-${version}.${ext}"

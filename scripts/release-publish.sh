@@ -27,9 +27,18 @@ cd "$wt"
 
 npm run -s check
 npm run -s build
-npx electron-builder --mac --arm64 --x64 --publish never
-# Apart: arch flags apply to every platform named, and Windows and Linux are x64 only (package.json's build).
-npx electron-builder --win --linux --publish never
+# Each platform at once: compressing the installers is most of the time, and they don't share files. Apart, too, because
+# arch flags apply to every platform named, and Windows and Linux are x64 only (package.json's build).
+npx electron-builder --mac --arm64 --x64 --publish never > release-mac.log 2>&1 &
+mac=$!
+npx electron-builder --win --publish never > release-win.log 2>&1 &
+win=$!
+npx electron-builder --linux --publish never > release-linux.log 2>&1 &
+linux=$!
+for p in "mac $mac" "win $win" "linux $linux"; do
+  set -- $p
+  wait "$2" || { echo "the $1 build failed:" >&2; tail -30 "release-$1.log" >&2; exit 1; }
+done
 
 shopt -s nullglob
 assets=(release/*.dmg release/*.zip release/*.AppImage release/*.tar.gz release/*.exe release/*.blockmap release/latest*.yml)
