@@ -518,7 +518,7 @@ const connectTo = Effect.fnUntraced(function* (x: Ctx) {
 const pair = Effect.fnUntraced(function* (x: Ctx) {
   if (x.opts.print) {
     const { url, token } = yield* api.pairToken(typeof x.opts.name === "string" ? x.opts.name : "A machine (desk pair --print)");
-    x.out("# Paste these on the other machine. The token is a password for your desk; revoke it in Settings → This device.");
+    x.out("# Paste these on the other machine. The token is a password for your desk; revoke it in Settings → Network → Tailscale.");
     for (const line of agents.remoteCommands(url, token)) x.out(line);
     return 0;
   }

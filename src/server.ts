@@ -162,7 +162,7 @@ export const remoteFetch =
     REMOTE.add(req);
     return app.fetch(req, env);
   };
-// Requests that came in on the local network's listener (Settings → Local network): read only, with its token.
+// Requests that came in on the local network's listener (Settings → Network → Local network): read only, with its token.
 const LAN = new WeakSet<Request>();
 export const lanFetch =
   (app: Hono) =>
@@ -296,7 +296,7 @@ export function createApp(desk: Desk, port: number, remote: Remote = new Remote(
       const given =
         /^Bearer (\S+)$/i.exec(auth)?.[1] ?? (basic ? Buffer.from(basic, "base64").toString().split(":").slice(1).join(":") : "");
       if (given && sameSecret(given, secret)) return Effect.void;
-      return Effect.fail(new Unauthorized({ message: "the local network token, from Settings → Local network" }));
+      return Effect.fail(new Unauthorized({ message: "the local network token, from Settings → Network → Local network" }));
     });
   app.use("*", async (c: Context, next: Next) => {
     const checked = Effect.runSyncExit(REMOTE.has(c.req.raw) ? tailnet(c) : LAN.has(c.req.raw) ? lan(c) : local(c));
@@ -1008,7 +1008,7 @@ export function createApp(desk: Desk, port: number, remote: Remote = new Remote(
   const served = Effect.suspend(() =>
     remote.url
       ? Effect.succeed(remote.url)
-      : Effect.fail(new Conflict({ message: "turn on Settings → Tailscale → Use it from your other devices first" })),
+      : Effect.fail(new Conflict({ message: "turn on Settings → Network → Tailscale → Use it from your other devices first" })),
   );
   app.get("/api/remote", (c) =>
     total(
@@ -1067,7 +1067,7 @@ export function createApp(desk: Desk, port: number, remote: Remote = new Remote(
     respond(
       c,
       Effect.gen(function* () {
-        if (!fromDesk(c)) return yield* new Forbidden({ message: "revoke it in the desk's window: Settings → This device" });
+        if (!fromDesk(c)) return yield* new Forbidden({ message: "revoke it in the desk's window: Settings → Network → Tailscale" });
         yield* remote.revoke(c.req.param("id"));
         log(`revoked paired device ${c.req.param("id")}`);
         return { ok: true };
@@ -1228,7 +1228,7 @@ function overTailnet(app: Hono, remote: Remote, desk: Desk, wanted: () => boolea
   };
 }
 
-// Served on every interface at `port` while Settings → Local network is on with a token; a failed start waits for a change.
+// Served on every interface at `port` while Settings → Network → Local network is on with a token; a failed start waits for a change.
 function onLan(app: Hono, desk: Desk, port: number) {
   const lock = Semaphore.makeUnsafe(1);
   let server: ServerType | null = null;

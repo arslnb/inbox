@@ -4576,14 +4576,14 @@ const SHOTS: Shot[] = [
     },
   },
   {
-    // Settings → Tailscale, Use it from your other devices on: where it serves and for whom under it, then each paired device with Revoke, which
-    // takes it off at once; off, the address goes and the devices stay listed.
+    // Settings → Network → Tailscale, Use it from your other devices on: where it serves and for whom, Pair a device's code as a QR with its
+    // link and command, then each paired device with Revoke, which takes it off at once; off, the address goes and the devices stay listed.
     name: "settings-app-remote",
     sizes: ["mac"],
     writes: true,
     go: async (page) => {
       await page.evaluate(`fetch("/api/mock/devices", { method: "POST" })`); // used 40 minutes ago as of now
-      await at("#/settings/tailscale")(page);
+      await at("#/settings/network")(page);
       const row = page.locator('[id="row-app.tailscale"]');
       if (!(await row.isVisible())) failures.push("settings-app-remote: no Use it from your other devices row");
       await row.locator("input.switch").check();
@@ -4595,9 +4595,16 @@ const SHOTS: Shot[] = [
       const devices = await page.locator(".s-status", { has: page.getByRole("button", { name: "Revoke" }) }).allTextContents();
       if (devices.length !== 2 || !devices[0]!.includes("Browser on iPhone") || !devices[0]!.includes("last used 40m ago"))
         failures.push(`settings-app-remote: the devices read ${JSON.stringify(devices)}`);
-      await page.evaluate(`document.getElementById("row-app.tailscale").scrollIntoView({ block: "center" })`);
+      await page.getByRole("button", { name: "Pair a device" }).click();
+      const pairing = page.locator(".s-pair", { hasText: "Code 7KQM-X4RT" });
+      await pairing.waitFor({ timeout: 5000 }).catch(() => {});
+      if (!(await pairing.locator("img.s-qr").isVisible())) failures.push("settings-app-remote: Pair a device shows no QR code");
+      if (!(await pairing.textContent())?.includes("https://desk.tail1234.ts.net/pair#7KQM-X4RT"))
+        failures.push("settings-app-remote: the pairing row has no link");
+      await page.evaluate(`document.getElementById("row-app.tailscale").scrollIntoView({ block: "start" })`);
     },
     after: async (page) => {
+      await page.locator(".s-pair").getByRole("button", { name: "Close" }).click();
       const laptop = page.locator(".s-status", { hasText: "work-laptop" });
       await laptop.getByRole("button", { name: "Revoke" }).click();
       await laptop.waitFor({ state: "detached", timeout: 5000 }).catch(() => {});

@@ -63,7 +63,7 @@ The sidebar has four pages, plus **Ask your agent** and **Settings** in its foot
 - **Blocked**: your PRs that can't move yet, such as one that needs another PR merged first, or one waiting on reviewers. Each says what it waits on, down the chain. It comes back to your Inbox when that changes.
 - **Merging**: your PRs the coordinator is getting merged, each with what it waits on and the coordinator's latest note. Merged ones stay for 3 days. **Back to desk** takes one back.
 - **Archive**: what's done (by you, or resolved by GitHub: merged, closed, approved), then what you snoozed or muted and what your rules hid.
-- **Settings** (⌘, in the app): Inbox and notifications, Local Agent Integration, Automation Rules (your automations and urgency), Appearance, This device (shortcut, menu bar count), Tailscale (use it from your other devices), Local network (read it there with a token), then GitHub (account, searches and rules, the AI review, its automations). Changes save as you go.
+- **Settings** (⌘, in the app): Inbox and notifications, Local Agent Integration, Automation Rules (your automations and urgency), Appearance, This device (shortcut, menu bar count), Network (Tailscale to use it from your other devices; the local network to read it there with a token), then GitHub (account, searches and rules, the AI review, its automations). Changes save as you go.
 
 Everything is a click. A row opens its review (an issue opens in place). Right-click a row for Done, Snooze, Close on GitHub and Copy link. Platform keys still work: Esc goes back, ⌘↵ sends what you wrote, ⌘S saves an editor, Tab moves between controls.
 
@@ -180,16 +180,16 @@ desk render review.json       # a review document as one HTML page (docs/review-
 
 ## Use it from another machine
 
-Over [Tailscale](https://tailscale.com), for you alone. On the desk's computer, turn on Settings → Tailscale → **Use it from your other devices** (or run `desk serve --tailscale`).
+Over [Tailscale](https://tailscale.com), for you alone. On the desk's computer, turn on Settings → Network → Tailscale → **Use it from your other devices** (or run `desk serve --tailscale`).
 
 - The desk runs `tailscale serve`, so it answers at `https://<this machine's tailnet name>/` on your tailnet only, never on the internet (no `tailscale funnel`). It stops serving when you turn the setting off or the desk stops.
 - It needs Tailscale signed in, with MagicDNS and HTTPS certificates on. The setting says what's missing.
 - Only your own Tailscale login gets in (More → Tailscale login allowed changes whose), and only from a device you paired.
 
-Pair a device with a one-time code (10 minutes, one try):
+Pair a device with a one-time code (10 minutes, one try): press **Pair a device** under the setting (a QR code for your phone's camera, the link, and the command for another machine), or on the desk's computer:
 
 ```bash
-desk pair            # on the desk's computer
+desk pair
 ```
 
 - **A browser** (phone, laptop): open the link it prints, `https://<name>/pair#<code>`.
@@ -198,7 +198,7 @@ desk pair            # on the desk's computer
 - **Codex and OpenCode** read the token from `INBOX_TOKEN`; the commands above print the `export` line.
 - **stdio clients and the CLI**: `DESK_URL=https://<name> DESK_TOKEN=<token> desk mcp` (or any `desk` command).
 
-Settings → This device lists paired devices; **Revoke** shuts one out at once. The desk's own computer needs no token. How requests are checked: [docs/api.md → Security model](docs/api.md#security-model).
+Settings → Network → Tailscale lists paired devices; **Revoke** shuts one out at once. The desk's own computer needs no token. How requests are checked: [docs/api.md → Security model](docs/api.md#security-model).
 
 ## On your phone
 

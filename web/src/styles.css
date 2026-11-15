@@ -6894,3 +6894,20 @@ pre,
     padding-inline: 12px;
   }
 }
+
+/* Pairing a device: its QR beside the code, white behind it so any camera reads it in either theme. */
+.setting.s-pair {
+  align-items: start;
+}
+
+.setting.s-pair:has(.s-qr) {
+  grid-template-columns: auto minmax(0, 1fr) auto;
+}
+
+.s-qr {
+  flex: none;
+  width: 148px;
+  height: 148px;
+  border-radius: 6px;
+  background: #fff;
+}

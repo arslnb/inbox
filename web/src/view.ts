@@ -80,6 +80,8 @@ const SETTINGS_ALIAS: Record<string, string> = {
   handoff: "github",
   policy: "agent", // Your policy, gone: rules and their weights sort now
   criteria: "automations", // Urgency, with your automations in Automation Rules now
+  tailscale: "network",
+  lan: "network",
 };
 
 // The editors that open as views of their own inside Settings, by id, and the part each one's Edit row is in.

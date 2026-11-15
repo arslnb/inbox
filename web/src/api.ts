@@ -33,6 +33,7 @@ import type {
   PreviewResult,
   QueueView,
   Reviewer,
+  PairCode,
   RemoteView,
   ReviewView,
   SettingsView,
@@ -288,6 +289,7 @@ export const api = {
     call<{ ok: boolean; errors: ConfigError[]; settings: SettingsView }>("PUT", "/api/settings", patch),
   agents: () => call<AgentStatus>("GET", "/api/agents"),
   remote: () => call<RemoteView>("GET", "/api/remote"),
+  pairCode: () => call<PairCode>("POST", "/api/pair/code", {}),
   revokeDevice: (id: string) => call<{ ok: true }>("DELETE", `/api/devices/${encodeURIComponent(id)}`),
   connectAgent: () => call<AgentStatus>("POST", "/api/agents/connect", {}),
   // The first-run page: its state, Retry (GitHub and the agents asked again), and picking your agent.

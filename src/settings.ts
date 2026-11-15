@@ -34,8 +34,8 @@ export const SECTIONS: SettingsSection[] = [
   { id: "agent", title: "Local Agent Integration" },
   { id: "queue", title: "Inbox and notifications" },
   { id: "app", title: "This device" },
-  { id: "tailscale", title: "Tailscale" },
-  { id: "lan", title: "Local network" },
+  { id: "tailscale", title: "Tailscale", part: "network" },
+  { id: "lan", title: "Local network", part: "network" },
 ];
 
 export const SETTINGS = [
@@ -343,7 +343,7 @@ export const SETTINGS = [
     label: "Use it from your other devices",
     type: "boolean",
     default: false,
-    help: "Over Tailscale, at this machine's tailnet address, for you alone; each device pairs once with desk pair.",
+    help: "Over Tailscale, at this machine's tailnet address, for you alone; each device pairs once (Pair a device, or desk pair).",
   },
   {
     key: "app.tailscale_login",

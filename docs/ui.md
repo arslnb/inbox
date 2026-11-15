@@ -462,7 +462,7 @@ Code: `src/links.ts`; the protocol in `electron/main.ts`.
 
 No tabs. In Settings the sidebar lists its parts in place of the pages, under **‹ Inbox** (⌘1–⌘4 still open the pages):
 
-- The core's: Inbox and notifications, Local Agent Integration, Automation Rules, Appearance, This device, Tailscale, Local network.
+- The core's: Inbox and notifications, Local Agent Integration, Automation Rules, Appearance, This device, Network.
 - Under a hairline, one per plugin: GitHub, Sessions.
 
 `SETTINGS_PARTS` in `web/src/view.ts`. The sidebar's Settings and `#/settings` open the first part.
@@ -563,11 +563,15 @@ Your criteria on one sheet, under your automations ([api.md → Urgency](api.md#
   - **Show the Inbox count in the menu bar** (macOS only).
   - **Run from a checkout** ([AGENTS.md → Run](../AGENTS.md#run)).
 
-### Tailscale
+### Network
 
-Only in the desktop app (in a browser it says to open the app): **Use it from your other devices**, under it where it serves and each paired device with **Revoke**, then **Tailscale login allowed in** ([api.md → Security model](api.md#security-model)).
+Two sections: Tailscale, then Local network.
 
-### Local network
+#### Tailscale
+
+Only in the desktop app (in a browser it says to open the app): **Use it from your other devices**, under it where it serves with **Pair a device** (a one-time code as a QR for a phone's camera, its link and the `desk connect` command; it closes once the device pairs) and each paired device with **Revoke**, then **Tailscale login allowed in** ([api.md → Security model](api.md#security-model)).
+
+#### Local network
 
 **Read it from your local network** and **Local network token** ([api.md → Security model](api.md#security-model)).
 

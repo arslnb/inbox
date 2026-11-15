@@ -8,8 +8,7 @@ export const SETTINGS_PARTS: readonly { id: string; name: string; plugin?: true;
   { id: "automations", name: "Automation Rules" }, // your automations, then the Inbox's urgency criteria
   { id: "appearance", name: "Appearance" },
   { id: "app", name: "This device" },
-  { id: "tailscale", name: "Tailscale" },
-  { id: "lan", name: "Local network" },
+  { id: "network", name: "Network" }, // Tailscale, then Local network
   { id: "github", name: "GitHub", plugin: true },
   { id: "sessions", name: "Sessions", plugin: true, automations: false },
 ];

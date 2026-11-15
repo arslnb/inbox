@@ -31,11 +31,18 @@ function sources(): string[] {
 
 test("every setting is in a part the sidebar lists", () => {
   const parts = new Set(SETTINGS_PARTS.map((p) => p.id));
-  for (const d of SETTINGS) assert.ok(parts.has(d.section), `${d.key} is in "${d.section}", which no Settings part shows`);
+  const partOf = (id: string) => SECTIONS.find((s) => s.id === id)?.part ?? id;
+  for (const d of SETTINGS) assert.ok(parts.has(partOf(d.section)), `${d.key} is in "${d.section}", which no Settings part shows`);
 });
 
 test("the desk names each part as the sidebar does", () => {
-  for (const s of SECTIONS) assert.equal(SETTINGS_PARTS.find((p) => p.id === s.id)?.name, s.title, `section "${s.id}"`);
+  for (const s of SECTIONS)
+    if (s.part)
+      assert.ok(
+        SETTINGS_PARTS.some((p) => p.id === s.part),
+        `section "${s.id}" is in "${s.part}", which isn't a part`,
+      );
+    else assert.equal(SETTINGS_PARTS.find((p) => p.id === s.id)?.name, s.title, `section "${s.id}"`);
 });
 
 test("the docs list Settings' parts as the sidebar does, each with its own heading", () => {

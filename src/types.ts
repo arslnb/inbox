@@ -300,6 +300,7 @@ export interface SettingDef {
 export interface SettingsSection {
   id: string;
   title: string;
+  part?: string; // the Settings part it's a section of, headed by its title, when that isn't its own
 }
 
 export interface GitHubStatus {
@@ -335,7 +336,15 @@ export interface Device {
   last_used_at: string | null;
 }
 
-// Settings → Tailscale's rows (GET /api/remote): on, its words, the address while it serves, who may use it.
+// A one-time pairing code (POST /api/pair/code): it, when it runs out, the desk's address and the link a browser opens.
+export interface PairCode {
+  code: string;
+  expires_at: string;
+  url: string;
+  pair_url: string;
+}
+
+// Settings → Network → Tailscale's rows (GET /api/remote): on, its words, the address while it serves, who may use it.
 export interface RemoteView {
   on: boolean;
   text: string;

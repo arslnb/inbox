@@ -4408,6 +4408,11 @@ async function respond(req: IncomingMessage, url: URL): Promise<unknown> {
     return setupView();
   }
   if (route === "GET /api/remote") return remoteView();
+  if (route === "POST /api/pair/code") {
+    const r = remoteView();
+    if (!r.url) throw new HttpError(409, "turn on Settings → Network → Tailscale → Use it from your other devices first");
+    return { code: "7KQM-X4RT", expires_at: new Date(Date.now() + 600_000).toISOString(), url: r.url, pair_url: `${r.url}/pair#7KQM-X4RT` };
+  }
   const device = /^\/api\/devices\/([^/]+)$/.exec(url.pathname);
   if (device && req.method === "DELETE") {
     const i = DEVICES.findIndex((d) => d.id === device[1]);
