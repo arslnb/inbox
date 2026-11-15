@@ -372,7 +372,7 @@ On your ready PR nobody's asked to review, the same line opens with the box focu
 
 ### The review's sidebar
 
-One icon button at the review's top right shows and hides it ("Show checks and files", "Hide the stack, checks and files"). Every review opens with it shown beside the diff (240px wide in a column under 880px); a fold lasts for that review. It stays in view as you scroll. In a page column under 700px it lies over the diff and starts folded. While the chat is open the chat takes its place; the toggle brings the sidebar back and closes the chat.
+One icon button at the review's top right shows and hides it ("Show checks and files", "Hide the stack, checks and files"). Every review opens with it shown beside the diff (240px wide in a column under 880px); a fold lasts for that review. It stays in view as you scroll. In a page column under 680px it lies over the diff and starts folded. While the chat is open the chat takes its place; the toggle brings the sidebar back and closes the chat.
 
 Top to bottom:
 

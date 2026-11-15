@@ -708,7 +708,7 @@ p {
 }
 
 /* Its right edge, to drag; inside it, as it scrolls on its own. */
-.side-resize {
+.side .side-resize {
   right: 0;
 }
 
@@ -4902,7 +4902,7 @@ fieldset.au-field > legend {
 
 /* Beside the diff where the page's column has room for it (Review.tsx's ROOM), whatever narrows it: the window, the list
    beside the review, the chat. */
-@container pane (width >= 700px) {
+@container pane (width >= 680px) {
   .review.side-open {
     grid-template-columns: minmax(0, 1fr) var(--rv-side-w-user, 240px);
   }
@@ -4981,7 +4981,7 @@ fieldset.au-field > legend {
 }
 
 /* Narrower, it opens over the diff's right edge rather than squeezing it. */
-@container pane (width < 700px) {
+@container pane (width < 680px) {
   .rv-side {
     position: fixed;
     top: 52px;

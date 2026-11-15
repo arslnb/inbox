@@ -2769,7 +2769,7 @@ const SHOTS: Shot[] = [
       // A PR in a stack with a conflict: every part, in order, a line each.
       // Open as it opens, beside the diff; folded only where it would lie over it.
       await review("acme/api#4154")(page);
-      const wide = await page.evaluate<boolean>(`document.querySelector(".col").getBoundingClientRect().width >= 700`);
+      const wide = await page.evaluate<boolean>(`document.querySelector(".col").getBoundingClientRect().width >= 680`);
       const opened = await says();
       if (opened.label !== `${wide ? "Hide" : "Show"} the stack, checks and files`)
         failures.push(`review-panel: in a stack, ${wide ? "with room" : "without room"} the toggle reads ${JSON.stringify(opened.label)}`);
