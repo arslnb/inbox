@@ -137,42 +137,49 @@ struct RowLines: View {
         .lineLimit(2)
         .lineSpacing(1.5)
         .frame(maxWidth: .infinity, alignment: .leading)
-      HStack(alignment: .firstTextBaseline, spacing: 0) {
-        MetaLine {
-          if let kind {
-            Text(kind).sans(11.5, 600, tracking: 0.02).padding(.trailing, quick == nil ? 8 : 4)
+      // No ref and no facts (your agent's work on a question): no line of its own for the age alone.
+      let bare = kind == nil && quick == nil && repo == nil && number == nil && facts.isEmpty && cta == nil && !(under ?? "").isEmpty
+      if !bare {
+        HStack(alignment: .firstTextBaseline, spacing: 0) {
+          MetaLine {
+            if let kind {
+              Text(kind).sans(11.5, 600, tracking: 0.02).padding(.trailing, quick == nil ? 8 : 4)
+            }
+            if let quick {
+              Bolt().fill(Theme.accentInk).frame(width: 14, height: 14)
+                .alignmentGuide(.firstTextBaseline) { $0[.bottom] - 2 }
+                .padding(.trailing, 8)
+                .accessibilityLabel(quick)
+            }
+            if let repo {
+              Text(repo).lineLimit(1).truncationMode(.tail).shrinks(0, floor: 44)
+            }
+            if let number { Text(number).fixedSize() }
+            if let stack {
+              Text(stack).fixedSize().padding(.leading, 6).accessibilityLabel(stackSays ?? stack)
+            }
+            ForEach(Array(facts.enumerated()), id: \.offset) { i, fact in
+              factText(fact, dot: i > 0 || repo != nil || number != nil, last: i == facts.count - 1)
+            }
           }
-          if let quick {
-            Bolt().fill(Theme.accentInk).frame(width: 14, height: 14)
-              .alignmentGuide(.firstTextBaseline) { $0[.bottom] - 2 }
-              .padding(.trailing, 8)
-              .accessibilityLabel(quick)
-          }
-          if let repo {
-            Text(repo).lineLimit(1).truncationMode(.tail).shrinks(0, floor: 44)
-          }
-          if let number { Text(number).fixedSize() }
-          if let stack {
-            Text(stack).fixedSize().padding(.leading, 6).accessibilityLabel(stackSays ?? stack)
-          }
-          ForEach(Array(facts.enumerated()), id: \.offset) { i, fact in
-            factText(fact, dot: i > 0 || repo != nil || number != nil, last: i == facts.count - 1)
-          }
-        }
-        .sans(13, tabular: true)
-        .foregroundStyle(Theme.pencil)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .clipped()
-        if let cta {
-          Text(cta).sans(13, 600).foregroundStyle(Theme.accentInk).fixedSize().padding(.leading, 10)
-        }
-        Text(age).sans(13, tabular: true).foregroundStyle(Theme.pencil).fixedSize().padding(.leading, cta == nil ? 10 : 8)
-      }
-      // One line with parts that never shrink: past the largest standard size they'd push the facts off the row. The title keeps growing.
-      .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
-      if let under, !under.isEmpty {
-        Text(under).sans(13).foregroundStyle(underInk ? Theme.ink2 : Theme.pencil).lineLimit(2).lineSpacing(1.5)
+          .sans(13, tabular: true)
+          .foregroundStyle(Theme.pencil)
           .frame(maxWidth: .infinity, alignment: .leading)
+          .clipped()
+          if let cta {
+            Text(cta).sans(13, 600).foregroundStyle(Theme.accentInk).fixedSize().padding(.leading, 10)
+          }
+          Text(age).sans(13, tabular: true).foregroundStyle(Theme.pencil).fixedSize().padding(.leading, cta == nil ? 10 : 8)
+        }
+        // One line with parts that never shrink: past the largest standard size they'd push the facts off the row. The title keeps growing.
+        .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
+      }
+      if let under, !under.isEmpty {
+        HStack(alignment: .firstTextBaseline, spacing: 0) {
+          Text(under).sans(13).foregroundStyle(underInk ? Theme.ink2 : Theme.pencil).lineLimit(2).lineSpacing(1.5)
+            .frame(maxWidth: .infinity, alignment: .leading)
+          if bare { Text(age).sans(13, tabular: true).foregroundStyle(Theme.pencil).fixedSize().padding(.leading, 10) }
+        }
       }
     }
     .padding(.init(top: 10, leading: Theme.pad, bottom: 11, trailing: Theme.pad))
