@@ -81,6 +81,8 @@ wanted connect-error && shot connect-error -connect -connectAddress "https://des
   -connectError "That pairing code isn't valid: run desk pair again for a new one."
 # What the camera would have read (the Simulator has none): a QR that isn't a desk's never leaves the connect screen.
 wanted connect-scan-wrong && shot connect-scan-wrong -connect -scan "https://example.com"
+# A desk's link, read: nothing is sent until Connect, and the address it named is said first.
+wanted connect-scanned && shot connect-scanned -connect -scan "https://gregs-mac.tail1234.ts.net/pair#ABCD-2345"
 wanted inbox && shot inbox -deskURL "$DESK"
 wanted inbox-scrolled && shot inbox-scrolled -deskURL "$DESK" -scrollTo standard
 wanted inbox-empty && shot inbox-empty -deskURL "$DESK" -empty

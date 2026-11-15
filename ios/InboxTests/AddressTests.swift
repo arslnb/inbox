@@ -65,6 +65,9 @@ final class AddressTests: XCTestCase {
       XCTAssertEqual(scanned(link), link)
     }
     XCTAssertEqual(scanned(" https://gregs-mac.tail1234.ts.net/pair#ABCD-2345\n"), "https://gregs-mac.tail1234.ts.net/pair#ABCD-2345")
+    // Any name passes, a ts.net one or not (a desk can be served elsewhere, and Funnel's names are public anyway): so
+    // the connect screen says the name and waits for Connect before anything is sent there.
+    XCTAssertNotNil(scanned("https://not-your-desk.example/pair#ABCD2345"))
     for other in [
       "https://example.com", "WIFI:T:WPA;S:home;P:secret;;", "https://gregs-mac.tail1234.ts.net", "http://localhost:47841",
       "https://gregs-mac.tail1234.ts.net/pair#nope", "https://gregs-mac.tail1234.ts.net/pair", "https://gregs-mac.tail1234.ts.net/#ABCD-2345",

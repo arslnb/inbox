@@ -89,7 +89,7 @@ ios/shots.sh inbox item-pr   # only these
 ```
 
 It builds, installs on the booted simulator, starts the mock on port 47841 (and stops it), and writes
-`ios/.shots/<state>-<light|dark>.png` for: `connect` (in the Simulator, Scan the code is off and says why), `connect-error`, `connect-scan-wrong` (a QR that isn't a desk's), `inbox`, `inbox-scrolled`, `inbox-empty`,
+`ios/.shots/<state>-<light|dark>.png` for: `connect` (in the Simulator, Scan the code is off and says why), `connect-error`, `connect-scan-wrong` (a QR that isn't a desk's), `connect-scanned` (a desk's link read: its address, said before Connect), `inbox`, `inbox-scrolled`, `inbox-empty`,
 `inbox-filter` (the filter's box with the cursor in it: Filter by person), `inbox-filter-author` (a pill and what it
 keeps), `inbox-filter-large` (the same at an accessibility text size), `inbox-fyi` (FYI's first five and Show 3 more),
 `blocked` (its tree's guides), `blocked-filter` (flat, "4 of 11"), `merging` (your agent's line with Wake it),
@@ -135,9 +135,13 @@ Not tried on a phone yet: v0 has only run in the Simulator, and the project has 
    opens the link in Safari and spends the code there. Or type the address and the code (`desk pair` prints both), or
    paste the whole link (`https://<name>/pair#<code>`) into the address field.
 
-Scan the code takes only a desk's pairing link: any other QR is said to be none, in red under the viewfinder, and
-nothing is asked of anyone, so no try is spent. A desk's link is traded once and the sheet closes; a refusal (a used
-code, Tailscale off) shows on the connect screen with the address kept and the code field empty for a new one. The live
+Scan the code takes only a link shaped like a desk's pairing link (`https://<any name>/pair#<code>`): any other QR is
+said to be none, in red under the viewfinder, and nothing is asked of anyone, so no try is spent. A link of that shape
+closes the sheet and still sends nothing: the address it named is in the field, with "Scanned the pairing code for
+<name>. Connect pairs this phone with that desk." under it, since a QR can name any address and whatever answers
+there would be shown as your desk. **Connect** then trades the code, once; changing the address drops the scanned
+code. A refusal (a used code, Tailscale off) shows on the connect screen with the address kept and the code field
+empty for a new one. The live
 camera, iOS's ask for it and the screen for a camera that was refused can't run in the Simulator, which has no camera:
 only what happens with what was read is tested (`-scan`, `AddressTests`, `StoreTests`).
 

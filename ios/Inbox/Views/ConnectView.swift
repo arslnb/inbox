@@ -10,6 +10,7 @@ struct ConnectView: View {
   @State private var error: String?
   @State private var busy = false
   @State private var scanning = false
+  @State private var scannedLink: String?  // a desk's pairing link the camera read, until Connect trades it or the address is changed
   @FocusState private var focus: Field?
 
   private enum Field { case address, code }
@@ -19,7 +20,7 @@ struct ConnectView: View {
     if case .success(let p) = DeskAddress.parse(typed) { p } else { nil }
   }
   private let hasCamera = AVCaptureDevice.default(for: .video) != nil  // the Simulator has none
-  private var asksCode: Bool { !(parsed?.address.isLocal ?? false) && parsed?.code == nil }
+  private var asksCode: Bool { scannedLink == nil && !(parsed?.address.isLocal ?? false) && parsed?.code == nil }
 
   var body: some View {
     ScrollView {
@@ -56,6 +57,10 @@ struct ConnectView: View {
           .focused($focus, equals: .address)
           .submitLabel(asksCode ? .next : .go)
           .onSubmit { if asksCode { focus = .code } else { connect() } }
+          // Its code is for the address it came with, and no other.
+          .onChange(of: typed) { _, now in
+            if let link = scannedLink, case .success(let read) = DeskAddress.parse(link), read.address.text != now { scannedLink = nil }
+          }
 
         if asksCode {
           label("Pairing code").padding(.top, 16)
@@ -66,6 +71,10 @@ struct ConnectView: View {
             .onSubmit(connect)
           Prose(text: "On the desk's computer, Settings → Network → Pair a device shows a QR to scan, and the address and a code to type (so does `desk pair`). A code works once, for 10 minutes.")
             .foregroundStyle(Theme.pencil).lineSpacing(2).padding(.top, 8)
+        } else if scannedLink != nil {
+          // Where the code would go, said before anything is sent there: a QR can name any address.
+          Text("Scanned the pairing code for \(parsed?.address.host ?? typed). Connect pairs this phone with that desk.")
+            .sans(13).foregroundStyle(Theme.ink2).lineSpacing(2).padding(.top, 8)
         } else if parsed?.address.isLocal == true {
           Text("A desk on this computer needs no code.").sans(13).foregroundStyle(Theme.pencil).padding(.top, 8)
         } else {
@@ -122,8 +131,8 @@ struct ConnectView: View {
       .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Theme.ruleStrong, lineWidth: 1))
   }
 
-  // What the camera read. The field keeps the address only, never the link: its code is traded here, once, so a second
-  // Connect can't send a burnt one.
+  // What the camera read. Nothing is sent yet: the field shows the address the QR named, and Connect pairs with it. The
+  // field keeps the address only, never the link: its code is traded once, so a second Connect can't send a burnt one.
   private func scanned(_ text: String) {
     guard case .success(let link) = DeskAddress.scanned(text), case .success(let read) = DeskAddress.parse(link) else {
       error = DeskAddress.Unreadable.notAPairingLink.words
@@ -131,10 +140,15 @@ struct ConnectView: View {
     }
     typed = read.address.text
     code = ""
-    connect(link: link)
+    error = nil
+    scannedLink = link
   }
 
-  private func connect() { connect(link: nil) }
+  private func connect() {
+    let link = scannedLink
+    scannedLink = nil
+    connect(link: link)
+  }
 
   private func connect(link: String?) {
     guard !busy else { return }

@@ -303,7 +303,7 @@ final class StoreTests: XCTestCase {
     XCTAssertEqual(StubProtocol.requests().count, 1)
   }
 
-  // As the connect screen takes what the camera read (ConnectView.scanned): only a desk's link is traded, at once, and
+  // As the connect screen takes what the camera read (ConnectView.scanned) once Connect is pressed: only a desk's link is traded, and
   // the field keeps the address alone. Returns the field and the words in red.
   private func scan(_ text: String, into store: Store) async -> (field: String, said: String?) {
     guard case .success(let link) = DeskAddress.scanned(text), case .success(let read) = DeskAddress.parse(link) else {
