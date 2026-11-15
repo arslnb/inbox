@@ -323,7 +323,7 @@ private struct DiffLine: View {
         .background(Theme.wash)
     } else {
       HStack(alignment: .firstTextBaseline, spacing: 0) {
-        Text(String((l.kind == .del ? l.old : l.new) ?? 0)).foregroundStyle(Theme.faint).frame(width: CGFloat(digits) * char, alignment: .trailing)
+        Text(String((l.kind == .del ? l.old : l.new) ?? 0)).foregroundStyle(Theme.pencil).frame(width: CGFloat(digits) * char, alignment: .trailing)
         Text(l.kind == .add ? "+" : l.kind == .del ? "\u{2212}" : " ")
           .foregroundStyle(l.kind == .add ? Theme.green : Theme.red).frame(width: char * 2.4)
         // Wrapped under its own first letter, the numbers' column kept clear.

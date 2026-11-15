@@ -120,7 +120,7 @@ struct ConnectView: View {
   }
 
   private func field(_ placeholder: String, text: Binding<String>, mono: Bool) -> some View {
-    TextField("", text: text, prompt: Text(placeholder).foregroundStyle(Theme.faint))
+    TextField("", text: text, prompt: Text(placeholder).foregroundStyle(Theme.pencil))
       .modifier(FieldFace(mono: mono))
       .foregroundStyle(Theme.ink)
       .textInputAutocapitalization(.never)

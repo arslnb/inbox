@@ -173,6 +173,6 @@ private struct FilterField: UIViewRepresentable {
     context.coordinator.parent = self
     field.backspaceAtStart = backspaceAtStart
     if field.text != text { field.text = text }
-    field.attributedPlaceholder = NSAttributedString(string: placeholder, attributes: [.foregroundColor: UIColor(Theme.faint)])
+    field.attributedPlaceholder = NSAttributedString(string: placeholder, attributes: [.foregroundColor: UIColor(Theme.pencil)])
   }
 }
