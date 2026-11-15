@@ -127,6 +127,8 @@ wanted item-pr-checks && shot item-pr-checks -deskURL "$DESK" -open "oss/tinyhtt
 wanted item-pr-own && shot item-pr-own -deskURL "$DESK" -open "acme/worker#875" -part reviewers
 # A PR's diff: scrolled to its first file, a thread under its line, and the box for a comment on a line.
 wanted item-pr-diff && shot item-pr-diff -deskURL "$DESK" -open "acme/api#4127" -scroll diff -review.view traditional
+wanted item-pr-files && shot item-pr-files -deskURL "$DESK" -open "acme/api#4127" -scroll diff -review.view traditional -part files
+wanted item-pr-steps && shot item-pr-steps -deskURL "$DESK" -open "acme/api#4127" -scroll diff -part files
 wanted item-pr-diff-thread && shot item-pr-diff-thread -deskURL "$DESK" -open "acme/api#4127" -scroll thread -review.view traditional
 wanted item-pr-line-comment && shot item-pr-line-comment -deskURL "$DESK" -open "acme/api#4127" -scroll diff -comment "src/planner/stream.ts:12" -review.view traditional
 # The AI review: its fold opened (a goal, interfaces, could be better), a step of the guide with its diagram as text,

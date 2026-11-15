@@ -58,6 +58,7 @@ struct DiffView: View {
           .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .id("rest")
         .accessibilityAddTraits(restOpen ? .isSelected : [])
         if restOpen { ForEach(model.list.dropFirst(model.rest)) { s in section(s) } }
       }

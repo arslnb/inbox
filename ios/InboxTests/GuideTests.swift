@@ -6,6 +6,20 @@ import XCTest
 // the mock's guided reviews (Fixtures/review-steps.json, review.json) and the desk's own cases (test/diagram.test.ts).
 @MainActor
 final class GuideTests: XCTestCase {
+  // What the diff's heading lists to go to: the guide's steps, or each file once in reading order, as the window's sidebar.
+  func testThePlacesToGoTo() throws {
+    let o = try order("review-steps")
+    let guided = DiffModel(o, guided: true, bugs: 2)
+    XCTAssertEqual(guided.stops.map(\.id), guided.steps.indices.map { "step-\($0)" })
+    XCTAssertEqual(guided.stops.map(\.title), guided.steps.map(\.title))
+    let plain = DiffModel(o)
+    let shown = plain.list.prefix(plain.rest)
+    XCTAssertEqual(plain.stops.map(\.path), shown.map(\.path).reduce(into: [String]()) { if !$0.contains($1) { $0.append($1) } }, "each file once")
+    XCTAssertEqual(plain.stops.map(\.id), plain.stops.map { stop in shown.first { $0.path == stop.path }?.key }, "at its first section")
+    XCTAssertEqual(Set(plain.stops.filter(\.notes).map(\.path)), Set(shown.filter { !$0.notes.isEmpty }.map(\.path)))
+    XCTAssertFalse(plain.stops.isEmpty)
+  }
+
   private func order(_ name: String, _ change: ((inout [String: Any]) -> Void)? = nil) throws -> ReviewOrder {
     var json = try XCTUnwrap(JSONSerialization.jsonObject(with: try Fixture.data(name)) as? [String: Any])
     var order = try XCTUnwrap(json["order"] as? [String: Any])

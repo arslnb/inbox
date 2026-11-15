@@ -19,6 +19,7 @@ struct ItemPage: View {
   @State private var diff: DiffModel?  // the review's diff, as it last landed
   @State private var drawn: (mark: String, at: Date)?  // what Store.mark() said when the review on screen was asked for
   @State private var stackAll = false  // a long stack, shown whole
+  @State private var stopsOpen = false  // the list of files (or the guide's steps) to jump to
   @State private var fixAsked = false  // Make PR with fix was taken from this page: a second press would ask your agent twice
   @State private var sent: [SentWords] = []  // yours on the diff's lines, until the conversation has them
   // This phone's choice where a review has steps: the guided review, or every file ("traditional"). The window's own.
@@ -137,6 +138,10 @@ struct ItemPage: View {
         if let want = store.debugBox, let c = card, landed, want != "reply" || !waiting.isEmpty {
           store.debugBox = nil
           press(want, c)
+        }
+        if store.debugPart == "files", diff != nil {
+          store.debugPart = nil
+          stopsOpen = true
         }
         if let diff, let to = store.debugScroll {
           store.debugScroll = nil
@@ -550,7 +555,7 @@ struct ItemPage: View {
   private func diffBlock(_ c: Card, _ review: ReviewView, _ diff: DiffModel, _ proxy: ScrollViewProxy) -> some View {
     let can = item?.state == "open" && review.diffHead != nil
     return VStack(alignment: .leading, spacing: 6) {
-      SmallHead(text: Words.plural(review.files.isEmpty ? diff.list.count : review.files.count, "file") + " changed").id("diff")
+      stops(diff, Words.plural(review.files.isEmpty ? diff.list.count : review.files.count, "file") + " changed", proxy).id("diff")
       // A review with steps reads two ways; the choice is this phone's and stays.
       if !(review.order?.steps ?? []).isEmpty {
         HStack(spacing: 20) {
@@ -569,6 +574,69 @@ struct ItemPage: View {
       )
       // Edge to edge: a line's wash runs the page's width, its text keeps the gutter.
       .padding(.horizontal, -Theme.pad)
+    }
+  }
+
+  // The window's list of files beside a review (with a guide, its steps), folded under the diff's heading: a press
+  // goes there. A file says its level, and has a dot when the AI review has notes in it.
+  @ViewBuilder
+  private func stops(_ diff: DiffModel, _ heading: String, _ proxy: ScrollViewProxy) -> some View {
+    let stops = diff.stops
+    VStack(alignment: .leading, spacing: 0) {
+      Button {
+        stopsOpen.toggle()
+      } label: {
+        HStack(alignment: .firstTextBaseline, spacing: 6) {
+          Image(systemName: "chevron.right").font(.system(size: 9, weight: .semibold)).foregroundStyle(Theme.pencil)
+            .rotationEffect(.degrees(stopsOpen ? 90 : 0)).frame(width: 9).accessibilityHidden(true)
+          Text(heading).sans(12.5, 550).foregroundStyle(Theme.pencil)
+          Spacer(minLength: 0)
+        }
+        .frame(minHeight: 36)
+        .contentShape(Rectangle())
+      }
+      .buttonStyle(.plain)
+      .accessibilityHint(diff.guiding ? "Lists the guide's steps to go to" : "Lists the files to go to")
+      .accessibilityAddTraits(stopsOpen ? .isSelected : [])
+      if stopsOpen {
+        ForEach(Array(stops.enumerated()), id: \.element.id) { i, stop in
+          Button {
+            reach(stop.id, .top, proxy)
+          } label: {
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+              if diff.guiding {
+                (Text("\(i + 1) of \(stops.count)  ").foregroundStyle(Theme.pencil) + Text(stop.title).foregroundStyle(Theme.ink2))
+                  .sans(13, tabular: true).lineLimit(1)
+              } else {
+                let (dir, name) = Diff.splitPath(stop.path)
+                (Text(dir).foregroundStyle(Theme.pencil) + Text(name).foregroundStyle(Theme.ink2)).mono(12.5).lineLimit(1).truncationMode(.head)
+                if stop.notes {
+                  Circle().fill(Theme.pencil).frame(width: 5, height: 5).alignmentGuide(.firstTextBaseline) { $0[.bottom] + 3 }
+                    .accessibilityLabel("AI notes")
+                }
+              }
+              Spacer(minLength: 6)
+              if let level = stop.level, let word = DiffView.levels[level] {
+                Text(word).sans(12.5).foregroundStyle(level == "look" ? Theme.amber : level == "skim" ? Theme.accentInk : Theme.pencil).fixedSize()
+              }
+            }
+            .padding(.leading, 15)
+            .frame(minHeight: 40)
+            .contentShape(Rectangle())
+          }
+          .buttonStyle(.plain)
+        }
+        let folded = diff.list.count - diff.rest
+        if !diff.guiding, folded > 0 {
+          Button {
+            reach("rest", .top, proxy)
+          } label: {
+            Text("Not worth reviewing · \(Words.plural(folded, "file"))").sans(13).foregroundStyle(Theme.pencil).padding(.leading, 15)
+              .frame(maxWidth: .infinity, minHeight: 40, alignment: .leading).contentShape(Rectangle())
+          }
+          .buttonStyle(.plain)
+        }
+      }
     }
   }
 

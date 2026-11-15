@@ -224,6 +224,26 @@ final class DiffModel {
     total = list.reduce(0) { $0 + $1.rows }
   }
 
+  // A place to jump to from above the diff, as the window's sidebar lists them: a step of the guide, or a file.
+  struct Stop: Identifiable, Equatable {
+    let id: String  // what the page scrolls to
+    var title = ""  // a step's
+    var path = ""  // a file's
+    var level: String?
+    var notes = false  // the AI review has notes in it
+  }
+
+  // The guide's steps; in Traditional each file once, where reading reaches it, less what the desk folded away (that
+  // is one line of the diff itself, "Not worth reviewing").
+  var stops: [Stop] {
+    if guiding { return steps.indices.map { Stop(id: "step-\($0)", title: steps[$0].title) } }
+    var seen: Set<String> = []
+    return list.prefix(rest).compactMap { s in
+      guard seen.insert(s.path).inserted else { return nil }
+      return Stop(id: s.key, path: s.path, level: s.level, notes: list.contains { $0.path == s.path && !$0.notes.isEmpty })
+    }
+  }
+
   // The lines it draws: its first Diff.cap.
   func rows(_ s: DiffSection) -> [Row] {
     if let have = parsed[s.key] { return have }

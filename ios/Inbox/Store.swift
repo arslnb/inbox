@@ -861,7 +861,7 @@ final class Store {
     //   -connect [-connectError "<words>"] [-connectAddress <text>]   the connect screen
     //   -page inbox|blocked|merging|archive   -open <item id>|inquiry:<id>|session:<id>   -settings   -empty
     //   -box approve|comment|changes|reviewers|reply|answer   with -open: that page's box, opened once it has loaded
-    //   -part checks|reviewers   with -open: that line of a PR's State, opened
+    //   -part checks|reviewers|files   with -open: that line of a PR's State, or the diff's list of files (steps), opened
     //   -scroll diff|thread|said   with -open: a PR's page scrolled to its diff, the first thread on a line of it, or what reviewers said
     //   -said waiting|more   with -open: the first waiting conversation's own words unfolded, or the ones not waiting on you
     //   -comment <path>:<line>   with -open: the box for a comment on that line of the new file
