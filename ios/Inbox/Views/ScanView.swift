@@ -112,7 +112,10 @@ struct ScanView: View {
       default: state = .refused
       }
     }
-    .onDisappear { camera.stop() }
+    .onDisappear {
+      camera.stop()
+      camera.read = { _ in }  // it held this view, which holds the camera: let both go
+    }
   }
 
   static let noCamera = "This device has no camera: type or paste the link instead."
