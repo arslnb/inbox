@@ -679,14 +679,16 @@ p {
 /* The window's: thin and quiet, a faint thumb on no track, starting under the page's head (52px) rather than beside it.
    The review's sidebar scrolls with the same. */
 html::-webkit-scrollbar,
-.rv-side::-webkit-scrollbar {
+.rv-side::-webkit-scrollbar,
+.rv-steps::-webkit-scrollbar {
   width: 10px;
   height: 10px;
   background: transparent;
 }
 
 html::-webkit-scrollbar-track,
-.rv-side::-webkit-scrollbar-track {
+.rv-side::-webkit-scrollbar-track,
+.rv-steps::-webkit-scrollbar-track {
   background: transparent;
 }
 
@@ -695,19 +697,22 @@ html::-webkit-scrollbar-track {
 }
 
 html::-webkit-scrollbar-thumb,
-.rv-side::-webkit-scrollbar-thumb {
+.rv-side::-webkit-scrollbar-thumb,
+.rv-steps::-webkit-scrollbar-thumb {
   border: 3px solid transparent;
   border-radius: 5px;
   background: color-mix(in oklab, var(--ink) 20%, transparent) padding-box;
 }
 
 html::-webkit-scrollbar-thumb:hover,
-.rv-side::-webkit-scrollbar-thumb:hover {
+.rv-side::-webkit-scrollbar-thumb:hover,
+.rv-steps::-webkit-scrollbar-thumb:hover {
   background-color: color-mix(in oklab, var(--ink) 38%, transparent);
 }
 
 html::-webkit-scrollbar-corner,
-.rv-side::-webkit-scrollbar-corner {
+.rv-side::-webkit-scrollbar-corner,
+.rv-steps::-webkit-scrollbar-corner {
   background: transparent;
 }
 
@@ -5056,30 +5061,34 @@ fieldset.au-field > legend {
   margin-left: -23px;
 }
 
+/* Beside the diff, as tall as the review: its parts scroll away with the page, and the guided review's steps stay
+   (.rv-steps). */
 .rv-side {
-  position: sticky;
-  top: 60px;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   grid-row: 1;
   grid-column: 2;
+  align-self: stretch;
   gap: 18px;
   align-content: start;
-  max-height: calc(100vh - 80px);
-
-  /* Into the page's room under the review's last row, so it isn't pushed up under the head at the review's very end. */
-  margin-bottom: -64px;
-  overflow: hidden auto;
+  min-width: 0;
   font-size: 12.5px;
 }
 
-/* The toggle's row, kept at the sidebar's top while its parts scroll under it. */
-.rv-side-top {
+/* The guided review's steps stick under the page's head as the rest of the sidebar scrolls away; a long guide scrolls in
+   itself. */
+.rv-side > .rv-steps {
   position: sticky;
-  top: 0;
+  top: 60px;
   z-index: 1;
-  height: 28px;
+  max-height: calc(100vh - 80px);
+  overflow: hidden auto;
   background: var(--paper);
+}
+
+/* The toggle's row, only over the diff, where the toggle is. */
+.rv-side-top {
+  display: none;
 }
 
 /* Narrower, it opens over the diff's right edge rather than squeezing it. */
@@ -5091,16 +5100,26 @@ fieldset.au-field > legend {
     bottom: 0;
     z-index: 5;
     width: min(300px, 85vw);
-    max-height: none;
-    margin-bottom: 0;
     padding: 0 14px 20px 16px;
+    overflow: hidden auto;
     border-left: 1px solid var(--rule);
     background: var(--paper);
     box-shadow: var(--shadow);
   }
 
   .rv-side-top {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    display: block;
     height: 46px;
+    background: var(--paper);
+  }
+
+  .rv-side > .rv-steps {
+    top: 46px;
+    max-height: none;
+    overflow: visible;
   }
 }
 

@@ -213,7 +213,7 @@ export function Review({
   const [side, setSide] = useState(true); // every review opens with it; a fold lasts for this review
   const [room, setRoom] = useState(roomy); // the page's column has room for the sidebar beside the diff
   const [over, setOver] = useState(false); // without room, Files opened it over the diff
-  const showSide = (room ? side : over) && !chat;
+  const showSide = (room ? side : over) && !chat; // with room it's always there: no toggle hides it
   const [busy, setBusy] = useState<"ai" | null>(null);
   const [drawn, setDrawn] = useState(0); // sections drawn past the first screenful
   const [picked, setPicked] = useState<Reviewer[]>([]); // who Ready for review asks
@@ -654,23 +654,25 @@ export function Review({
     };
   }, []);
 
-  // The sidebar's one toggle, pinned at the review's top right however far it's scrolled: it shows the sidebar and hides it.
+  // The sidebar's toggle, only where it can't sit beside the diff (a narrow column, where it opens over it) or the chat holds
+  // its place: pinned at the review's top right however far it's scrolled.
   const holds = `${(v?.stack ?? known?.stack) ? "the stack, " : ""}checks and files`;
-  const toggle = (
-    <button
-      type="button"
-      className={cls("act", "rv-side-toggle", !showSide && "rv-side-show")}
-      aria-expanded={showSide}
-      aria-controls="rv-side"
-      aria-label={`${showSide ? "Hide" : "Show"} ${holds}`}
-      title={`${showSide ? "Hide" : "Show"} ${holds}`}
-      onClick={toggleSide}
-    >
-      <svg className="i" viewBox="0 0 16 16" aria-hidden="true">
-        <path d="M2.5 3.5h11v9h-11zM10 3.5v9" />
-      </svg>
-    </button>
-  );
+  const toggle =
+    room && !chat ? null : (
+      <button
+        type="button"
+        className={cls("act", "rv-side-toggle", !showSide && "rv-side-show")}
+        aria-expanded={showSide}
+        aria-controls="rv-side"
+        aria-label={`${showSide ? "Hide" : "Show"} ${holds}`}
+        title={`${showSide ? "Hide" : "Show"} ${holds}`}
+        onClick={toggleSide}
+      >
+        <svg className="i" viewBox="0 0 16 16" aria-hidden="true">
+          <path d="M2.5 3.5h11v9h-11zM10 3.5v9" />
+        </svg>
+      </button>
+    );
 
   if (view === null) return <Shell card={known} me={me} now={now} row={row} side={showSide} toggle={toggle} />;
   if (typeof view === "string")

@@ -2061,13 +2061,14 @@ const SHOTS: Shot[] = [
         failures.push("review-loading: the row's AI read isn't folded");
       if ((await page.locator(".rv-convo.sk-short").count()) && !inOrder(await tops(page, [".rv-ai", ".rv-convo.sk-short"])))
         failures.push("review-loading: the AI read isn't above the conversation's placeholder");
-      // The sidebar's toggle is the loaded review's: the icon button, not words.
+      // The sidebar's toggle is the loaded review's: the icon button, not words, only where the sidebar can't sit beside the diff.
       const toggle = await page.evaluate<{ tag: string; text: string; icon: boolean; label: string | null } | null>(`(() => {
         const b = document.querySelector('.review[aria-busy="true"] .rv-side-toggle');
         return b && { tag: b.tagName, text: b.textContent.trim(), icon: !!b.querySelector("svg"), label: b.getAttribute("aria-label") };
       })()`);
-      if (toggle?.tag !== "BUTTON" || toggle.text || !toggle.icon || !toggle.label?.endsWith("checks and files"))
-        failures.push(`review-loading: the sidebar's toggle is ${JSON.stringify(toggle)}`);
+      const roomy = await page.evaluate<boolean>(`document.querySelector(".col").getBoundingClientRect().width >= 680`);
+      if (roomy ? toggle !== null : toggle?.tag !== "BUTTON" || toggle.text || !toggle.icon || !toggle.label?.endsWith("checks and files"))
+        failures.push(`review-loading: ${roomy ? "with room, " : ""}the sidebar's toggle is ${JSON.stringify(toggle)}`);
     },
     // Then the rest lands: the comment box stays where it was drawn, its conversation's line kept for it.
     after: async (page) => {
@@ -2652,9 +2653,14 @@ const SHOTS: Shot[] = [
     },
   },
   {
-    // Hide or Files: folded where it was open (wide), open over the diff where it starts folded (narrow).
+    // The toggle, only where the sidebar can't sit beside the diff: open over the diff where it starts folded (narrow).
     name: "review-side-toggled",
-    go: review("acme/api#4154", [".rv-side-toggle"]),
+    go: async (page) => {
+      await review("acme/api#4154")(page);
+      const toggle = page.locator(".rv-side-toggle");
+      if (await toggle.count()) await toggle.click();
+      await page.waitForTimeout(200);
+    },
     after: fresh,
   },
   {
@@ -2759,16 +2765,20 @@ const SHOTS: Shot[] = [
         await page.evaluate("scrollTo(0, 0)");
       };
       await review("acme/api#4099")(page);
-      const first = await says();
-      if (first.tag !== "BUTTON" || first.text || !first.icon || first.title !== first.label)
-        failures.push(`review-panel: the sidebar's toggle isn't one icon button named in its tooltip: ${JSON.stringify(first)}`);
-      await atBottom("");
-      // With the list folded there's room for the sidebar beside the diff: the same button, in its column.
+      // With room the sidebar is always beside the diff, and there's no toggle; without, the toggle opens it over the diff.
+      if (await toggle.count()) {
+        const first = await says();
+        if (first.tag !== "BUTTON" || first.text || !first.icon || first.title !== first.label)
+          failures.push(`review-panel: the sidebar's toggle isn't one icon button named in its tooltip: ${JSON.stringify(first)}`);
+        await atBottom("");
+      } else if (!(await side.isVisible())) failures.push("review-panel: with room and no toggle, the sidebar isn't there");
+      // With the list folded there's room for the sidebar beside the diff: no toggle, the sidebar there.
       const fold = page.locator(".beside-fold");
       if (await fold.count()) {
         await fold.click();
         await page.waitForTimeout(300);
-        await atBottom(", the sidebar beside the diff");
+        if ((await toggle.count()) || !(await side.isVisible()))
+          failures.push("review-panel: beside the diff, the sidebar has a toggle or isn't there");
         await fold.click();
         await page.waitForTimeout(300);
       }
@@ -2776,9 +2786,8 @@ const SHOTS: Shot[] = [
       // Open as it opens, beside the diff; folded only where it would lie over it.
       await review("acme/api#4154")(page);
       const wide = await page.evaluate<boolean>(`document.querySelector(".col").getBoundingClientRect().width >= 680`);
-      const opened = await says();
-      if (opened.label !== `${wide ? "Hide" : "Show"} the stack, checks and files`)
-        failures.push(`review-panel: in a stack, ${wide ? "with room" : "without room"} the toggle reads ${JSON.stringify(opened.label)}`);
+      if (wide ? await toggle.count() : (await says()).label !== "Show the stack, checks and files")
+        failures.push(`review-panel: in a stack, ${wide ? "with room there's a toggle" : "without room the toggle reads otherwise"}`);
       if (!wide) await toggle.click();
       await side.waitFor();
       const parts = await page.evaluate<{
