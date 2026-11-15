@@ -57,7 +57,7 @@ Widths, breakpoints and spacing are in [visual.md → The layout](visual.md#the-
 The window's only global chrome. There's no top bar.
 
 - **Brand row**: the mark and "Inbox". In the macOS app it holds the traffic lights and is the window's drag handle.
-- **Pages**: Inbox (with its count), Blocked, then under a hairline Merging and Archive.
+- **Pages**: Inbox (with its count), Blocked, Merging and Archive.
   - Inbox counts Urgent, Standard, agents' questions and sessions that need you.
   - Blocked, Merging and Archive have no count. Merging's tooltip says how many are merging.
   - A review is marked under the page it was opened from; a question under the Inbox.
@@ -463,7 +463,7 @@ Code: `src/links.ts`; the protocol in `electron/main.ts`.
 No tabs. In Settings the sidebar lists its parts in place of the pages, under **‹ Inbox** (⌘1–⌘4 still open the pages):
 
 - The core's: Inbox and notifications, Local Agent Integration, Automation Rules, Appearance, This device, Network.
-- Under a hairline, one per plugin: GitHub, Sessions.
+- After them, one per plugin: GitHub, Sessions.
 
 `SETTINGS_PARTS` in `web/src/view.ts`. The sidebar's Settings and `#/settings` open the first part.
 
@@ -703,7 +703,7 @@ The desk checks the latest GitHub Release every 6 hours, only in the packaged ap
 
 ## Keys
 
-The window names no key; a button's tooltip names its own. Only platform keys work. Nothing outside a box you're typing in writes to GitHub or changes an item.
+The window names no key; a button's tooltip names its own. Only platform keys work, and / for the filter, as on GitHub. Nothing outside a box you're typing in writes to GitHub or changes an item.
 
 | Key                             | Does                                                                                                                                                                                                                                                                                                      |
 | ------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -714,6 +714,7 @@ The window names no key; a button's tooltip names its own. Only platform keys wo
 | Tab                             | Moves focus. A row is a button: focusing selects it, Enter or Space opens it. In the rules editor Tab indents.                                                                                                                                                                                            |
 | ↓ / ↑                           | On a list page and Merging: focuses (selects) the row after / before the focused or selected one, from the first or last; Enter opens it. The page scrolls only to keep it in view.                                                                                                                       |
 | Arrows, Enter, Space, Backspace | In menus, the reviewers box, settings fields and the shortcut recorder.                                                                                                                                                                                                                                   |
+| /                               | Puts you in the filter of the page's head (Inbox, Blocked, Archive), or the list's beside a review, when you're not typing. The filter waits narrow and grows while you're in it or it holds a filter.                                                                                                    |
 | ⌘1–⌘4                           | Inbox, Blocked, Merging, Archive (Ctrl elsewhere). Each page's tooltip names its key.                                                                                                                                                                                                                     |
 | ⌘] / ⌘[                         | The item after / before the open one in its list (else the selected one; with neither, the first or last), opened as a click would. On Merging, its PRs. Stops at the list's ends and at a fold. Works from a box; does nothing in Settings.                                                              |
 | ⌘,                              | Settings (desktop app).                                                                                                                                                                                                                                                                                   |

@@ -1458,9 +1458,19 @@ export function App() {
       e.stopImmediatePropagation();
       return;
     }
+    const typing = e.target instanceof HTMLElement && !!e.target.closest("input, textarea, select, [contenteditable='true']");
+    // "/" puts you in the filter of the page's head, as on GitHub, wherever you're not typing.
+    if (e.key === "/" && !typing && !e.metaKey && !e.ctrlKey && !e.altKey && !e.isComposing) {
+      const find = document.querySelector<HTMLInputElement>(".page-head .search-box input, .beside-head .search-box input");
+      if (find) {
+        find.focus();
+        e.preventDefault();
+        e.stopImmediatePropagation();
+        return;
+      }
+    }
     // Esc closes the chat from anywhere but a text box (its own box closes it only when empty, else leaves it), and the
     // comment bar from anywhere, before a review or a page reads it as "go back"; a More menu over it closes first.
-    const typing = e.target instanceof HTMLElement && !!e.target.closest("input, textarea, select, [contenteditable='true']");
     const menu = !!document.querySelector(".more-pop");
     if (((asking && !typing) || commenting || noting) && !menu && e.key === "Escape" && !e.isComposing) {
       setAsking(null);
