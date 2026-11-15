@@ -182,15 +182,18 @@ final class WriteTests: XCTestCase {
     XCTAssertEqual(e, .refused(status: 409, message: "Migrate the job store to SQLite is rate limited until 09:43; kick it after that"))
   }
 
-  // The two reads the writes need. The review is always a prefetch: without ?ahead=1 the desk would start the AI review.
-  func testTheReviewIsReadAheadAndReviewersBySearch() async throws {
-    StubProtocol.reset(["/api/review/me/notes-app#12": Answer(body: String(decoding: try Fixture.data("review"), as: UTF8.self))])
-    let r = try await client().review("me/notes-app#12")
+  // A PR's review: without ahead it's the window's open (the desk may start its AI review), with it a redraw.
+  func testTheReviewIsOpenedOrReadAheadAndReviewersBySearch() async throws {
+    StubProtocol.reset(["/api/review/me/notes-app#12": Answer(body: String(decoding: try Fixture.data("review-own"), as: UTF8.self))])
+    let r = try await client().review("me/notes-app#12", ahead: false)
     XCTAssertEqual(r.conversation.count, 5)
+    _ = try await client().review("me/notes-app#12", ahead: true)
     var all = StubProtocol.requests()
-    XCTAssertEqual(all.map(\.url?.absoluteString), [root + "/api/review/me%2Fnotes-app%2312?ahead=1"])
+    XCTAssertEqual(all.map(\.url?.absoluteString), [root + "/api/review/me%2Fnotes-app%2312", root + "/api/review/me%2Fnotes-app%2312?ahead=1"])
     XCTAssertEqual(all[0].httpMethod, "GET")
     XCTAssertEqual(all[0].value(forHTTPHeaderField: "Authorization"), "Bearer inbox_test")
+    let e400 = await refusal("/api/review/acme/worker#860", 400, "acme/worker#860 is an issue") { try await self.client().review("acme/worker#860", ahead: false) }
+    XCTAssertEqual(e400, .refused(status: 400, message: "acme/worker#860 is an issue"))
 
     StubProtocol.reset(["/api/reviewers/acme/web#2303": Answer(body: String(decoding: try Fixture.data("reviewers"), as: UTF8.self))])
     let who = try await client().reviewers("acme/web#2303", search: "da na")
@@ -256,6 +259,65 @@ final class StoreWriteTests: XCTestCase {
     XCTAssertEqual(StubProtocol.requests()[0].value(forHTTPHeaderField: "Authorization"), "Bearer inbox_abc", "the token pairing gave")
     XCTAssertFalse(store.busy("acme/api#4127"))
     XCTAssertTrue(store.leaving.isEmpty)
+  }
+
+  // A review answer with another head commit: what a push between two reads looks like.
+  private func review(_ name: String, head: String) throws -> Answer {
+    var json = try XCTUnwrap(JSONSerialization.jsonObject(with: try Fixture.data(name)) as? [String: Any])
+    var item = try XCTUnwrap(json["item"] as? [String: Any])
+    item["head_oid"] = head
+    json["item"] = item
+    return Answer(body: String(decoding: try JSONSerialization.data(withJSONObject: json), as: UTF8.self))
+  }
+
+  private func sentBody(_ path: String) throws -> [String: String] {
+    let req = try XCTUnwrap(StubProtocol.requests().first { $0.httpMethod == "POST" && $0.url?.path == path })
+    return try JSONDecoder().decode([String: String].self, from: try XCTUnwrap(req.sentBody))
+  }
+
+  // The pin moves with each review that lands (the window since 9f5819a): Approve, Merge and Request changes send the
+  // commit the page last drew, not the one it first showed.
+  func testApproveSendsTheHeadOfTheLastReviewThatLanded() async throws {
+    let id = "acme/api#4127"
+    let c = try card(id)
+    XCTAssertNil(store.pins[id], "nothing to pin to before its review lands")
+    try desk(["/api/review/\(id)": try review("review-steps", head: "a1")])
+    _ = await store.readReview(id)
+    XCTAssertEqual(store.pins[id], "a1")
+    try desk(["/api/review/\(id)": try review("review-steps", head: "b2")])
+    _ = await store.readReview(id)
+    XCTAssertEqual(store.pins[id], "b2", "a push the page redrew")
+
+    try desk(["/api/review/\(id)/approve": Answer(body: #"{"ok":true,"url":"u"}"#)])
+    let took = await store.approve(c)
+    XCTAssertTrue(took)
+    XCTAssertEqual(try sentBody("/api/review/\(id)/approve"), ["head_oid": "b2"])
+
+    try desk(["/api/github": Answer(body: #"{"ok":true,"url":""}"#)])
+    _ = await store.github(c, "request_changes", body: "Needs a test")
+    XCTAssertEqual(try sentBody("/api/github"), ["id": id, "action": "request_changes", "head_oid": "b2", "body": "Needs a test"])
+
+    // A push it hasn't drawn yet is the desk's to refuse, in its words.
+    let words = "can't approve \(id): it has new commits since you opened it"
+    try desk(["/api/review/\(id)/approve": no(409, words)])
+    let again = await store.approve(c)
+    XCTAssertFalse(again)
+    XCTAssertEqual(store.whyNot, words)
+
+    store.closeReview(id)
+    XCTAssertNil(store.pins[id], "its page left: the next open pins afresh")
+  }
+
+  // The desk says whether you may approve, and why not: the page's Approve is off with its reason.
+  func testApproveIsOffWithTheDesksReason() async throws {
+    try desk(["/api/review/acme/api#4127": Answer(body: String(decoding: try Fixture.data("review-lean"), as: UTF8.self))])
+    guard case .success(let r)? = await store.readReview("acme/api#4127") else { return XCTFail("no review") }
+    XCTAssertEqual(r.cantApprove, "Can't approve: you approved this commit.")
+    let mine: ReviewView = try Fixture.decode("review-own")
+    XCTAssertEqual(mine.cantApprove, "Can't approve: it's your PR.")
+    let theirs: ReviewView = try Fixture.decode("review-steps")
+    XCTAssertNil(theirs.cantApprove)
+    XCTAssertNotNil(try DeskJSON.decoder().decode(ReviewView.self, from: Data("{}".utf8)).cantApprove, "a desk that doesn't say isn't a yes")
   }
 
   // The desk's own sentence, in a bubble that fades; the row is back, and nothing claims it worked.
@@ -340,7 +402,7 @@ final class StoreWriteTests: XCTestCase {
     XCTAssertTrue(took)
     XCTAssertEqual(store.toast?.text, "Commented on worker#860 on GitHub")
 
-    let review: ReviewRead = try Fixture.decode("review")
+    let review: ReviewView = try Fixture.decode("review-own")
     let convo = try XCTUnwrap(review.conversation.first)
     try desk(["/api/review/me/notes-app#12/reply": Answer(body: #"{"ok":true,"url":"u"}"#)])
     took = await store.reply(try card("me/notes-app#12"), to: convo, body: "Compacting in a follow-up.")
@@ -524,16 +586,16 @@ final class StoreWriteTests: XCTestCase {
 
   func testTheReadsForReplyAndReviewers() async throws {
     try desk([
-      "/api/review/me/notes-app#12": Answer(body: String(decoding: try Fixture.data("review"), as: UTF8.self)),
+      "/api/review/me/notes-app#12": Answer(body: String(decoding: try Fixture.data("review-own"), as: UTF8.self)),
       "/api/reviewers/acme/web#2303": Answer(body: String(decoding: try Fixture.data("reviewers"), as: UTF8.self)),
       "/api/review/acme/worker#860": no(400, "acme/worker#860 is an issue; reviews are for pull requests"),
     ])
-    guard case .success(let review) = await store.fetchReview("me/notes-app#12") else { return XCTFail("no review") }
+    guard case .success(let review) = await store.readReview("me/notes-app#12") else { return XCTFail("no review") }
     XCTAssertEqual(review.conversation.filter { $0.waitingOnYou == true }.first?.id, "PRRT_tomb")
-    XCTAssertEqual(StubProtocol.requests().first?.url?.query, "ahead=1")
+    XCTAssertNil(StubProtocol.requests().first?.url?.query, "its page's open")
     guard case .success(let who) = await store.fetchReviewers("acme/web#2303") else { return XCTFail("no reviewers") }
     XCTAssertEqual(who.map(\.login), ["dana", "sam"])
-    guard case .failure(let e) = await store.fetchReview("acme/worker#860") else { return XCTFail("an issue has no review") }
+    guard case .failure(let e) = await store.readReview("acme/worker#860") else { return XCTFail("an issue has no review") }
     XCTAssertEqual(e.words, "acme/worker#860 is an issue; reviews are for pull requests")
     XCTAssertTrue(store.notices.isEmpty, "the page says a failed read; no bubble")
   }

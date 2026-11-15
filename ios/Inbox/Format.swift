@@ -111,6 +111,12 @@ enum Words {
     "unrequest": "Took you off its reviewers on GitHub",
   ]
 
+  // "a", "a and b", "a, b and 2 more": src/stage.ts's andMore().
+  static func andMore(_ names: [String]) -> String {
+    let shown = names.prefix(2)
+    return names.count > 2 ? "\(shown.joined(separator: ", ")) and \(names.count - 2) more" : shown.joined(separator: " and ")
+  }
+
   static let sessionKind: [String: String] = ["cli": "CLI", "background": "Background", "desktop": "Desktop", "codex": "Codex"]
   static let sessionAction: [String: String] = [
     "kick": "Kick", "resume": "Resume in background", "attach": "Copy attach command", "open": "Open",
@@ -180,6 +186,69 @@ enum Words {
     default: return e.kind ?? ""
     }
   }
+}
+
+// MARK: Checks (view.ts's checkDot() and checkGroups())
+
+// How a check is doing, worst first: failing, failing but not required, running, passing, skipped.
+enum CheckDot: Int, Sendable {
+  case red, amber, yellow, green, grey
+
+  init(_ c: Checks.Check) {
+    switch c.state {
+    case "failing", "cancelled": self = c.optional == true ? .amber : .red
+    case "running": self = .yellow
+    case "passing": self = .green
+    default: self = .grey
+    }
+  }
+
+  // Review.tsx's DOT_WORDS.
+  var words: String {
+    switch self {
+    case .red: "failing"
+    case .amber: "failing, not required"
+    case .yellow: "running"
+    case .green: "passing"
+    case .grey: "skipped"
+    }
+  }
+
+  var quiet: Bool { self == .green || self == .grey }
+}
+
+struct CheckGroup: Identifiable, Sendable {
+  let name: String
+  let dot: CheckDot  // its worst check's, skipped ones aside
+  let checks: [Checks.Check]
+  var id: String { name }
+
+  // A shard's mark at a name's end: "(1/3)", "[2]", "#4", " 3", "shard 2 of 5".
+  private static let shard = #"\s*(?:\([^()]*\)|\[[^\]]*\]|#?\d+(?:\s*(?:/|of)\s*\d+)?|shard\s*\d+(?:\s*(?:/|of)\s*\d+)?)$"#
+
+  // Checks that share a name but for a shard's mark are one row, worst first; one alone keeps its whole name.
+  static func of(_ list: [Checks.Check]) -> [CheckGroup] {
+    var keys: [String] = []
+    var by: [String: [Checks.Check]] = [:]
+    for c in list {
+      let name = c.name ?? ""
+      let cut = name.range(of: shard, options: [.regularExpression, .caseInsensitive]).map { String(name[..<$0.lowerBound]) } ?? name
+      let trimmed = cut.trimmingCharacters(in: .whitespaces)
+      let key = trimmed.isEmpty ? name : trimmed
+      if by[key] == nil { keys.append(key) }
+      by[key, default: []].append(c)
+    }
+    let groups = keys.map { key in
+      let checks = by[key] ?? []
+      let dot = checks.map(CheckDot.init).filter { $0 != .grey }.min { $0.rawValue < $1.rawValue } ?? .grey
+      return CheckGroup(name: checks.count == 1 ? checks[0].name ?? key : key, dot: dot, checks: checks)
+    }
+    // As the desk listed them within a dot.
+    return groups.enumerated().sorted { ($0.element.dot.rawValue, $0.offset) < ($1.element.dot.rawValue, $1.offset) }.map(\.element)
+  }
+
+  // Past this many rows the passing and skipped ones wait behind one line (Review.tsx's SIDE_ROWS).
+  static let rows = 6
 }
 
 // MARK: Snooze

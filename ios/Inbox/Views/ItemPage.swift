@@ -1,20 +1,16 @@
 import SwiftUI
 
-// A PR or an issue, opened: what it is, why it's here, what waits on your reply, the AI review, its stack and what
-// happened lately; at its foot, what you do with it. Drawn at once from its row's card; the rest lands from GET /api/item.
-// Only a row that owes a reply reads /api/review (with ?ahead=1: it carries the diff, and without it starts the AI review).
+// A PR or an issue, opened: what it is, why it's here, what waits on your reply, the AI review, its state, its stack
+// and what happened lately; at its foot, what you do with it. Drawn at once from its row's card. A PR's rest lands from
+// one GET /api/review/:id (the window's open), an issue's from GET /api/item; Store.readReview() says what each costs.
 struct ItemPage: View {
   @Environment(Store.self) private var store
   @Environment(\.openURL) private var openURL
   let id: String
-  @State private var detail: ItemDetail?
+  @State private var detail: ItemDetail?  // an issue's
+  @State private var review: ReviewView?  // a PR's
   @State private var failed: String?
   @State private var sawIt = false
-  // The commit this page first showed: what Approve, Merge and Request changes are pinned to, so a push while you read
-  // is refused by the desk ("it has new commits since you opened it") rather than approved unseen, as the window's.
-  @State private var read: String?
-  @State private var review: ReviewRead?
-  @State private var reviewFailed: String?
   @State private var replied: Set<String> = []
   @State private var box: Box?
   @State private var drafts: [String: String] = [:]
@@ -35,8 +31,18 @@ struct ItemPage: View {
     }
   }
 
-  private var card: Card? { store.card(id) ?? detail?.card }
-  private var open: Bool { card?.resolved == nil && (detail?.item?.state ?? "open") == "open" }
+  private var card: Card? { store.card(id) ?? review?.card ?? detail?.card }
+  private var item: ItemDetail.Item? { review?.item ?? detail?.item }
+  private var ai: AiReview? { review?.ai ?? detail?.ai }
+  private var aiStale: Bool { review?.aiStale ?? detail?.aiStale ?? false }
+  private var generating: Bool { review?.generating ?? detail?.generating ?? false }
+  private var events: [ActivityEvent] { review?.activity ?? detail?.activity ?? [] }
+  private var stack: Stack? { review?.stack ?? detail?.stack }
+  private var landed: Bool { review != nil || detail != nil }
+  // The commit its review last drew: what Approve, Merge and Request changes are pinned to. Each read that lands moves
+  // it, so a push the page redrew isn't refused as unread; one it hasn't drawn yet is refused by the desk.
+  private var read: String? { store.pins[id] }
+  private var open: Bool { card?.resolved == nil && (item?.state ?? "open") == "open" }
   private var waiting: [Conversation] { (review?.conversation ?? []).filter { $0.waitingOnYou == true && !replied.contains($0.id) } }
 
   var body: some View {
@@ -45,11 +51,13 @@ struct ItemPage: View {
         if let card {
           header(card)
           why(card)
-          if card.cta == "reply" { owed() }
+          if card.isPR { owed(card) }
           if card.isPR { aiBlock(card) }
-          if let stack = detail?.stack { stackBlock(stack) }
+          if let error = review?.filesError { Text("Couldn't load the diff: \(error)").sans(13).foregroundStyle(Theme.red) }
+          if let review { ReviewState(card: card, review: review, addReviewers: adds(card) ? { box = .reviewers } : nil) }
+          if let stack { stackBlock(stack) }
           activity(card)
-          if detail == nil, failed == nil { LoadingLines() }
+          if !landed, failed == nil { LoadingLines() }
           if let failed { Text(failed).sans(13).foregroundStyle(Theme.red) }
         } else if let failed {
           Text(failed).sans(14).foregroundStyle(Theme.red)
@@ -66,36 +74,58 @@ struct ItemPage: View {
     .safeAreaInset(edge: .bottom, spacing: 0) { bar }
     .sheet(item: $box) { box in sheet(box) }
     .task(id: store.loads) {
-      switch await store.fetchItem(id) {
-      case .success(let d):
-        detail = d
-        failed = nil
-        if read == nil { read = d.item?.headOid }
-        if !sawIt {
-          sawIt = true
-          store.seen(d.card)
+      // What it is comes with the lists; one on no list is asked for as a PR first.
+      let kind = card?.kind
+      if kind == nil, store.loads == 0 { return }
+      if kind != "issue" {
+        // A redraw waits for the desk's events to settle; another one meanwhile starts the wait again.
+        if review != nil {
+          try? await Task.sleep(for: .seconds(1))
+          if Task.isCancelled { return }
         }
-      case .failure(let e):
-        // What's on screen stays; the desk being away is its bubble's to say.
-        if detail == nil, e != .unreachable, e != .notDesk { failed = Words.capitalized(e.words) }
-      case nil: break
-      }
-      if review == nil, card?.cta == "reply" {
-        switch await store.fetchReview(id) {
+        switch await store.readReview(id) {
         case .success(let r):
           review = r
-          reviewFailed = r.conversationError.map { Words.sentence($0) }
-        case .failure(let e): reviewFailed = Words.sentence(e.words)
+          failed = nil
+          if let c = r.card { saw(c) }
+        case .failure(.refused(400, _)) where kind == nil: await readItem()
+        case .failure(let e): fail(e)
         case nil: break
         }
+      } else {
+        await readItem()
       }
       #if DEBUG
-        if let want = store.debugBox, let c = card, detail != nil, want != "reply" || !waiting.isEmpty {
+        if let want = store.debugBox, let c = card, landed, want != "reply" || !waiting.isEmpty {
           store.debugBox = nil
           press(want, c)
         }
       #endif
     }
+    // Popped, not covered by a page opened from it: the next time it's opened is an open again.
+    .onDisappear { if !store.path.contains(.item(id)) { store.closeReview(id) } }
+  }
+
+  private func readItem() async {
+    switch await store.fetchItem(id) {
+    case .success(let d):
+      detail = d
+      failed = nil
+      saw(d.card)
+    case .failure(let e): fail(e)
+    case nil: break
+    }
+  }
+
+  private func saw(_ c: Card) {
+    if sawIt { return }
+    sawIt = true
+    store.seen(c)
+  }
+
+  // What's on screen stays; the desk being away is its bubble's to say.
+  private func fail(_ e: APIError) {
+    if !landed, e != .unreachable, e != .notDesk { failed = Words.capitalized(e.words) }
   }
 
   // MARK: What you do with it
@@ -103,10 +133,10 @@ struct ItemPage: View {
   @ViewBuilder
   private var bar: some View {
     if let c = card {
-      // The desk refuses a second approval of the same commit: its page says so instead.
-      let main = approvedIt ? nil : c.act(open: open)
-      // Approve is pinned to the commit read; Reply needs what was said.
-      let notYet = (main == "approve" && read == nil) || (main == "reply" && waiting.isEmpty)
+      let main = c.act(open: open)
+      // Approve needs the desk's say and, as Merge, the commit it's pinned to; Reply needs what was said.
+      let notYet =
+        (main == "approve" && (read == nil || review?.cantApprove != nil)) || (main == "merge" && read == nil) || (main == "reply" && waiting.isEmpty)
       BottomBar(
         cta: main.flatMap { Words.act[$0] }, off: store.busy(c.id) || notYet, press: { if let main { press(main, c) } }, quiet: quiet(c),
         hasMore: true
@@ -116,8 +146,10 @@ struct ItemPage: View {
     }
   }
 
-  private var approvedIt: Bool { card?.mine == false && detail?.item?.approved(by: store.me) == true }
-  private var moved: Bool { read != nil && detail?.item?.headOid != nil && detail?.item?.headOid != read }
+  // + Add reviewers under who's asked: your open PR that's ready, unless the bar already asks (Review.tsx's sideAdding).
+  private func adds(_ c: Card) -> Bool {
+    c.mine && open && c.draft != true && item?.draft != true && c.inflight != true && c.cta != "reviewers"
+  }
 
   private func quiet(_ c: Card) -> [Quiet] {
     if c.inflight == true { return [Quiet(label: "Back to desk") { _ in press("takeback", c) }] }
@@ -139,9 +171,16 @@ struct ItemPage: View {
       Button(c.draft == true ? "Ready for review, asking reviewers" : "Add reviewers") { box = .reviewers }
     }
     if open, c.handsOff, c.mine || c.review == "approved", main != "handoff" { Button("Hand off for merge") { press("handoff", c) } }
-    ForEach((c.actions ?? []).filter { $0 != main && Words.more[$0] != nil }, id: \.self) { a in
-      // Pinned to the commit read, so not before one is.
-      Button(a == "close" && !c.isPR ? "Close issue" : Words.more[a] ?? a) { press(a, c) }.disabled(a == "request_changes" && read == nil)
+    // On GitHub, as the window's More: what the desk allows now, less what has its own button here or on the list.
+    let writes = (c.actions ?? []).filter { $0 != main && !["draft", "ready", "reopen"].contains($0) && Words.more[$0] != nil }
+    if !writes.isEmpty {
+      Section("On GitHub") {
+        ForEach(writes, id: \.self) { a in
+          // Pinned to the commit read, so not before one is.
+          Button(a == "close" && !c.isPR ? "Close issue" : Words.more[a] ?? a) { press(a, c) }
+            .disabled(["request_changes", "merge"].contains(a) && c.isPR && read == nil)
+        }
+      }
     }
     if let url = c.url.flatMap(URL.init(string:)) {
       Divider()
@@ -155,7 +194,6 @@ struct ItemPage: View {
 
   // A press sends at once, as the window's buttons do, or opens the box its words go in.
   private func press(_ key: String, _ c: Card) {
-    let head = read
     switch key {
     case "approve": box = .approve
     case "comment": box = .comment
@@ -168,7 +206,7 @@ struct ItemPage: View {
     case "takeback": Task { if await store.backToDesk(c) { back() } }
     default:
       Task {
-        if await store.github(c, key, head: head), ["close", "merge", "unrequest"].contains(key) { back() }
+        if await store.github(c, key), ["close", "merge", "unrequest"].contains(key) { back() }
       }
     }
   }
@@ -188,17 +226,16 @@ struct ItemPage: View {
   private func sheet(_ box: Box) -> some View {
     if let c = card {
       let draft = Binding { drafts[box.id] ?? "" } set: { drafts[box.id] = $0 }
-      let head = read ?? ""
       switch box {
       case .approve:
         WriteSheet(title: "Approve \(c.shortRef)", prompt: "A comment, if you like", button: "Approve", optional: true, draft: draft) { words in
-          leave(await store.approve(c, head: head, body: words.isEmpty ? nil : words))
+          leave(await store.approve(c, body: words.isEmpty ? nil : words))
         }
       case .comment:
         WriteSheet(title: "Comment on \(c.shortRef)", prompt: "Your comment", button: "Comment", draft: draft) { leave(await store.comment(c, body: $0)) }
       case .changes:
         WriteSheet(title: "Request changes on \(c.shortRef)", prompt: "What needs to change", button: "Request changes", draft: draft) {
-          leave(await store.github(c, "request_changes", head: head, body: $0))
+          leave(await store.github(c, "request_changes", body: $0))
         }
       case .reviewers:
         ReviewersSheet(card: c, keep: c.cta != "reviewers" && c.draft != true) { back() }
@@ -219,11 +256,11 @@ struct ItemPage: View {
 
   // What was said in each conversation that waits on you, briefly: where, its last words, and Reply (the bar's answers the first).
   @ViewBuilder
-  private func owed() -> some View {
-    if let reviewFailed {
-      Text(reviewFailed).sans(13).foregroundStyle(Theme.red)
+  private func owed(_ c: Card) -> some View {
+    if let error = review?.conversationError {
+      Text("Couldn't load what reviewers said: \(error)").sans(13).foregroundStyle(Theme.red)
     } else if review == nil {
-      LoadingLines()
+      if c.cta == "reply", failed == nil { LoadingLines() }
     } else if !waiting.isEmpty {
       VStack(alignment: .leading, spacing: 10) {
         SmallHead(text: "Waiting on your reply")
@@ -281,6 +318,7 @@ struct ItemPage: View {
         .fixedSize(horizontal: false, vertical: true)
         .dynamicTypeSize(...DynamicTypeSize.accessibility2)
       Dotted(parts: facts(c)).sans(13, tabular: true)
+      if let list = review?.reviewers?.list { HeadReviewers(list: list) }
     }
   }
 
@@ -297,7 +335,7 @@ struct ItemPage: View {
 
   @ViewBuilder
   private var changed: some View {
-    if card?.isPR == true, let item = detail?.item, (item.additions ?? 0) + (item.deletions ?? 0) > 0 {
+    if card?.isPR == true, let item, (item.additions ?? 0) + (item.deletions ?? 0) > 0 {
       (Text("+\(item.additions ?? 0)").foregroundStyle(Theme.green) + Text("  \u{2212}\(item.deletions ?? 0)").foregroundStyle(Theme.red))
         .sans(13, 550, tabular: true).fixedSize()
     }
@@ -317,7 +355,7 @@ struct ItemPage: View {
       out.append(.init(stage, stage == "changes requested" && c.mine && c.inflight != true ? Theme.amber : Theme.pencil))
     }
     out.append(.init(Words.age(c.resolvedAt ?? c.doneAt ?? c.waitingSince, now: store.now)))
-    if let n = detail?.item?.commentsTotal, n > 0 { out.append(.init(Words.plural(n, "comment"))) }
+    if let n = item?.commentsTotal, n > 0 { out.append(.init(Words.plural(n, "comment"))) }
     return out
   }
 
@@ -335,14 +373,12 @@ struct ItemPage: View {
         Lead(label: (h.from ?? "").isEmpty ? "Handed to you:" : "From \(h.from!):", text: h.why ?? "", size: 14)
       }
       if c.inflight == true, c.resolved == nil { Dotted(parts: mergingParts(c)).sans(13) }
-      if approvedIt, open { Text("You approved this commit.").sans(13).foregroundStyle(Theme.pencil) }
-      if moved, open, c.isPR {
-        Text("It has new commits since you opened it. Open it again to approve or merge them.").sans(13).foregroundStyle(Theme.pencil)
-      }
+      // Why Approve is off, in the desk's words ("you approved this commit"), as its button's tooltip in the window.
+      if open, c.act(open: open) == "approve", let no = review?.cantApprove { Text(no).sans(13).foregroundStyle(Theme.pencil) }
       if !c.active, c.resolved == nil {
         Text(Words.capitalized(Words.clearedText(c, now: store.now)) + ".").sans(13).foregroundStyle(Theme.pencil)
       }
-      if let labels = detail?.item?.labels, !labels.isEmpty { Text(labels.joined(separator: ", ")).sans(13).foregroundStyle(Theme.pencil) }
+      if let labels = item?.labels, !labels.isEmpty { Text(labels.joined(separator: ", ")).sans(13).foregroundStyle(Theme.pencil) }
     }
   }
 
@@ -358,15 +394,15 @@ struct ItemPage: View {
 
   @ViewBuilder
   private func aiBlock(_ c: Card) -> some View {
-    let open = (detail?.item?.state ?? "open") == "open"
-    if let ai = detail?.ai {
+    let open = (item?.state ?? "open") == "open"
+    if let ai {
       VStack(alignment: .leading, spacing: 8) {
         FlowLine(spacing: 8) {
           Text(Words.verdict[ai.verdict ?? ""] ?? Words.capitalized(ai.verdict ?? ""))
             .sans(15, 650, tracking: -0.01).foregroundStyle(ai.verdict == "skip" ? Theme.pencil : Theme.ink)
           if let risk = ai.risk { RiskMeter(risk: risk) }
           if ai.risk != "low", let reason = ai.riskReasons.first?.why { Text(reason).sans(13).foregroundStyle(Theme.pencil) }
-          if detail?.aiStale == true { Text("on an earlier commit").sans(13).foregroundStyle(Theme.pencil) }
+          if aiStale { Text("on an earlier commit").sans(13).foregroundStyle(Theme.pencil) }
         }
         if let summary = ai.summary, !summary.isEmpty { Prose(text: summary, size: 13.5).foregroundStyle(Theme.ink).lineSpacing(3) }
         if let since = ai.since, !since.isEmpty { Lead(label: "Since your review:", text: since) }
@@ -384,10 +420,14 @@ struct ItemPage: View {
         }
       }
       .padding(.top, 2)
-    } else if detail?.generating == true {
+    } else if generating {
       Text("\(store.agent) is reviewing it.").sans(13).foregroundStyle(Theme.pencil)
-    } else if detail != nil, !c.mine {
-      // Your own PR says nothing until a review exists, as the window's.
+    } else if c.mine {
+      // Your own PR says what you wrote of it until a review exists, as the window's: its description's first paragraph.
+      if review?.aiError == nil, let first = item?.body?.split(whereSeparator: \.isNewline).first, !first.isEmpty {
+        Prose(text: String(first), size: 13.5).foregroundStyle(Theme.ink).lineSpacing(3)
+      }
+    } else if landed {
       Text(open ? "No AI review yet." : "No AI review.").sans(13).foregroundStyle(Theme.pencil)
     }
   }
@@ -431,7 +471,7 @@ struct ItemPage: View {
   @ViewBuilder
   private func activity(_ c: Card) -> some View {
     // Less the desk's own "first seen" and what the why already says ("assigned to you").
-    let events = (detail?.activity ?? []).filter { $0.kind != "new" && !Words.says(c.why ?? "", Words.eventText($0, me: store.me)) }
+    let events = self.events.filter { $0.kind != "new" && !Words.says(c.why ?? "", Words.eventText($0, me: store.me)) }
     if !events.isEmpty {
       VStack(alignment: .leading, spacing: 6) {
         SmallHead(text: "Recent activity")

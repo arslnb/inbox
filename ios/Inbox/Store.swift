@@ -61,6 +61,7 @@ final class Store {
   private(set) var refused: String?  // the desk's words for a read it wouldn't give (another Tailscale login, a desk this app can't read)
   private(set) var leaving: Set<String> = []
   private(set) var sending: Set<String> = []  // what has a write on its way: an item's, question's or session's id
+  private(set) var pins: [String: String] = [:]  // an opened PR's commit, as its review last drew it: what Approve and Merge send
   private(set) var toast: Toast?
   private(set) var failures: [Notice] = []
   private(set) var deskVersion: String?
@@ -72,6 +73,7 @@ final class Store {
   @ObservationIgnored private var live: Task<Void, Never>?
   @ObservationIgnored private var pending: Task<Void, Never>?
   @ObservationIgnored private var toastTimer: Task<Void, Never>?
+  @ObservationIgnored private var reviewsOpen: Set<String> = []  // the PRs whose page has had its opening read
   @ObservationIgnored private var session: URLSession
   @ObservationIgnored var debugEmpty = false  // DEBUG shots: draw the desk as if nothing were on it
   @ObservationIgnored private let defaults: UserDefaults
@@ -172,6 +174,8 @@ final class Store {
     toast = nil
     failures = []
     dismissed = [:]
+    reviewsOpen = []
+    pins = [:]
     path = []
     page = .inbox
     showSettings = false
@@ -385,12 +389,13 @@ final class Store {
     } catch { return false }
   }
 
-  // Approve, pinned to the commit the item was read at (ItemDetail.item.headOid). Offered on someone else's open PR;
-  // ReviewRead.approve says why not when the review was read, else the desk's 409 does. The window sends no comment with it.
+  // Approve, pinned to the commit the review last drew (`pins`, set as each read lands): a push the page redrew is
+  // approved, one it hasn't drawn yet is refused by the desk (409). Offered on someone else's open PR;
+  // ReviewView.approve says why not. The window sends no comment with it.
   @discardableResult
-  func approve(_ c: Card, head: String, body: String? = nil) async -> Bool {
+  func approve(_ c: Card, head: String? = nil, body: String? = nil) async -> Bool {
     await write(c.id, leaves: true) { client in
-      _ = try await client.approve(c.id, head: head, body: body)
+      _ = try await client.approve(c.id, head: head ?? self.pins[c.id] ?? "", body: body)
       return Toast(text: "Approved \(c.shortRef) on GitHub")
     }
   }
@@ -404,7 +409,7 @@ final class Store {
     }
   }
 
-  // A reply in one conversation of fetchReview()'s. The item leaves the desk only if this was the last one waiting on
+  // A reply in one conversation of readReview()'s. The item leaves the desk only if this was the last one waiting on
   // you, which the next read says; read the review again to see the reply in its conversation.
   @discardableResult
   func reply(_ c: Card, to conversation: Conversation, body: String) async -> Bool {
@@ -440,15 +445,15 @@ final class Store {
     }
   }
 
-  // The row's Merge and the More menu: one of Card.actions (Words.more names them). `head` pins merge and request_changes
-  // to the commit read (request_changes needs it, and `body`: what needs to change). "ready" goes the way of ready().
+  // The row's Merge and the More menu: one of Card.actions (Words.more names them). Merge and request_changes are pinned
+  // to the commit its review last drew (request_changes needs it, and `body`: what needs to change). "ready" goes the way of ready().
   // Close, merge, request changes and unrequest take it off the desk at once; the toast's Undo reopens a closed PR and
   // makes a converted draft ready again.
   @discardableResult
   func github(_ c: Card, _ action: String, head: String? = nil, body: String? = nil) async -> Bool {
     if action == "ready" { return await ready(c) }
     return await write(c.id, leaves: ["close", "merge", "request_changes", "unrequest"].contains(action)) { client in
-      _ = try await client.github(c.id, action, head: head, body: body)
+      _ = try await client.github(c.id, action, head: head ?? self.pins[c.id], body: body)
       let to = action == "close" && c.isPR ? "reopen" : action == "draft" ? "ready" : nil
       return Toast(text: "\(Words.did[action] ?? Words.capitalized(action)): \(c.shortRef)", revert: to.map { Toast.Revert(id: c.id, to: $0) })
     }
@@ -580,14 +585,29 @@ final class Store {
     } catch { return nil }
   }
 
-  // A PR's conversations and whether you may approve it, for Reply and Approve. A prefetch to the desk (?ahead=1):
-  // it starts no AI review and no agent read. Not for issues (400).
-  func fetchReview(_ id: String) async -> Result<ReviewRead, APIError>? {
+  // A PR's review, for its page. The first read of an opened PR is the window's open (the desk may start its AI review
+  // and your agent's read of what waits on you); every one after it is a redraw (?ahead=1), which starts nothing, so an
+  // event never restarts a failed job. Rows and lists never call this. Not for issues (400).
+  func readReview(_ id: String) async -> Result<ReviewView, APIError>? {
     guard let client else { return nil }
-    do { return .success(try await client.review(id)) } catch let e as APIError {
+    let ahead = reviewsOpen.contains(id)
+    reviewsOpen.insert(id)  // once it's sent: a read cut short may have reached the desk
+    do {
+      let r = try await client.review(id, ahead: ahead)
+      // Still its page: one left while this was on its way pins nothing.
+      if reviewsOpen.contains(id), let head = r.item?.headOid { pins[id] = head }
+      return .success(r)
+    } catch let e as APIError {
+      if !ahead, e == .unreachable || e == .notDesk { reviewsOpen.remove(id) }  // it never reached the desk
       if case .unpaired = e { took(e) }
       return .failure(e)
     } catch { return nil }
+  }
+
+  // Its page was left: the next time it's opened is an open again.
+  func closeReview(_ id: String) {
+    reviewsOpen.remove(id)
+    pins[id] = nil
   }
 
   // Who to ask to review your PR; an empty search is GitHub's own picks.
@@ -613,6 +633,7 @@ final class Store {
     //   -connect [-connectError "<words>"] [-connectAddress <text>]   the connect screen
     //   -page inbox|blocked|merging|archive   -open <item id>|inquiry:<id>|session:<id>   -settings   -empty
     //   -box approve|comment|changes|reviewers|reply|answer   with -open: that page's box, opened once it has loaded
+    //   -part checks|reviewers   with -open: that line of a PR's State, opened
     func applyLaunchArguments(_ args: UserDefaults = .standard, flags: [String] = ProcessInfo.processInfo.arguments) {
       guard flags.contains(where: { ["-deskURL", "-connect"].contains($0) }) else { return }
       stopLive()
@@ -636,10 +657,12 @@ final class Store {
       showSettings = flags.contains("-settings")
       scrollTo = args.string(forKey: "scrollTo")
       debugBox = args.string(forKey: "box")
+      debugPart = args.string(forKey: "part")
     }
 
     var scrollTo: String?
     var debugBox: String?
+    var debugPart: String?
     var debugScan: String?  // what the camera would have read: the connect screen takes it once
   #endif
 }

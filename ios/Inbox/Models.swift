@@ -161,6 +161,7 @@ struct Card: Decodable, Identifiable, Sendable {
   var inflight: Bool?
   var stack: StackRef?
   var blocker: Blocker?
+  var blocks: [String]?  // open PRs that need this one merged first, as repo#number
   var depth: Int?
   var reason: String?
   var quick: String?
@@ -330,23 +331,26 @@ struct ItemDetail: Decodable, Sendable {
 
   struct Item: Decodable, Sendable {
     var state: String?  // "open" | "closed" | "merged"
+    var draft: Bool?
     var headOid: String?  // the commit this was read at: what Approve, Merge and Request changes are pinned to
+    var body: String?  // its description: untrusted GitHub text
     var labels: [String]?
     var additions: Int?
     var deletions: Int?
+    var changedFiles: Int?
     var commentsTotal: Int?
+    @Lossy var reviewRequests: [Request]
     @Lossy var reviews: [Review]  // most recent last
+
+    struct Request: Decodable, Sendable {
+      var reviewer: String?
+      var type: String?  // "user" | "team"
+    }
 
     struct Review: Decodable, Sendable {
       var author: String?
       var state: String?
       var commit: String?
-    }
-
-    // Your latest review approved this very commit: the desk refuses a second one ("you approved this commit").
-    func approved(by me: String) -> Bool {
-      guard !me.isEmpty, let mine = reviews.last(where: { $0.author?.lowercased() == me.lowercased() }) else { return false }
-      return mine.state == "approved" && mine.commit == headOid
     }
   }
 }
@@ -358,9 +362,152 @@ struct AiReview: Decodable, Sendable {
   var since: String?
   var concerns: [String]?
   @Lossy var riskReasons: [RiskReason]
+  @Lossy var notes: [Note]  // what order's hunks and steps index into
+  var intent: Intent?
+  @Lossy var look: [Look]
+  @Lossy var interfaces: [Interface]
+  @Lossy var improvements: [Note]
+  @Lossy var diagrams: [Diagram]
+  var guide: Guide?
+  var headOid: String?  // the commit it read
+  var model: String?
+  var at: String?
+  var doc: String?  // its review document's id
 
   struct RiskReason: Decodable, Sendable {
+    var factor: String?
     var why: String?
+  }
+
+  // A note on a line of the diff; line 0 is about the whole file.
+  struct Note: Decodable, Sendable {
+    var path: String?
+    var line: Int?
+    var side: String?  // "new" | "old"
+    var body: String?
+  }
+
+  struct Intent: Decodable, Sendable {
+    var goal: String?
+    var fit: String?  // "matches" | "partial" | "differs" | "undescribed"
+    var gap: String?
+    var stack: String?
+  }
+
+  // Where correctness hinges.
+  struct Look: Decodable, Sendable {
+    var path: String?
+    var side: String?
+    var line: Int?
+    var end: Int?
+    var why: String?
+  }
+
+  struct Interface: Decodable, Sendable {
+    var name: String?
+    var kind: String?
+    var change: String?  // "added" | "changed" | "removed"
+    var breaking: Bool?
+    var impact: String?
+    var path: String?
+    var side: String?
+    var line: Int?
+  }
+
+  struct Diagram: Decodable, Identifiable, Sendable {
+    let id: String
+    var title: String?
+    var caption: String?
+    var source: String?  // the Mermaid it was parsed from
+    var graph: DiagramGraph?
+  }
+
+  struct Guide: Decodable, Sendable {
+    @Lossy var steps: [Step]
+
+    struct Step: Decodable, Sendable {
+      var title: String?
+      var body: String?
+      var check: String?
+      var note: String?
+      var diagram: String?
+      @Lossy var hunks: [Ref]
+    }
+
+    struct Ref: Decodable, Sendable {
+      var id: String?
+      var path: String?
+    }
+  }
+}
+
+// A diagram as plain data (src/types.ts's DiagramGraph): a flowchart or a sequence. Every string is the model's.
+enum DiagramGraph: Decodable, Sendable {
+  case flow(Flow)
+  case sequence(Seq)
+  case other(String)  // a kind this app doesn't know
+
+  struct Flow: Decodable, Sendable {
+    var direction: String?  // "LR" | "TB"
+    @Lossy var nodes: [Node]
+    @Lossy var edges: [Edge]
+    @Lossy var groups: [Group]
+  }
+
+  struct Node: Decodable, Identifiable, Sendable {
+    let id: String
+    var label: String?
+    var shape: String?  // "box" | "term" | "store" | "choice" | "circle"
+    var mark: String?  // "new" | "changed" | "removed"
+    var group: String?
+  }
+
+  struct Edge: Decodable, Sendable {
+    var from: String?
+    var to: String?
+    var label: String?
+    var style: String?  // "arrow" | "line" | "dotted"
+  }
+
+  struct Group: Decodable, Identifiable, Sendable {
+    let id: String
+    var label: String?
+  }
+
+  struct Seq: Decodable, Sendable {
+    @Lossy var participants: [Participant]
+    @Lossy var messages: [Message]
+    @Lossy var notes: [Note]
+  }
+
+  struct Participant: Decodable, Identifiable, Sendable {
+    let id: String
+    var label: String?
+    var actor: Bool?
+  }
+
+  struct Message: Decodable, Sendable {
+    var from: String?
+    var to: String?
+    var text: String?
+    var reply: Bool?
+  }
+
+  struct Note: Decodable, Sendable {
+    var over: [String]?
+    var text: String?
+    var at: Int?  // drawn before messages[at]
+  }
+
+  private enum Keys: String, CodingKey { case kind }
+
+  init(from decoder: Decoder) throws {
+    let kind = (try? decoder.container(keyedBy: Keys.self).decodeIfPresent(String.self, forKey: .kind)) ?? ""
+    switch kind {
+    case "flow": self = .flow(try Flow(from: decoder))
+    case "sequence": self = .sequence(try Seq(from: decoder))
+    default: self = .other(kind)
+    }
   }
 }
 
@@ -399,16 +546,158 @@ enum Loose: Decodable, Sendable, Equatable {
 
 // MARK: A PR's conversation, and who to ask
 
-// GET /api/review/:id?ahead=1, less its diff: only what Reply and Approve need.
-struct ReviewRead: Decodable, Sendable {
+// GET /api/review/:id: one PR's review, whole (src/types.ts's ReviewView). The page draws from it alone; an older desk
+// may lack any part of it. Its hunks ride in `order`; `files` is the list without their patches.
+struct ReviewView: Decodable, Sendable {
+  var card: Card?
+  var item: ItemDetail.Item?
+  @Lossy var files: [ReviewFile]
+  var diffHead: String?  // the commit the diff's files are at; can be newer than item.headOid until the next sync
+  var filesError: String?  // the diff couldn't be fetched
+  var order: ReviewOrder?
+  var ai: AiReview?  // the latest, even if stale
+  var aiStale: Bool?
+  var aiError: String?  // the last failed attempt on this commit, or why AI reviews are paused
+  var generating: Bool?
+  var aiJob: Job?
   var approve: Allowance?
+  @Lossy var activity: [ActivityEvent]
+  var stack: Stack?
+  @Lossy var asks: [Ask]  // yours to your agent about it, oldest first
+  var checks: Checks?  // nil: none ran, or they couldn't be fetched
+  var checksError: String?
+  var reviewers: Standings?
+  var merge: String?  // what stands in its merge's way, in one line
   @Lossy var conversation: [Conversation]  // those waiting on you first
   var conversationError: String?  // it couldn't be fetched
   var reading: Bool?  // your agent is reading the ones waiting on you
+  var readingError: String?
 
   struct Allowance: Decodable, Sendable {
     var ok: Bool?
     var reason: String?  // why not: "it's your PR", "you approved this commit"
+  }
+
+  // Why Approve is off, as the window says it; nil when the desk allows it.
+  var cantApprove: String? {
+    approve?.ok == true ? nil : Words.sentence("Can't approve: \(approve?.reason ?? "not allowed")")
+  }
+}
+
+// One changed file. Its patch is never read: the same lines are in ReviewOrder's hunks.
+struct ReviewFile: Decodable, Sendable {
+  var path: String?
+  var previousPath: String?  // renames
+  var status: String?  // "added" | "removed" | "modified" | "renamed" | "copied" | "changed" | "unchanged"
+  var additions: Int?
+  var deletions: Int?
+
+  private enum CodingKeys: String, CodingKey { case path, previousPath, status, additions, deletions }
+}
+
+// Every hunk once, in the order to read them, as the desk decided it.
+struct ReviewOrder: Decodable, Sendable {
+  var ranked: Bool?  // false: no ranking for this commit, `chunks` is every hunk file by file
+  @Lossy var chunks: [ReviewHunk]
+  @Lossy var unread: [ReviewHunk]  // your agent didn't see these
+  @Lossy var skipped: [ReviewHunk]  // it saw these and left them out
+  @Lossy var rest: [Rest]  // folded, by file: lockfiles, generated files, files with no text diff
+  var notes: [Int]?  // ai.notes in reading order
+  var steps: [Step]?  // the walk-through, when this commit's review has one
+  var beyond: [ReviewHunk]?  // with steps: the hunks no step covers
+
+  struct Rest: Decodable, Sendable {
+    var path: String?
+    var file: Int?
+    var why: String?
+    @Lossy var hunks: [ReviewHunk]
+    var notes: [Int]?
+  }
+
+  struct Step: Decodable, Sendable {
+    var title: String?
+    var body: String?
+    var check: String?  // what to verify here, or ""
+    var note: String?
+    var diagram: String?  // its diagram's id in ai.diagrams
+    @Lossy var hunks: [ReviewHunk]
+  }
+}
+
+struct ReviewHunk: Decodable, Identifiable, Sendable {
+  let id: String  // h1, h2, … across the files in order
+  var path: String?
+  var file: Int?  // index in ReviewView.files
+  var header: String?  // its @@ line
+  var patch: String?  // its own lines, the @@ line first
+  var additions: Int?
+  var deletions: Int?
+  var level: String?  // "look" | "skim" | "skip" | "unread"; nil: no ranking for this commit
+  var rank: Int?
+  var why: String?
+  var notes: [Int]?  // indices into ai.notes
+  var looks: [Int]?  // indices into ai.look that start on it
+}
+
+// The AI review's job: running, or for this commit.
+struct Job: Decodable, Sendable {
+  var state: String?  // "queued" | "running" | "done" | "failed"
+  var attempts: Int?
+  var startedAt: String?
+  var retryAt: String?
+  var error: String?
+  var head: String?
+}
+
+// Something you asked your agent about the PR, and its answer (untrusted: an agent wrote it).
+struct Ask: Decodable, Identifiable, Sendable {
+  let id: String
+  var at: String?
+  var text: String?
+  var itemId: String?
+  var threadId: String?
+  var threadUrl: String?
+  var lines: Lines?
+  var fix: Bool?
+  var answer: Answer?
+
+  struct Lines: Decodable, Sendable {
+    var path: String?
+    var line: Int?
+    var side: String?
+    var head: String?
+    var note: Bool?
+  }
+
+  struct Answer: Decodable, Sendable {
+    var text: String?
+    var at: String?
+  }
+}
+
+// A PR's checks on its head commit. A check's name is untrusted GitHub text.
+struct Checks: Decodable, Sendable {
+  var line: String?  // "CI passing · 14 checks", "2 failing of 14 checks"
+  var failing: Bool?  // a check that counts is failing: the line is red
+  @Lossy var list: [Check]  // failing first
+
+  struct Check: Decodable, Sendable, Equatable {
+    var name: String?
+    var state: String?  // "failing" | "cancelled" | "running" | "passing" | "skipped"
+    var optional: Bool?  // failing, it doesn't hold the merge back
+    var url: String?
+  }
+}
+
+// Who reviews a PR and where each stands: you are "you", a team is @slug.
+struct Standings: Decodable, Sendable {
+  var line: String?  // "Approved by marco · waiting on sam", "Nobody's asked"
+  var changes: Bool?  // someone asks for changes: the line is amber
+  @Lossy var list: [Standing]
+
+  struct Standing: Decodable, Sendable {
+    var who: String?
+    var state: String?  // "changes requested" | "asked" | "approved" | "commented"
   }
 }
 
@@ -417,6 +706,7 @@ struct Conversation: Decodable, Identifiable, Sendable {
   var kind: String?  // "thread" | "comment" | "review"
   var path: String?  // a thread's file; nil: on the PR
   var line: Int?
+  var side: String?  // a thread's: "old" on a removed line
   var outdated: Bool?
   var resolved: Bool?
   var state: String?  // a review's: "approved" | "changes_requested" | "commented"
@@ -438,6 +728,8 @@ struct Conversation: Decodable, Identifiable, Sendable {
   struct Take: Decodable, Sendable {
     var gist: String?
     var take: String?
+    var commentId: String?  // the latest comment it read
+    var at: String?
   }
 }
 

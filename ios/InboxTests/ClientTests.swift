@@ -507,6 +507,54 @@ final class StoreTests: XCTestCase {
     XCTAssertEqual(store.toast?.undo, 7)
   }
 
+  // A store on the desk's own computer, with nothing asked yet.
+  private func local() async throws -> Store {
+    StubProtocol.reset(["/health": .init(body: #"{"ok":true,"version":"mock"}"#)])
+    let store = Store(defaults: defaults, session: StubProtocol.session())
+    let said = await store.connect(typed: "localhost:47841", code: "")
+    store.stopLive()
+    XCTAssertNil(said)
+    return store
+  }
+
+  // Opening a PR is one read, the window's own open; every redraw after it is ?ahead=1, which starts nothing.
+  func testOpeningAPRReadsItsReviewOnceThenAhead() async throws {
+    let id = "acme/api#4127"
+    let store = try await local()
+    StubProtocol.reset(["/api/review/\(id)": StubProtocol.Answer(body: String(decoding: try Fixture.data("review-steps"), as: UTF8.self))])
+    guard case .success(let first)? = await store.readReview(id) else { return XCTFail("no review") }
+    XCTAssertEqual(first.card?.id, id)
+    XCTAssertEqual(StubProtocol.requests().map(\.url?.absoluteString), ["http://localhost:47841/api/review/acme%2Fapi%234127"], "no ahead, and no /api/item")
+
+    // The desk said something changed: a redraw.
+    _ = await store.readReview(id)
+    _ = await store.readReview(id)
+    XCTAssertEqual(
+      StubProtocol.requests().dropFirst().map(\.url?.query), ["ahead=1", "ahead=1"], "an event never restarts what the open started")
+    XCTAssertFalse(StubProtocol.requests().contains { $0.url?.path == "/api/item" })
+
+    // Its page left and opened again: an open again.
+    store.closeReview(id)
+    StubProtocol.reset(["/api/review/\(id)": StubProtocol.Answer(body: String(decoding: try Fixture.data("review-steps"), as: UTF8.self))])
+    _ = await store.readReview(id)
+    XCTAssertEqual(StubProtocol.requests().map(\.url?.query), [nil])
+  }
+
+  // An open that never reached the desk is tried as an open again; one the desk refused was seen by it.
+  func testAnOpenTheDeskNeverSawIsAnOpenAgain() async throws {
+    let id = "acme/api#4127"
+    let store = try await local()
+    StubProtocol.reset(["/api/review/\(id)": StubProtocol.Answer(error: .cannotConnectToHost)])
+    _ = await store.readReview(id)
+    _ = await store.readReview(id)
+    XCTAssertEqual(StubProtocol.requests().map(\.url?.query), [nil, nil])
+    StubProtocol.reset(["/api/review/\(id)": StubProtocol.Answer(status: 502, body: #"{"error":"GitHub didn't answer"}"#)])
+    _ = await store.readReview(id)
+    _ = await store.readReview(id)
+    XCTAssertEqual(StubProtocol.requests().map(\.url?.query), [nil, "ahead=1"])
+    XCTAssertNil(store.pins[id])
+  }
+
   func testDisconnectForgetsTheTokenAndTheAddress() async {
     StubProtocol.reset(["/api/pair": pair])
     let store = Store(defaults: defaults, session: StubProtocol.session())

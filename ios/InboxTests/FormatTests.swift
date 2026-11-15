@@ -26,6 +26,45 @@ final class FormatTests: XCTestCase {
     XCTAssertEqual(Words.age(nil, now: now), "")
   }
 
+  // web/test/view.test.ts: "checks: shards of one check are one row with its worst dot, what's wrong first; one alone keeps its whole name".
+  func testCheckGroups() {
+    let c = { (name: String, state: String, optional: Bool) in Checks.Check(name: name, state: state, optional: optional, url: "") }
+    let groups = CheckGroup.of([
+      c("backend test (0)", "passing", false),
+      c("backend test (1)", "running", false),
+      c("backend test (2)", "passing", false),
+      c("lint", "passing", false),
+      c("acceptance [1/2]", "failing", false),
+      c("acceptance [2/2]", "skipped", false),
+      c("codecov", "failing", true),
+      c("docs", "skipped", false),
+    ])
+    XCTAssertEqual(groups.map(\.name), ["acceptance", "codecov", "backend test", "lint", "docs"])
+    XCTAssertEqual(groups.map(\.dot), [.red, .amber, .yellow, .green, .grey])
+    XCTAssertEqual(groups.map(\.checks.count), [2, 1, 3, 1, 1])
+    XCTAssertEqual(CheckDot(c("x", "cancelled", false)), .red)
+    XCTAssertEqual(groups.map(\.dot.words), ["failing", "failing, not required", "running", "passing", "skipped"])
+
+    // The other marks a shard goes by, one alone keeping its whole name, and a name that is only a mark.
+    let names = { (list: [String]) in CheckGroup.of(list.map { c($0, "passing", false) }).map(\.name) }
+    XCTAssertEqual(names(["e2e #1", "e2e #2", "unit 1", "unit 2", "it shard 1 of 5", "it Shard 2 of 5", "db 1/2", "db 2/2"]), ["e2e", "unit", "it", "db"])
+    XCTAssertEqual(names(["e2e (chromium)", "e2e (firefox)", "lint"]), ["e2e", "lint"])
+    XCTAssertEqual(names(["unit tests (1/3)"]), ["unit tests (1/3)"])
+    XCTAssertEqual(names(["(1)", "42"]), ["(1)", "42"])
+    XCTAssertEqual(names(["b", "a"]), ["b", "a"], "as the desk listed them within a dot")
+    XCTAssertTrue(CheckGroup.of([]).isEmpty)
+  }
+
+  // The mock's eleven checks are seven rows: past six, the passing and skipped wait behind one line.
+  func testAFixturesChecksFold() throws {
+    let r: ReviewView = try Fixture.decode("review")
+    let groups = CheckGroup.of(try XCTUnwrap(r.checks).list)
+    XCTAssertEqual(groups.map(\.name), ["build", "codecov/patch", "e2e", "lint", "typecheck", "unit tests", "visual diff", "deploy preview"])
+    XCTAssertEqual(groups.first { $0.name == "unit tests" }?.checks.count, 3)
+    XCTAssertTrue(groups.count > CheckGroup.rows)
+    XCTAssertTrue(groups.allSatisfy(\.dot.quiet), "all passing or skipped: opened, it shows its one line until Show more")
+  }
+
   func testAgoAndSince() {
     XCTAssertEqual(Words.ago(back(47.6), now: now), "2d ago")
     XCTAssertEqual(Words.ago("2026-10-27T11:59:20Z", now: now), "40s ago")

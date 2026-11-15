@@ -146,10 +146,10 @@ struct APIClient: Sendable {
     try await get("/api/inquiries/\(APIClient.segment(id))")
   }
 
-  // What reviewers said on a PR, and whether you may approve it. Always ?ahead=1: without it the desk takes the read as
-  // the window opening the PR and starts its AI review and your agent's read of the conversation. The diff rides along, unread.
-  func review(_ id: String) async throws -> ReviewRead {
-    try await get("/api/review/\(APIClient.segment(id))", query: ["ahead": "1"])
+  // A PR's whole review. Without `ahead` the desk takes it as the window opening the PR: it may start its AI review and
+  // your agent's read of the conversations waiting on you. With it, a redraw: nothing starts. An issue is refused (400).
+  func review(_ id: String, ahead: Bool) async throws -> ReviewView {
+    try await get("/api/review/\(APIClient.segment(id))", query: ahead ? ["ahead": "1"] : [:])
   }
 
   // Who you can ask to review your PR: GitHub's own picks for an empty search.
