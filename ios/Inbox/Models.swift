@@ -303,6 +303,7 @@ struct InflightView: Decodable, Sendable {
     var state: String?  // "open" | "closed" | "merged"
     var waitsOn: String?
     var note: AgentNote?
+    var rebase: Bool?  // being rebased: it stays on the Inbox ("rebasing"), not listed in Merging
     var id: String { card.id }
   }
 
@@ -310,6 +311,10 @@ struct InflightView: Decodable, Sendable {
     var text: String?
     var at: String?
   }
+
+  // Merging's own rows, as Inflight.tsx: open and not being rebased. Then what landed.
+  var live: [Row] { rows.filter { $0.state == "open" && $0.rebase != true } }
+  var landed: [Row] { rows.filter { $0.state != "open" } }
 
   struct Coordinator: Decodable, Sendable {
     var on: Bool?

@@ -432,8 +432,8 @@ struct MergingList: View {
   var body: some View {
     Group {
       if let view = store.inflight {
-        let live = view.rows.filter { $0.state == "open" }
-        let landed = view.rows.filter { $0.state != "open" }
+        let live = view.live
+        let landed = view.landed
         List {
           if let c = view.coordinator { agentLine(c).deskLine() }
           if live.isEmpty {

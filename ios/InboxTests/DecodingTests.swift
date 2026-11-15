@@ -73,6 +73,20 @@ final class DecodingTests: XCTestCase {
     XCTAssertEqual(v.coordinator?.url, "https://claude.ai/code/session_01MockCoordinator")
   }
 
+  // A PR your agent only rebases stays on the Inbox: Merging lists what's open and not that. The mock never sends one.
+  func testMergingLeavesOutWhatIsOnlyRebased() throws {
+    let card = { (n: Int) in #"{"id":"a/b#\#(n)","kind":"pr","repo":"a/b","number":\#(n),"title":"t","inflight":true}"# }
+    let json = #"{"rows":[{"card":\#(card(1)),"state":"open","rebase":false},{"card":\#(card(2)),"state":"open","rebase":true},"#
+      + #"{"card":\#(card(3)),"state":"open"},{"card":\#(card(4)),"state":"merged","rebase":true}]}"#
+    let v = try DeskJSON.decoder().decode(InflightView.self, from: Data(json.utf8))
+    XCTAssertEqual(v.rows.map(\.rebase), [false, true, nil, true])
+    XCTAssertEqual(v.live.map(\.id), ["a/b#1", "a/b#3"])
+    XCTAssertEqual(v.landed.map(\.id), ["a/b#4"])
+    let mock: InflightView = try Fixture.decode("inflight")
+    XCTAssertEqual(mock.rows.compactMap(\.rebase), Array(repeating: false, count: 8))
+    XCTAssertEqual(mock.live.count, 7)
+  }
+
   func testItem() throws {
     let d: ItemDetail = try Fixture.decode("item")
     XCTAssertEqual(d.card.id, "acme/api#4127")
