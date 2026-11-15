@@ -153,6 +153,30 @@ final class FormatTests: XCTestCase {
   }
 
   // The one list the client sorts: what you finished and what resolved, newest first.
+  // Avatar.tsx: a person's picture is asked of GitHub by their login alone; none for you or a bot that wrote its own PR.
+  @MainActor
+  func testWhosePictureARowShows() throws {
+    XCTAssertEqual(Avatar.url("dana")?.absoluteString, "https://avatars.githubusercontent.com/dana?s=40")
+    XCTAssertEqual(Avatar.url("@ana-k")?.absoluteString, "https://avatars.githubusercontent.com/ana-k?s=40")
+    XCTAssertEqual(Avatar.url("acme-junior[bot]")?.absoluteString, "https://avatars.githubusercontent.com/acme-junior%5Bbot%5D?s=40")
+    XCTAssertNil(Avatar.url(""))
+    XCTAssertNil(Avatar.url("you/../x"))
+    XCTAssertNil(Avatar.url("a b"))
+    XCTAssertNil(Avatar.url("acme/reviewers"), "a team has none")
+    let card = { (more: String) in
+      try DeskJSON.decoder().decode(Card.self, from: Data(#"{"id":"a/b#1","kind":"pr","repo":"a/b","number":1,"title":"t"\#(more)}"#.utf8))
+    }
+    XCTAssertEqual(try card(#","author":"dana","by":"dana""#).face, "dana")
+    XCTAssertNil(try card(#","author":"me","by":"you""#).face, "none for you")
+    XCTAssertNil(try card(#","author":"dependabot[bot]","author_bot":true,"by":"dependabot[bot]""#).face, "a bot's own PR")
+    XCTAssertEqual(try card(#","author":"acme-junior[bot]","author_bot":true,"by":"dana""#).face, "dana", "a bot's PR opened for dana")
+    XCTAssertNil(try card(#","author":"acme-junior[bot]","author_bot":true,"by":"you""#).face)
+    let standing = { (who: String) in try DeskJSON.decoder().decode(Standings.Standing.self, from: Data(#"{"who":"\#(who)","state":"asked"}"#.utf8)).face }
+    XCTAssertEqual(try standing("marco"), "marco")
+    XCTAssertNil(try standing("you"))
+    XCTAssertNil(try standing("@ml-team"), "a team has none")
+  }
+
   // Note.tsx's WHEN, and what goes to /api/notes as `remind`.
   func testANotesReminder() throws {
     XCTAssertEqual(Remind.choices.map(\.label), ["No reminder", "In 1 hour", "In 3 hours", "Tomorrow 9:00", "Monday 9:00", "Pick a time…"])

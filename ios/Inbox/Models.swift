@@ -187,6 +187,8 @@ struct Card: Decodable, Identifiable, Sendable {
 
   var isPR: Bool { kind == "pr" }
   var mine: Bool { by == "you" }
+  // Whose picture its row shows: a person's. None for you, nor a bot that wrote its own PR (docs/ui.md: "none for you or a bot").
+  var face: String? { mine || (authorBot == true && by == author) ? nil : by }
   var active: Bool { (status ?? "active") == "active" }
   // Hand off for merge is for a PR through its review (view.ts's handsOff()): not a draft, not one awaiting review, nor
   // one nobody's asked unless its repo needs no review. Offered on your own open PR; the desk refuses the rest in words.
@@ -792,6 +794,8 @@ struct Standings: Decodable, Sendable {
 
   struct Standing: Decodable, Sendable {
     var who: String?
+    // Whose picture goes before the name: a person's, not yours and not a team's ("@ml-team").
+    var face: String? { who.flatMap { $0 == "you" || $0.hasPrefix("@") || $0.isEmpty ? nil : $0 } }
     var state: String?  // "changes requested" | "asked" | "approved" | "commented"
   }
 }

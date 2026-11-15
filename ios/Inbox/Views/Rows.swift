@@ -65,10 +65,49 @@ extension View {
   func shrinks(_ order: Int, floor: CGFloat) -> some View { layoutValue(key: MetaLine.Shrink.self, value: (order, floor)) }
 }
 
+// A person's GitHub picture before their name, round and the size of the words beside it (Avatar.tsx). It draws
+// nothing, and takes no room, while it loads or when it doesn't; a login that failed isn't asked for again. The request
+// goes from the phone straight to GitHub, with no token: only the login travels.
+struct Avatar: View {
+  let login: String
+  var size: CGFloat = 14
+  @ScaledMetric(relativeTo: .body) private var scale: CGFloat = 100
+  @MainActor static var failed: Set<String> = []
+
+  static func url(_ login: String) -> URL? {
+    let name = login.hasPrefix("@") ? String(login.dropFirst()) : login
+    // A login is letters, digits and hyphens ("[bot]" at a bot's end): anything else isn't asked for.
+    guard !name.isEmpty, name.range(of: #"^[A-Za-z0-9-]+(\[bot\])?$"#, options: .regularExpression) != nil else { return nil }
+    let safe = name.addingPercentEncoding(withAllowedCharacters: .alphanumerics.union(CharacterSet(charactersIn: "-"))) ?? name
+    return URL(string: "https://avatars.githubusercontent.com/\(safe)?s=40")
+  }
+
+  var body: some View {
+    if !Avatar.failed.contains(login), let url = Avatar.url(login) {
+      let side = min(size * scale / 100, size * 1.6)
+      AsyncImage(url: url) { phase in
+        switch phase {
+        case .success(let image):
+          image.resizable().scaledToFill().frame(width: side, height: side).clipShape(Circle())
+            .alignmentGuide(.firstTextBaseline) { $0[.bottom] - side * 0.18 }
+            .padding(.trailing, 4)
+        case .failure:
+          Color.clear.frame(width: 0, height: 0).onAppear { Avatar.failed.insert(login) }
+        default:
+          Color.clear.frame(width: 0, height: 0)
+        }
+      }
+      .accessibilityHidden(true)
+    }
+  }
+}
+
 // One fact of a row's second line.
 struct Fact: Identifiable {
   enum Tone { case pencil, ink2, amber }
   let text: String
+  var lead: String?  // "by": the word before a person's picture and name
+  var face: String?  // whose picture goes before the text
   var tone: Tone = .pencil
   var shrink: (order: Int, floor: CGFloat)?
   var id: String { text }
@@ -145,6 +184,8 @@ struct RowLines: View {
   private func factText(_ fact: Fact, dot: Bool, last: Bool) -> some View {
     let text = HStack(alignment: .firstTextBaseline, spacing: 0) {
       if dot { Text("·").foregroundStyle(Theme.faint).padding(.horizontal, 6).fixedSize() }
+      if let lead = fact.lead { Text(lead + " ").fixedSize() }
+      if let face = fact.face { Avatar(login: face) }
       Text(fact.text).lineLimit(1).truncationMode(.tail)
         .foregroundStyle(fact.tone == .amber ? Theme.amber : fact.tone == .ink2 ? Theme.ink2 : Theme.pencil)
     }
@@ -226,7 +267,7 @@ struct CardRow: View {
     // Nor where the why already names them ("Priya waits on your review").
     let named = !card.mine && (card.reason ?? "").lowercased().contains((card.by ?? "").lowercased())
     if let by = card.by, !(cta != nil && card.mine), !named {
-      out.append(Fact(text: "by \(by)", tone: card.mine ? .ink2 : .pencil, shrink: out.isEmpty ? nil : (1, 0)))
+      out.append(Fact(text: by, lead: "by", face: card.face, tone: card.mine ? .ink2 : .pencil, shrink: out.isEmpty ? nil : (1, 0)))
     }
     if case .active = variant, let stage = card.stage, !said {
       out.append(Fact(text: stage, tone: amber ? .amber : .pencil, shrink: (2, 0)))

@@ -202,9 +202,10 @@ struct ReviewState: View {
   private func reviewerList(_ reviewers: Standings) -> some View {
     VStack(alignment: .leading, spacing: 0) {
       ForEach(Array(reviewers.list.enumerated()), id: \.offset) { _, r in
-        HStack(alignment: .firstTextBaseline, spacing: 8) {
+        HStack(alignment: .firstTextBaseline, spacing: 0) {
+          if let face = r.face { Avatar(login: face) }
           Text(r.who ?? "").sans(13).foregroundStyle(Theme.ink2).lineLimit(1)
-          Spacer(minLength: 6)
+          Spacer(minLength: 14)
           Text(r.state ?? "").sans(13).foregroundStyle(r.state == "changes requested" ? tone(Theme.amber) : Theme.pencil).fixedSize()
         }
         .frame(minHeight: 36)

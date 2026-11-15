@@ -7,11 +7,20 @@ import SwiftUI
 // Who, then where and when with a dot between: "azulus · src/sync/merge.ts:88 · 5h".
 struct WhoLine: View {
   let who: String
+  var bot = false
   var rest: [String] = []
+  @Environment(Store.self) private var store
   @ScaledMetric(relativeTo: .body) private var scale: CGFloat = 100
 
   var body: some View {
-    // A person's picture goes before the name (the lists slice); a bot has none, as in the window.
+    HStack(alignment: .firstTextBaseline, spacing: 0) {
+      // A person's picture before the name; a bot has none, as in the window, and nor do you.
+      if !bot, !who.isEmpty, who.lowercased() != store.me.lowercased() { Avatar(login: who, size: 13.5) }
+      words
+    }
+  }
+
+  private var words: some View {
     let size = 12.5 * scale / 100
     var line = AttributedString(who)
     line.font = Font(Typeface.sans.font(size, weight: 550))
@@ -48,7 +57,7 @@ struct SaidComments: View {
     VStack(alignment: .leading, spacing: 10) {
       ForEach(comments) { m in
         VStack(alignment: .leading, spacing: 3) {
-          WhoLine(who: m.author ?? "", rest: [Words.age(m.at, now: store.now)])
+          WhoLine(who: m.author ?? "", bot: m.bot == true, rest: [Words.age(m.at, now: store.now)])
           Prose(text: Words.saidText(m.body), size: 13.5, links: true)
             .foregroundStyle(Theme.ink).tint(Theme.ink2).lineSpacing(3).lineLimit(lines)
             .fixedSize(horizontal: false, vertical: true)
@@ -141,7 +150,7 @@ struct WhatWasSaid: View {
     let last = c.comments.last
     let isOpen = said.contains(c.id)
     return VStack(alignment: .leading, spacing: 6) {
-      WhoLine(who: last?.author ?? "", rest: [Words.place(c), Words.age(last?.at, now: store.now)])
+      WhoLine(who: last?.author ?? "", bot: last?.bot == true, rest: [Words.place(c), Words.age(last?.at, now: store.now)])
       Prose(text: Words.gist(c), size: 15).foregroundStyle(Theme.ink).lineSpacing(3).fixedSize(horizontal: false, vertical: true)
       if let take = c.take?.take, !take.isEmpty {
         let (call, why) = Words.takeSplit(take)
@@ -174,7 +183,7 @@ struct WhatWasSaid: View {
         opened.formSymmetricDifference([c.id])
       } label: {
         VStack(alignment: .leading, spacing: 2) {
-          WhoLine(who: c.comments.first?.author ?? "", rest: [Words.place(c), c.resolved == true ? "resolved" : ""])
+          WhoLine(who: c.comments.first?.author ?? "", bot: c.comments.first?.bot == true, rest: [Words.place(c), c.resolved == true ? "resolved" : ""])
           if !isOpen {
             Prose(text: Words.firstLine(c.comments.last?.body), size: 13).foregroundStyle(Theme.ink2).lineSpacing(2).lineLimit(2)
               .multilineTextAlignment(.leading)
