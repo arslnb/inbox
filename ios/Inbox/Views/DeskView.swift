@@ -372,6 +372,11 @@ struct SessionLine: View {
           Button(option.label) { store.act(s.id, name: s.name ?? "", "snooze", snooze: option) }
         }
       }
+      // Its first action, as the window's menu, when a phone can do it: Open and the attach command are for the desk's computer.
+      if let first = s.actions?.first, first == "kick" || first == "resume", let label = Words.sessionAction[first] {
+        Divider()
+        Button(label) { Task { await store.kick(s) } }
+      }
     }
   }
 }
