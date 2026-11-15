@@ -5,6 +5,7 @@ import SwiftUI
 struct ReviewState: View {
   @Environment(Store.self) private var store
   @Environment(\.openURL) private var openURL
+  @Environment(\.dynamicTypeSize) private var textSize
   let card: Card
   let review: ReviewView
   var addReviewers: (() -> Void)?  // on your open PR that's ready: + Add reviewers
@@ -15,6 +16,7 @@ struct ReviewState: View {
   // Sorted away, done or resolved, its problems go grey (Review.tsx's calm()).
   private var dim: Bool { !card.active || card.resolved != nil || card.bucket == "hide" }
   private func tone(_ c: Color) -> Color { dim ? Theme.pencil : c }
+  private var large: Bool { textSize.isAccessibilitySize }
 
   var body: some View {
     let reviewers = review.reviewers
@@ -60,10 +62,19 @@ struct ReviewState: View {
   @ViewBuilder
   private func row(_ name: String, _ line: String, _ color: Color, opens: String? = nil) -> some View {
     let on = opens != nil && open == opens
+    let said = Text(line).sans(14, 550).foregroundStyle(color).lineLimit(on ? nil : 2).multilineTextAlignment(.leading)
+      .fixedSize(horizontal: false, vertical: true)
     let label = HStack(alignment: .firstTextBaseline, spacing: 8) {
-      Text(name).sans(13).foregroundStyle(Theme.pencil).frame(width: 84, alignment: .leading)
-      Text(line).sans(14, 550).foregroundStyle(color).lineLimit(on ? nil : 2).multilineTextAlignment(.leading)
-        .fixedSize(horizontal: false, vertical: true)
+      // At an accessibility text size its name has no column to fit in: it goes above what it says.
+      if large {
+        VStack(alignment: .leading, spacing: 2) {
+          Text(name).sans(13).foregroundStyle(Theme.pencil)
+          said
+        }
+      } else {
+        Text(name).sans(13).foregroundStyle(Theme.pencil).frame(width: 84, alignment: .leading)
+        said
+      }
       Spacer(minLength: 4)
       if opens != nil {
         Image(systemName: "chevron.right").font(.system(size: 11, weight: .semibold)).foregroundStyle(Theme.faint)
