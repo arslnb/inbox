@@ -5164,7 +5164,7 @@ fieldset.au-field > legend {
   padding: 4px 8px;
   border-radius: 7px;
   color: var(--ink-2);
-  font-size: 13px;
+  font-size: 12.5px;
 }
 
 a.rv-part-row:hover {
@@ -5188,11 +5188,12 @@ a.rv-part-row:hover {
   color: var(--pencil);
 }
 
+/* Under a part's name, a step quieter than it: regular weight, no larger. */
 .rv-part-line {
   margin: 0 0 4px;
   padding: 0 8px;
-  font-size: 14px;
-  font-weight: 550;
+  font-size: 12.5px;
+  font-weight: 450;
   line-height: 1.35;
 }
 
@@ -5732,13 +5733,82 @@ a.rv-part-row:hover {
   justify-self: start;
 }
 
-/* The risk part's reason: under its meter, in pencil. */
-.rv-part-why {
-  margin: 2px 0 0;
+/* Status: a row each for the risk, the checks and the size, its word and a mark in its colour on the right; a click opens
+   what's behind it under it. */
+.rv-status-list {
+  display: grid;
+  gap: 1px;
+}
+
+.rv-status-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: 7px;
+  background: none;
+  color: var(--ink-2);
+  font: 12.5px var(--sans);
+  text-align: left;
+  cursor: pointer;
+}
+
+.rv-status-row:hover {
+  background: var(--side-hover);
+}
+
+.rv-status-name {
+  flex: 1;
+  min-width: 0;
+}
+
+.rv-status-word {
+  color: var(--ink-2);
+  white-space: nowrap;
+}
+
+.rv-status-mark {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 15px;
+  height: 15px;
+  border-radius: 50%;
+  color: var(--sheet); /* white on Light's deep colours, near black on Dark's pastels */
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.rv-status-mark.m-good {
+  background: var(--green);
+}
+
+.rv-status-mark.m-warn {
+  background: var(--amber);
+}
+
+.rv-status-mark.m-bad {
+  background: var(--red);
+}
+
+.rv-status-more {
+  padding: 2px 0 6px;
+}
+
+.rv-status-why {
+  margin: 0;
+  padding: 0 8px 4px;
   color: var(--pencil);
-  font-size: 12.5px;
-  line-height: 1.4;
+  font-size: 12px;
+  line-height: 1.45;
   overflow-wrap: anywhere;
+}
+
+ul.rv-status-why {
+  padding-left: 22px;
 }
 
 /* The folded part's lists: one line each, a click to its line. */
@@ -6032,6 +6102,78 @@ a.rv-part-row:hover {
   max-width: calc(100% - 1.8em);
   white-space: normal;
   overflow-wrap: break-word;
+}
+
+/* The guided review's steps as a timeline: a line down the dots, each step's name on one line (all of it in its tooltip),
+   the step you're on with a glowing dot in the accent and its name in ink. */
+.rv-steps ol {
+  position: relative;
+}
+
+.rv-steps ol::before {
+  content: "";
+  position: absolute;
+  top: 14px;
+  bottom: 14px;
+  left: 14.5px;
+  width: 1.5px;
+  border-radius: 1px;
+  background: var(--rule-strong);
+}
+
+.rv-step-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 28px;
+  padding: 0 8px 0 10px;
+  border: 0;
+  border-radius: 7px;
+  background: none;
+  color: var(--ink-2);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.rv-step-row:hover {
+  background: var(--side-hover);
+}
+
+.rv-step-row.on {
+  color: var(--ink);
+}
+
+.rv-step-dot {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border: 1.5px solid var(--rule-strong);
+  border-radius: 50%;
+  background: var(--sheet);
+}
+
+.rv-step-row:hover .rv-step-dot {
+  border-color: var(--pencil);
+}
+
+.rv-step-row.on .rv-step-dot {
+  border-color: var(--accent);
+  background: var(--accent);
+  box-shadow:
+    0 0 0 3px color-mix(in oklab, var(--accent) 28%, transparent),
+    0 0 10px 1px color-mix(in oklab, var(--accent) 55%, transparent);
+}
+
+.rv-step-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-weight: 550;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .rv-nn {

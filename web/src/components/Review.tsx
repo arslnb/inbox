@@ -62,7 +62,6 @@ import {
   splitPath,
   threadsOn,
   type Acted,
-  type CheckGroup,
   type Dot,
 } from "../view.ts";
 import { FIT, isTestPath, LEVEL, onLines, STATUS, traditional, VERDICT, walk, type Section } from "../../../src/sections.ts";
@@ -114,7 +113,6 @@ interface Fact {
 // Sorted away, resolved or calm in Merging, a PR's problems go grey: its header's facts, and its checks in the sidebar.
 const calm = (c: Card) => cls(`b-${c.bucket}`, (c.status !== "active" || c.resolved !== null || c.bucket === "hide") && "dim");
 
-const SIDE_ROWS = 6; // a sidebar part longer than this folds its quiet rows
 const LINE = 96; // px below the window's top where "the section you're in" is read off
 const REST = "Not worth reviewing"; // the fold's line
 const STACK_SHOWN = 4; // the PR below this one, this one and two above; the rest of a long stack is a click away
@@ -221,7 +219,6 @@ export function Review({
   const wholes = useRef(new Map<string, Promise<FileDiffLoadedFiles>>());
   const [more, setMore] = useState(false); // the More menu
   // The sidebar's checks and reviewers, listed: every PR opens with each in one line.
-  const [checksOpen, setChecksOpen] = useState(false);
   const [writing, setWriting] = useState(false); // Request changes, being written
   // Your comment on the PR, unsent: kept here, not in its box, so a refusal, acting on the PR or its closing never loses it,
   // and per PR for this window, as a line's is, so leaving the review and coming back finds it; sent, it's cleared.
@@ -802,7 +799,7 @@ export function Review({
       {toggle}
       <div className="rv-main">
         <div className="rv-top">
-          <Head card={card} me={me} now={now} size={size} resolved={resolved?.line ?? null} row={row} />
+          <Head card={card} me={me} now={now} resolved={resolved?.line ?? null} row={row} />
           {/* Yours gets no AI summary unless asked for, so its description's first paragraph says what it's about. */}
           {isMine && !view.ai && item.body && <p className="rv-summary rv-desc">{item.body.split("\n")[0]}</p>}
           {/* Your own PR gets no AI review unless one was asked for; More still asks. */}
@@ -1099,24 +1096,16 @@ export function Review({
         />
       )}
       {showSide && (
-        <aside id="rv-side" className="rv-side" aria-label="Risk, stack, checks, reviewers and files">
+        <aside id="rv-side" className="rv-side" aria-label="Status, stack, reviewers and files">
           <div className="rv-side-top" aria-hidden="true" />
-          {view.ai && <RiskPart ai={view.ai} tone={calm(card)} />}
+          <StatusPart
+            ai={view.ai}
+            checks={view.checks}
+            checksError={view.checks_error}
+            size={size && { ...size, files: item.changed_files }}
+            tone={calm(card)}
+          />
           {view.stack && <StackList stack={view.stack} />}
-          {view.checks_error && (
-            <section className="rv-part" data-part="checks" aria-label="Checks">
-              <p className="rv-part-err t-bad">Couldn't load the checks: {view.checks_error}</p>
-            </section>
-          )}
-          {view.checks && (
-            <ChecksPart
-              checks={view.checks}
-              bad={view.checks.failing ? "t-bad" : ""}
-              tone={calm(card)}
-              open={checksOpen}
-              setOpen={setChecksOpen}
-            />
-          )}
           <SidePart
             id="reviewers"
             name="Reviewers"
@@ -1226,51 +1215,41 @@ function StepList({
   onGo: (i: number, el: string) => void;
 }) {
   return (
-    <nav className="rv-files" aria-label="Steps of the guided review">
+    <nav className="rv-files rv-steps" aria-label="Steps of the guided review">
       <h2 className="rv-side-head">
         <span>Guided Review</span>
       </h2>
+      {/* A timeline: a dot a step on one line down the list, the step you're on glowing in the accent. */}
       <ol>
-        {stops.map((r) => (
-          <li key={r.at}>
-            <button
-              type="button"
-              className={cls("rv-file", on >= r.at && on < r.end && "on")}
-              onClick={() => {
-                onGo(r.at, r.el);
-              }}
-            >
-              <span className="rv-lvl">{r.n}</span>
-              <span className="rv-fname">
-                <span className="rv-base">{r.name}</span>
-              </span>
-              {r.notes && <span className="rv-nn" title="AI notes" />}
-            </button>
-          </li>
-        ))}
+        {stops.map((r) => {
+          const here = on >= r.at && on < r.end;
+          return (
+            <li key={r.at} className={cls(here && "on")}>
+              <button
+                type="button"
+                className={cls("rv-step-row", here && "on")}
+                aria-current={here ? "step" : undefined}
+                title={`${r.n}. ${r.name}`}
+                onClick={() => {
+                  onGo(r.at, r.el);
+                }}
+              >
+                <span className="rv-step-dot" aria-hidden="true" />
+                <span className="rv-step-name">{r.name}</span>
+                {r.notes && <span className="rv-nn" title="AI notes" />}
+              </button>
+            </li>
+          );
+        })}
       </ol>
     </nav>
   );
 }
 
-// The header: the ref, who it's by and how big it is, then the title; who reviews it and what stands in its way are the
+// The header: the ref and who it's by, then the title; how big it is, who reviews it and what stands in its way are the
 // sidebar's. A resolved
 // PR's line, and Merging's for your PR there.
-function Head({
-  card,
-  me,
-  now,
-  size,
-  resolved,
-  row,
-}: {
-  card: Card;
-  me: string;
-  now: number;
-  size: { add: number; del: number } | null;
-  resolved: string | null;
-  row: InflightRow | null;
-}) {
+function Head({ card, me, now, resolved, row }: { card: Card; me: string; now: number; resolved: string | null; row: InflightRow | null }) {
   const isMine = card.by === "you"; // yours, or a bot's opened for you
   // What it waits on and the coordinator's latest note, as Merging says it.
   const lane = row?.state === "open" && (row.waits_on || row.note) ? row : null;
@@ -1292,12 +1271,6 @@ function Head({
           {isMine ? "you" : card.author}
           {card.author_bot ? (isMine ? `, through ${card.author}` : " (bot)") : ""}
         </span>
-        {/* How big it is, at the line's far end; who's reviewing it is the sidebar's. */}
-        {size && (
-          <span className="rv-size" title={`${size.add} lines added, ${size.del} removed`}>
-            <span className="add">+{size.add}</span> <span className="del">−{size.del}</span>
-          </span>
-        )}
       </p>
       <h1 className="rv-title">{card.title}</h1>
       {card.handoff && (
@@ -1361,6 +1334,8 @@ function Shell({
 }) {
   const isMine = card?.by === "you";
   const pf = card?.preflight;
+  const rough = card ? rowSize(card) : null;
+  const shellSize = rough && { ...rough, files: null }; // the row says its lines, not its files
   const ai =
     pf?.verdict && pf.risk && pf.summary
       ? {
@@ -1380,14 +1355,7 @@ function Shell({
       <div className="rv-main">
         <div className="rv-top">
           {card ? (
-            <Head
-              card={card}
-              me={me}
-              now={now}
-              size={rowSize(card)}
-              resolved={card.resolved ? resolvedHead([], card.resolved, me).line : null}
-              row={row}
-            />
+            <Head card={card} me={me} now={now} resolved={card.resolved ? resolvedHead([], card.resolved, me).line : null} row={row} />
           ) : (
             <header className="rv-head" aria-hidden="true">
               <p className="rv-ref">
@@ -1449,7 +1417,7 @@ function Shell({
       {side && (
         <aside id="rv-side" className="rv-side" aria-hidden="true">
           <div className="rv-side-top" />
-          {ai && <RiskPart ai={ai} tone={card ? calm(card) : ""} />}
+          <StatusPart ai={ai} checks={null} checksError={null} size={shellSize} tone={card ? calm(card) : ""} />
           {/* Its checks, where any ran, and its reviewers: a line each. */}
           <SkLines count={card && card.ci !== "none" ? 2 : 1} className="sk-files" />
           <nav className="rv-files">
@@ -1462,25 +1430,145 @@ function Shell({
   );
 }
 
-// The AI review's risk, at the top of the sidebar: its meter and word, then its first reason where it isn't low.
-function RiskPart({ ai, tone }: { ai: AiShown; tone: string }) {
-  const why = ai.risk !== "low" ? ai.risk_reasons?.[0]?.why : undefined;
+type Tone = "good" | "warn" | "bad";
+const MARK_OF: Record<Tone, string> = { good: "✓", warn: "!", bad: "×" };
+const RISK_TONE: Record<AiShown["risk"], Tone> = { low: "good", medium: "warn", high: "bad" };
+
+// How the checks stand, in a word and a colour: a required one failing is red; an optional one failing, one cancelled or
+// one still running is yellow.
+function checksState(checks: Checks): { word: string; tone: Tone } {
+  if (checks.failing) return { word: "failing", tone: "bad" };
+  if (checks.list.some((c) => c.state === "failing" || c.state === "cancelled")) return { word: "some failing", tone: "warn" };
+  if (checks.list.some((c) => c.state === "running")) return { word: "running", tone: "warn" };
+  return { word: "passing", tone: "good" };
+}
+
+// How big it is, in a word: by its lines changed and its files.
+function changesWord(add: number, del: number, files: number | null): string {
+  const lines = add + del;
+  const n = files ?? 0; // unknown while it loads: its lines alone
+  if (lines <= 100 && n <= 5) return "small";
+  if (lines <= 600 && n <= 20) return "moderate";
+  return "lots of changes";
+}
+
+// One row of Status: its name, its word on the right and a mark in its colour (or what stands in for one); a click shows
+// or hides what's behind it.
+function StatusRow({
+  id,
+  name,
+  word,
+  tone,
+  end,
+  children,
+  open,
+  setOpen,
+}: {
+  id: string;
+  name: string;
+  word: string;
+  tone?: Tone | undefined;
+  end?: ReactNode; // in the mark's place: Changes' + and −
+  children: ReactNode;
+  open: boolean;
+  setOpen: (open: boolean) => void;
+}) {
   return (
-    <section className={cls("rv-part", tone)} data-part="risk" aria-label="Risk">
-      <h2 className="rv-side-head">
-        <span>Risk</span>
-      </h2>
-      <p className="rv-part-line">
-        <span className={`risk r-${ai.risk}`}>
-          <span className="meter" aria-hidden="true">
-            <span />
-            <span />
-            <span />
+    <li className="rv-status" data-status={id}>
+      <button
+        type="button"
+        className="rv-status-row"
+        aria-expanded={open}
+        onClick={() => {
+          setOpen(!open);
+        }}
+      >
+        <span className="rv-status-name">{name}</span>
+        <span className="rv-status-word">{word}</span>
+        {tone && (
+          <span className={cls("rv-status-mark", `m-${tone}`)} aria-hidden="true">
+            {MARK_OF[tone]}
           </span>
-          {ai.risk} risk
-        </span>
-      </p>
-      {why && <p className="rv-part-why">{why}</p>}
+        )}
+        {end}
+      </button>
+      {open && <div className="rv-status-more">{children}</div>}
+    </li>
+  );
+}
+
+// Status, at the top of the sidebar: the AI review's risk, the checks and how big the change is, a row each; a click on one
+// shows its reasons, its list of checks or its counts.
+function StatusPart({
+  ai,
+  checks,
+  checksError,
+  size,
+  tone,
+}: {
+  ai: AiShown | null;
+  checks: Checks | null;
+  checksError: string | null;
+  size: { add: number; del: number; files: number | null } | null;
+  tone: string;
+}) {
+  const [open, setOpen] = useState<Record<string, boolean>>({});
+  const toggle = (id: string) => (on: boolean) => {
+    setOpen((o) => ({ ...o, [id]: on }));
+  };
+  if (!ai && !checks && !checksError && !size) return null;
+  const reasons = ai?.risk_reasons ?? [];
+  const cs = checks && checksState(checks);
+  return (
+    <section className={cls("rv-part", tone)} data-part="status" aria-label="Status">
+      <h2 className="rv-side-head">
+        <span>Status</span>
+      </h2>
+      <ol className="rv-status-list">
+        {ai && (
+          <StatusRow id="risk" name="Risk" word={ai.risk} tone={RISK_TONE[ai.risk]} open={!!open.risk} setOpen={toggle("risk")}>
+            {reasons.length ? (
+              <ul className="rv-status-why">
+                {reasons.map((x) => (
+                  <li key={x.why}>{x.why}</li>
+                ))}
+              </ul>
+            ) : (
+              <p className="rv-status-why">No reason given.</p>
+            )}
+          </StatusRow>
+        )}
+        {checks && cs && (
+          <StatusRow id="checks" name="Checks" word={cs.word} tone={cs.tone} open={!!open.checks} setOpen={toggle("checks")}>
+            <p className="rv-status-why">{checks.line}</p>
+            <CheckRows checks={checks} />
+          </StatusRow>
+        )}
+        {!checks && checksError && (
+          <StatusRow id="checks" name="Checks" word="couldn't load" open={!!open.checks} setOpen={toggle("checks")}>
+            <p className="rv-status-why t-bad">{checksError}</p>
+          </StatusRow>
+        )}
+        {size && (
+          <StatusRow
+            id="changes"
+            name="Changes"
+            word={changesWord(size.add, size.del, size.files)}
+            end={
+              <span className="rv-size" title={`${size.add} lines added, ${size.del} removed`}>
+                <span className="add">+{size.add}</span> <span className="del">−{size.del}</span>
+              </span>
+            }
+            open={!!open.changes}
+            setOpen={toggle("changes")}
+          >
+            <p className="rv-status-why">
+              {size.files !== null && `${size.files} ${size.files === 1 ? "file" : "files"}: `}
+              {size.add} {size.add === 1 ? "line" : "lines"} added, {size.del} removed
+            </p>
+          </StatusRow>
+        )}
+      </ol>
     </section>
   );
 }
@@ -1549,27 +1637,11 @@ const DOT_WORDS: Record<Dot, string> = {
   grey: "skipped",
 };
 
-// The checks: where they stand, then a row each, shards of one check folded into one; a dot says how each is doing. Over
-// SIDE_ROWS rows, the green and grey ones wait behind one line.
-function ChecksPart({
-  checks,
-  bad,
-  tone,
-  open,
-  setOpen,
-}: {
-  checks: Checks;
-  bad: string;
-  tone: string;
-  open: boolean; // the green ones shown too
-  setOpen: (open: boolean) => void;
-}) {
+// Every check, one row each (shards of one check under one row, a click opens them), what's wrong first; a dot says how
+// each is doing. Status's Checks row opens it.
+function CheckRows({ checks }: { checks: Checks }) {
   const [nested, setNested] = useState<Set<string>>(new Set());
-  const groups = checkGroups(checks.list);
-  const folds = groups.length > SIDE_ROWS;
-  const quiet = (g: CheckGroup) => g.dot === "green" || g.dot === "grey";
-  const shown = folds && !open ? groups.filter((g) => !quiet(g)) : groups;
-  const hidden = groups.length - shown.length;
+  const shown = checkGroups(checks.list);
   const dot = (d: Dot) => <span className={cls("rv-dot", `d-${d}`)} aria-label={DOT_WORDS[d]} title={DOT_WORDS[d]} />;
   const link = (c: Check, label: string, cls_ = "rv-part-row") =>
     c.url ? (
@@ -1590,62 +1662,42 @@ function ChecksPart({
       </span>
     );
   return (
-    <section className={cls("rv-part", tone)} data-part="checks" aria-label="Checks">
-      <h2 className="rv-side-head">
-        <span>Checks</span>
-      </h2>
-      <p className={cls("rv-part-line", "fact-word", bad)} title={checks.line}>
-        {checks.line}
-      </p>
-      <ol>
-        {shown.map((g) => {
-          if (g.checks.length === 1) return <li key={g.name}>{link(g.checks[0]!, g.name)}</li>;
-          const isOpen = nested.has(g.name);
-          return (
-            <li key={g.name}>
-              <button
-                type="button"
-                className="rv-part-row rv-check-group"
-                aria-expanded={isOpen}
-                onClick={() => {
-                  const next = new Set(nested);
-                  if (isOpen) next.delete(g.name);
-                  else next.add(g.name);
-                  setNested(next);
-                }}
-              >
-                {dot(g.dot)}
-                <span className="rv-part-name">{g.name}</span>
-                <span className="rv-part-state">{g.checks.length}</span>
-                <span className="rv-chev" aria-hidden="true">
-                  ›
-                </span>
-              </button>
-              {isOpen && (
-                <ol className="rv-check-shards">
-                  {g.checks.map((c, i) => (
-                    // oxlint-disable-next-line react/no-array-index-key -- two shards can share a name, and the list never reorders in place
-                    <li key={i}>{link(c, c.name.slice(g.name.length).trim() || c.name)}</li>
-                  ))}
-                </ol>
-              )}
-            </li>
-          );
-        })}
-      </ol>
-      {folds && (hidden > 0 || open) && (
-        <button
-          type="button"
-          className="rv-part-more"
-          aria-expanded={open}
-          onClick={() => {
-            setOpen(!open);
-          }}
-        >
-          {open ? "Show less" : `${hidden} more passing`}
-        </button>
-      )}
-    </section>
+    <ol>
+      {shown.map((g) => {
+        if (g.checks.length === 1) return <li key={g.name}>{link(g.checks[0]!, g.name)}</li>;
+        const isOpen = nested.has(g.name);
+        return (
+          <li key={g.name}>
+            <button
+              type="button"
+              className="rv-part-row rv-check-group"
+              aria-expanded={isOpen}
+              onClick={() => {
+                const next = new Set(nested);
+                if (isOpen) next.delete(g.name);
+                else next.add(g.name);
+                setNested(next);
+              }}
+            >
+              {dot(g.dot)}
+              <span className="rv-part-name">{g.name}</span>
+              <span className="rv-part-state">{g.checks.length}</span>
+              <span className="rv-chev" aria-hidden="true">
+                ›
+              </span>
+            </button>
+            {isOpen && (
+              <ol className="rv-check-shards">
+                {g.checks.map((c, i) => (
+                  // oxlint-disable-next-line react/no-array-index-key -- two shards can share a name, and the list never reorders in place
+                  <li key={i}>{link(c, c.name.slice(g.name.length).trim() || c.name)}</li>
+                ))}
+              </ol>
+            )}
+          </li>
+        );
+      })}
+    </ol>
   );
 }
 

@@ -220,7 +220,7 @@ Under your answer: **Not picked up yet**, then **Picked up 2m ago** once the ask
 `#/review/<id>`: a PR read and acted on in the desk, in the Inbox's place. The sidebar stays, and in a wide window so does the list it came from. The diff takes the page's width; a foldable sidebar on the right holds the PR's state and files.
 
 ```
-  api#4154  3/6  by priya                            +172 −32          [▯▮]
+  api#4154  3/6  by priya                                                                      [▯▮]
   Planner: hash join stage                                        Stack on main
   asked you directly · CI passing · changes requested             ○ #4153 Planner: run the table…  ✗
                                                                   ┃○ #4154 Planner: hash join st… ±┃
@@ -256,7 +256,7 @@ Esc or the back link goes back to the page it was opened from.
 ### Header
 
 - The ref, a stack's place ("3/6"), the author with their picture ("by you" on yours), the title.
-- Its size, + in green and − in red, at the far end of the ref's line. Who reviews it is the sidebar's (Reviewers).
+- How big it is and who reviews it are the sidebar's (Status, Reviewers).
 - Nothing else: why it's on the desk is the row's; CI, the review state, a conflict and what it blocks are the sidebar's.
 - A resolved PR says so under the title: "Resolved: merged by li-wei · 2h".
 - Your PR in Merging says "Merging", with what it waits on and your agent's latest note.
@@ -267,9 +267,11 @@ Esc or the back link goes back to the page it was opened from.
 
 Sections, each open: its name, where it stands in one line that reads first (red when a required check fails, amber for changes requested), then its rows.
 
-- **Risk** first, when there's an AI review: its risk in colour with a three-step meter, then its first reason under it (not for a low risk).
+- **Status** first: a row each, its name, its word on the right and a mark in its colour (✓ green, ! yellow, × red); a click shows what's behind it.
+  - **Risk**, when there's an AI review: low, medium or high; it opens to its reasons.
+  - **Checks**: passing, running, some failing (an optional one failing or one cancelled) or failing (a required one); it opens to every check, a row each with a dot: red failing, red hollow failing but not required, yellow running, green passing, grey skipped. Shards of one check (`backend test (0)`, `(1)`, `[2/3]`, `#4`) are one row with a count and their worst dot; a click lists them. What's wrong comes first. `checkGroups()` in `web/src/view.ts`.
+  - **Changes**: small (up to 100 lines in up to 5 files), moderate (up to 600 in up to 20) or lots of changes, with its + and − in place of a mark; it opens to its files and lines.
 
-- **Checks**: a row each, with a dot: red failing, red hollow failing but not required, yellow running, green passing, grey skipped. Shards of one check (`backend test (0)`, `(1)`, `[2/3]`, `#4`) are one row with a count and their worst dot; a click lists them. What's wrong comes first; past six rows the green and grey ones wait behind "N more passing". `checkGroups()` in `web/src/view.ts`.
 - **Reviewers**: everyone, with their picture and where they stand; no line over them ("Nobody's asked" when there's no one). On your open PR, **+ Add reviewers** (also in More) opens a box right there, under who's asked: a pick is the ask (GitHub asks them at once, `keep` on `POST /api/review/:id/reviewers`, so the PR stays on your desk), and **Done** closes it.
 - Sections are parted by a hairline.
 - **Merge**: a conflict. **Depends**: what it's blocked by or blocks, when it isn't in a stack (a stack has its own section).
@@ -280,7 +282,7 @@ No heading; right under the header.
 
 - **Goal** first: what the PR sets out to do, in ink, a step larger. A review written before goals leads with its summary's first sentence.
 - **Verdict** under it, at the section's size: "Look closely" (semibold), "Skim it" or "Skip it". The model and time are in its tooltip.
-- "on an earlier commit" after the verdict, in pencil, when it is. Its risk is the sidebar's (Risk).
+- "on an earlier commit" after the verdict, in pencil, when it is. Its risk is the sidebar's (Status).
 - **The rest of the summary**: **Show more** under it opens it, and **Show less** at its end folds it again. Every PR opens folded.
 - **Since your review**: on a re-review, under the summary, never folded.
 - **Concerns**: each is also a note in the code. They're listed only when no note can sit there (none, or an earlier commit's review).
@@ -320,7 +322,7 @@ Neighbouring hunks of a file at one level read as one. Without a ranking (none y
 
 **Guided Review and Traditional.** Two tabs above the diff, the choice kept per device (`desk.review.view`), Guided Review first. A review without steps (`order.steps`: none yet, or an earlier commit's) shows Traditional alone, with no tabs.
 
-- **Guided Review** is only the guide, as Linear's guided reviews: each step is a heading ("1 of 4", its title), a sentence or two, and "**Check:** …" when there's something to verify, then only the hunks it covers. A quiet "Next: <title>" at its foot. The last reads "End of the guide.", and when files changed outside it, "3 more files change outside it: read every file in Traditional", a link to that tab. Nothing the steps leave out is drawn, so the guide holds your attention. A test file in a step is folded until you open it (`isTestPath()` in `src/sections.ts`).
+- **Guided Review** is only the guide, as Linear's guided reviews: each step is a heading ("1 of 4", its title), a sentence or two, and "**Check:** …" when there's something to verify, then only the hunks it covers. A quiet "Next: <title>" at its foot. In the sidebar the steps are a timeline: a dot each on one line, the step you're on with a glowing dot in the accent, each title on one line (the whole of it in its tooltip). The model is asked for titles of at most four words, under 28 characters. The last reads "End of the guide.", and when files changed outside it, "3 more files change outside it: read every file in Traditional", a link to that tab. Nothing the steps leave out is drawn, so the guide holds your attention. A test file in a step is folded until you open it (`isTestPath()` in `src/sections.ts`).
 - **Diagrams** in a step are drawn by Excalidraw (`web/src/components/Sketch.tsx`), hand-drawn in the theme's own colours: new parts green, changed amber, removed dashed, a store in the accent. The desk's layout (ELK, measured in Excalifont) places them; a left-to-right flowchart stays left to right while it fits the column at 85% or more, and redraws when the theme changes. Excalifont comes from the desk (`web/public/excalidraw`), never a CDN. If Excalidraw fails, or `desk.sketch` is `"0"` in localStorage, the plain drawing shows instead; a rendered review page always has the plain one.
 - **Potential bugs**: each of the AI review's concerns is marked **Potential bug** on its line, edged in amber: what goes wrong, when, the fix, then "Evidence:" what in the diff shows it and how to confirm it (a suspicion with no evidence in the diff is only a note saying what to check). In Guided Review a concern's hunk shows even when no step covers it, under "Potential bugs outside the guide" after the steps.
 - **Traditional** is the plain diff: every file in the PR's order, all its hunks in diff order, Claude's notes inline on their lines (`traditional()` in `src/sections.ts`), then the desk's "Not worth reviewing" fold.

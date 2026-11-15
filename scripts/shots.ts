@@ -1965,7 +1965,7 @@ const SHOTS: Shot[] = [
     },
   },
   {
-    // The next review's parts: the goal leads, the first risk reason in the sidebar's Risk, the gap unfolded; the fold holds the
+    // The next review's parts: the goal leads, its risk in the sidebar's Status, the gap unfolded; the fold holds the
     // summary, the other reasons, Interfaces and Could be better; Look here sits on its line and the first step has a note.
     name: "review-ai-parts",
     go: async (page) => {
@@ -1975,7 +1975,7 @@ const SHOTS: Shot[] = [
       const bad = (m: string) => failures.push(`review-ai-parts: ${m}`);
       if (!(await ai.locator(".rv-gist").innerText()).startsWith("Splits the scheduler into Lease and Dispatch"))
         bad("the goal doesn't lead");
-      if (!(await page.locator('.rv-side [data-part="risk"] .rv-part-why').count())) bad("no risk reason under the sidebar's meter");
+      if ((await page.locator("[data-status=risk] .rv-status-word").innerText()) !== "medium") bad("Status's risk isn't medium");
       if (!(await ai.innerText()).includes("Not quite what the description says:")) bad("no gap line");
       await page.locator(".rv-show").click();
       await page.waitForTimeout(200);
@@ -2432,48 +2432,54 @@ const SHOTS: Shot[] = [
   },
   // In a stack: its place after the ref, and the chain in the sidebar, this PR marked.
   { name: "review-stack", go: review("acme/api#4154") },
-  // A PR's checks, in the sidebar with its files: one line that says where CI stands, red while one that counts is failing;
-  // open, each check by name with its state in words and a link to its page, what's wrong first. A click on the facts' "CI
-  // failing" opens the sidebar at them.
+  // A PR's checks, Status's second row: "failing" with a red mark while one that counts fails; a click opens every check by
+  // name with its state in words and a link to its page, what's wrong first, shards under one row.
   {
     name: "review-checks",
     go: async (page) => {
       await review("oss/tinyhttp#205")(page);
       const side = page.locator(".rv-side");
       if (!(await side.isVisible())) await page.locator(".rv-side-show").click(); // folded where the column is narrow
-      const part = page.locator("[data-part=checks]");
-      if (!(await part.count())) {
-        failures.push("review-checks: the sidebar has no checks");
+      const row = page.locator("[data-status=checks] .rv-status-row");
+      if (!(await row.count())) {
+        failures.push("review-checks: Status has no checks");
         return;
       }
-      const read = () =>
-        page.evaluate<{ line: string; red: boolean; rows: string[]; more: string; above: boolean }>(`(() => {
+      const said = await page.evaluate<{ word: string; red: boolean }>(`(() => {
         const probe = document.createElement("span");
-        probe.style.color = "var(--red)";
+        probe.style.backgroundColor = "var(--red)";
         document.body.append(probe);
-        const red = getComputedStyle(probe).color;
+        const red = getComputedStyle(probe).backgroundColor;
         probe.remove();
-        const part = document.querySelector("[data-part=checks]"), line = part.querySelector(".rv-part-line");
-        const box = part.getBoundingClientRect();
+        const mark = document.querySelector("[data-status=checks] .rv-status-mark");
+        return { word: document.querySelector("[data-status=checks] .rv-status-word").textContent, red: !!mark && getComputedStyle(mark).backgroundColor === red };
+      })()`);
+      if (said.word !== "failing" || !said.red) failures.push(`review-checks: Status's checks read ${JSON.stringify(said)}`);
+      await row.click();
+      const part = page.locator("[data-status=checks] .rv-status-more");
+      const read = () =>
+        page.evaluate<{ line: string; rows: string[]; more: number }>(`(() => {
+        const part = document.querySelector("[data-status=checks] .rv-status-more");
         return {
-          line: line.textContent,
-          red: getComputedStyle(line).color === red,
+          line: part.querySelector(".rv-status-why")?.textContent ?? "",
           rows: [...part.querySelectorAll(".rv-part-row")].map((el) => {
             const dot = [...el.querySelector(".rv-dot").classList].find((c) => c.startsWith("d-")).slice(2);
             const n = el.querySelector(".rv-part-state")?.textContent;
             return dot + " " + el.querySelector(".rv-part-name").textContent + (n ? " ×" + n : "") + (el.getAttribute("href")?.startsWith("https://") ? " ↗" : "");
           }),
-          more: part.querySelector(".rv-part-more")?.textContent ?? "",
-          above: box.bottom <= document.querySelector(".rv-files").getBoundingClientRect().top,
+          more: part.querySelectorAll(".rv-part-more").length,
         };
       })()`);
-      const shut = await read();
-      if (shut.line !== "3 failing, 1 running of 11 checks" || !shut.red)
-        failures.push(`review-checks: its line reads ${JSON.stringify(shut)}`);
-      if (!shut.above) failures.push("review-checks: the checks aren't in the sidebar above its files");
-      // Shards fold into one row with a count; what's wrong first; the passing ones behind one line.
-      if (shut.rows.join(" | ") !== "red e2e ×2 | red unit tests ×3 | amber visual diff ↗" || shut.more !== "5 more passing")
-        failures.push(`review-checks: the rows read ${JSON.stringify(shut)}`);
+      const opened = await read();
+      if (opened.line !== "3 failing, 1 running of 11 checks")
+        failures.push(`review-checks: its line reads ${JSON.stringify(opened.line)}`);
+      // Shards fold into one row with a count; what's wrong first; every check shown, the passing ones too.
+      if (
+        opened.rows.slice(0, 3).join(" | ") !== "red e2e ×2 | red unit tests ×3 | amber visual diff ↗" ||
+        opened.rows.length !== 8 ||
+        opened.more
+      )
+        failures.push(`review-checks: the rows read ${JSON.stringify(opened)}`);
       await part.locator(".rv-check-group").first().click();
       const nested = await read();
       if (nested.rows.slice(1, 3).join(" | ") !== "red (chromium) ↗ | yellow (firefox) ↗")
@@ -2793,11 +2799,11 @@ const SHOTS: Shot[] = [
         }
         return { names: [...side.querySelectorAll("section, nav")].map((el) => el.getAttribute("aria-label")), text: side.textContent, lines };
       })()`);
-      if (parts.names.join(" | ") !== "Stack | Checks | Reviewers | Merge | Files")
+      if (parts.names.join(" | ") !== "Status | Stack | Reviewers | Merge | Files")
         failures.push(`review-panel: the sidebar's parts are ${parts.names.join(" | ")}`);
       if (/recent activity/i.test(parts.text)) failures.push("review-panel: the sidebar still lists recent activity");
       const want = {
-        Checks: { text: "CI passing · 11 checks", amber: false },
+        Status: { text: "", amber: false }, // its rows say it
         Reviewers: { text: "", amber: false }, // its rows say it
         Merge: { text: "Merge conflict with main", amber: true },
       };
@@ -2808,6 +2814,9 @@ const SHOTS: Shot[] = [
         `[...document.querySelectorAll("[data-part=reviewers] .rv-part-row")].map((el) => el.querySelector(".rv-part-name").textContent + ": " + el.querySelector(".rv-part-state").textContent)`,
       );
       if (rows.join(" | ") !== "sam: changes requested") failures.push(`review-panel: the reviewers read ${rows.join(" | ")}`);
+      const checks = await page.locator("[data-status=checks] .rv-status-row").innerText();
+      if (checks.replaceAll(/\s+/g, " ").trim() !== "Checks passing ✓")
+        failures.push(`review-panel: Status's checks read ${JSON.stringify(checks)}`);
       await faces(page, "review-panel", "[data-part=reviewers] .rv-part-name");
     },
     after: async (page) => {
