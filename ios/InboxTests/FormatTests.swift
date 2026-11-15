@@ -153,6 +153,95 @@ final class FormatTests: XCTestCase {
   }
 
   // The one list the client sorts: what you finished and what resolved, newest first.
+  // web/test/view.test.ts: "the filter's people: author: and involves: as pills once a space follows, matched as you type them".
+  func testTheFiltersPeople() throws {
+    let parsed = Filter.parse("author:dana fix involves:@pri")
+    XCTAssertEqual(parsed.terms, [Filter.Term(key: "author", who: "dana", done: true), Filter.Term(key: "involves", who: "pri", done: false)])
+    XCTAssertEqual(parsed.text, "fix")
+    XCTAssertEqual(Filter.rest("author:dana fix involves:pri"), "fix involves:pri")
+    XCTAssertEqual(Filter.rest("Author:dana "), "")
+    XCTAssertEqual(Filter.of([Filter.Term(key: "author", who: "dana")], "fix "), "author:dana fix ")
+    XCTAssertEqual(Filter.parse("AUTHOR:Dana ").terms, [Filter.Term(key: "author", who: "Dana", done: true)], "the key in any case")
+    XCTAssertEqual(Filter.parse("label:bug http://x").text, "label:bug http://x", "any other word with a colon is text")
+    XCTAssertEqual(Filter.rest("  fix  the bug "), "fix  the bug ", "as typed")
+
+    let card = { (id: String, more: String) in
+      let repo = String(id.split(separator: "#")[0])
+      let json = #"{"id":"\#(id)","kind":"pr","repo":"\#(repo)","number":\#(id.split(separator: "#")[1]),"title":"A PR"\#(more)}"#
+      return try DeskJSON.decoder().decode(Card.self, from: Data(json.utf8))
+    }
+    let rows = [
+      try card("acme/api#1", #","author":"dana","by":"dana","people":["dana","priya"]"#),
+      try card("acme/api#7", #","author":"renovate[bot]","author_bot":true,"by":"priya","people":["priya","marco"]"#),
+      try card("acme/web#8", #","author":"me","by":"you","people":["me","dana"]"#),
+    ]
+    let ids = { (f: String) in rows.filter { Filter.matches($0, f, me: "me") }.map(\.id) }
+    XCTAssertEqual(ids("author:dana "), ["acme/api#1"])
+    XCTAssertEqual(ids("author:pri"), ["acme/api#7"], "a bot's PR is by whom it was opened for")
+    XCTAssertEqual(ids("involves:dana "), ["acme/api#1", "acme/web#8"])
+    XCTAssertEqual(ids("involves:marco api#7"), ["acme/api#7"], "with words too")
+    XCTAssertEqual(ids("author:you "), ["acme/web#8"])
+    XCTAssertEqual(ids("author:me"), ["acme/web#8"])
+    XCTAssertEqual(ids("involves:you "), ["acme/web#8"])
+    XCTAssertEqual(ids("involves:"), ["acme/api#1", "acme/api#7", "acme/web#8"], "a key with no one yet filters nothing")
+    XCTAssertEqual(ids("author:@DANA"), ["acme/api#1"], "a leading @ dropped, any case")
+    XCTAssertEqual(ids("WEB"), ["acme/web#8"], "the repo")
+    XCTAssertEqual(ids("renovate"), ["acme/api#7"], "the author")
+    XCTAssertEqual(ids("api#7"), ["acme/api#7"], "the short ref")
+    XCTAssertEqual(ids("a pr"), ["acme/api#1", "acme/api#7", "acme/web#8"], "the title")
+    XCTAssertEqual(ids("   "), ["acme/api#1", "acme/api#7", "acme/web#8"])
+    XCTAssertEqual(ids("nothing"), [])
+    // With no people listed, its author is who's on it.
+    let bare = try card("acme/api#9", #","author":"kai","by":"kai""#)
+    XCTAssertTrue(Filter.matches(bare, "involves:kai", me: "me"))
+    XCTAssertFalse(Filter.matches(bare, "involves:dana", me: "me"))
+
+    XCTAssertEqual(
+      Filter.people(rows, me: "me"),
+      [
+        Filter.Person(login: "dana", author: true), Filter.Person(login: "priya", author: true), Filter.Person(login: "marco", author: false),
+        Filter.Person(login: "me", author: true),
+      ])
+
+    let note = try DeskJSON.decoder().decode(Note.self, from: Data(#"{"id":"n1","text":"Ask Priya about the planner"}"#.utf8))
+    XCTAssertTrue(Filter.matches(note, " PRIYA "))
+    XCTAssertTrue(Filter.matches(note, ""))
+    XCTAssertFalse(Filter.matches(note, "author:priya "), "a note has only its words")
+  }
+
+  // Filter.tsx's suggest(), pick() and drop().
+  func testWhatTheFilterSuggests() {
+    let people = ["dana", "priya", "marco", "me", "daniel", "dan-b", "danielle"].map { Filter.Person(login: $0, author: $0 != "marco" && $0 != "danielle") }
+    let pick = { (key: String, login: String) in Filter.Pick(key: key, login: login) }
+    XCTAssertEqual(Filter.suggest("", people), [pick("author", ""), pick("involves", "")], "an empty box: the two keys")
+    XCTAssertEqual(Filter.suggest("pri", people), [pick("author", "priya"), pick("involves", "priya")])
+    XCTAssertEqual(Filter.suggest("@MAR", people), [pick("involves", "marco")], "someone who wrote none is only involved")
+    XCTAssertEqual(
+      Filter.suggest("dan", people).map(\.id),
+      ["author:dana", "author:daniel", "author:dan-b", "involves:dana", "involves:daniel", "involves:dan-b", "involves:danielle"], "four people at most")
+    XCTAssertEqual(Filter.suggest("author:", people).map(\.login), ["dana", "priya", "me", "daniel", "dan-b"], "who wrote a row")
+    XCTAssertEqual(Filter.suggest("involves:", people).count, 7)
+    XCTAssertEqual(Filter.suggest("Involves:@da", people).map(\.login), ["dana", "daniel", "dan-b", "danielle"])
+    let many = (1...12).map { Filter.Person(login: "p\($0)", author: true) }
+    XCTAssertEqual(Filter.suggest("author:", many).count, 8)
+
+    XCTAssertEqual(Filter.offered("", people).count, 2)
+    XCTAssertEqual(Filter.offered("author:dana ", people).count, 2, "after a pill, the keys again")
+    XCTAssertEqual(Filter.offered("fix ", people), [], "words typed and none being typed: nothing")
+    XCTAssertEqual(Filter.offered("fix pri", people).map(\.id), ["author:priya", "involves:priya"])
+    XCTAssertEqual(Filter.offered("zzz", people), [])
+
+    XCTAssertEqual(Filter.picked(pick("author", ""), in: ""), "author:")
+    XCTAssertEqual(Filter.picked(pick("author", "dana"), in: "author:"), "author:dana ")
+    XCTAssertEqual(Filter.picked(pick("involves", "priya"), in: "author:dana fix pri"), "author:dana involves:priya fix ")
+    XCTAssertEqual(Filter.picked(pick("involves", ""), in: "author:dana fix "), "author:dana fix involves:")
+    XCTAssertEqual(Filter.dropped(from: "author:dana involves:priya fix"), "author:dana fix")
+    XCTAssertEqual(Filter.dropped(0, from: "author:dana involves:priya fix"), "involves:priya fix")
+    XCTAssertEqual(Filter.dropped(from: "fix"), "fix", "no pill to take off")
+    XCTAssertEqual(Filter.word("fix pri"), "pri")
+    XCTAssertEqual(Filter.word("fix "), "")
+  }
+
   // Avatar.tsx: a person's picture is asked of GitHub by their login alone; none for you or a bot that wrote its own PR.
   @MainActor
   func testWhosePictureARowShows() throws {

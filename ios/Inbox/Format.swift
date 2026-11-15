@@ -535,6 +535,171 @@ enum Notices {
   }
 }
 
+// MARK: The filter (view.ts's parseFilter(), matches() and filterPeople(); Filter.tsx's suggest())
+
+// A list's filter: words match a row's title, repo, author or ref; author:dana (who it's from) and involves:dana
+// (anyone on it: asked, reviewed or said something) pick people. A term followed by a space is finished: a pill.
+enum Filter {
+  struct Term: Equatable, Sendable {
+    var key: String  // "author" | "involves"
+    var who: String
+    var done = false  // followed by a space: a pill, no longer being typed
+  }
+
+  struct Person: Equatable, Sendable {
+    var login: String
+    var author: Bool  // wrote one of the rows
+  }
+
+  // What the word being typed can turn into; login "": the key alone, to pick its person next.
+  struct Pick: Equatable, Identifiable, Sendable {
+    var key: String
+    var login: String
+    var id: String { "\(key):\(login)" }
+  }
+
+  static let keys = ["author", "involves"]
+  static let label = ["author": "Author", "involves": "Involves"]
+  static let help = ["author": "who opened it", "involves": "anyone on it: asked, reviewed or said something"]
+
+  // Each word with the space after it, as view.ts walks them (/(\S+)(\s*)/g).
+  private static func words(_ s: String) -> [(word: String, space: String)] {
+    var out: [(String, String)] = []
+    var word = ""
+    var space = ""
+    for ch in s {
+      if ch.isWhitespace {
+        if !word.isEmpty { space.append(ch) }
+      } else {
+        if !space.isEmpty {
+          out.append((word, space))
+          word = ""
+          space = ""
+        }
+        word.append(ch)
+      }
+    }
+    if !word.isEmpty { out.append((word, space)) }
+    return out
+  }
+
+  private static func term(_ word: String) -> (key: String, who: String)? {
+    guard let colon = word.firstIndex(of: ":") else { return nil }
+    let key = word[..<colon].lowercased()
+    guard keys.contains(key) else { return nil }
+    return (key, String(word[word.index(after: colon)...]))
+  }
+
+  // A filter's terms and its free text. A term still being typed (the last word) matches as you type it.
+  static func parse(_ s: String) -> (terms: [Term], text: String) {
+    var terms: [Term] = []
+    var text: [String] = []
+    for (word, space) in words(s) {
+      if let t = term(word) {
+        terms.append(Term(key: t.key, who: t.who.hasPrefix("@") ? String(t.who.dropFirst()) : t.who, done: !space.isEmpty))
+      } else {
+        text.append(word)
+      }
+    }
+    return (terms, text.joined(separator: " "))
+  }
+
+  // What the filter's box holds after its pills: the filter without its finished terms, as typed.
+  static func rest(_ s: String) -> String {
+    words(s).filter { !(term($0.word) != nil && !$0.space.isEmpty) }.map { $0.word + $0.space }.joined()
+  }
+
+  // A filter from its pills and what's typed after them.
+  static func of(_ terms: [Term], _ rest: String) -> String {
+    terms.map { "\($0.key):\($0.who) " }.joined() + rest
+  }
+
+  static func isYou(_ who: String) -> Bool { who == "you" || who == "me" }
+
+  static func matches(_ c: Card, _ q: String, me: String) -> Bool {
+    if q.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return true }
+    let (terms, text) = parse(q)
+    let has = { (login: String?, who: String) in (login ?? "").lowercased().contains(who) }
+    let fits = terms.allSatisfy { t in
+      let who = t.who.lowercased()
+      if who.isEmpty { return true }  // a key with no one yet filters nothing
+      if t.key == "author" { return isYou(who) ? c.by == "you" : has(c.author, who) || has(c.by, who) }
+      let people = c.people ?? [c.author ?? ""]
+      return isYou(who) ? c.by == "you" || people.contains(me) : people.contains { has($0, who) }
+    }
+    return fits && (text.isEmpty || "\(c.title)\n\(c.repo)\n\(c.author ?? "")\n\(c.shortRef)".lowercased().contains(text.lowercased()))
+  }
+
+  // A note has only its words: the filter as typed, pills and all (Queue.tsx's mine()).
+  static func matches(_ n: Note, _ q: String) -> Bool {
+    let words = q.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    return words.isEmpty || (n.text ?? "").lowercased().contains(words)
+  }
+
+  // Who the filter can suggest: everyone on these rows, most rows first, and whether they wrote any of them. A bot
+  // that wrote its own PR is left out.
+  static func people(_ cards: [Card], me: String) -> [Person] {
+    var seen: [String: (n: Int, author: Bool)] = [:]
+    for c in cards {
+      let by = c.by == "you" ? me : (c.by ?? "")
+      for p in Set((c.people ?? [c.author ?? ""]) + [by]) {
+        if p.isEmpty || (c.authorBot == true && p == c.author) { continue }
+        let s = seen[p] ?? (0, false)
+        seen[p] = (s.n + 1, s.author || p == by || p == c.author)
+      }
+    }
+    return seen.sorted { $0.value.n != $1.value.n ? $0.value.n > $1.value.n : $0.key.localizedStandardCompare($1.key) == .orderedAscending }
+      .map { Person(login: $0.key, author: $0.value.author) }
+  }
+
+  // Every row the desk holds, whatever page it's on: who the filter suggests is the same on each.
+  static func cards(_ v: QueueView) -> [Card] {
+    (v.inbox?.urgent ?? []) + (v.inbox?.standard ?? []) + (v.inbox?.fyi ?? []) + v.cleared + v.resolved + v.hidden + (v.sections?.blocked ?? [])
+  }
+
+  // The word being typed: what's after the last space of the box.
+  static func word(_ rest: String) -> String {
+    String(rest.reversed().prefix { !$0.isWhitespace }.reversed())
+  }
+
+  // A key's people (up to 8), or for a name, who it is as author and as anyone involved (up to 4 people); an empty
+  // word offers the two keys.
+  static func suggest(_ word: String, _ people: [Person]) -> [Pick] {
+    if let t = term(word) {
+      let q = (t.who.hasPrefix("@") ? String(t.who.dropFirst()) : t.who).lowercased()
+      return people.filter { (t.key == "involves" || $0.author) && (q.isEmpty || $0.login.lowercased().contains(q)) }.prefix(8)
+        .map { Pick(key: t.key, login: $0.login) }
+    }
+    let q = (word.hasPrefix("@") ? String(word.dropFirst()) : word).lowercased()
+    if q.isEmpty { return keys.map { Pick(key: $0, login: "") } }
+    let found = people.filter { $0.login.lowercased().contains(q) }.prefix(4)
+    return found.filter(\.author).map { Pick(key: "author", login: $0.login) } + found.map { Pick(key: "involves", login: $0.login) }
+  }
+
+  // What the box offers now: for the word being typed, or the two keys while there's nothing else in it.
+  static func offered(_ filter: String, _ people: [Person]) -> [Pick] {
+    let rest = rest(filter)
+    let word = word(rest)
+    return !word.isEmpty || rest.trimmingCharacters(in: .whitespaces).isEmpty ? suggest(word, people) : []
+  }
+
+  // The filter after a pick: a person becomes a pill in the word's place; a key alone is typed out, for its person next.
+  static func picked(_ p: Pick, in filter: String) -> String {
+    let pills = parse(filter).terms.filter(\.done)
+    let rest = rest(filter)
+    let before = String(rest.dropLast(word(rest).count))
+    return p.login.isEmpty ? of(pills, "\(before)\(p.key):") : of(pills + [Term(key: p.key, who: p.login)], before)
+  }
+
+  // The filter without its last pill (Backspace at the box's start), or without the one at `i` (its ×).
+  static func dropped(_ i: Int? = nil, from filter: String) -> String {
+    var pills = parse(filter).terms.filter(\.done)
+    guard !pills.isEmpty else { return filter }
+    pills.remove(at: i.map { min(max($0, 0), pills.count - 1) } ?? pills.count - 1)
+    return of(pills, rest(filter))
+  }
+}
+
 // MARK: The lists
 
 enum Lists {
