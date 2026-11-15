@@ -10,13 +10,15 @@ struct DeskAddress: Equatable, Sendable {
   var text: String { url.absoluteString }
 
   enum Unreadable: Error, Equatable {
-    case empty, notAnAddress, plainHTTP
+    case empty, notAnAddress, plainHTTP, notAPairingLink
 
     var words: String {
       switch self {
       case .empty: "Type the desk's address: Pair a device shows it, in Settings → Network on the desk's computer."
       case .notAnAddress: "That isn't an address. It looks like https://machine.tailnet.ts.net."
       case .plainHTTP: "Use the desk's https address: plain http only works for localhost."
+      case .notAPairingLink:
+        "That isn't a desk's pairing code. Scan the one Pair a device shows, in Settings → Network on the desk's computer."
       }
     }
   }
@@ -43,6 +45,14 @@ struct DeskAddress: Equatable, Sendable {
     if scheme == "http" && !address.isLocal { return .failure(.plainHTTP) }
     let code = parts.path.hasPrefix("/pair") ? parts.fragment.flatMap(PairingCode.normalize) : nil
     return .success((address, code))
+  }
+
+  // What the camera read: the link only when it's a desk's pairing link with a code's shape. Anything else (a website,
+  // a bare address) never reaches the desk, so it never spends a try.
+  static func scanned(_ text: String) -> Result<String, Unreadable> {
+    let link = text.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard case .success(let parsed) = parse(link), parsed.code != nil else { return .failure(.notAPairingLink) }
+    return .success(link)
   }
 }
 

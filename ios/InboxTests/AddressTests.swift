@@ -52,6 +52,31 @@ final class AddressTests: XCTestCase {
     XCTAssertEqual(failure("my desk"), .notAnAddress)
   }
 
+  // The camera's reading: only a desk's pairing link passes, so nothing else is ever sent anywhere.
+  func testWhatWasScanned() {
+    func scanned(_ s: String) -> String? {
+      if case .success(let link) = DeskAddress.scanned(s) { link } else { nil }
+    }
+    for link in [
+      "https://gregs-mac.tail1234.ts.net/pair#ABCD-2345", "https://gregs-mac.tail1234.ts.net/pair#abcd-2345",
+      "https://gregs-mac.tail1234.ts.net/pair#ABCD2345", "HTTPS://GREGS-MAC.TAIL1234.TS.NET/pair#abcd2345",
+      "http://localhost:47841/pair#ABCD-2345",
+    ] {
+      XCTAssertEqual(scanned(link), link)
+    }
+    XCTAssertEqual(scanned(" https://gregs-mac.tail1234.ts.net/pair#ABCD-2345\n"), "https://gregs-mac.tail1234.ts.net/pair#ABCD-2345")
+    for other in [
+      "https://example.com", "WIFI:T:WPA;S:home;P:secret;;", "https://gregs-mac.tail1234.ts.net", "http://localhost:47841",
+      "https://gregs-mac.tail1234.ts.net/pair#nope", "https://gregs-mac.tail1234.ts.net/pair", "https://gregs-mac.tail1234.ts.net/#ABCD-2345",
+      "http://gregs-mac.tail1234.ts.net/pair#ABCD-2345", "ABCD-2345", "just some words", "",
+    ] {
+      XCTAssertEqual(DeskAddress.scanned(other), .failure(.notAPairingLink), other)
+    }
+    XCTAssertEqual(
+      DeskAddress.Unreadable.notAPairingLink.words,
+      "That isn't a desk's pairing code. Scan the one Pair a device shows, in Settings → Network on the desk's computer.")
+  }
+
   // As the desk reads a code: any case, with or without its dash; never one that can't be a code.
   func testCodes() {
     XCTAssertEqual(PairingCode.normalize("ABCD-2345"), "ABCD2345")
