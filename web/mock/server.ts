@@ -4174,9 +4174,12 @@ async function respond(req: IncomingMessage, url: URL): Promise<unknown> {
       const body = await readBody(req);
       const c = TALK.get(r.id)?.find((x) => x.id === body.id);
       if (!c) throw new HttpError(404, `no conversation "${String(body.id)}" on ${r.id}`);
+      // As Desk.reply(): answering was all it asked of you, and this was the last one waiting, so it's done.
+      const only = replyOnly(r);
       c.comments.push(said(`mine-${c.comments.length}`, ME, 0, String(body.body)));
       c.waiting_on_you = false;
       c.take = null;
+      if (only && !replyOnly(r)) r.state.done_at = new Date().toISOString();
       bump();
       return { ok: true, url: `${urlOf(r.seed)}#discussion-mock` };
     }
