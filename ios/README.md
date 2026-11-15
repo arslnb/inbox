@@ -228,7 +228,8 @@ merge, where Snooze does); More is its three dots only where it doesn't fit even
   where ("src/auth.ts:42", ", outdated", or "on the PR") and when; what it comes to (your agent's gist, else the last
   comment's first line); your agent's take with its call in bold, "<agent> is reading it." or why it couldn't; "What
   azulus wrote" (or "What was said") unfolding every comment in place; then Reply and Open on GitHub. Then "N more
-  conversations not waiting on you", opening to a line each, and a press on one opens its comments and a Reply. A
+  conversations not waiting on you", opening to a line each, and a press on one opens its comments to read, with Open
+  on GitHub and nothing else, as the window's (a thread's Reply is under its line in the diff). A
   thread gets a thread reply, a comment or a review a comment on the PR; a closed PR takes none. Nothing resolves a
   thread from here: "resolved" is only said. After a reply the page stays and reads the review again; until then your
   words show as "You · sent"; it leaves the page only when the desk took the PR off (`Store.left()`: a reply was all

@@ -160,7 +160,8 @@ struct WhatWasSaid: View {
     .ruled()
   }
 
-  // One nobody waits on you for, as a line; pressed, its words and what you can do with it.
+  // One nobody waits on you for, as a line; pressed, its words, as the window's: read there, not answered. A thread's
+  // Reply is under its line in the diff; Comment is in More.
   private func quiet(_ c: Conversation) -> some View {
     let isOpen = opened.contains(c.id)
     return VStack(alignment: .leading, spacing: 0) {
@@ -182,7 +183,7 @@ struct WhatWasSaid: View {
       .accessibilityAddTraits(isOpen ? .isSelected : [])
       if isOpen {
         SaidComments(comments: c.comments, mine: mine(c))
-        SaidActions(reply: reply.map { r in { r(c) } }, url: c.url, ask: ask.map { a in { a(c) } }).padding(.top, 2)
+        SaidActions(url: c.url).padding(.top, 2)
       }
     }
     .ruled()
