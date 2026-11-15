@@ -169,7 +169,9 @@ don't fit on one line Snooze, then Done, fold into More (at the default size onl
 merge, where Snooze does); More is its three dots only where it doesn't fit even alone beside the call to action.
 
 - **A PR or an issue.** The row's own call to action (Ready for review, Add reviewers, Reply, Merge); else Approve on
-  someone else's PR, Comment on an issue, Hand off for merge on yours once it's through review (`Card.act(open:)`). In
+  someone else's PR, Comment on an issue, Hand off for merge on yours once it's through review (`Card.act(open:)`). Open
+  means open on GitHub, as the window's review: a PR the desk resolved while it's still open ("approved by alice", "no
+  longer requested"), opened from the Archive, can still be approved and commented on. In
   Merging the bar has Back to desk. More has Mute, Comment, Add reviewers (on your draft: Ready for review, asking
   reviewers, which marks it ready and asks them in one go), Hand off for merge, Ask your agent; under On GitHub the
   writes the desk allows now, as the window's More (`Card.actions` less convert to draft, ready and reopen: Close,

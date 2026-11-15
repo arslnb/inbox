@@ -408,6 +408,10 @@ final class FormatTests: XCTestCase {
     XCTAssertEqual(act("acme/worker#860"), "comment", "an issue")
     XCTAssertNil(act("acme/api#4154"), "yours with changes requested: nothing to press but More")
     XCTAssertNil(cards.first { $0.id == "acme/api#4127" }?.act(open: false), "closed or merged")
+    // An open PR the desk resolved is still yours to approve, as the window's review: only GitHub's state closes it.
+    let resolved = try XCTUnwrap(queue.resolved.first { $0.isPR && !$0.mine && $0.resolved == "no longer requested" })
+    XCTAssertEqual(resolved.act(open: true), "approve", resolved.resolved ?? "")
+    XCTAssertNil(resolved.act(open: false))
     for key in ["ready", "reviewers", "reply", "merge", "approve", "comment", "handoff"] { XCTAssertNotNil(Words.act[key], key) }
     XCTAssertEqual(Words.act["ready"], Words.cta["ready"], "a row's call to action keeps the row's words")
   }

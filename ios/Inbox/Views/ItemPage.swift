@@ -52,7 +52,9 @@ struct ItemPage: View {
   // The commit its review last drew: what Approve, Merge and Request changes are pinned to. Each read that lands moves
   // it, so a push the page redrew isn't refused as unread; one it hasn't drawn yet is refused by the desk.
   private var read: String? { store.pins[id] }
-  private var open: Bool { card?.resolved == nil && (item?.state ?? "open") == "open" }
+  // Open on GitHub (Review.tsx's `item.state === "open"`), whatever the desk resolved it as. Until its state lands, a
+  // resolved card isn't taken for open: most are merged or closed.
+  private var open: Bool { item.map { $0.state == "open" } ?? (card?.resolved == nil) }
   private var owing: [Conversation] { (review?.conversation ?? []).filter { $0.waitingOnYou == true } }
   private func answered(_ c: Conversation) -> Bool { replied[c.id] == (c.comments.last?.id ?? "") }
   private var waiting: [Conversation] { owing.filter { !answered($0) } }
