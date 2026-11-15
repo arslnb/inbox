@@ -48,6 +48,7 @@ struct DiffSection: Identifiable, Sendable {
   var level: String?  // "skip" under a ranked review's fold; nil in Traditional order
   var why: String?  // why the desk folded the file
   let hunks: [ReviewHunk]  // none for a file with no text diff
+  var notes: [Int] = []  // indices into ai.notes, in reading order
   let rows: Int  // how many lines it draws, its @@ lines among them
   var id: String { key }
 
@@ -119,14 +120,22 @@ enum Diff {
       let hunks = (byFile[file] ?? []).sorted { number($0) < number($1) }
       return section("file:\(file)", hunks.first?.path ?? "", file, level: nil, why: nil, hunks)
     }
-    let folded = o.rest.map { r in
-      section("rest:\(r.path ?? "")", r.path ?? "", r.file ?? 0, level: o.ranked == true ? "skip" : nil, why: r.why, r.hunks)
-    }
-    return (list + folded, list.count)
+    return (list + restOf(o), list.count)
   }
 
-  private static func section(_ key: String, _ path: String, _ file: Int, level: String?, why: String?, _ hunks: [ReviewHunk]) -> DiffSection {
-    DiffSection(key: key, path: path, file: file, level: level, why: why, hunks: hunks, rows: hunks.reduce(0) { $0 + rows($1.patch ?? "") })
+  // The files the desk folds away, each one section; a note on a file with no text diff is the file's own.
+  static func restOf(_ o: ReviewOrder) -> [DiffSection] {
+    o.rest.map { r in
+      var s = section("rest:\(r.path ?? "")", r.path ?? "", r.file ?? 0, level: o.ranked == true ? "skip" : nil, why: r.why, r.hunks)
+      s.notes = (r.notes ?? []) + s.notes
+      return s
+    }
+  }
+
+  static func section(_ key: String, _ path: String, _ file: Int, level: String?, why: String?, _ hunks: [ReviewHunk]) -> DiffSection {
+    DiffSection(
+      key: key, path: path, file: file, level: level, why: why, hunks: hunks, notes: hunks.flatMap { $0.notes ?? [] },
+      rows: hunks.reduce(0) { $0 + rows($1.patch ?? "") })
   }
 
   // A section's lines, its hunks one after another.
@@ -196,10 +205,22 @@ final class DiffModel {
   let list: [DiffSection]
   let rest: Int  // from here on, what the desk folded away
   let total: Int
+  // Guided: the steps and where each starts, where the bugs outside them start, and how many files it leaves out.
+  let guiding: Bool
+  var steps: [WalkStep] = []
+  var beyond = 0
+  var left = 0
   private var parsed: [String: [Row]] = [:]
 
-  init(_ order: ReviewOrder) {
-    (list, rest) = Diff.traditional(order)
+  // Traditional, or (with `guided`, for an order that has steps) the guided review; `bugs`: how many of ai.notes are concerns.
+  init(_ order: ReviewOrder, guided: Bool = false, bugs: Int = 0) {
+    guiding = guided && !(order.steps ?? []).isEmpty
+    if guiding {
+      let g = Diff.guided(order, bugs: bugs)
+      (list, rest, steps, beyond, left) = (g.list, g.list.count, g.steps, g.beyond, g.left)
+    } else {
+      (list, rest) = Diff.traditional(order)
+    }
     total = list.reduce(0) { $0 + $1.rows }
   }
 
@@ -212,7 +233,17 @@ final class DiffModel {
   }
 
   // Folded until pressed: what the desk folded away, and every file of a diff too long to draw at once.
-  func startsShut(_ s: DiffSection) -> Bool { s.level == "skip" || total > Diff.heavy }
+  // Guided, a test file too, and nothing at Claude's "skip" level is folded: a step showing it wants it read.
+  func startsShut(_ s: DiffSection) -> Bool {
+    guiding ? Diff.isTestPath(s.path) || total > Diff.heavy : s.level == "skip" || total > Diff.heavy
+  }
+
+  // Where a line of a file is drawn: its row, else its file's header; nil when the list doesn't have it.
+  func place(path: String, line: Int, side: String) -> String? {
+    let of = list.prefix(rest).filter { $0.path == path }
+    guard let s = of.first(where: { Diff.onLines($0.hunks, line: line, side: side) }) ?? of.first else { return nil }
+    return rows(s).first { Diff.on($0.line, line: line, side: side) }?.id ?? s.key
+  }
 
   #if DEBUG
     // For a shot: the row of the first thread on a line, and a line of the new file by its number.

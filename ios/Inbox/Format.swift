@@ -168,6 +168,61 @@ enum Words {
 
   static let verdict: [String: String] = ["look": "Look closely", "skim": "Skim it", "skip": "Skip it"]
 
+  // MARK: The AI review's words (src/sections.ts, AiSection in web/src/components/Review.tsx)
+
+  static let fit: [String: String] = ["partial": "Not quite what the description says", "differs": "Not what the description says"]
+  static let jobAttempts = 3  // a job's tries before it's failed (JOB_ATTEMPTS)
+
+  // A summary's first sentence and what's left, never cut inside `code`; no lead when it opens with a list or code.
+  // "e.g." and the like don't end a sentence. src/prose.ts's lead(), on plain text.
+  static func lead(_ text: String) -> (first: String, rest: String) {
+    let all = text.trimmingCharacters(in: .whitespacesAndNewlines)
+    let cut = all.range(of: #"\n[ \t]*\n"#, options: .regularExpression)
+    let head = String(cut.map { all[..<$0.lowerBound] } ?? all[...])
+    let after = cut.map { String(all[$0.upperBound...]) } ?? ""
+    if head.isEmpty || head.range(of: #"^\s*([-*+] |\d+[.)] |```|#)"#, options: .regularExpression) != nil { return ("", all) }
+    let whole = head as NSString
+    let end = try? NSRegularExpression(pattern: #"(?<!\b(?:e\.g|i\.e|etc|vs|cf))[.!?]["')\]]?(?=\s)"#, options: .caseInsensitive)
+    for m in end?.matches(in: head, range: NSRange(location: 0, length: whole.length)) ?? [] {
+      let before = whole.substring(to: m.range.location)
+      if before.filter({ $0 == "`" }).count % 2 == 1 { continue }  // inside code
+      let first = whole.substring(to: m.range.location + m.range.length)
+      let more = whole.substring(from: m.range.location + m.range.length).trimmingCharacters(in: .whitespacesAndNewlines)
+      return (first, [more, after].filter { !$0.isEmpty }.joined(separator: "\n\n"))
+    }
+    return (head, after)
+  }
+
+  private static func minutes(_ at: String?, now: Date) -> Int {
+    max(1, Int((abs((date(at) ?? now).timeIntervalSince(now)) / 60).rounded()))
+  }
+
+  // While it's being written. Past its first couple of minutes, or on another try, the line says so rather than
+  // promise the notes soon.
+  static func reviewing(agent: String, job: Job?, now: Date) -> String {
+    let run = job?.state == "running" ? job : nil
+    let tries = (run?.attempts ?? 0) > 1 ? ", try \(run?.attempts ?? 0) of \(jobAttempts)" : ""
+    var so = ""
+    if let started = date(run?.startedAt), now.timeIntervalSince(started) >= 120 { so = ", \(plural(minutes(run?.startedAt, now: now), "minute")) so far" }
+    return so.isEmpty && tries.isEmpty
+      ? "\(agent) is reviewing it. The notes land in the code below in a minute or two." : "\(agent) is reviewing it\(so)\(tries)."
+  }
+
+  // A try that failed says so and when your agent tries again; anything else (AI reviews paused) is the desk's own words.
+  static func reviewFailed(_ error: String, job: Job?, agent: String, now: Date) -> String {
+    guard let job, let its = job.error, !its.isEmpty, its == error else { return error }
+    let said = error.hasSuffix(".") ? String(error.dropLast()) : error
+    let lead = (job.attempts ?? 0) > 1 && job.state == "failed" ? "The AI review failed \(job.attempts ?? 0) times: " : "The AI review failed: "
+    var again = ""
+    if job.state == "queued", let retry = date(job.retryAt) {
+      again = retry > now ? " \(agent) tries again in \(plural(minutes(job.retryAt, now: now), "minute"))." : " \(agent) tries again shortly."
+    }
+    return "\(lead)\(said).\(again)"
+  }
+
+  // Each concern is also a note in the code; they're listed under the verdict only when the notes can't sit there.
+  static func listsConcerns(stale: Bool, notes: Int) -> Bool { stale || notes == 0 }
+
   // "snoozed until Sat 9:00 or new activity".
   static func clearedText(_ c: Card, now: Date = Date()) -> String {
     switch c.status {
