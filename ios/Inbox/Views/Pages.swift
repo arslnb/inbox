@@ -1,7 +1,9 @@
 import SwiftUI
 
-// An agent's question on its own page: the question, each answer with what it leads to (a press answers with it), then
-// what it's about, everything it said and its links. Answer at its foot takes your own words. Its text is the agent's: text only.
+// An agent's question on its own page, in the window's order (Inquiry.tsx): the question, what it's about, everything
+// it said and its links, then each answer with what it leads to (a press answers with it): what it said is read before
+// a press can answer. Answer at its foot takes your own words. Once answered the page stays and says so, and whether
+// the agent has picked it up. Its text is the agent's: text only.
 struct InquiryPage: View {
   @Environment(Store.self) private var store
   @Environment(\.openURL) private var openURL
@@ -10,6 +12,7 @@ struct InquiryPage: View {
   @State private var failed: String?
   @State private var writing = false
   @State private var draft = ""
+  @State private var sent = false  // answered or dismissed from here: nothing more to press while the page reads it again
 
   private var q: Inquiry? { loaded ?? store.queue?.inquiries.first { $0.id == id } }
 
@@ -18,11 +21,10 @@ struct InquiryPage: View {
       VStack(alignment: .leading, spacing: 24) {
         if let q {
           head(q)
-          // Its answers straight under the question, where a press reaches them without a scroll.
-          if let answer = q.answer { answered(answer) } else if !q.options.isEmpty { options(q) }
           if let item = q.itemId { about(item, q.card ?? store.card(item)) }
           context(q)
           if !q.links.isEmpty { links(q) }
+          if let answer = q.answer { answered(answer) } else if !q.options.isEmpty, !sent { options(q) }
         } else if let failed {
           Text(failed).sans(14).foregroundStyle(Theme.red)
         } else {
@@ -36,9 +38,9 @@ struct InquiryPage: View {
     }
     .openedPage()
     .safeAreaInset(edge: .bottom, spacing: 0) {
-      if let q, q.answer == nil {
-        // Send, as the window's own-words button: it opens the box your words go in.
-        BottomBar(cta: "Send", off: store.busy(q.id), press: { writing = true }, quiet: [Quiet(label: "Dismiss") { _ in answer(q, nil) }])
+      if let q, q.answer == nil, !sent {
+        // Named for the box it opens, as Reply and Comment are; the box's own button is Send, as the window's.
+        BottomBar(cta: "Answer", off: store.busy(q.id), press: { writing = true }, quiet: [Quiet(label: "Dismiss") { _ in answer(q, nil) }])
       } else {
         BottomBar()
       }
@@ -50,7 +52,7 @@ struct InquiryPage: View {
           limit: Words.maxAsk, draft: $draft
         ) { words in
           let took = await store.answer(q, text: words)
-          if took { back() }
+          if took { sent = true }
           return took
         }
       }
@@ -73,13 +75,10 @@ struct InquiryPage: View {
     }
   }
 
-  // One of its answers, or nil to dismiss it: sent at once, and back to the list where the toast says so.
+  // One of its answers, or nil to dismiss it: sent at once. The page stays, as the window's, and reads the question
+  // again: "✓ Answered: …" and whether it's been picked up.
   private func answer(_ q: Inquiry, _ text: String?) {
-    Task { if await store.answer(q, text: text) { back() } }
-  }
-
-  private func back() {
-    if store.path.last == .inquiry(id) { store.path.removeLast() }
+    Task { if await store.answer(q, text: text) { sent = true } }
   }
 
   private func head(_ q: Inquiry) -> some View {

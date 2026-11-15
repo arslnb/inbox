@@ -243,9 +243,12 @@ merge, where Snooze does); More is its three dots only where it doesn't fit even
   injection shows the flag in red and nothing else of the review: the bar's call to action is Block @who (their items
   are muted on your desk; nothing on GitHub), and "Not an injection: analyze it" reads it anyway. A blocked author's
   issue says so, with Unblock. The facts line adds how you were asked (unless the why says it) and who placed it.
-- **A question.** "Agent" and who asks; its answers come straight under it, each a button that answers with it; Send
-  opens the box for your own words ("Or write your own answer", 2,000 characters at most, as the desk takes); Dismiss
-  lets the agent decide. What it's about opens the item here, or on GitHub when the desk doesn't hold it. Its row's
+- **A question.** In the window's order: "Agent" and who asks, the question, what it's about (a press opens the item
+  here, or on GitHub when the desk doesn't hold it), everything the agent said and its links, then its answers, each a
+  button that answers with it. **Answer**, on the bar, opens the box for your own words ("Or write your own answer",
+  2,000 characters at most, as the desk takes; its button is Send); Dismiss lets the agent decide. After any of them
+  the page stays, as the window's: "✓ Answered: …" (or "✓ Dismissed: it decides itself") and "Not picked up yet" until
+  the agent reads it. Its row's
   menu: Answer, Dismiss.
 - **A session.** Kick or Resume (off until a rate limit resets), Done and Snooze; Mute is in More. Its whole folder is
   under its name. Its row's menu: Done, Snooze (a time: a session has no activity to wait on, and its toast says only
