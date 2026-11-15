@@ -40,6 +40,7 @@
 		D2DC68505D3DF8C42C2C71D1 /* instrument-sans-latin-standard-normal.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 27FCC11E92097FB5C088C181 /* instrument-sans-latin-standard-normal.ttf */; };
 		DA47A5E5F687DCBD4D5792C6 /* DecodingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B6C5B999ECEADBD2F6066ABA /* DecodingTests.swift */; };
 		E1B42D662A54508AD0471F1D /* FormatTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = EA851981E14A4D90E0B2E268 /* FormatTests.swift */; };
+		E4C14E5BF8B029CD4214A4BD /* Said.swift in Sources */ = {isa = PBXBuildFile; fileRef = 052B157C4D8A2B459516F215 /* Said.swift */; };
 		E601D6AC528054B614E4B992 /* PatchLines.swift in Sources */ = {isa = PBXBuildFile; fileRef = 906A52F20D38C5219AD0E740 /* PatchLines.swift */; };
 		E76AB71898F7873F82F00324 /* item-issue.json in Resources */ = {isa = PBXBuildFile; fileRef = B68EB4652AF48E4EFA96A474 /* item-issue.json */; };
 		E89DC73D38524E692F477FD9 /* ConnectView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 412FA186A30EEB5E95FAFA15 /* ConnectView.swift */; };
@@ -61,6 +62,7 @@
 
 /* Begin PBXFileReference section */
 		007CD99E3D1EFFE031869329 /* PatchLinesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatchLinesTests.swift; sourceTree = "<group>"; };
+		052B157C4D8A2B459516F215 /* Said.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Said.swift; sourceTree = "<group>"; };
 		087EFBF229FCB05EF9893014 /* review-lean.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "review-lean.json"; sourceTree = "<group>"; };
 		1669E5C9016905AF55097E8E /* DiffView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiffView.swift; sourceTree = "<group>"; };
 		191882B1EBFEB895A9C4608D /* ActionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActionTests.swift; sourceTree = "<group>"; };
@@ -117,6 +119,7 @@
 				AB601B10CD92C49B76EBC105 /* Pages.swift */,
 				D0DA7227B62F17FEF758A35A /* ReviewState.swift */,
 				BD80456E10B2E056D00E7E9F /* Rows.swift */,
+				052B157C4D8A2B459516F215 /* Said.swift */,
 				A6FDE2876FD1AE3650B6527A /* ScanView.swift */,
 			);
 			path = Views;
@@ -334,6 +337,7 @@
 				E601D6AC528054B614E4B992 /* PatchLines.swift in Sources */,
 				CDC83790A232DEDAC8748E35 /* ReviewState.swift in Sources */,
 				783B6A6605072089E077FB4E /* Rows.swift in Sources */,
+				E4C14E5BF8B029CD4214A4BD /* Said.swift in Sources */,
 				F635539C7C5D538D8F6D2B00 /* ScanView.swift in Sources */,
 				7113F33B54A76553322A65CD /* Store.swift in Sources */,
 				AD130016A163111BCA64B877 /* Theme.swift in Sources */,

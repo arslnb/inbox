@@ -412,15 +412,19 @@ final class Store {
     }
   }
 
-  // A reply in one conversation of readReview()'s. The item leaves the desk only if this was the last one waiting on
-  // you, which the next read says; read the review again to see the reply in its conversation.
+  // A reply in one conversation of readReview()'s, waiting on you or not: a thread gets a thread reply, a comment or a
+  // review a comment on the PR. Its page stays and reads the review again, unless the desk took the PR off (left()).
   @discardableResult
   func reply(_ c: Card, to conversation: Conversation, body: String) async -> Bool {
     await write(c.id) { client in
       _ = try await client.reply(c.id, to: conversation.id, body: body)
-      return Toast(text: "Sent your reply to \(conversation.comments.last?.author ?? "them")")
+      return Toast(text: Words.replyTo("Sent your reply", conversation, me: self.me))
     }
   }
+
+  // Whether a write took it off the desk, by the read that followed it: the desk marks a PR done when a reply was all
+  // it asked of you and this was the last one waiting. `was` is its card from before the write.
+  func left(_ was: Card) -> Bool { was.active && card(was.id)?.active != true }
 
   // A comment on a line of the diff, pinned to the commit the diff was read at (ReviewView.diffHead, not the item's
   // head: they differ until the next sync). Part of reviewing, not its end: the PR stays, and so does its page. One at a
@@ -648,7 +652,8 @@ final class Store {
     //   -page inbox|blocked|merging|archive   -open <item id>|inquiry:<id>|session:<id>   -settings   -empty
     //   -box approve|comment|changes|reviewers|reply|answer   with -open: that page's box, opened once it has loaded
     //   -part checks|reviewers   with -open: that line of a PR's State, opened
-    //   -scroll diff|thread   with -open: a PR's page scrolled to its diff, or to the first thread on a line of it
+    //   -scroll diff|thread|said   with -open: a PR's page scrolled to its diff, the first thread on a line of it, or what reviewers said
+    //   -said waiting|more   with -open: the first waiting conversation's own words unfolded, or the ones not waiting on you
     //   -comment <path>:<line>   with -open: the box for a comment on that line of the new file
     func applyLaunchArguments(_ args: UserDefaults = .standard, flags: [String] = ProcessInfo.processInfo.arguments) {
       guard flags.contains(where: { ["-deskURL", "-connect"].contains($0) }) else { return }
@@ -676,6 +681,7 @@ final class Store {
       debugPart = args.string(forKey: "part")
       debugScroll = args.string(forKey: "scroll")
       debugComment = args.string(forKey: "comment")
+      debugSaid = args.string(forKey: "said")
     }
 
     var scrollTo: String?
@@ -683,6 +689,7 @@ final class Store {
     var debugPart: String?
     var debugScroll: String?
     var debugComment: String?
+    var debugSaid: String?
     var debugScan: String?  // what the camera would have read: the connect screen takes it once
   #endif
 }

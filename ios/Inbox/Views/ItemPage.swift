@@ -1,6 +1,6 @@
 import SwiftUI
 
-// A PR or an issue, opened: what it is, why it's here, what waits on your reply, the AI review, its state, its stack,
+// A PR or an issue, opened: what it is, why it's here, the AI review, what reviewers said, its state, its stack,
 // a PR's diff and what happened lately; at its foot, what you do with it. Drawn at once from its row's card. A PR's rest lands from
 // one GET /api/review/:id (the window's open), an issue's from GET /api/item; Store.readReview() says what each costs.
 struct ItemPage: View {
@@ -11,7 +11,7 @@ struct ItemPage: View {
   @State private var review: ReviewView?  // a PR's
   @State private var failed: String?
   @State private var sawIt = false
-  @State private var replied: Set<String> = []
+  @State private var replied: [String: String] = [:]  // answered from here: its latest comment then, so anything newer shows it again
   @State private var box: Box?
   @State private var drafts: [String: String] = [:]
   @State private var diff: DiffModel?  // the review's diff, as it last landed
@@ -20,7 +20,7 @@ struct ItemPage: View {
   // A box that writes, as a sheet.
   enum Box: Identifiable {
     case approve, comment, changes, reviewers
-    case reply(Conversation, onLine: Bool = false)  // onLine: from its line of the diff, where the page stays
+    case reply(Conversation)
     case line(LineSpot)
 
     var id: String {
@@ -29,7 +29,7 @@ struct ItemPage: View {
       case .comment: "comment"
       case .changes: "changes"
       case .reviewers: "reviewers"
-      case .reply(let c, _): "reply:\(c.id)"
+      case .reply(let c): "reply:\(c.id)"
       case .line(let at): "line:\(at.key)"
       }
     }
@@ -47,7 +47,9 @@ struct ItemPage: View {
   // it, so a push the page redrew isn't refused as unread; one it hasn't drawn yet is refused by the desk.
   private var read: String? { store.pins[id] }
   private var open: Bool { card?.resolved == nil && (item?.state ?? "open") == "open" }
-  private var waiting: [Conversation] { (review?.conversation ?? []).filter { $0.waitingOnYou == true && !replied.contains($0.id) } }
+  private var owing: [Conversation] { (review?.conversation ?? []).filter { $0.waitingOnYou == true } }
+  private func answered(_ c: Conversation) -> Bool { replied[c.id] == (c.comments.last?.id ?? "") }
+  private var waiting: [Conversation] { owing.filter { !answered($0) } }
 
   var body: some View {
     ScrollViewReader { proxy in page(proxy) }
@@ -59,8 +61,8 @@ struct ItemPage: View {
         if let card {
           header(card)
           why(card)
-          if card.isPR { owed(card) }
           if card.isPR { aiBlock(card) }
+          if card.isPR { saidBlock(card) }
           if let error = review?.filesError { Text("Couldn't load the diff: \(error)").sans(13).foregroundStyle(Theme.red) }
           if let review { ReviewState(card: card, review: review, addReviewers: adds(card) ? { box = .reviewers } : nil) }
           if let stack { stackBlock(stack) }
@@ -113,7 +115,8 @@ struct ItemPage: View {
         if let diff, let to = store.debugScroll {
           store.debugScroll = nil
           try? await Task.sleep(for: .milliseconds(300))
-          proxy.scrollTo(to == "thread" ? diff.firstThread(review?.conversation ?? []) ?? "diff" : "diff", anchor: to == "thread" ? .center : .top)
+          let at = to == "thread" ? diff.firstThread(review?.conversation ?? []) ?? "diff" : to == "said" ? "said" : "diff"
+          proxy.scrollTo(at, anchor: to == "thread" ? .center : .top)
         }
         if let diff, let at = store.debugComment.flatMap(diff.spot) {
           store.debugComment = nil
@@ -258,19 +261,24 @@ struct ItemPage: View {
         }
       case .reviewers:
         ReviewersSheet(card: c, keep: c.cta != "reviewers" && c.draft != true) { back() }
-      case .reply(let conversation, let onLine):
-        WriteSheet(title: "Reply to \(conversation.comments.last?.author ?? "them")", prompt: "Your reply", button: "Reply", draft: draft) { words in
+      case .reply(let conversation):
+        WriteSheet(title: Words.replyTo("Reply", conversation, me: store.me), prompt: "Your reply", button: "Reply", draft: draft) { words in
+          let was = store.card(c.id)
           let took = await store.reply(c, to: conversation, body: words)
-          if took { replied.insert(conversation.id) }
-          // From its line of the diff the page stays, with your words under the thread until it's read again.
-          if onLine {
-            if took { sent.append(SentWords(thread: conversation.id, body: words)) }
-            return took
+          if took {
+            replied[conversation.id] = conversation.comments.last?.id ?? ""
+            // Your words show in its conversation until the review read again has them.
+            sent.append(SentWords(thread: conversation.id, body: words))
+            // The page stays, unless that was all it asked of you and the desk took it off.
+            if let was, store.left(was) { back() }
           }
-          // The last one answered: nothing more waits on you here.
-          return took && waiting.isEmpty ? leave(true) : took
+          return took
         } above: {
-          said(conversation, whole: true)
+          VStack(alignment: .leading, spacing: 8) {
+            Text(Words.place(conversation)).sans(12.5).foregroundStyle(Theme.pencil).lineLimit(1).truncationMode(.head)
+            SaidComments(comments: Array(conversation.comments.suffix(3)), lines: 8)
+          }
+          .ruled()
         }
       case .line(let at):
         WriteSheet(title: "Comment on \(at.name)", prompt: "Your comment", button: "Comment", draft: draft) { words in
@@ -288,48 +296,24 @@ struct ItemPage: View {
     }
   }
 
-  // MARK: Waiting on your reply
+  // MARK: What reviewers said
 
-  // What was said in each conversation that waits on you, briefly: where, its last words, and Reply (the bar's answers the first).
+  // Each conversation waiting on you, then the rest under one line. Reply is for an open PR; the bar's answers the first.
   @ViewBuilder
-  private func owed(_ c: Card) -> some View {
+  private func saidBlock(_ c: Card) -> some View {
     if let error = review?.conversationError {
       Text("Couldn't load what reviewers said: \(error)").sans(13).foregroundStyle(Theme.red)
-    } else if review == nil {
-      if c.cta == "reply", failed == nil { LoadingLines() }
-    } else if !waiting.isEmpty {
-      VStack(alignment: .leading, spacing: 10) {
-        SmallHead(text: "Waiting on your reply")
-        ForEach(waiting) { c in
-          Button {
-            box = .reply(c)
-          } label: {
-            said(c, whole: false)
-          }
-          .buttonStyle(.plain)
-        }
+    } else if let review {
+      if !review.conversation.isEmpty {
+        WhatWasSaid(
+          review: review, waiting: waiting, answered: owing.filter(answered), sent: Diff.pending(sent, in: review.conversation, me: store.me),
+          reply: item?.state == "open" ? { box = .reply($0) } : nil
+        )
+        .id("said")
       }
+    } else if c.cta == "reply", failed == nil {
+      LoadingLines()
     }
-  }
-
-  // One conversation: where it is, your agent's read of it, then its last words (on the sheet, the last few comments).
-  private func said(_ c: Conversation, whole: Bool) -> some View {
-    VStack(alignment: .leading, spacing: 6) {
-      if let path = c.path {
-        Text(path + (c.line.map { ":\($0)" } ?? "")).mono(12).foregroundStyle(Theme.pencil).lineLimit(1).truncationMode(.head)
-      }
-      if !whole, let gist = c.take?.gist, !gist.isEmpty { Lead(label: "\(store.agent):", text: gist) }
-      ForEach(c.comments.suffix(whole ? 3 : 1)) { m in
-        // Briefly: its paragraphs run on as one.
-        let body = whole ? m.body ?? "" : (m.body ?? "").split(whereSeparator: \.isNewline).joined(separator: " ")
-        Lead(label: m.author ?? "", text: body, color: Theme.ink).lineLimit(whole ? 8 : 4)
-      }
-      if !whole { Text("Reply").sans(13, 550).underline(color: Theme.ruleStrong).foregroundStyle(Theme.ink2) }
-    }
-    .padding(.leading, 12)
-    .frame(maxWidth: .infinity, alignment: .leading)
-    .overlay(alignment: .leading) { Theme.ruleStrong.frame(width: 2) }
-    .contentShape(Rectangle())
   }
 
   // MARK: Header
@@ -478,7 +462,7 @@ struct ItemPage: View {
       DiffView(
         model: diff, files: review.files, conversation: review.conversation,
         sent: Diff.pending(sent, in: review.conversation, me: store.me), github: c.url.flatMap { URL(string: $0 + "/files") },
-        comment: can ? { box = .line($0) } : nil, reply: can ? { box = .reply($0, onLine: true) } : nil,
+        comment: can ? { box = .line($0) } : nil, reply: can ? { box = .reply($0) } : nil,
         show: { proxy.scrollTo($0) }
       )
       // Edge to edge: a line's wash runs the page's width, its text keeps the gutter.

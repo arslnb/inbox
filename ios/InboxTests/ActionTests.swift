@@ -432,6 +432,53 @@ final class StoreWriteTests: XCTestCase {
     XCTAssertEqual(store.notices.map(\.title), ["the reply is empty"])
   }
 
+  // A reply stays on its page, waiting on you or not; it leaves only when the desk took the PR off (a reply was all it
+  // asked, and this was the last one waiting), which the read after the write says.
+  func testAReplyStaysUntilTheDeskTakesItOff() async throws {
+    let id = "me/notes-app#12"
+    let c = try card(id)
+    let review: ReviewView = try Fixture.decode("review-own")
+    let quiet = try XCTUnwrap(review.conversation.first { $0.id == "PRRT_name" })
+    XCTAssertNotEqual(quiet.waitingOnYou, true)
+    let path = "/api/review/\(id)/reply"
+    store.path = [.item(id)]
+
+    try desk([path: Answer(body: #"{"ok":true,"url":"u"}"#)])
+    var took = await store.reply(c, to: quiet, body: "Renamed, thanks.")
+    XCTAssertTrue(took)
+    XCTAssertEqual(paths().filter { $0.hasPrefix("POST") }, ["POST \(path)"], "once")
+    let body = try JSONDecoder().decode([String: String].self, from: try XCTUnwrap(StubProtocol.requests()[0].sentBody))
+    XCTAssertEqual(body, ["id": "PRRT_name", "body": "Renamed, thanks."])
+    XCTAssertEqual(store.toast?.text, "Sent your reply to kai", "to whoever spoke last there, other than you")
+    XCTAssertFalse(store.left(c), "still on the desk: its page stays")
+    XCTAssertTrue(store.leaving.isEmpty)
+
+    // Refused: the desk's words for the sheet, which keeps yours.
+    try desk([path: no(409, "can't reply on me/notes-app#12: it's merged")])
+    took = await store.reply(c, to: quiet, body: "Renamed, thanks.")
+    XCTAssertFalse(took, "so the sheet keeps the draft")
+    XCTAssertEqual(store.whyNot, "can't reply on me/notes-app#12: it's merged")
+    XCTAssertFalse(store.left(c))
+
+    // The last one waiting on a reply-only PR: the desk marks it done, and the read after the write has it so.
+    let last = try XCTUnwrap(review.conversation.first { $0.id == "IC_freeze" })
+    func marked(_ json: Any) -> Any {
+      if let list = json as? [Any] { return list.map(marked) }
+      guard var d = json as? [String: Any] else { return json }
+      d = d.mapValues(marked)
+      if d["id"] as? String == id { d["status"] = "done" }
+      return d
+    }
+    let queue = try JSONSerialization.jsonObject(with: try Fixture.data("queue"))
+    let done = String(decoding: try JSONSerialization.data(withJSONObject: marked(queue)), as: UTF8.self)
+    try desk([path: Answer(body: #"{"ok":true,"url":"u"}"#), "/api/queue": Answer(body: done)])
+    took = await store.reply(c, to: last, body: "Yes, before the freeze.")
+    XCTAssertTrue(took)
+    XCTAssertEqual(store.toast?.text, "Sent your reply to priya")
+    XCTAssertTrue(store.left(c), "off the desk: back to the list")
+    XCTAssertNil(store.toast?.undo, "a reply has nothing to undo")
+  }
+
   // A comment on a line is part of reviewing, not its end: sent once, at the commit the diff is at, and the PR and its page stay.
   func testACommentOnALineStaysOnThePage() async throws {
     let id = "acme/api#4127"

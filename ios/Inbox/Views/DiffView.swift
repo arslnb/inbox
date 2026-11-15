@@ -150,19 +150,13 @@ struct DiffView: View {
     if !here.isEmpty || !new.isEmpty {
       VStack(alignment: .leading, spacing: 12) {
         ForEach(here) { c in thread(c, mine.filter { $0.thread == c.id }) }
-        ForEach(new) { s in
-          yours(s).padding(.leading, 12).overlay(alignment: .leading) { Theme.ruleStrong.frame(width: 2) }
-        }
+        ForEach(new) { s in YoursSent(words: s).ruled() }
       }
       .padding(.horizontal, Theme.pad)
       .padding(.vertical, 10)
       .frame(maxWidth: .infinity, alignment: .leading)
       .background(Theme.paper)
     }
-  }
-
-  private func yours(_ s: SentWords) -> some View {
-    Lead(label: "You · sent", text: s.body, color: Theme.ink)
   }
 
   @ViewBuilder
@@ -182,22 +176,12 @@ struct DiffView: View {
         .buttonStyle(.plain)
       } else {
         if c.resolved == true { Text("Resolved").sans(13).foregroundStyle(Theme.pencil) }
-        ForEach(c.comments) { m in Lead(label: m.author ?? "", text: m.body ?? "", color: Theme.ink) }
-        ForEach(mine) { s in yours(s) }
-        HStack(spacing: 16) {
-          if let reply {
-            Button("Reply") { reply(c) }.buttonStyle(.plain).underline(color: Theme.ruleStrong).frame(minHeight: 28)
-          }
-          if let url = c.url.flatMap(URL.init(string:)) {
-            Link(destination: url) { Text("On GitHub").underline(color: Theme.ruleStrong) }.frame(minHeight: 28)
-          }
-        }
-        .sans(13, 550).foregroundStyle(Theme.ink2)
+        // The same drawing as under "What was said" on the page (Said.swift).
+        SaidComments(comments: c.comments, mine: mine)
+        SaidActions(reply: reply.map { r in { r(c) } }, url: c.url)
       }
     }
-    .padding(.leading, 12)
-    .frame(maxWidth: .infinity, alignment: .leading)
-    .overlay(alignment: .leading) { Theme.ruleStrong.frame(width: 2) }
+    .ruled()
   }
 }
 
