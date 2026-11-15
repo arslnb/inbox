@@ -75,19 +75,19 @@ struct SaidActions: View {
   var url: String?
   var ask: (() -> Void)?  // Ask your agent, about this conversation: your chat, on it
 
+  // Each keeps its words whole and goes to the next line when they don't fit (large text); a touch reaches 8pt around
+  // its words, 52pt tall, and stops short of the next one's.
   var body: some View {
-    HStack(spacing: 18) {
-      if let reply {
-        Button("Reply", action: reply).buttonStyle(.plain).underline(color: Theme.ruleStrong).frame(minHeight: 36).contentShape(Rectangle())
-      }
-      if let url = url.flatMap(URL.init(string:)) {
-        Link(destination: url) { Text("Open on GitHub").underline(color: Theme.ruleStrong) }.frame(minHeight: 36).contentShape(Rectangle())
-      }
-      if let ask {
-        Button("Ask your agent", action: ask).buttonStyle(.plain).underline(color: Theme.ruleStrong).frame(minHeight: 36).contentShape(Rectangle())
-      }
+    FlowLine(spacing: 18) {
+      if let reply { Button(action: reply) { words("Reply") }.buttonStyle(.plain) }
+      if let url = url.flatMap(URL.init(string:)) { Link(destination: url) { words("Open on GitHub") } }
+      if let ask { Button(action: ask) { words("Ask your agent") }.buttonStyle(.plain) }
     }
     .sans(13, 550).foregroundStyle(Theme.ink2)
+  }
+
+  private func words(_ says: String) -> some View {
+    Text(says).underline(color: Theme.ruleStrong).fixedSize().frame(minHeight: 36).contentShape(Rectangle().inset(by: -8))
   }
 }
 
