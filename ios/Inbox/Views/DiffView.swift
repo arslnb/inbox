@@ -330,8 +330,7 @@ private struct DiffLine: View {
         Text(l.text.isEmpty ? " " : l.text).foregroundStyle(Theme.ink).frame(maxWidth: .infinity, alignment: .leading)
       }
       .mono(12)
-      .padding(.leading, Theme.pad)
-      .padding(.trailing, 8)
+      .padding(.horizontal, Theme.pad)
       .padding(.vertical, 1.5)
       .background(l.kind == .add ? Theme.addWash : l.kind == .del ? Theme.delWash : Theme.sheet)
       .contentShape(Rectangle())
