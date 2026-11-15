@@ -684,6 +684,9 @@ final class Store {
     //   -scroll diff|thread|said   with -open: a PR's page scrolled to its diff, the first thread on a line of it, or what reviewers said
     //   -said waiting|more   with -open: the first waiting conversation's own words unfolded, or the ones not waiting on you
     //   -comment <path>:<line>   with -open: the box for a comment on that line of the new file
+    //   -ai open   with -open: the AI review's fold, opened
+    //   -review.view guided|traditional   the diff's order where a review has steps (the saved choice, for this launch)
+    //   -scroll guide|step-<n>|note|bugs   with -open: the guided review's first step, a later one, the first note on a line
     func applyLaunchArguments(_ args: UserDefaults = .standard, flags: [String] = ProcessInfo.processInfo.arguments) {
       guard flags.contains(where: { ["-deskURL", "-connect"].contains($0) }) else { return }
       stopLive()
@@ -711,6 +714,7 @@ final class Store {
       debugScroll = args.string(forKey: "scroll")
       debugComment = args.string(forKey: "comment")
       debugSaid = args.string(forKey: "said")
+      debugAi = args.string(forKey: "ai")
     }
 
     var scrollTo: String?
@@ -719,6 +723,7 @@ final class Store {
     var debugScroll: String?
     var debugComment: String?
     var debugSaid: String?
+    var debugAi: String?
     var debugScan: String?  // what the camera would have read: the connect screen takes it once
   #endif
 }

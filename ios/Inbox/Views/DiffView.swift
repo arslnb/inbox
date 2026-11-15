@@ -1,9 +1,10 @@
 import SwiftUI
 
-// A PR's diff in Traditional order: each file once, in the PR's order, its hunks' lines under a header that folds it;
-// then the files the desk folded away, under one line. Drawn from the order's hunks alone (PatchLines.swift). Unified,
-// wrapped, never scrolled sideways (that would fight the swipe back). A line is pressed to comment on it; a thread sits
-// under its line.
+// A PR's diff. Traditional: each file once, in the PR's order, its hunks' lines under a header that folds it; then the
+// files the desk folded away, under one line. Guided (DiffModel.guiding): the review's steps, each a heading with what
+// to check, then only its sections. Drawn from the order's hunks alone (PatchLines.swift, Guide.swift). Unified,
+// wrapped, never scrolled sideways (that would fight the swipe back). A line is pressed to comment on it; a thread, the
+// AI review's note and its "Look here" sit under their line.
 
 struct DiffView: View {
   let model: DiffModel
@@ -13,7 +14,13 @@ struct DiffView: View {
   var github: URL?  // the PR's Files changed, for what isn't drawn here
   var comment: ((LineSpot) -> Void)?  // nil: not open, so a line takes no comment
   var reply: ((Conversation) -> Void)?
+  var notes: [AiReview.Note] = []  // the AI review's, which the sections index into
+  var looks: [AiReview.Look] = []  // where correctness hinges; none for a review of an earlier commit
+  var bugs = 0  // the first of `notes` are its concerns: potential bugs
+  var diagrams: [AiReview.Diagram] = []
   var show: (String) -> Void = { _ in }  // scrolls just far enough to bring what has this id into view
+  var jump: (String) -> Void = { _ in }  // scrolls what has this id to the top
+  var traditional: () -> Void = {}  // leaves the guide for every file
   @State private var flipped: Set<String> = []  // sections pressed away from how they start
   @State private var restOpen = false
   @State private var opened: Set<String> = []  // resolved threads opened
@@ -25,7 +32,15 @@ struct DiffView: View {
 
   var body: some View {
     LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
-      ForEach(model.list.prefix(model.rest)) { s in section(s) }
+      ForEach(Array(model.list.prefix(model.rest).enumerated()), id: \.element.id) { i, s in
+        if let k = model.steps.firstIndex(where: { $0.at == i }) { stepHead(k) }
+        if model.guiding, i == model.beyond { guideHead("Potential bugs outside the guide").id("bugs") }
+        section(s)
+        // The step that ends here: on to the next one, or the guide's end.
+        if let end = model.steps.indices.first(where: { (model.steps.indices.contains($0 + 1) ? model.steps[$0 + 1].at : model.beyond) == i + 1 }) {
+          stepFoot(end)
+        }
+      }
       let folded = model.list.count - model.rest
       if folded > 0 {
         Button {
@@ -55,12 +70,17 @@ struct DiffView: View {
     Section {
       if !s.hunks.isEmpty, !shut(s) {
         let rows = model.rows(s)
+        let mineNotes = Diff.placed(s, notes)
+        let lookHere = Set(s.hunks.flatMap { $0.looks ?? [] }).sorted().filter(looks.indices.contains)
+        // A note about the whole file sits above its diff.
+        if !mineNotes.file.isEmpty { margin { ForEach(mineNotes.file, id: \.self) { n in AiNote(text: notes[n].body ?? "", bug: n < bugs) } } }
         let threads = Diff.threadsOn(conversation, path: s.path, hunks: s.hunks)
         let mine = sent.filter { w in w.spot?.path == s.path || threads.contains { $0.id == w.thread } }
         // The numbers' column: as wide as its longest.
         let digits = max(2, String(rows.last.map { max($0.line.old ?? 0, $0.line.new ?? 0) } ?? 0).count)
         ForEach(rows) { r in
           DiffLine(line: r.line, spot: Diff.spot(s.path, r.line), digits: digits, comment: comment).dynamicTypeSize(...DiffView.largest)
+          if !lookHere.isEmpty || !mineNotes.lines.isEmpty { noted(r.line, lookHere, mineNotes.lines) }
           if !threads.isEmpty || !mine.isEmpty, let at = Diff.spot(s.path, r.line) { said(at, r.line, threads, mine) }
         }
         let more = Diff.capped(s.rows).more
@@ -69,6 +89,90 @@ struct DiffView: View {
       }
     } header: {
       head(s).dynamicTypeSize(...DiffView.largest).id(s.key)
+    }
+  }
+
+  // MARK: The guide
+
+  // A stop of the walk-through: "2 of 4" and its title, its words, what to check, then its sections. No colour, no box.
+  private func stepHead(_ k: Int) -> some View {
+    let st = model.steps[k]
+    return VStack(alignment: .leading, spacing: 5) {
+      (Text("\(k + 1) of \(model.steps.count)  ").foregroundStyle(Theme.pencil) + Text(st.title).foregroundStyle(Theme.ink))
+        .sans(15, 600, tabular: true)
+        .fixedSize(horizontal: false, vertical: true)
+        .accessibilityAddTraits(.isHeader)
+      if !st.body.isEmpty { Prose(text: st.body, size: 13.5).foregroundStyle(Theme.ink2).lineSpacing(3).fixedSize(horizontal: false, vertical: true) }
+      if !st.check.isEmpty { Lead(label: "Check:", text: st.check, size: 13.5, labelColor: Theme.ink2) }
+      if !st.note.isEmpty {
+        Prose(text: st.note, size: 13.5).foregroundStyle(Theme.ink2).lineSpacing(3).fixedSize(horizontal: false, vertical: true).ruled()
+      }
+      if !st.diagram.isEmpty, let d = diagrams.first(where: { $0.id == st.diagram }) { DiagramLines(diagram: d).padding(.top, 3) }
+    }
+    .padding(.horizontal, Theme.pad)
+    .padding(.top, k == 0 ? 6 : 22)
+    .padding(.bottom, 10)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .id("step-\(k)")
+  }
+
+  private func guideHead(_ words: String) -> some View {
+    Text(words).sans(15, 600).foregroundStyle(Theme.ink)
+      .padding(.horizontal, Theme.pad).padding(.top, 22).padding(.bottom, 10)
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .accessibilityAddTraits(.isHeader)
+  }
+
+  // Under a step's last section: on to the next, or the guide's end and what it left out.
+  @ViewBuilder
+  private func stepFoot(_ end: Int) -> some View {
+    if model.steps.indices.contains(end + 1) {
+      quietLink("Next: \(model.steps[end + 1].title)") { jump("step-\(end + 1)") }
+        .padding(.horizontal, Theme.pad).padding(.top, 4)
+    } else {
+      VStack(alignment: .leading, spacing: 0) {
+        Text(model.left > 0 ? "End of the guide. \(model.left == 1 ? "1 more file changes" : "\(model.left) more files change") outside it:" : "End of the guide.")
+          .sans(13).foregroundStyle(Theme.pencil).fixedSize(horizontal: false, vertical: true)
+        if model.left > 0 { quietLink("read every file in Traditional", traditional) }
+      }
+      .padding(.horizontal, Theme.pad).padding(.top, 12)
+      .frame(maxWidth: .infinity, alignment: .leading)
+    }
+  }
+
+  private func quietLink(_ words: String, _ press: @escaping () -> Void) -> some View {
+    Button(action: press) {
+      Text(words).sans(13, 550).underline(color: Theme.ruleStrong).foregroundStyle(Theme.ink2).multilineTextAlignment(.leading)
+        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading).contentShape(Rectangle())
+    }
+    .buttonStyle(.plain)
+  }
+
+  // MARK: The AI review on a line
+
+  // On the paper, between the code's lines, in the sans face: what isn't code.
+  private func margin(@ViewBuilder _ what: () -> some View) -> some View {
+    VStack(alignment: .leading, spacing: 10) { what() }
+      .padding(.horizontal, Theme.pad)
+      .padding(.vertical, 10)
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .background(Theme.paper)
+  }
+
+  // "Look here" where correctness hinges, then the review's notes on this line.
+  @ViewBuilder
+  private func noted(_ l: PatchLine, _ lookHere: [Int], _ onLines: [Int]) -> some View {
+    let see = lookHere.filter { Diff.on(l, line: looks[$0].line ?? 0, side: looks[$0].side ?? "new") }
+    let here = onLines.filter { Diff.on(l, line: notes[$0].line ?? 0, side: notes[$0].side ?? "new") }
+    if !see.isEmpty || !here.isEmpty {
+      margin {
+        ForEach(see, id: \.self) { i in
+          let look = looks[i]
+          let (line, end) = (look.line ?? 0, look.end ?? 0)
+          Lead(label: "Look here\(end > line ? ", lines \(line)–\(end)" : ""):", text: look.why ?? "", size: 13.5, color: Theme.ink).ruled()
+        }
+        ForEach(here, id: \.self) { n in AiNote(text: notes[n].body ?? "", bug: n < bugs) }
+      }
     }
   }
 
@@ -182,6 +286,22 @@ struct DiffView: View {
       }
     }
     .ruled()
+  }
+}
+
+// The AI review's note in the margin of the code. A concern says so first: it's a potential bug, its edge in amber.
+struct AiNote: View {
+  let text: String
+  let bug: Bool
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 2) {
+      if bug { Text("Potential bug").sans(12.5, 650).foregroundStyle(Theme.amber) }
+      Prose(text: text, size: 13.5).foregroundStyle(Theme.ink).lineSpacing(3).fixedSize(horizontal: false, vertical: true)
+    }
+    .padding(.leading, 12)
+    .frame(maxWidth: .infinity, alignment: .leading)
+    .overlay(alignment: .leading) { (bug ? Theme.amber : Theme.ruleStrong).frame(width: 2) }
   }
 }
 

@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		09B80DD034643D43D5C13A22 /* Acting.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58F1723D88F33B6D0D06287F /* Acting.swift */; };
+		0A472E38A8BCBB0BE4C039ED /* AiBlock.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA83EB4A0F6BDDE7BAB5EC8A /* AiBlock.swift */; };
 		243E4031449240A3110F26FE /* ActionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 191882B1EBFEB895A9C4608D /* ActionTests.swift */; };
 		2C63189910B7188FD6BA7657 /* reviewers.json in Resources */ = {isa = PBXBuildFile; fileRef = 83673558401C16BE791F742E /* reviewers.json */; };
 		37E4CB149A666311A3413CBC /* DiffView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1669E5C9016905AF55097E8E /* DiffView.swift */; };
@@ -97,6 +98,7 @@
 		B6C5B999ECEADBD2F6066ABA /* DecodingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DecodingTests.swift; sourceTree = "<group>"; };
 		BD80456E10B2E056D00E7E9F /* Rows.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Rows.swift; sourceTree = "<group>"; };
 		C336E2EDC75FE420F9886637 /* Store.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Store.swift; sourceTree = "<group>"; };
+		CA83EB4A0F6BDDE7BAB5EC8A /* AiBlock.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AiBlock.swift; sourceTree = "<group>"; };
 		CB729B1A844CE25803480AA6 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
 		CDD3F75F2D8E3B634810AA5D /* Theme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Theme.swift; sourceTree = "<group>"; };
 		CFF23A0BBF6C317655731985 /* AddressTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AddressTests.swift; sourceTree = "<group>"; };
@@ -116,6 +118,7 @@
 			isa = PBXGroup;
 			children = (
 				58F1723D88F33B6D0D06287F /* Acting.swift */,
+				CA83EB4A0F6BDDE7BAB5EC8A /* AiBlock.swift */,
 				412FA186A30EEB5E95FAFA15 /* ConnectView.swift */,
 				F04C3ACC667161B9AB92E023 /* DeskView.swift */,
 				1669E5C9016905AF55097E8E /* DiffView.swift */,
@@ -331,6 +334,7 @@
 				8C819FD9C6D6EC8A529AE298 /* APIClient.swift in Sources */,
 				09B80DD034643D43D5C13A22 /* Acting.swift in Sources */,
 				6000C1A98ED0E02EE64D9449 /* Address.swift in Sources */,
+				0A472E38A8BCBB0BE4C039ED /* AiBlock.swift in Sources */,
 				E89DC73D38524E692F477FD9 /* ConnectView.swift in Sources */,
 				CD92BDD8280FEC25648B3419 /* DeskView.swift in Sources */,
 				37E4CB149A666311A3413CBC /* DiffView.swift in Sources */,

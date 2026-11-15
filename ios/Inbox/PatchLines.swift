@@ -256,6 +256,16 @@ final class DiffModel {
       return nil
     }
 
+    // The row of the first of the AI review's notes on a line.
+    func firstNote(_ notes: [AiReview.Note]) -> String? {
+      for s in list.prefix(rest) {
+        for n in Diff.placed(s, notes).lines {
+          if let row = rows(s).first(where: { Diff.on($0.line, line: notes[n].line ?? 0, side: notes[n].side ?? "new") }) { return row.id }
+        }
+      }
+      return nil
+    }
+
     func spot(_ at: String) -> LineSpot? {
       guard let colon = at.lastIndex(of: ":"), let line = Int(at[at.index(after: colon)...]) else { return nil }
       let path = String(at[..<colon])

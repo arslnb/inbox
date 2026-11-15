@@ -16,6 +16,8 @@ struct ItemPage: View {
   @State private var drafts: [String: String] = [:]
   @State private var diff: DiffModel?  // the review's diff, as it last landed
   @State private var sent: [SentWords] = []  // yours on the diff's lines, until the conversation has them
+  // This phone's choice where a review has steps: the guided review, or every file ("traditional"). The window's own.
+  @AppStorage("review.view") private var reading = "guided"
 
   // A box that writes, as a sheet.
   enum Box: Identifiable {
@@ -61,7 +63,7 @@ struct ItemPage: View {
         if let card {
           header(card)
           why(card)
-          if card.isPR { aiBlock(card) }
+          if card.isPR { aiBlock(card, proxy) }
           if card.isPR { saidBlock(card) }
           if let error = review?.filesError { Text("Couldn't load the diff: \(error)").sans(13).foregroundStyle(Theme.red) }
           if let review { ReviewState(card: card, review: review, addReviewers: adds(card) ? { box = .reviewers } : nil) }
@@ -97,7 +99,7 @@ struct ItemPage: View {
         switch await store.readReview(id) {
         case .success(let r):
           review = r
-          diff = r.order.map { DiffModel($0) }
+          diff = model(r)
           failed = nil
           if let c = r.card { saw(c) }
         case .failure(.refused(400, _)) where kind == nil: await readItem()
@@ -115,8 +117,15 @@ struct ItemPage: View {
         if let diff, let to = store.debugScroll {
           store.debugScroll = nil
           try? await Task.sleep(for: .milliseconds(300))
-          let at = to == "thread" ? diff.firstThread(review?.conversation ?? []) ?? "diff" : to == "said" ? "said" : "diff"
-          proxy.scrollTo(at, anchor: to == "thread" ? .center : .top)
+          let at =
+            switch to {
+            case "thread": diff.firstThread(review?.conversation ?? []) ?? "diff"
+            case "note": diff.firstNote(review?.ai?.notes ?? []) ?? "diff"
+            case "said", "bugs": to
+            case "guide": "step-0"
+            default: to.hasPrefix("step-") ? to : "diff"
+            }
+          reach(at, ["thread", "note"].contains(to) ? .center : .top, proxy)
         }
         if let diff, let at = store.debugComment.flatMap(diff.spot) {
           store.debugComment = nil
@@ -412,44 +421,43 @@ struct ItemPage: View {
 
   // MARK: The AI review
 
+  // The AI review's concerns are its first notes: each a potential bug, marked on its line. Not an earlier commit's.
+  private func bugs(_ r: ReviewView) -> Int { r.aiStale == true ? 0 : r.ai?.concerns?.count ?? 0 }
+
+  private func model(_ r: ReviewView) -> DiffModel? {
+    r.order.map { DiffModel($0, guided: reading != "traditional", bugs: bugs(r)) }
+  }
+
   @ViewBuilder
-  private func aiBlock(_ c: Card) -> some View {
-    let open = (item?.state ?? "open") == "open"
-    if let ai {
-      VStack(alignment: .leading, spacing: 8) {
-        FlowLine(spacing: 8) {
-          Text(Words.verdict[ai.verdict ?? ""] ?? Words.capitalized(ai.verdict ?? ""))
-            .sans(15, 650, tracking: -0.01).foregroundStyle(ai.verdict == "skip" ? Theme.pencil : Theme.ink)
-          if let risk = ai.risk { RiskMeter(risk: risk) }
-          if ai.risk != "low", let reason = ai.riskReasons.first?.why { Text(reason).sans(13).foregroundStyle(Theme.pencil) }
-          if aiStale { Text("on an earlier commit").sans(13).foregroundStyle(Theme.pencil) }
-        }
-        if let summary = ai.summary, !summary.isEmpty { Prose(text: summary, size: 13.5).foregroundStyle(Theme.ink).lineSpacing(3) }
-        if let since = ai.since, !since.isEmpty { Lead(label: "Since your review:", text: since) }
-        // No diff here for the notes to sit in, so the concerns are always listed.
-        if let concerns = ai.concerns, !concerns.isEmpty {
-          VStack(alignment: .leading, spacing: 8) {
-            ForEach(concerns, id: \.self) { concern in
-              Prose(text: concern, size: 13.5).foregroundStyle(Theme.ink).lineSpacing(3)
-                .padding(.leading, 12)
-                .overlay(alignment: .leading) { Theme.ruleStrong.frame(width: 2) }
-            }
-          }
-        } else {
-          Text("No concerns.").sans(13).foregroundStyle(Theme.pencil)
-        }
-      }
-      .padding(.top, 2)
-    } else if generating {
-      Text("\(store.agent) is reviewing it.").sans(13).foregroundStyle(Theme.pencil)
-    } else if c.mine {
-      // Your own PR says what you wrote of it until a review exists, as the window's: its description's first paragraph.
-      if review?.aiError == nil, let first = item?.body?.split(whereSeparator: \.isNewline).first, !first.isEmpty {
-        Prose(text: String(first), size: 13.5).foregroundStyle(Theme.ink).lineSpacing(3)
-      }
-    } else if landed {
-      Text(open ? "No AI review yet." : "No AI review.").sans(13).foregroundStyle(Theme.pencil)
+  private func aiBlock(_ c: Card, _ proxy: ScrollViewProxy) -> some View {
+    // Yours gets no AI review unless asked for, so its description's first paragraph says what it's about.
+    if c.mine, ai == nil, let first = item?.body?.split(whereSeparator: \.isNewline).first, !first.isEmpty {
+      Prose(text: String(first), size: 13.5).foregroundStyle(Theme.ink).lineSpacing(3)
     }
+    if let review {
+      let busy = review.generating == true || store.asking.contains(c.id)
+      if !c.mine || review.ai != nil || busy || review.aiError != nil {
+        AiSection(
+          ai: review.ai, stale: review.aiStale == true, busy: busy, error: review.aiError, job: review.aiJob, now: store.now,
+          open: (item?.state ?? "open") == "open", notes: review.order?.notes?.count ?? 0, agent: store.agent,
+          // None for a PR in Merging: it's your agent's.
+          ask: c.inflight == true ? nil : { store.askReview(c, review) },
+          toLine: { path, side, line in
+            if let at = diff?.place(path: path, line: line, side: side) { reach(at, .center, proxy) }
+          },
+          more: debugAiOpen
+        )
+        .padding(.top, 2)
+      }
+    }
+  }
+
+  private var debugAiOpen: Bool {
+    #if DEBUG
+      store.debugAi == "open"
+    #else
+      false
+    #endif
   }
 
   // MARK: Its diff
@@ -459,15 +467,57 @@ struct ItemPage: View {
     let can = item?.state == "open" && review.diffHead != nil
     return VStack(alignment: .leading, spacing: 6) {
       SmallHead(text: Words.plural(review.files.isEmpty ? diff.list.count : review.files.count, "file") + " changed").id("diff")
+      // A review with steps reads two ways; the choice is this phone's and stays.
+      if !(review.order?.steps ?? []).isEmpty {
+        HStack(spacing: 20) {
+          tab("Guided Review", on: diff.guiding) { read("guided", review, proxy) }
+          tab("Traditional", on: !diff.guiding) { read("traditional", review, proxy) }
+        }
+      }
       DiffView(
         model: diff, files: review.files, conversation: review.conversation,
         sent: Diff.pending(sent, in: review.conversation, me: store.me), github: c.url.flatMap { URL(string: $0 + "/files") },
         comment: can ? { box = .line($0) } : nil, reply: can ? { box = .reply($0) } : nil,
-        show: { proxy.scrollTo($0) }
+        notes: review.ai?.notes ?? [], looks: review.aiStale == true ? [] : review.ai?.look ?? [], bugs: bugs(review),
+        diagrams: review.ai?.diagrams ?? [],
+        show: { proxy.scrollTo($0) }, jump: { reach($0, .top, proxy) },
+        traditional: { read("traditional", review, proxy) }
       )
       // Edge to edge: a line's wash runs the page's width, its text keeps the gutter.
       .padding(.horizontal, -Theme.pad)
     }
+  }
+
+  // One of the diff's two orders, as a word: the one on is ink with a rule under it. No box.
+  private func tab(_ name: String, on: Bool, _ press: @escaping () -> Void) -> some View {
+    Button(action: press) {
+      Text(name).sans(14, 600).foregroundStyle(on ? Theme.ink : Theme.pencil)
+        .frame(minHeight: 40)
+        .overlay(alignment: .bottom) { (on ? Theme.ink : Color.clear).frame(height: 2).clipShape(Capsule()) }
+        .contentShape(Rectangle())
+    }
+    .buttonStyle(.plain)
+    .accessibilityAddTraits(on ? .isSelected : [])
+  }
+
+  // To a place far down the diff. Its lines are drawn as they come near, so the first go lands where the list guessed
+  // the place would be; once that's drawn, the next lands on it. Never animated: a glide stops at the guess.
+  private func reach(_ at: String, _ anchor: UnitPoint, _ proxy: ScrollViewProxy) {
+    proxy.scrollTo(at, anchor: anchor)
+    Task {
+      for wait in [60, 200] {
+        try? await Task.sleep(for: .milliseconds(wait))
+        proxy.scrollTo(at, anchor: anchor)
+      }
+    }
+  }
+
+  // The other order, from its top.
+  private func read(_ how: String, _ review: ReviewView, _ proxy: ScrollViewProxy) {
+    guard reading != how || diff?.guiding != (how == "guided") else { return }
+    reading = how
+    diff = model(review)
+    proxy.scrollTo("diff", anchor: .top)
   }
 
   // MARK: Its stack
