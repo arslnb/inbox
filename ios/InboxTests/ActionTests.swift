@@ -1177,6 +1177,7 @@ final class StoreWriteTests: XCTestCase {
   func testARefusedSendSaysWhyAndClaimsNothing() async throws {
     try desk(["/api/asks": try asks()])
     await store.readAsks()
+    store.path = [.chat(ChatAbout(item: "acme/api#4127"))]
     for (status, words) in [
       (409, "your agent is off: Settings → Local Agent Integration"), (400, "thread_url must be a GitHub URL"),
       (400, "lines need head: the 40-character commit they were read at"), (403, "ask your agent from the desk's window"),
@@ -1196,6 +1197,44 @@ final class StoreWriteTests: XCTestCase {
     XCTAssertFalse(sent)
     XCTAssertEqual(store.whyNot, "The desk didn't answer, so it may or may not have been sent. Look before sending it again.")
     XCTAssertNotNil(store.address)
+  }
+
+  // The desk can take a minute to refuse (your agent didn't start) and rolls the ask back: whatever happened to the
+  // chat's page meanwhile, your words are in its draft again, before anything typed since, with why.
+  func testWordsTheDeskDidNotTakeAreKeptWhereverYouAre() async throws {
+    let about = ChatAbout(item: "acme/api#4127")
+    let words = "Your agent didn't start: claude isn't logged in"
+    try desk(["/api/ask": no(502, words)])
+
+    // On the chat: said there, no bubble.
+    store.path = [.item("acme/api#4127"), .chat(about)]
+    var sent = await store.ask("First words", about: about)
+    XCTAssertFalse(sent)
+    XCTAssertEqual(store.askDrafts["acme/api#4127"], "First words")
+    XCTAssertEqual(store.askFailed["acme/api#4127"], words + ".")
+    XCTAssertTrue(store.notices.isEmpty)
+
+    // Typed on meanwhile: the next message isn't lost, and neither is the one refused.
+    store.askDrafts["acme/api#4127"] = "And another thing"
+    sent = await store.ask("First words", about: about)
+    XCTAssertEqual(store.askDrafts["acme/api#4127"], "First words\n\nAnd another thing")
+
+    // Back on the PR by the time it's refused: a bubble says why, and the chat has both when it's opened again.
+    store.askDrafts = [:]
+    store.path = [.item("acme/api#4127")]
+    sent = await store.ask("First words", about: about)
+    XCTAssertFalse(sent)
+    XCTAssertEqual(store.notices.map(\.title), [words + "."])
+    XCTAssertEqual(store.askDrafts["acme/api#4127"], "First words")
+    XCTAssertEqual(store.askFailed["acme/api#4127"], words + ".")
+
+    // The next send that's taken clears it.
+    try desk(["/api/ask": Answer(body: #"{"ok":true}"#)])
+    store.askDrafts = [:]
+    sent = await store.ask("First words", about: about)
+    XCTAssertTrue(sent)
+    XCTAssertNil(store.askFailed["acme/api#4127"])
+    XCTAssertNil(store.askDrafts["acme/api#4127"])
   }
 
   // A double tap on Send is one turn of your agent.

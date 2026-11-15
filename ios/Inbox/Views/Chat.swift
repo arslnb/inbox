@@ -10,13 +10,13 @@ struct ChatPage: View {
   @Environment(\.openURL) private var openURL
   @State private var about: ChatAbout
   @State private var text = ""
-  @State private var failed: String?  // why the last send wasn't taken, in the desk's words
   @State private var woke: String?  // what Wake it came to
   @FocusState private var typing: Bool
 
   init(about: ChatAbout) { _about = State(initialValue: about) }
 
   private var key: String { about.item ?? "" }
+  private var failed: String? { store.askFailed[key] }  // why the last send wasn't taken, in the desk's words
   private var off: Bool { store.asks?.on == false }
   private var sending: Bool { store.busy(Store.chat) }
 
@@ -58,6 +58,10 @@ struct ChatPage: View {
     .onChange(of: text) { _, typed in
       if typed.count > Words.maxAsk { text = String(typed.prefix(Words.maxAsk)) }
       store.askDrafts[key] = typed.isEmpty ? nil : typed
+    }
+    // Words the desk didn't take come back through the draft (Store.ask), whether or not this page was here meanwhile.
+    .onChange(of: store.askDrafts[key]) { _, kept in
+      if (kept ?? "") != text { text = kept ?? "" }
     }
     .onChange(of: store.asks?.coordinator?.status) { woke = nil }
     // Read on open, then on each of the desk's updates once they settle. No timer.
@@ -256,13 +260,8 @@ struct ChatPage: View {
     let words = text.trimmingCharacters(in: .whitespacesAndNewlines)
     guard !words.isEmpty, !sending, !off else { return }
     let about = about
-    failed = nil
     text = ""
-    Task {
-      if await store.ask(words, about: about) { return }
-      if text.isEmpty { text = words }
-      failed = Words.sentence(store.whyNot ?? "It wasn't sent")
-    }
+    Task { await store.ask(words, about: about) }
   }
 }
 

@@ -65,6 +65,7 @@ final class Store {
   private(set) var inflight: InflightView?
   private(set) var asks: AsksView?  // your chat with your agent, as last read: the chat's page and the page menu's "waiting"
   var askDrafts: [String: String] = [:]  // what you'd typed to your agent and not sent, per item ("" for none)
+  private(set) var askFailed: [String: String] = [:]  // why the last send about it wasn't taken, in the desk's words
   private(set) var loads = 0  // bumped on every answer from the desk: an opened item refetches
   private(set) var offline = false
   private(set) var starting: String?
@@ -179,6 +180,7 @@ final class Store {
     inflight = nil
     asks = nil
     askDrafts = [:]
+    askFailed = [:]
     offline = false
     starting = nil
     broken = nil
@@ -650,15 +652,26 @@ final class Store {
 
   // Send: your words to your agent, about what the chat is on. It wakes your agent with them (a turn on your own Claude),
   // so only a press calls this, and a second press while one is on its way sends nothing. No toast: the ask shows in
-  // the chat, and so does a refusal, in the desk's words (`whyNot`), with your words kept.
+  // the chat, and so does a refusal, in the desk's words (`askFailed`). Words that weren't taken go back into the
+  // item's draft, before anything typed since; the desk can take a minute to refuse (your agent didn't start), so the
+  // chat may have been left by then: its draft still has them, and a bubble says why.
   static let chat = "ask"  // what busy() knows a send by
   @discardableResult
   func ask(_ text: String, about: ChatAbout) async -> Bool {
-    await write(Store.chat, still: "Still sending your last words.", bubble: false) { client in
+    let key = about.item ?? ""
+    askFailed[key] = nil
+    let took = await write(Store.chat, still: "Still sending your last words.", bubble: false) { client in
       // An update can land first and bring the ask already.
       if let a = try await client.ask(text, about: about).ask, self.asks?.asks.contains(where: { $0.id == a.id }) == false { self.asks?.asks.append(a) }
       return nil
     }
+    if took || address == nil { return took }
+    let why = Words.sentence(whyNot ?? "It wasn't sent")
+    askFailed[key] = why
+    let since = askDrafts[key] ?? ""
+    if since != text { askDrafts[key] = since.isEmpty ? text : "\(text)\n\n\(since)" }
+    if case .chat = path.last {} else { fail(why) }
+    return false
   }
 
   // Wake it under an ask your agent stopped on, and Try again on a failed ask in its work: it's handed that ask again.

@@ -281,7 +281,8 @@ default size all four fit beside the longest name, Hand off for merge).
   (then "Asked it again"); Watch it on claude.ai where it has a page. Above the box: your agent's open questions
   about the item (Answer opens the question) and the spot the next ask carries ("On azulus's thread on
   src/sync/merge.ts:88", × for the whole PR). The box: "Ask or tell it something" and **Send**; what you typed and
-  didn't send is kept per item. A refusal puts your words back with the desk's own in red. Your agent off: the page
+  didn't send is kept per item. A refusal puts your words back with the desk's own in red (`Store.askFailed`), before
+  anything you typed meanwhile; if you'd left the chat by then, a bubble says why and its draft has them. Your agent off: the page
   says so and the box is off. It opens from the page menu (**Ask your agent**, or **Your agent · waiting** while your
   latest ask has no answer; not with your agent off), an item's More, a conversation or a thread on a line, a
   line's box, a row of your agent's work, and after Make PR with fix. Opening it only reads (`GET /api/asks`, again
