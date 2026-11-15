@@ -366,6 +366,10 @@ Left out on purpose, each said here once.
   reaches, and no row shows a pin.
 - **A row's call to action acting from the list** (the window's Ready for review and Merge in one press): here a
   press on a row always opens its page, whose bar has the action, so a scroll can't merge.
+- **Only the window's header on a PR's page**: the window's review says nothing of why the PR is on your desk, its
+  stage or its age, since its row is beside it; a phone's page has no list beside it, so the row's why, stage, age,
+  comment count and labels lead the page. The rest is the window's: "Resolved: merged by li-wei", no Recent activity
+  on a PR (an issue has it), and Merging's line only when your agent said what it waits on.
 - **Staying on the review after a write that takes it off your desk**: after Approve, Comment on the PR or issue,
   Request changes, Close and Merge the phone goes back to the list, where the toast is; the window stays on the
   review. Only a comment on a line and a reply stay on the page.

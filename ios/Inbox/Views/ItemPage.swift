@@ -79,7 +79,8 @@ struct ItemPage: View {
           if let review { ReviewState(card: card, review: review, addReviewers: adds(card) ? { box = .reviewers } : nil) }
           if let stack { stackBlock(stack) }
           if let review, let diff, !diff.list.isEmpty { diffBlock(card, review, diff, proxy) }
-          activity(card)
+          // An issue's; a PR's review has none in the window (its activity only names who merged or closed it).
+          if !card.isPR { activity(card) }
           if !landed, failed == nil { LoadingLines() }
           if let failed { Text(failed).sans(13).foregroundStyle(Theme.red) }
         } else if let failed {
@@ -466,7 +467,10 @@ struct ItemPage: View {
   @ViewBuilder
   private func why(_ c: Card) -> some View {
     VStack(alignment: .leading, spacing: 8) {
-      if let resolved = c.resolved {
+      if let resolved = c.resolved, c.isPR {
+        // As the window's review says it: who merged or closed it. Its age is on the facts line above.
+        Lead(label: "Resolved:", text: Words.resolvedHead(events, resolved, me: store.me))
+      } else if let resolved = c.resolved {
         Lead(label: "Resolved:", text: "\(resolved). It comes back on its own if that stops being true.")
       } else if let why = c.why, !why.isEmpty, c.inflight != true {
         Prose(text: Words.capitalized(why), size: 15, weight: 550).foregroundStyle(Theme.ink)
@@ -474,7 +478,7 @@ struct ItemPage: View {
       if let h = c.handoff {
         Lead(label: (h.from ?? "").isEmpty ? "Handed to you:" : "From \(h.from!):", text: h.why ?? "", size: 14)
       }
-      if c.inflight == true, c.resolved == nil { Dotted(parts: mergingParts(c)).sans(13) }
+      if c.inflight == true, c.resolved == nil, let parts = mergingParts(c) { Dotted(parts: parts).sans(13) }
       // Why Approve is off, in the desk's words ("you approved this commit"), as its button's tooltip in the window.
       if open, c.act(open: open) == "approve", let no = review?.cantApprove { Text(no).sans(13).foregroundStyle(Theme.pencil) }
       if !c.active, c.resolved == nil {
@@ -484,12 +488,11 @@ struct ItemPage: View {
     }
   }
 
-  // In Merging: what it waits on, and your agent's latest note.
-  private func mergingParts(_ c: Card) -> [Dotted.Part] {
+  // In Merging: what it waits on, and your agent's latest note, as the window's head; nothing while there's neither.
+  private func mergingParts(_ c: Card) -> [Dotted.Part]? {
     let row = store.merging(c.id)
-    var parts: [Dotted.Part] = [.init("In Merging"), .init(row?.waitsOn ?? "your agent has it")]
-    if let note = row?.note?.text { parts.append(.init(note)) }
-    return parts
+    let said = [row?.waitsOn, row?.note?.text].compactMap { $0 }.filter { !$0.isEmpty }
+    return said.isEmpty ? nil : [.init("In Merging")] + said.map { .init($0) }
   }
 
   // MARK: The AI review

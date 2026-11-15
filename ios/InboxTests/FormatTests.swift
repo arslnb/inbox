@@ -437,6 +437,17 @@ final class FormatTests: XCTestCase {
     XCTAssertEqual(short.around("a/b#1", all: false).more, 0)
   }
 
+  // A resolved PR's line names who merged or closed it, from its activity (view.ts's resolvedHead()).
+  func testAResolvedPRSaysWhoMergedIt() throws {
+    let events = try DeskJSON.decoder().decode(
+      [ActivityEvent].self, from: Data(#"[{"seq":2,"kind":"commented","actor":"dana"},{"seq":1,"kind":"merged","actor":"li-wei"}]"#.utf8))
+    XCTAssertEqual(Words.resolvedHead(events, "merged", me: "me"), "merged by li-wei")
+    XCTAssertEqual(Words.resolvedHead(events, "merged", me: "Li-Wei"), "merged by you")
+    XCTAssertEqual(Words.resolvedHead(events, "closed", me: "me"), "closed", "nobody to name")
+    XCTAssertEqual(Words.resolvedHead(events, "approved by dana", me: "me"), "approved by dana")
+    XCTAssertEqual(Words.resolvedHead([], "no longer requested", me: "me"), "no longer requested")
+  }
+
   // An opened page's one call to action: the row's own first, then what the item is there for.
   func testAPagesCallToAction() throws {
     let queue: QueueView = try Fixture.decode("queue")

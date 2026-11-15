@@ -297,6 +297,14 @@ enum Words {
   }
 
   // One event in plain words, without its time: "alice approved", "CI went red". `me` reads as "you".
+  // A resolved PR's line on its review, as view.ts's resolvedHead(): who merged or closed it, from its activity.
+  static func resolvedHead(_ events: [ActivityEvent], _ resolved: String, me: String) -> String {
+    guard resolved == "merged" || resolved == "closed", let actor = events.first(where: { $0.kind == resolved })?.actor, !actor.isEmpty else {
+      return resolved
+    }
+    return "\(resolved) by \(!me.isEmpty && actor.lowercased() == me.lowercased() ? "you" : actor)"
+  }
+
   static func eventText(_ e: ActivityEvent, me: String) -> String {
     let d = e.data ?? [:]
     let actor = e.actor ?? ""
