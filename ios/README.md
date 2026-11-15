@@ -8,7 +8,8 @@ The phone pairs as a **phone** (a bearer token the desk takes as its own window'
 agent's). So it shows everything, it triages (Done, Snooze, Mute, Back on the desk, a move to another section, Undo),
 it filters its lists, it writes and finishes your notes, and it does what an item is on your desk for: approve, comment
 (on a PR, or on a line of its diff), reply, mark ready, ask reviewers, merge, hand off for merge, answer a question,
-kick a session, wake your agent. See [What the phone does](#what-the-phone-does-and-what-it-leaves). A phone paired before this (as a device)
+kick a session, wake your agent, ask your agent. See [What the phone does](#what-the-phone-does) and
+[Not on the phone](#not-on-the-phone). A phone paired before this (as a device)
 is still refused every write: disconnect it and pair again.
 
 ## Build and test
@@ -155,7 +156,7 @@ Tailscale gets the address its certificate: Connect again with the same code, wh
 A phone paired by a build that paired as a machine holds a token the desk refuses every write: at its next launch the
 app forgets it and asks to pair again (revoke the old pairing in Settings → Network).
 
-## What the phone does, and what it leaves
+## What the phone does
 
 A paired phone is your hands like the window (`fromDesk()` in `src/server.ts`; README → Safety). An opened page has one
 bar at its foot: Back, More, Snooze, Done, and the one call to action the item is there for, in the window's words.
@@ -165,10 +166,9 @@ default size all four fit beside the longest name, Hand off for merge).
 - **A PR or an issue.** The row's own call to action (Ready for review, Add reviewers, Reply, Merge); else Approve on
   someone else's PR, Comment on an issue, Hand off for merge on yours once it's through review (`Card.act(open:)`). In
   Merging the bar has Back to desk. More has Mute, Comment, Add reviewers (on your draft: Ready for review, asking
-  reviewers, which marks it ready and asks them in one go), Hand off for merge, exactly the GitHub writes
-  under On GitHub the writes the desk allows now, as the window's More (`Card.actions` less convert to draft, ready and
-  reopen: Close, Merge now, Request changes, Re-request review, Remove me as a reviewer), Open on GitHub and Copy GitHub
-  link. Approve, Merge and Request changes are pinned to the commit the page last drew (`Store.pins`, moved by every
+  reviewers, which marks it ready and asks them in one go), Hand off for merge, Ask your agent; under On GitHub the
+  writes the desk allows now, as the window's More (`Card.actions` less convert to draft, ready and reopen: Close,
+  Merge now, Request changes, Re-request review, Remove me as a reviewer); then Open on GitHub and Copy GitHub link. Approve, Merge and Request changes are pinned to the commit the page last drew (`Store.pins`, moved by every
   review that lands, as the window since 9f5819a): a push the page redrew is yours to approve, one it hasn't drawn yet
   the desk refuses, its words kept in the sheet. Whether you may approve is the desk's say (`approve.ok`): where it
   says no on an open PR, Approve is off and the page says why ("Can't approve: you approved this commit.").
@@ -212,12 +212,9 @@ default size all four fit beside the longest name, Hand off for merge).
   rest are on GitHub; past about 3,000 lines in all, every file starts folded. A review thread sits under its line
   (not an outdated one), drawn as under "What was said", with Reply and Open on GitHub; a resolved one is one line until pressed. On an open PR, press a
   line to comment on it: a removed line's comment goes on the old file's side, any other on the new one's. One line
-  only, pinned to the commit the diff is at. Your words show under the line as "You · sent" until the conversation
+  only, pinned to the commit the diff is at. The box's Ask your agent opens your chat on that line instead (your
+  comment's words stay in the box). Your words show under the line as "You · sent" until the conversation
   read again has them. Code stops growing at the first accessibility text size; what people said grows on.
-- **After a write** that takes it off your desk (Approve, Comment on the PR, Request changes, Close, Merge) the phone
-  goes back to the list, where its toast is; the window stays on the review. Deliberate: only a comment on a line and
-  a reply stay on the page. A reply leaves it only when the desk took the PR off (`Store.left()`): a reply was all it
-  asked of you and this was the last one waiting.
 - **What reviewers said.** Under the AI review, as the window's Conversation: "Waiting on your reply N", each with who,
   where ("src/auth.ts:42", ", outdated", or "on the PR") and when; what it comes to (your agent's gist, else the last
   comment's first line); your agent's take with its call in bold, "<agent> is reading it." or why it couldn't; "What
@@ -225,7 +222,9 @@ default size all four fit beside the longest name, Hand off for merge).
   conversations not waiting on you", opening to a line each, and a press on one opens its comments and a Reply. A
   thread gets a thread reply, a comment or a review a comment on the PR; a closed PR takes none. Nothing resolves a
   thread from here: "resolved" is only said. After a reply the page stays and reads the review again; until then your
-  words show as "You · sent". The bar's Reply answers the first one waiting; a draft is kept per conversation. A
+  words show as "You · sent"; it leaves the page only when the desk took the PR off (`Store.left()`: a reply was all
+  it asked of you and this was the last one waiting). The bar's Reply answers the first one waiting; a draft is kept
+  per conversation. Ask your agent, beside Reply, opens your chat on that conversation. A
   comment is text: `code` in the mono face, links as their URL, GitHub's tags and headings' hashes taken off.
 - **An issue's pre-review**, as the window's (`IssuePre` in `Detail.tsx`), under why it's here: "A bug." (a feature
   request, a question, an issue) and its summary; whether it was read from the code in your clone or the issue's text
@@ -259,12 +258,33 @@ default size all four fit beside the longest name, Hand off for merge).
   - **A row's menu** (long press), in the window's order: Done (or Back on the desk), Snooze, Move to Urgent, Standard
     or FYI (one section up or down, with Undo), Close on GitHub where the desk allows it (Undo reopens a PR); then the
     phone's Mute, Open on GitHub and Copy GitHub link. A Merging row's: Back to the desk.
-  - **A row's call to action is a label.** The window's Ready for review and Merge act from the row; here a press on
-    a row always opens its page, whose bar has the action, so a scroll can't merge.
   - **Blocked** draws its tree: a hairline in the indent from each row to the PR it needs.
   - **Merging**: your agent's line ends with **Wake it** (**Start it now** before its first turn, **Try again** when
     it can't run). Each press is a turn of your agent on your own Claude, so only a press sends one, and a second
     press while one is on its way sends nothing. A PR your agent only rebases isn't listed: it stays on the Inbox.
+    Between its rows and Merged, while there is any, **Claude's work** (your agent's name): the desk's ledger of what
+    it owes you. Each row: the PR's title, your ask in quotes or the question you answered; its ref; "Claude is
+    reviewing it" or "Your agent has it" (and "try 2 of 3"), "Waiting its turn", "Tries again in 2m" and why,
+    "Failed 3 times: …" in ink, or "Your answer to … hasn't been picked up"; and since when. A press opens the
+    review, your chat or the question. **Try again**, under a failed review or ask, is its own press: a review is
+    asked for again (`POST /api/review/:id/ai`, said at once, never waited for), an ask is handed to your agent again
+    (`POST /api/coordinator/wake { ask }`). An answer has none: only the session that asked can read it.
+- **Ask your agent.** The window's chat (`Chat.tsx`) as a page: "Your agent", the item it's about and × (ask about
+  nothing in particular). One conversation, every ask oldest first: your words; when, its item (a press opens it)
+  and "on plan.ts:20–23" or "on a thread"; then the answer and its time. An answer is your agent's words, drawn as
+  text: paragraphs, lists, bold, `code`, a code block on the sheet with **Copy** (it keeps its fence, to paste on
+  GitHub); a URL is shown, never a link. Under the last ask without an answer, what your agent is doing: "Waiting on
+  a permission prompt" (Answer it on claude.ai), "Queued: it gets this when it's done with what it's on", its latest
+  step in its own words or "On it", "It can't run: …" in red, or "It stopped without answering" with **Wake it**
+  (then "Asked it again"); Watch it on claude.ai where it has a page. Above the box: your agent's open questions
+  about the item (Answer opens the question) and the spot the next ask carries ("On azulus's thread on
+  src/sync/merge.ts:88", × for the whole PR). The box: "Ask or tell it something" and **Send**; what you typed and
+  didn't send is kept per item. A refusal puts your words back with the desk's own in red. Your agent off: the page
+  says so and the box is off. It opens from the page menu (**Ask your agent**, or **Your agent · waiting** while your
+  latest ask has no answer; not with your agent off), an item's More, a conversation or a thread on a line, a
+  line's box, a row of your agent's work, and after Make PR with fix. Opening it only reads (`GET /api/asks`, again
+  on each of the desk's updates, no timer); **Send and Wake it each spend a turn of your agent on your own Claude**,
+  so only a press sends one, and a second press while one is on its way sends nothing.
 - **Notes.** A note's row (Note, its words, Done, "at Tue 9:00" or "by you") opens its box: your words, **Remind me**
   (No reminder, In 1 hour, In 3 hours, Tomorrow 9:00, Monday 9:00, or Pick a time…, not before now), Save, Done (it
   leaves your desk for good, no Undo, as the window) and Close. A swipe on the row is Done too. **New note** is in the
@@ -282,18 +302,10 @@ sheet says so and the desk is read again, rather than claiming it wasn't sent. `
 meanwhile), says what the window says when it lands, and reads the desk again. The toast's Undo reopens a PR you closed
 and makes a converted draft ready again.
 
-Left for the computer: a diagram drawn as a figure and the review's drawn document (the phone shows a diagram's lines
-as text), asking for an AI review of your own PR that has none (the window's More), in the diff "more
-lines" around a hunk, word-level changes, syntax highlighting and a comment on a range of lines; a session's Open and its attach command
-(they act on the desk's computer; the session's page says so once), Merging's Copy attach command for your agent, Copy
-link (`inbox://…`: nothing on a phone opens it; Copy GitHub link is there), Ask your agent, and everything in Settings.
-Pin isn't here because it isn't in the window either: its only trace is a `p` key in `App.tsx` that no button, link or
-menu reaches, and no row shows a pin.
-
 What it calls: reads (`/api/overview`, `/api/queue`, `/api/inflight`, `/api/item`, `/api/inquiries/:id`,
-`/api/reviewers/:id`, `/api/events`, `/health`), `POST /api/act` (done, snooze, mute, unmute, restore, seen, inflight,
+`/api/reviewers/:id`, `/api/asks`, `/api/events`, `/health`), `POST /api/act` (done, snooze, mute, unmute, restore, seen, inflight,
 takeback, and urgent, standard, fyi), `/api/undo`, `/api/sync`, `/api/notes`, `/api/notes/:id`, `/api/notes/:id/done`,
-`/api/coordinator/wake` (only on a press), the writes above (`/api/review/:id/approve|comment|inline|reply|ready|reviewers|ai`,
+`/api/coordinator/wake` and `/api/ask` (each a turn of your agent: only on a press), the writes above (`/api/review/:id/approve|comment|inline|reply|ready|reviewers|ai`,
 `/api/issue/:id/analyze|fix|block|unblock`, `/api/github`, `/api/inquiries/:id/answer`, `/api/sessions/:id/kick`) and,
 once, `/api/pair`. And, not the desk: `https://avatars.githubusercontent.com/<login>?s=40` for a person's picture.
 
@@ -308,11 +320,56 @@ the same lines are in the order's hunks.
 What opening an issue costs: one `GET /api/item`, as the window's open, so the desk may start its pre-review when AI
 reviews are on and none is written for this version; a redraw asks again a second after the desk's last event. Nothing
 but a press posts `/api/issue/:id/analyze` (Analyze it, Try again, Read it again; `{ trust: true }` only from "Not an
-injection: analyze it"), `/fix` (Make PR with fix: a turn of your agent), `/block` or `/unblock`. The window opens Ask
-your agent on the issue after Make PR with fix; the phone stays on the page with the toast (`Store.askedAbout()` is
-where a chat would open).
+injection: analyze it"), `/fix` (Make PR with fix: a turn of your agent), `/block` or `/unblock`. After Make PR with
+fix the chat opens on the issue, as the window's (`Store.askedAbout()`): the desk made the ask, so nothing more is sent.
 
-Not in v0: Claude's work on Merging, notifications, themes other than the default light and dark, iPad.
+## Not on the phone
+
+Left out on purpose, each said here once.
+
+- **Settings' editors** (rules, automations, urgency criteria, themes, network, agents): configuration is done at the
+  desk's computer; the phone only renders the desk's state, in the default light and dark.
+- **The first run** (connecting GitHub, picking your agent): it sets up the desk's own machine, so it happens there.
+- **The update line and installing an update**: that's the desktop app updating itself.
+- **A session's Open**: the desk refuses it to a phone (403), since it opens a terminal on the desk's computer. The
+  session's page says so where its button would be.
+- **Copy attach command** (a session's and Merging's): a command to run on the desk's computer. Cheap to copy, but
+  only useful with Universal Clipboard.
+- **A bubble's "Fix rules" and "Open Settings → Local Agent Integration"**: they lead into Settings, which isn't
+  here; the bubble's words still show.
+- **The "Restarting the desk" and "The desk stopped" bubbles**: they come from the desktop app's own bridge, not the
+  API.
+- **Copy link** (`inbox://…`): nothing on a phone opens it; Copy GitHub link is there instead. Cheap if pasting to an
+  agent from the phone turns out to matter.
+- **Pin**: it isn't in the window either. Its only trace is a `p` key in `App.tsx` that no button, link or menu
+  reaches, and no row shows a pin.
+- **A row's call to action acting from the list** (the window's Ready for review and Merge in one press): here a
+  press on a row always opens its page, whose bar has the action, so a scroll can't merge.
+- **Staying on the review after a write that takes it off your desk**: after Approve, Comment on the PR or issue,
+  Request changes, Close and Merge the phone goes back to the list, where the toast is; the window stays on the
+  review. Only a comment on a line and a reply stay on the page.
+- **"More lines" around a hunk** (`GET /api/file`): the phone shows the hunks only, to keep the page and what it
+  reads small.
+- **Word-level changes and syntax highlighting** in the diff: plain added and removed lines.
+- **A comment on a range of lines** (the window's drag), and an ask about one: single lines only.
+- **Diagrams drawn as figures** (ELK layout, Excalidraw): a diagram is its lines as text, the window's own fallback.
+- **"Open the drawn review"** (the desk's rendered review document, in a web view): cheap, not built; it's a second
+  way to read the same review.
+- **The rule trace on an item**: a fold for tuning rules, which is done in Settings on the computer.
+- **Keys** (Esc, ⌘↵, ⌘1 to ⌘4, the arrows) **and the list beside a review**: they belong to a keyboard and a wide
+  window.
+- **Prefetching a review before it's opened** (the window's hover): a phone has no hover, and the desk already warms
+  diffs after each sync.
+- **Opening the pairing link from the phone's Camera app straight into the app** (a URL scheme or universal link):
+  each desk has its own private ts.net name, so the app scans the QR itself.
+- **A read-only page of the desk's settings** (`GET /api/settings`): cheap, but a page of settings you can't change
+  is a page without an action.
+- **A leaner review from the desk** (`?lean=1`, dropping each file's `patch`): not needed unless the answer proves
+  slow over a tailnet when measured.
+- **Asking for an AI review of your own PR that has none** (the window's More): yours shows one only once it exists.
+- **Links in your agent's answers**: a URL in the chat is text to read, not a link to follow.
+
+Not built at all: notifications, an iPad layout.
 
 ## Where things are
 
@@ -330,6 +387,10 @@ Not in v0: Claude's work on Merging, notifications, themes other than the defaul
 | Notes                                       | `Inbox/Views/NoteSheet.swift`; `Remind` in `Format.swift`; `Store.saveNote()`, `doneNote()`, `noting` |
 | People's pictures                           | `Avatar` in `Inbox/Views/Rows.swift`; whose: `Card.face`, `Standings.Standing.face`, `WhoLine` |
 | Wake it                                     | `Store.wake()`, `APIClient.wake()`                                                     |
+| Ask your agent (the chat)                   | `Inbox/Views/Chat.swift` (`ChatPage`); what it's about, its words and the waiting line: `ChatAbout`, `Wait`, `Asking` in `Inbox/Asking.swift` (Chat.tsx's); `Store.asks`, `readAsks()`, `ask()`, `wake(ask:toast:)`, `openChat()`, `askDrafts`; `APIClient.asks()`, `ask()`; `AsksView` in `Models.swift`; the route is `Route.chat` |
+| Where the chat opens from                   | the page menu in `DeskView.swift`; More, `asking()` and `askLine()` in `ItemPage.swift`; `SaidActions` (`ask`); `WriteSheet`'s `aside`; `Store.askedAbout()` |
+| An agent's answer as text                   | `Blocks.parse()`, `inline()`, `fencedCopy()` in `Inbox/Blocks.swift` (the twins of `src/prose.ts`); drawn by `ProseBlocks` in `Chat.swift` |
+| Your agent's work in Merging                | `WorkLine` in `DeskView.swift`; `Asking.workTitle()`, `workPhrase()`, `workSince()`, `canRetry()`; `Work` in `Models.swift`; Try again: `Store.retryReview()`, `wake(ask:toast:)` |
 | An item's page                              | `Inbox/Views/ItemPage.swift`                                                           |
 | A PR's State (checks, reviewers, merge)     | `Inbox/Views/ReviewState.swift`; `CheckGroup.of()` in `Format.swift` (view.ts's `checkGroups()`) |
 | What reviewers said, a comment's drawing, Reply | `Inbox/Views/Said.swift` (`WhatWasSaid`; `SaidComments` and `SaidActions`, shared with the diff's threads); words in `Format.swift` (`Words.place()`, `gist()`, `takeSplit()`, `saidText()`, `replyTo()`); `Store.reply()`, `left()` |
