@@ -84,6 +84,27 @@ wanted connect-scan-wrong && shot connect-scan-wrong -connect -scan "https://exa
 wanted inbox && shot inbox -deskURL "$DESK"
 wanted inbox-scrolled && shot inbox-scrolled -deskURL "$DESK" -scrollTo standard
 wanted inbox-empty && shot inbox-empty -deskURL "$DESK" -empty
+# The filter: its suggestions with the cursor in the box, a person as a pill with what matches, and the other two pages
+# it's on (Blocked lies flat and counts "n of m"; the Archive opens the groups with a match).
+wanted inbox-filter && shot inbox-filter -deskURL "$DESK" -filterFocus
+wanted inbox-filter-author && shot inbox-filter-author -deskURL "$DESK" -filter "author:dana "
+wanted inbox-filter-large && shot inbox-filter-large -deskURL "$DESK" -filter "involves:priya " -filterFocus \
+  -UIPreferredContentSizeCategoryName UICTContentSizeCategoryAccessibilityL
+wanted blocked-filter && shot blocked-filter -deskURL "$DESK" -page blocked -filter "web"
+wanted archive-filter && shot archive-filter -deskURL "$DESK" -page archive -filter "involves:marco "
+# FYI's first five and Show 3 more: the mock's FYI has six, which all show, so two of Standard's are moved there and back.
+if wanted inbox-fyi; then
+  for id in "acme/api#3052" "acme/api#3053"; do
+    curl -fs -X POST -H "Content-Type: application/json" -d "{\"id\":\"$id\",\"action\":\"fyi\"}" "$DESK/api/act" >/dev/null
+  done
+  shot inbox-fyi -deskURL "$DESK" -scrollTo fyi
+  for id in "acme/api#3052" "acme/api#3053"; do
+    curl -fs -X POST -H "Content-Type: application/json" -d "{\"id\":\"$id\",\"action\":\"standard\"}" "$DESK/api/act" >/dev/null
+  done
+fi
+# The note box: a new note, and one opened with its reminder.
+wanted note-new && shot note-new -deskURL "$DESK" -note new
+wanted note-edit && shot note-edit -deskURL "$DESK" -note n3
 wanted blocked && shot blocked -deskURL "$DESK" -page blocked
 wanted merging && shot merging -deskURL "$DESK" -page merging
 wanted archive && shot archive -deskURL "$DESK" -page archive

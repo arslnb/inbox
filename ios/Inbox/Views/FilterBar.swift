@@ -8,6 +8,7 @@ struct FilterBar: View {
   @Environment(Store.self) private var store
   @State private var focused = false
   @State private var open = false  // the suggestions; a person picked closes them until you type again
+  @ScaledMetric(relativeTo: .body) private var keyWidth: CGFloat = 72  // "Involves", with room before who
 
   private var startFocused: Bool {
     #if DEBUG
@@ -61,6 +62,8 @@ struct FilterBar: View {
         .padding(.bottom, 4)
       }
     }
+    // One line with a box in it: past the largest standard size a pill would leave the box no room. The rows below it grow on.
+    .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
     .background(Theme.paper)
     .overlay(alignment: .bottom) { Theme.rule.frame(height: 1) }
     .onChange(of: focused) { _, now in if now { open = true } }
@@ -71,10 +74,10 @@ struct FilterBar: View {
     let you = Filter.isYou(t.who.lowercased())
     return Button(action: drop) {
       HStack(alignment: .firstTextBaseline, spacing: 0) {
-        Text((Filter.label[t.key] ?? t.key) + " ").foregroundStyle(Theme.pencil)
+        Text((Filter.label[t.key] ?? t.key) + " ").foregroundStyle(Theme.pencil).fixedSize()
         if !you { Avatar(login: t.who) }
         Text(you ? "you" : t.who).sans(14, 550).foregroundStyle(Theme.ink).lineLimit(1)
-        Text(" ×").foregroundStyle(Theme.pencil)
+        Text(" ×").foregroundStyle(Theme.pencil).fixedSize()
       }
       .sans(14)
       .frame(minHeight: 44)
@@ -90,7 +93,7 @@ struct FilterBar: View {
       open = p.login.isEmpty
     } label: {
       HStack(alignment: .firstTextBaseline, spacing: 0) {
-        Text(Filter.label[p.key] ?? p.key).sans(14).foregroundStyle(Theme.pencil).frame(width: 72, alignment: .leading)
+        Text(Filter.label[p.key] ?? p.key).sans(14).foregroundStyle(Theme.pencil).fixedSize().frame(width: keyWidth, alignment: .leading)
         if p.login.isEmpty {
           Text(Filter.help[p.key] ?? "").sans(14).foregroundStyle(Theme.ink2).lineLimit(1).minimumScaleFactor(0.85)
         } else {

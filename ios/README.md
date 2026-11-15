@@ -5,9 +5,10 @@ computer over Tailscale. SwiftUI, iOS 17 or newer, iPhone only, no third-party p
 Simulator.
 
 The phone pairs as a **phone** (a bearer token the desk takes as its own window's, unlike a machine's, which is an
-agent's). So it shows everything, it triages (Done, Snooze, Mute, Back on the desk, Undo), and it does what an item is
-on your desk for: approve, comment (on a PR, or on a line of its diff), reply, mark ready, ask reviewers, merge, hand off for merge, answer a question, kick
-a session. See [What the phone does](#what-the-phone-does-and-what-it-leaves). A phone paired before this (as a device)
+agent's). So it shows everything, it triages (Done, Snooze, Mute, Back on the desk, a move to another section, Undo),
+it filters its lists, it writes and finishes your notes, and it does what an item is on your desk for: approve, comment
+(on a PR, or on a line of its diff), reply, mark ready, ask reviewers, merge, hand off for merge, answer a question,
+kick a session, wake your agent. See [What the phone does](#what-the-phone-does-and-what-it-leaves). A phone paired before this (as a device)
 is still refused every write: disconnect it and pair again.
 
 ## Build and test
@@ -68,6 +69,8 @@ xcrun simctl launch booted dev.inbox.ios -deskURL http://localhost:47841 -page m
 | `-review.view guided\|traditional`             | the diff's order where a review has steps, for this launch (the saved choice is left alone) |
 | `-said waiting\|more`                          | with `-open`: the first waiting conversation's own words unfolded, or the ones not waiting on you opened |
 | `-comment <path>:<line>`                       | with `-open`: the box for a comment on that line of the new file        |
+| `-filter "<text>" [-filterFocus]`              | the lists' filter as typed (`"author:dana "`: a term then a space is a pill); with the cursor in its box, so its suggestions show |
+| `-note new\|<note id>`                         | the note box: a new note, or that one opened (the mock's are `n1`, `n2`, `n3`) |
 | `-settings`                                    | the settings sheet                                                      |
 | `-empty`                                       | the desk as if nothing were on it                                       |
 | `-connect [-connectAddress <text>] [-connectError "<words>"]` | the connect screen, with that address and those words in red |
@@ -82,7 +85,10 @@ ios/shots.sh inbox item-pr   # only these
 
 It builds, installs on the booted simulator, starts the mock on port 47841 (and stops it), and writes
 `ios/.shots/<state>-<light|dark>.png` for: `connect` (in the Simulator, Scan the code is off and says why), `connect-error`, `connect-scan-wrong` (a QR that isn't a desk's), `inbox`, `inbox-scrolled`, `inbox-empty`,
-`blocked`, `merging`, `archive`, `item-pr` (with an AI review, folded, and its State; Approve), `item-pr-ai-open` (a
+`inbox-filter` (the filter's box with the cursor in it: Filter by person), `inbox-filter-author` (a pill and what it
+keeps), `inbox-filter-large` (the same at an accessibility text size), `inbox-fyi` (FYI's first five and Show 3 more),
+`blocked` (its tree's guides), `blocked-filter` (flat, "4 of 11"), `merging` (your agent's line with Wake it), `archive`,
+`archive-filter`, `note-new` and `note-edit` (the note box), `item-pr` (with an AI review, folded, and its State; Approve), `item-pr-ai-open` (a
 review with a goal, its fold opened), `item-pr-guided` (a step of the guide, its diagram as text), `item-pr-guided-note`
 (Look here and a potential bug under their line), `item-pr-guided-end` (the last step, its test file folded, the guide's
 end), `item-pr-ai-stale` (on an earlier commit, a new one being written), `item-pr-ai-failed` (Try again),
@@ -93,14 +99,16 @@ run, its checks opened), `item-pr-own` (your PR: who reviews it, + Add reviewers
 waits on your reply, each with your agent's read), `item-pr-said` (what one of them wrote, unfolded), `item-pr-more-conversations` (the ones not waiting on you, the first opened), `item-draft` (Ready for review; its description's first paragraph where a review would be), `item-mine` (Hand off for merge), `item-merging` (Back to desk),
 the boxes `approve`, `reply`, `reviewers` and `answer`, `question`, `session`, `session-kick`, `item-large` and `item-largest` (accessibility
 text sizes, where the bar's quiet buttons fold into More and the longest call to action keeps its words), `settings` and `offline` (a desk that isn't
-there). It won't shoot while something already answers on that port (a mock you started by
+there). People's pictures are asked of GitHub by login, and the mock's logins (dana, marco, priya) are real accounts'
+names: a shot shows whoever owns them, or nothing when GitHub can't be reached. It won't shoot while something already answers on that port (a mock you started by
 hand has whatever you did to it since): stop that first, or set `SHOTS_PORT`.
 
 Look at them after any change here, as `npm run shots` is looked at for the window: clipped or cut text, weights (a
 title is 500, a heading 650, a row's facts 400), the facts line when it runs out of room, both appearances, and the top
 and bottom edges: an opened page has no navigation bar, so its first line sits under the status bar and its bar at the
-foot stays on one line. What a shot can't show (the page menu, a row's swipe and long press, the More menu, a write and
-its toast or refusal, the toast's Undo, pull to refresh, and the swipe back from the left edge on each opened page, which
+foot stays on one line. What a shot can't show (the page menu with New note, a row's swipe and long press and each entry of its menu, the More
+menu, Show more, a pick from the filter's suggestions and Backspace on a pill, the reminder's menu and its date picker,
+Wake it, a write and its toast or refusal, the toast's Undo, pull to refresh, and the swipe back from the left edge on each opened page, which
 `Views/Acting.swift` keeps alive with the bar hidden), try by hand against the mock.
 
 ## On a real phone
@@ -220,9 +228,43 @@ default size all four fit beside the longest name, Hand off for merge).
   injection shows the flag in red and nothing else of the review: the bar's call to action is Block @who (their items
   are muted on your desk; nothing on GitHub), and "Not an injection: analyze it" reads it anyway. A blocked author's
   issue says so, with Unblock. The facts line adds how you were asked (unless the why says it) and who placed it.
-- **A question.** Its answers come straight under it, each a button that answers with it; Answer takes your own words;
-  Dismiss lets the agent decide.
-- **A session.** Kick or Resume (off until a rate limit resets), Done and Snooze.
+- **A question.** "Agent" and who asks; its answers come straight under it, each a button that answers with it; Send
+  opens the box for your own words ("Or write your own answer", 2,000 characters at most, as the desk takes); Dismiss
+  lets the agent decide. What it's about opens the item here, or on GitHub when the desk doesn't hold it. Its row's
+  menu: Answer, Dismiss.
+- **A session.** Kick or Resume (off until a rate limit resets), Done and Snooze; Mute is in More. Its whole folder is
+  under its name. Its row's menu: Done, Snooze (a time: a session has no activity to wait on, and its toast says only
+  the time), then Kick or Resume when that's its first action.
+- **The lists.** As the window's, in the desk's order.
+  - **The filter**, on the Inbox, Blocked and the Archive (one filter for the three; Merging has none): a box under the
+    page's name. Words match a row's title, repo, author or ref. `author:dana` keeps who opened it (a bot's PR counts
+    as the person it was opened for; `author:you`, yours) and `involves:dana` anyone on it. A term followed by a space
+    is a pill, drawn as words ("Author dana ×"): a press on it, or Backspace at the box's start, takes it off; Clear
+    empties the box. With the cursor in an empty box, "Filter by person" offers Author and Involves; a typed name
+    offers up to four people as Author (if they wrote a row) and as Involves; after `author:` or `involves:`, up to
+    eight people, most rows first. While filtering: a group with a match opens (its heading is no toggle until the
+    filter clears), Blocked lies flat, Blocked and the Archive count "3 of 12", FYI shows all, the first-pass line
+    hides, a note is kept by its words, and nothing left reads "No matches." Questions and sessions always show.
+  - **FYI** shows its first five when it has seven or more, then **Show N more**: a press shows the rest until you
+    leave the page. Its heading counts them all.
+  - **A row's menu** (long press), in the window's order: Done (or Back on the desk), Snooze, Move to Urgent, Standard
+    or FYI (one section up or down, with Undo), Close on GitHub where the desk allows it (Undo reopens a PR); then the
+    phone's Mute, Open on GitHub and Copy GitHub link. A Merging row's: Back to the desk.
+  - **A row's call to action is a label.** The window's Ready for review and Merge act from the row; here a press on
+    a row always opens its page, whose bar has the action, so a scroll can't merge.
+  - **Blocked** draws its tree: a hairline in the indent from each row to the PR it needs.
+  - **Merging**: your agent's line ends with **Wake it** (**Start it now** before its first turn, **Try again** when
+    it can't run). Each press is a turn of your agent on your own Claude, so only a press sends one, and a second
+    press while one is on its way sends nothing. A PR your agent only rebases isn't listed: it stays on the Inbox.
+- **Notes.** A note's row (Note, its words, Done, "at Tue 9:00" or "by you") opens its box: your words, **Remind me**
+  (No reminder, In 1 hour, In 3 hours, Tomorrow 9:00, Monday 9:00, or Pick a time…, not before now), Save, Done (it
+  leaves your desk for good, no Undo, as the window) and Close. A swipe on the row is Done too. **New note** is in the
+  page's menu. A refusal keeps your words in the box with the desk's own. Notes are the desk's: nothing on GitHub.
+- **People's pictures.** A person's GitHub picture before their name: a row's "by", who said what in a conversation
+  or a thread on a line, the reviewers' list, the filter's pills and suggestions. None for you, a bot or a team
+  (docs/ui.md; the window's code draws yours). Nothing is drawn, and no room kept, while one loads or when it doesn't,
+  and a login that failed isn't asked for again. **This request goes from the phone straight to GitHub**
+  (`avatars.githubusercontent.com/<login>?s=40`), not through the desk, with no token: it carries only the login.
 
 A press sends at once, as the window's buttons do. What takes words (Approve's optional comment, Comment, Reply, Request
 changes, Answer) is a sheet with a field and one named button, as tall as what's in it so it sits on the keyboard; if the desk
@@ -234,14 +276,17 @@ and makes a converted draft ready again.
 Left for the computer: a diagram drawn as a figure and the review's drawn document (the phone shows a diagram's lines
 as text), asking for an AI review of your own PR that has none (the window's More), in the diff "more
 lines" around a hunk, word-level changes, syntax highlighting and a comment on a range of lines; a session's Open and its attach command
-(they act on the desk's computer; the session's page says so once), Merging's Wake it, Start it now and Copy attach
-command for your agent, Ask your agent, and everything in Settings.
+(they act on the desk's computer; the session's page says so once), Merging's Copy attach command for your agent, Copy
+link (`inbox://…`: nothing on a phone opens it; Copy GitHub link is there), Ask your agent, and everything in Settings.
+Pin isn't here because it isn't in the window either: its only trace is a `p` key in `App.tsx` that no button, link or
+menu reaches, and no row shows a pin.
 
 What it calls: reads (`/api/overview`, `/api/queue`, `/api/inflight`, `/api/item`, `/api/inquiries/:id`,
 `/api/reviewers/:id`, `/api/events`, `/health`), `POST /api/act` (done, snooze, mute, unmute, restore, seen, inflight,
-takeback), `/api/undo`, `/api/sync`, the writes above (`/api/review/:id/approve|comment|inline|reply|ready|reviewers|ai`,
+takeback, and urgent, standard, fyi), `/api/undo`, `/api/sync`, `/api/notes`, `/api/notes/:id`, `/api/notes/:id/done`,
+`/api/coordinator/wake` (only on a press), the writes above (`/api/review/:id/approve|comment|inline|reply|ready|reviewers|ai`,
 `/api/issue/:id/analyze|fix|block|unblock`, `/api/github`, `/api/inquiries/:id/answer`, `/api/sessions/:id/kick`) and,
-once, `/api/pair`.
+once, `/api/pair`. And, not the desk: `https://avatars.githubusercontent.com/<login>?s=40` for a person's picture.
 
 What opening a PR costs: one `GET /api/review/:id` without `ahead`, exactly the window's open, so the desk may start
 its AI review (`review.auto_ai`) and your agent's read of the conversations waiting on you. Every redraw after it (the
@@ -258,8 +303,7 @@ injection: analyze it"), `/fix` (Make PR with fix: a turn of your agent), `/bloc
 your agent on the issue after Make PR with fix; the phone stays on the page with the toast (`Store.askedAbout()` is
 where a chat would open).
 
-Not in v0: the filter, notes (shown, not written or finished), Claude's work on
-Merging, people's pictures, notifications, themes other than the default light and dark, iPad.
+Not in v0: Claude's work on Merging, notifications, themes other than the default light and dark, iPad.
 
 ## Where things are
 
@@ -271,7 +315,12 @@ Merging, people's pictures, notifications, themes other than the default light a
 | The window's words (ages, snooze, bubbles)  | `Inbox/Format.swift`, kept in step with `web/src/format.ts`, `view.ts`, `notices.ts`   |
 | Colours, fonts, the mark                    | `Inbox/Theme.swift` (the default theme's tokens from `web/src/styles.css`)             |
 | A row                                       | `Inbox/Views/Rows.swift` (the window's two-line row, `.c-row`)                         |
-| The pages and their lists, a row's menu     | `Inbox/Views/DeskView.swift`                                                           |
+| The pages and their lists, a row's menu     | `Inbox/Views/DeskView.swift` (`CardMenu`, `NoteLine`, `SessionLine`; Merging's agent line and `wake()`) |
+| The filter                                  | `Filter` in `Inbox/Format.swift` (`parse()`, `matches()`, `people()`, `suggest()`, `picked()`, `dropped()`: view.ts's and Filter.tsx's); the box and its suggestions in `Inbox/Views/FilterBar.swift`; `Store.filter`, `shown()` |
+| FYI's five, a row's moves, Blocked's tree   | `Lists.fyiCut()`, `moves()`, `treeGuides()` in `Format.swift`; `TreeGuides` in `Rows.swift` |
+| Notes                                       | `Inbox/Views/NoteSheet.swift`; `Remind` in `Format.swift`; `Store.saveNote()`, `doneNote()`, `noting` |
+| People's pictures                           | `Avatar` in `Inbox/Views/Rows.swift`; whose: `Card.face`, `Standings.Standing.face`, `WhoLine` |
+| Wake it                                     | `Store.wake()`, `APIClient.wake()`                                                     |
 | An item's page                              | `Inbox/Views/ItemPage.swift`                                                           |
 | A PR's State (checks, reviewers, merge)     | `Inbox/Views/ReviewState.swift`; `CheckGroup.of()` in `Format.swift` (view.ts's `checkGroups()`) |
 | What reviewers said, a comment's drawing, Reply | `Inbox/Views/Said.swift` (`WhatWasSaid`; `SaidComments` and `SaidActions`, shared with the diff's threads); words in `Format.swift` (`Words.place()`, `gist()`, `takeSplit()`, `saidText()`, `replyTo()`); `Store.reply()`, `left()` |
