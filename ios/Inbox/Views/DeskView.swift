@@ -203,6 +203,10 @@ struct CardMenu: View {
         }
       }
       Divider()
+    } else {
+      // Merging's row: the one thing its menu writes.
+      Button("Back to the desk") { Task { await store.backToDesk(card) } }
+      Divider()
     }
     if let url = card.url.flatMap(URL.init(string:)) {
       Button("Open on GitHub") { openURL(url) }
