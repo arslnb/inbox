@@ -5084,6 +5084,29 @@ fieldset.au-field > legend {
   max-height: calc(100vh - 80px);
   overflow: hidden auto;
   background: var(--paper);
+  container-type: scroll-state;
+}
+
+/* Its hairline is its own to draw, so it can fade once the list is stuck under the head, where it divides nothing. */
+.rv-side > .rv-steps:not(:first-child) {
+  border-top-color: transparent;
+}
+
+.rv-side > .rv-steps:not(:first-child)::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: 1px;
+  background: var(--rule);
+  transition: opacity 0.15s;
+}
+
+@container scroll-state(stuck: top) {
+  .rv-steps::before {
+    opacity: 0;
+  }
 }
 
 /* The toggle's row, only over the diff, where the toggle is. */
@@ -6189,32 +6212,6 @@ ul.rv-status-why {
   border-left: 2px solid var(--rule);
 }
 
-.rv-file {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  padding: 4px 8px;
-  border: 0;
-  border-radius: 7px;
-  background: none;
-  color: var(--ink-2);
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-
-.rv-file:hover {
-  background: var(--side-hover);
-}
-
-/* The file you're in: the same neutral fill and pencil ring as the queue's cursor. */
-.rv-file.on {
-  background: var(--sel);
-  box-shadow: inset 0 0 0 1.5px var(--pencil);
-  color: var(--ink);
-}
-
 .rv-fname {
   display: flex;
   flex: 1;
@@ -6239,19 +6236,12 @@ ul.rv-status-why {
   text-overflow: ellipsis;
 }
 
-/* In the file list a long name wraps instead of losing its end; its folder gives way from its start, as in a file's header. */
-.rv-file .rv-fname {
-  align-items: baseline;
-}
-
-.rv-file .rv-base {
-  max-width: calc(100% - 1.8em);
-  white-space: normal;
-  overflow-wrap: break-word;
-}
-
 /* The guided review's steps as a timeline: a line down the dots, each step's name on one line (all of it in its tooltip),
-   the step you're on with a glowing dot in the accent and its name in ink. */
+   the step you're on a node in a fluorescent purple, flat, and its name in ink. */
+.rv-steps {
+  --orb: #b44dff;
+}
+
 .rv-steps ol {
   position: relative;
 }
@@ -6259,8 +6249,8 @@ ul.rv-status-why {
 .rv-steps ol::before {
   content: "";
   position: absolute;
-  top: 14px;
-  bottom: 14px;
+  top: 11px;
+  bottom: 11px;
   left: 12px;
   width: 1.5px;
   border-radius: 1px;
@@ -6273,10 +6263,10 @@ ul.rv-status-why {
   align-items: center;
   gap: 10px;
   width: 100%;
-  min-height: 28px;
+  min-height: 22px;
   padding: 0 8px 0 10px;
   border: 0;
-  border-radius: 7px;
+  border-radius: 6px;
   background: none;
   color: var(--ink-2);
   font: inherit;
@@ -6292,7 +6282,7 @@ ul.rv-status-why {
   color: var(--ink);
 }
 
-/* A pale node a step, its name dimmer; the step you're on is a glowing orb in the accent, its name in ink. */
+/* A pale node a step, its name dimmer. */
 .rv-step-dot {
   flex: none;
   width: 5px;
@@ -6313,10 +6303,7 @@ ul.rv-status-why {
   width: 7px;
   height: 7px;
   margin: 0 -1px;
-  background: var(--accent);
-  box-shadow:
-    0 0 0 2px color-mix(in oklab, var(--accent) 30%, transparent),
-    0 0 10px 2px color-mix(in oklab, var(--accent) 80%, transparent);
+  background: var(--orb);
 }
 
 .rv-step-name {
@@ -6326,6 +6313,76 @@ ul.rv-status-why {
   font-weight: 550;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+/* Traditional's files, the same timeline nested: a folder is a ring on its level's line with its files hanging a step
+   in on a line of their own, each li drawing its stretch so a line ends at its last row. */
+.rv-tree ol::before {
+  content: none;
+}
+
+.rv-tree ol ol {
+  margin-left: 14px;
+}
+
+.rv-tree li {
+  position: relative;
+}
+
+.rv-tree li::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 12px;
+  width: 1.5px;
+  background: var(--rule);
+}
+
+.rv-tree li:last-child::before {
+  bottom: auto;
+  height: 11px;
+}
+
+.rv-tree > ol > li:first-child::before {
+  top: 11px;
+}
+
+.rv-tree > ol > li:first-child:last-child::before {
+  content: none;
+}
+
+/* A folder: a ring on the line and its name, quieter than a file's; a click folds it. */
+.rv-step-row.rv-tree-dir {
+  padding-left: 9px;
+  color: var(--pencil);
+}
+
+.rv-tree-dir .rv-step-dot {
+  width: 7px;
+  height: 7px;
+  border: 1.5px solid var(--rule-strong);
+  background: var(--paper);
+}
+
+.rv-step-row.rv-tree-dir .rv-step-name {
+  font-weight: 450;
+  opacity: 1;
+}
+
+/* The folders of the file you're in: a ring in the node's purple, quieter than the file's own. */
+.rv-tree-dir.near {
+  color: var(--ink-2);
+}
+
+.rv-tree-dir.near .rv-step-dot {
+  border-color: var(--orb);
+}
+
+/* Folded with that file inside, it's the node in the file's place. */
+.rv-step-row.rv-tree-dir.on .rv-step-dot {
+  margin: 0;
+  border-color: var(--orb);
 }
 
 .rv-nn {

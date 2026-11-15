@@ -2587,7 +2587,7 @@ const SHOTS: Shot[] = [
       if (outside > 0 !== last.includes("Traditional"))
         bad(`with ${outside} files outside the guide, its end reads ${JSON.stringify(last)}`);
       if (await page.locator(".rv-side").isVisible()) {
-        const rows = await page.locator(".rv-files .rv-file").allTextContents();
+        const rows = await page.locator(".rv-files .rv-step-row").allTextContents();
         if (rows.length !== steps.length) bad(`the sidebar lists ${JSON.stringify(rows)}`);
       }
       if (name === "review-guided") await page.locator(".rv-views").scrollIntoViewIfNeeded();
@@ -2599,7 +2599,7 @@ const SHOTS: Shot[] = [
         // Where the sidebar is folded, opened to show the step you're in.
         if (!(await page.locator(".rv-side").isVisible())) await page.locator(".rv-side-toggle").click();
         await page.waitForTimeout(300);
-        const marked = await page.locator(".rv-files .rv-file.on").allTextContents();
+        const marked = await page.locator(".rv-files .rv-step-row.on").allTextContents();
         if (marked.length !== 1 || !marked[0]!.includes(steps[1]!.title)) bad(`the sidebar marks ${JSON.stringify(marked)}, not step 2`);
       }
       if (name === "review-guided-end") {
@@ -2625,6 +2625,33 @@ const SHOTS: Shot[] = [
         if (await page.locator(".rv-next, .rv-files[aria-label='Steps of the guided review']").count())
           bad("Traditional still shows the steps");
         await page.locator(".rv-views").scrollIntoViewIfNeeded();
+        // The sidebar's files, as folders: the file you're in is marked, its folders ringed; a folded one is marked in its place,
+        // and scrolling into a folded folder's file opens it.
+        if (await page.locator(".rv-side").isVisible()) {
+          await page.waitForTimeout(300);
+          const tree = page.locator(".rv-tree");
+          const lit = () => tree.locator(".rv-step-row.on").allTextContents();
+          const near = tree.locator(".rv-tree-dir.near");
+          if ((await lit()).join() !== "stream.ts" || (await near.allTextContents()).join() !== "src,planner")
+            bad(`the files mark ${JSON.stringify(await lit())} in ${JSON.stringify(await near.allTextContents())}`);
+          await near.last().click();
+          if (!(await lit()).join().startsWith("planner")) bad(`folded, the files mark ${JSON.stringify(await lit())}, not planner`);
+          await tree.locator(".rv-tree-dir.on").click();
+          if ((await lit()).join() !== "stream.ts") bad("a second click doesn't open the folder");
+          const routes = tree.locator(".rv-tree-dir", { hasText: "routes" });
+          await routes.click();
+          await page.evaluate(
+            `document.querySelector('.rv-file-sec[aria-label="src/routes/query.ts"]').scrollIntoView({ block: "start" })`,
+          );
+          await page.waitForTimeout(400);
+          if ((await routes.getAttribute("aria-expanded")) !== "true" || !(await lit()).join().startsWith("query.ts"))
+            bad(`scrolled into a folded folder, the files mark ${JSON.stringify(await lit())}`);
+          // Stuck under the head, the hairline above the list has faded.
+          const line = `getComputedStyle(document.querySelector(".rv-tree"), "::before").opacity`;
+          if ((await page.evaluate<string>(line)) !== "0") bad("stuck, the files' hairline still shows");
+          await page.locator(".rv-views").scrollIntoViewIfNeeded();
+          await page.waitForTimeout(300);
+        }
       }
     },
     after: async (page) => {

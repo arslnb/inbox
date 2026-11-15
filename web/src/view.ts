@@ -486,6 +486,40 @@ export function whereIs(view: QueueView, id: string): { page: keyof typeof PAGE_
   return group && page ? { page, group } : null;
 }
 
+// A review's files as folders, in the order reading reaches them: a folder with one folder in it reads as one ("web/src").
+export interface PathNode {
+  name: string;
+  path: string;
+  kids?: PathNode[]; // a folder's; a file has none
+}
+export function pathTree(paths: readonly string[]): PathNode[] {
+  const root: PathNode[] = [];
+  for (const p of new Set(paths)) {
+    const parts = p.split("/");
+    let at = root;
+    for (const [k, name] of parts.entries()) {
+      const path = parts.slice(0, k + 1).join("/");
+      if (k === parts.length - 1) {
+        at.push({ name, path });
+        break;
+      }
+      let dir = at.find((n) => n.kids && n.path === path);
+      if (!dir) {
+        dir = { name, path, kids: [] };
+        at.push(dir);
+      }
+      at = dir.kids ?? at;
+    }
+  }
+  const squash = (n: PathNode): PathNode => {
+    if (!n.kids) return n;
+    const only = n.kids.length === 1 ? n.kids[0] : undefined;
+    if (only?.kids) return squash({ name: `${n.name}/${only.name}`, path: only.path, kids: only.kids });
+    return { ...n, kids: n.kids.map(squash) };
+  };
+  return root.map(squash);
+}
+
 // Blocked's tree guide, from its rows' depths in the desk's order: per row, one per level, as `tree` draws them (├ └ │ or none).
 export type Guide = "tee" | "end" | "rail" | "gap";
 export function treeGuides(depths: number[]): Guide[][] {

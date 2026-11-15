@@ -49,6 +49,7 @@ import {
   checkGroups,
   currentFile,
   oldFromNew,
+  pathTree,
   wholeFor,
   diffRows,
   drawUpTo,
@@ -63,6 +64,7 @@ import {
   threadsOn,
   type Acted,
   type Dot,
+  type PathNode,
 } from "../view.ts";
 import { FIT, isTestPath, LEVEL, onLines, STATUS, traditional, VERDICT, walk, type Section } from "../../../src/sections.ts";
 import "../diffThemes.ts";
@@ -230,6 +232,7 @@ export function Review({
     keepComment(id, text);
   };
   const [shut, setShut] = useState<ReadonlySet<string>>(new Set()); // files whose diff you folded, by path
+  const [shutDirs, setShutDirs] = useState<ReadonlySet<string>>(new Set()); // folders you folded in the sidebar's files
   const [draft, setDraft] = useState<Draft | null>(() => restored(id, 1));
   const [sent, setSent] = useState<Sent[]>([]);
   const draftText = useRef(keptDraft(id)?.text ?? ""); // here, so a box Pierre redraws keeps your words without a render per keystroke
@@ -393,15 +396,24 @@ export function Review({
     };
   }, []);
 
-  // The sidebar scrolls on its own to keep the current file in sight; the page doesn't move.
+  // The sidebar's list scrolls on its own to keep the file or step you're in in sight; the page doesn't move.
   useKeyed(secIdx, () => {
-    const box = document.querySelector<HTMLElement>(".rv-side");
-    const on = box?.querySelector<HTMLElement>(".rv-file.on");
-    if (!box || !on || box.scrollHeight <= box.clientHeight) return;
-    const strip = box.querySelector<HTMLElement>(".rv-side-top")?.offsetHeight ?? 0; // pinned at its top, under the toggle
-    if (on.offsetTop < box.scrollTop + strip) box.scrollTop = on.offsetTop - strip - 8;
-    else if (on.offsetTop + on.offsetHeight > box.scrollTop + box.clientHeight)
-      box.scrollTop = on.offsetTop + on.offsetHeight - box.clientHeight + 8;
+    const on = document.querySelector<HTMLElement>(".rv-side .rv-step-row.on");
+    if (!on) return;
+    for (const box of [on.closest<HTMLElement>("nav"), on.closest<HTMLElement>(".rv-side")]) {
+      if (!box || box.scrollHeight <= box.clientHeight) continue;
+      const strip = box.querySelector<HTMLElement>(":scope > .rv-side-top")?.offsetHeight ?? 0; // pinned at its top, under the toggle
+      const b = box.getBoundingClientRect();
+      const r = on.getBoundingClientRect();
+      if (r.top < b.top + strip) box.scrollTop -= b.top + strip - r.top + 8;
+      else if (r.bottom > b.bottom) box.scrollTop += r.bottom - b.bottom + 8;
+    }
+  });
+
+  // Scrolling into a file opens the folders it sits in; one you fold while in it stays folded until you move on.
+  const onPath = folded && secIdx >= rest ? null : (list[secIdx]?.path ?? null);
+  useKeyed(onPath, () => {
+    if (onPath) setShutDirs((ds) => (hasInside(ds, onPath) ? new Set([...ds].filter((d) => !onPath.startsWith(`${d}/`))) : ds));
   });
 
   // A comment on this PR that GitHub refused after you'd left the review it was sent from comes back here.
@@ -1202,38 +1214,23 @@ export function Review({
           )}
           {steps.length > 0 && <StepList stops={stops} on={secIdx} onGo={goTo} />}
           {list.length > 0 && !steps.length && (
-            <nav className="rv-files" aria-label="Files">
+            <nav className="rv-files rv-steps rv-tree" aria-label="Files">
               <h2 className="rv-side-head">
                 <span>
                   {files.length} {files.length === 1 ? "file" : "files"}
                 </span>
               </h2>
-              <ol>
-                {list.map((x, i) => {
-                  if (list.findIndex((y) => y.path === x.path) !== i) return null; // each file once, where reading reaches it
-                  const [dir, name] = splitPath(x.path);
-                  const on = list[secIdx]?.path === x.path && !(folded && secIdx >= rest);
-                  return (
-                    <li key={x.path}>
-                      <button
-                        type="button"
-                        className={cls("rv-file", on && "on")}
-                        title={x.path}
-                        onClick={() => {
-                          goTo(i);
-                        }}
-                      >
-                        <span className="rv-fname">
-                          {dir && <Dir path={dir} />}
-                          <span className="rv-base">{breakable(name)}</span>
-                        </span>
-                        {list.some((y) => y.path === x.path && y.notes.length > 0) && <span className="rv-nn" title="AI notes" />}
-                        {x.level && <span className="rv-lvl">{LEVEL[x.level]}</span>}
-                      </button>
-                    </li>
-                  );
-                })}
-              </ol>
+              {/* The guide's timeline, nested: a folder's files hang under it, the file you're in marked as you scroll. */}
+              <FileTree
+                nodes={pathTree(list.map((x) => x.path))}
+                list={list}
+                on={onPath}
+                shut={shutDirs}
+                onFold={(d) => {
+                  setShutDirs((ds) => new Set(ds.has(d) ? [...ds].filter((x) => x !== d) : [...ds, d]));
+                }}
+                onGo={goTo}
+              />
             </nav>
           )}
         </aside>
@@ -1241,6 +1238,78 @@ export function Review({
     </div>
   );
 }
+
+// Whether any of these folders holds the file.
+const hasInside = (dirs: ReadonlySet<string>, path: string) => [...dirs].some((d) => path.startsWith(`${d}/`));
+
+// Traditional's files in the sidebar, as folders: each file once, where reading reaches it. A click folds a folder or opens
+// it; the folders of the file you're in are ringed, and a folded one is marked in its place.
+function FileTree({
+  nodes,
+  list,
+  on,
+  shut,
+  onFold,
+  onGo,
+}: {
+  nodes: PathNode[];
+  list: Section[];
+  on: string | null; // the file you're in
+  shut: ReadonlySet<string>; // folded folders, by path
+  onFold: (dir: string) => void;
+  onGo: (i: number) => void;
+}) {
+  return (
+    <ol>
+      {nodes.map((n) => {
+        if (n.kids) {
+          const open = !shut.has(n.path);
+          const holds = !!on?.startsWith(`${n.path}/`);
+          return (
+            <li key={`${n.path}/`}>
+              <button
+                type="button"
+                className={cls("rv-step-row", "rv-tree-dir", holds && (open ? "near" : "on"))}
+                aria-expanded={open}
+                title={`${open ? "Fold" : "Open"} ${n.path}`}
+                onClick={() => {
+                  onFold(n.path);
+                }}
+              >
+                <span className="rv-step-dot" aria-hidden="true" />
+                <span className="rv-step-name">{n.name}</span>
+                {!open && <span className="rv-lvl">{countFiles(n)}</span>}
+              </button>
+              {open && <FileTree nodes={n.kids} list={list} on={on} shut={shut} onFold={onFold} onGo={onGo} />}
+            </li>
+          );
+        }
+        const i = list.findIndex((y) => y.path === n.path);
+        const level = list[i]?.level;
+        return (
+          <li key={n.path}>
+            <button
+              type="button"
+              className={cls("rv-step-row", on === n.path && "on")}
+              aria-current={on === n.path ? "location" : undefined}
+              title={n.path}
+              onClick={() => {
+                onGo(i);
+              }}
+            >
+              <span className="rv-step-dot" aria-hidden="true" />
+              <span className="rv-step-name">{n.name}</span>
+              {list.some((y) => y.path === n.path && y.notes.length > 0) && <span className="rv-nn" title="AI notes" />}
+              {level && <span className="rv-lvl">{LEVEL[level]}</span>}
+            </button>
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
+const countFiles = (n: PathNode): number => (n.kids ? n.kids.reduce((sum, k) => sum + countFiles(k), 0) : 1);
 
 // The guided review's steps in the sidebar, where Traditional lists the files; the one you're in follows the scroll.
 function StepList({
@@ -1257,7 +1326,7 @@ function StepList({
       <h2 className="rv-side-head">
         <span>Guided Review</span>
       </h2>
-      {/* A timeline: a dot a step on one line down the list, the step you're on glowing in the accent. */}
+      {/* A timeline: a dot a step on one line down the list, the step you're on in a fluorescent purple. */}
       <ol>
         {stops.map((r) => {
           const here = on >= r.at && on < r.end;
@@ -2054,16 +2123,6 @@ export function withCode(text: string) {
   // oxlint-disable-next-line react/no-array-index-key -- a fixed split never reorders, and the same command can appear twice
   return text.split("`").map((part, i) => (i % 2 ? <code key={i}>{part}</code> : part));
 }
-
-// A long file name wraps after a "_", "-" or ".", never mid-word.
-const breakable = (name: string) =>
-  name.split(/(?<=[_.-])/).map((part, i) => (
-    // oxlint-disable-next-line react/no-array-index-key -- parts are positional and never reorder
-    <span key={i}>
-      {i > 0 && <wbr />}
-      {part}
-    </span>
-  ));
 
 // A long directory gives way from its start, so the file's own name stays whole and every name sits right after its folder.
 function Dir({ path }: { path: string }) {

@@ -74,6 +74,7 @@ import {
   stops,
   threadsOn,
   treeGuides,
+  pathTree,
   valueOf,
   whereIs,
   type KeyLike,
@@ -1372,4 +1373,24 @@ test("the filter's people: author: and involves: as pills once a space follows, 
     { login: "marco", author: false },
     { login: "me", author: true },
   ]);
+});
+
+test("pathTree nests a review's files in their folders, in reading order, a lone folder in a folder as one", () => {
+  assert.deepEqual(pathTree(["web/src/a.ts", "web/src/ui/b.tsx", "web/src/a.ts", "README.md", "web/src/c.ts"]), [
+    {
+      name: "web/src",
+      path: "web/src",
+      kids: [
+        { name: "a.ts", path: "web/src/a.ts" },
+        { name: "ui", path: "web/src/ui", kids: [{ name: "b.tsx", path: "web/src/ui/b.tsx" }] },
+        { name: "c.ts", path: "web/src/c.ts" },
+      ],
+    },
+    { name: "README.md", path: "README.md" },
+  ]);
+  assert.deepEqual(
+    pathTree(["docs", "docs/x.md"]).map((n) => !!n.kids),
+    [false, true],
+    "a file named as a folder is still a file",
+  );
 });
