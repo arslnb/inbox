@@ -1856,7 +1856,14 @@ test("a desk started on an empty home runs what GitHub comes with that's on: no 
   ]);
   assert.notEqual(card("acme/api#6").why.startsWith("Wide team pings"), true, "no automation moves your direct ask");
   assert.equal(card("acme/web#7").status, "active", "what's off by default does nothing");
-  assert.equal(fake.calls(), 0, "no model");
+  // What asked the model, if anything did: each call's prompt, cut short.
+  const prompts = Array.from({ length: fake.calls() }, (_, i) =>
+    fake
+      .stdin(i + 1)
+      .slice(0, 200)
+      .replaceAll(/\s+/g, " "),
+  );
+  assert.equal(fake.calls(), 0, `no model; asked: ${JSON.stringify(prompts)}`);
 
   // Its pin is undone as an automation's of yours is.
   const pin = t.desk.store.lastPin("acme/web#1")!;
