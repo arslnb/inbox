@@ -15,6 +15,7 @@ import { createApp } from "../src/server.ts";
 import type { Automation } from "../src/types.ts";
 import { fakeDecisions } from "./helpers/decisions.ts";
 import { idle, myPr, reviewAsk, setup, teamPing, UNSCORED } from "./helpers/desk.ts";
+import { unixOnly } from "./helpers/platform.ts";
 import { hoursAgo, makeItem, NOW } from "./helpers/items.ts";
 import { run as runFx, runSync } from "./helpers/run.ts";
 
@@ -156,6 +157,7 @@ const http =
     });
 
 test("a run puts what it lists on the desk with its why; what's on your queue, dealt with or resolved stays as it is", async (c) => {
+  if (unixOnly(c)) return;
   const fake = fakeClaude(c);
   const t = await setup([reviewAsk(1), reviewAsk(2), reviewAsk(3), teamPing(4), reviewAsk(5)], {
     settings: { "policy.judge": false, "notify.quiet": "" },
@@ -255,6 +257,7 @@ test("a run puts what it lists on the desk with its why; what's on your queue, d
 });
 
 test("a run with no answer, or one deleted while it runs, adds nothing; a run it was cut off in runs again", async (c) => {
+  if (unixOnly(c)) return;
   const fake = fakeClaude(c);
   const t = await setup([], { settings: { "policy.judge": false, "notify.quiet": "" } });
   c.after(t.cleanup);
@@ -301,6 +304,7 @@ test("a run with no answer, or one deleted while it runs, adds nothing; a run it
 });
 
 test("a run that fails says so, under the automation and in a notification", async (c) => {
+  if (unixOnly(c)) return;
   const fake = fakeClaude(c);
   const t = await setup([], { settings: { "policy.judge": false, "notify.quiet": "" } });
   c.after(t.cleanup);
@@ -314,6 +318,7 @@ test("a run that fails says so, under the automation and in a notification", asy
 });
 
 test("what fails an item is its error and the run goes on; a bug putting one on the desk is the run's, said once", async (c) => {
+  if (unixOnly(c)) return;
   const fake = fakeClaude(c);
   const t = await setup([reviewAsk(1)], { settings: { "policy.judge": false, "notify.quiet": "" } });
   c.after(t.cleanup);
@@ -340,6 +345,7 @@ test("what fails an item is its error and the run goes on; a bug putting one on 
 });
 
 test("on its schedule it runs once per due time, not for ones before you set it, and not while it's off", async (c) => {
+  if (unixOnly(c)) return;
   const fake = fakeClaude(c);
   fake.answer("Nothing needs you.", []);
   const t = await setup([], { settings: { "policy.judge": false } });
@@ -455,6 +461,7 @@ test("an agent writes or changes one and it's on as yours is; only you delete it
 });
 
 test("the desk stopping during a run stops it: it records, notifies and reports nothing, and the next start marks it cut", async (c) => {
+  if (unixOnly(c)) return;
   const fake = fakeClaude(c);
   const t = await setup([], { settings: { "policy.judge": false, "notify.quiet": "" } });
   c.after(t.cleanup);
@@ -518,6 +525,7 @@ const oldPrompt = (at: string) =>
   ].join("\n");
 
 test("an automation saved before they had verbs loads and runs as it did: the same prompt, the same answer shape, and it adds what it lists", async (c) => {
+  if (unixOnly(c)) return;
   const fake = fakeClaude(c);
   const t = await setup([teamPing(4), teamPing(5)], { settings: { "policy.judge": false, "notify.quiet": "" } });
   c.after(t.cleanup);
@@ -554,6 +562,7 @@ test("an automation saved before they had verbs loads and runs as it did: the sa
 });
 
 test("a run's item says what to do with it, and the desk does only what you allowed: another verb is refused, and the run says so", async (c) => {
+  if (unixOnly(c)) return;
   const fake = fakeClaude(c);
   const t = await setup([reviewAsk(1), teamPing(4), teamPing(5)], { settings: { "policy.judge": false, "notify.quiet": "" } });
   c.after(t.cleanup);
@@ -601,6 +610,7 @@ test("a run's item says what to do with it, and the desk does only what you allo
 });
 
 test("an automation's sort places the item and its trace says who; it holds until the item changes or you act, and never moves an ask by name", async (c) => {
+  if (unixOnly(c)) return;
   const fake = fakeClaude(c);
   const t = await setup([reviewAsk(1), teamPing(4), teamPing(5), teamPing(6)], { settings: { "policy.judge": false, "notify.quiet": "" } });
   c.after(t.cleanup);
@@ -677,6 +687,7 @@ test("an automation's sort places the item and its trace says who; it holds unti
 });
 
 test("its snooze, done and mute are the desk's own: logged as the automation's, the item says why, and Undo takes each back", async (c) => {
+  if (unixOnly(c)) return;
   const fake = fakeClaude(c);
   const t = await setup([teamPing(4), teamPing(5), teamPing(6), teamPing(7), teamPing(8)], {
     settings: { "policy.judge": false, "notify.quiet": "" },
@@ -745,6 +756,7 @@ test("its snooze, done and mute are the desk's own: logged as the automation's, 
 });
 
 test("its check is asked of each open item on your desk first: what passes is handed on, fenced; with none left nothing runs and no model is called", async (c) => {
+  if (unixOnly(c)) return;
   const fake = fakeClaude(c);
   fake.answer("Looked at two.", []);
   const t = await setup(
@@ -811,6 +823,7 @@ function moved(t: Awaited<ReturnType<typeof setup>>, changes: Record<string, Par
 }
 
 test("one with events runs when they land: once per sync pass, for the items they're on and no others, and what lands during a run waits for the next", async (c) => {
+  if (unixOnly(c)) return;
   const fake = fakeClaude(c);
   fake.answer("Looked.", []);
   const t = await setup([reviewAsk(1), reviewAsk(2), teamPing(4), reviewAsk(5)], {
@@ -1162,6 +1175,7 @@ test("the two reviewer nudges are rules on a schedule: no model, each PR on your
 });
 
 test("a question is one call with no tools: it says what to do with each item it was asked about, or leaves it alone", async (c) => {
+  if (unixOnly(c)) return;
   const fake = fakeClaude(c);
   const t = await setup([reviewAsk(1), teamPing(4), teamPing(5), teamPing(6)], { settings: { "policy.judge": false, "notify.quiet": "" } });
   c.after(t.cleanup);
@@ -1266,6 +1280,7 @@ test("a question is one call with no tools: it says what to do with each item it
 });
 
 test("with a decision model's key, a question goes to it instead of Claude: one typed request an item, acted on only when it's sure", async (c) => {
+  if (unixOnly(c)) return;
   const fake = fakeClaude(c);
   const KEY = "sk-or-v1-2222222222222222222222222222222222222222222222222222222222222222";
   // The stand-in is sure #4 is FYI, picks FYI for #5 without being sure, leaves #6, and wants #7 today.
@@ -1437,6 +1452,7 @@ test("a rule on events reads on past its batch: no run again without events, you
 });
 
 test("a run does what its automation allows when it acts: one turned off or narrowed during its run is refused", async (c) => {
+  if (unixOnly(c)) return;
   const fake = fakeClaude(c);
   const t = await setup([teamPing(4)], { settings: { "policy.judge": false, "notify.quiet": "" } });
   c.after(t.cleanup);
@@ -1458,6 +1474,7 @@ test("a run does what its automation allows when it acts: one turned off or narr
 });
 
 test("a refused item's ref, the run's own words, never reaches the next run's prompt", async (c) => {
+  if (unixOnly(c)) return;
   const fake = fakeClaude(c);
   const t = await setup([teamPing(4)], { settings: { "policy.judge": false, "notify.quiet": "" } });
   c.after(t.cleanup);
@@ -1552,6 +1569,7 @@ test("a rule that clears what a sync brought runs before the desk notifies about
 });
 
 test("an agent on new events doesn't run again for an item its own add brought onto the desk", async (c) => {
+  if (unixOnly(c)) return;
   const fake = fakeClaude(c);
   const t = await setup([teamPing(4)], { settings: { "policy.judge": false, "notify.quiet": "" } });
   c.after(t.cleanup);
@@ -1637,6 +1655,7 @@ test("a scheduled question asks about what's new to it: an item it was asked abo
 });
 
 test("an agent's run is denied reading the desk's secrets file, by the arguments it starts with", async (c) => {
+  if (unixOnly(c)) return;
   const fake = fakeClaude(c);
   fake.answer("Nothing.", []);
   const t = await setup([], { settings: { "policy.judge": false } });
@@ -1714,6 +1733,7 @@ test("a question waiting on its model asks again at once when you edit it or set
 });
 
 test("an event automation whose run failed waits half an hour before its next, and says so once", async (c) => {
+  if (unixOnly(c)) return;
   const fake = fakeClaude(c);
   fake.fail();
   const t = await setup([myPr(1, { ci: "green" })], { settings: { "policy.judge": false, "notify.quiet": "" } });
@@ -1756,7 +1776,12 @@ const TIDY = {
 test("a plugin's automation runs as yours do, its effects in its name and undone alike; switched off it stays off, and only from the window", async (c) => {
   fakeClaude(c);
   const t = await setup([reviewAsk(1), teamPing(4), teamPing(5)], { settings: { "policy.judge": false, "notify.quiet": "" } });
-  c.after(t.cleanup);
+  // The desk started again below closes first: Windows can't remove a home whose store is open.
+  let next: Desk | undefined;
+  c.after(async () => {
+    next?.stop();
+    await t.cleanup();
+  });
   t.desk.gh.automations = [TIDY];
   t.desk.automations.start(); // a fresh desk: the first sync is its news
   await runFx(t.desk.sync());
@@ -1801,10 +1826,7 @@ test("a plugin's automation runs as yours do, its effects in its name and undone
   await runFx(t.desk.sync());
   assert.equal(card(6).status, "active");
   t.desk.stop();
-  const next = new Desk({ home: t.home, github: t.gh, now: () => NOW, notify: () => {}, log: () => {} });
-  c.after(() => {
-    next.stop();
-  });
+  next = new Desk({ home: t.home, github: t.gh, now: () => NOW, notify: () => {}, log: () => {} });
   next.gh.automations = [TIDY];
   assert.equal(runSync(next.automations.get("github.tidy-pings")).on, false, "off across a restart");
   // A release that changes its definition just takes effect; one it drops is gone.
@@ -1831,7 +1853,12 @@ test("a desk started on an empty home runs what GitHub comes with that's on: no 
     ],
     { builtIns: true },
   );
-  c.after(t.cleanup);
+  // The desk started again below closes first: Windows can't remove a home whose store is open.
+  let next: Desk | undefined;
+  c.after(async () => {
+    next?.stop();
+    await t.cleanup();
+  });
   assert.equal(fs.existsSync(path.join(t.home, "settings.json")), false, "no settings");
   assert.deepEqual(t.desk.automations.own(), [], "no automations of yours");
   assert.deepEqual(
@@ -1871,10 +1898,7 @@ test("a desk started on an empty home runs what GitHub comes with that's on: no 
   assert.equal((await req("PUT", "/api/automations/github.wide-ping/on", { on: false }, DESK)).status, 200);
   assert.equal(at("acme/api#5"), "active fyi: asked of @ml-team");
   t.desk.stop();
-  const next = new Desk({ home: t.home, github: t.gh, now: () => NOW, notify: () => {}, log: () => {} });
-  c.after(() => {
-    next.stop();
-  });
+  next = new Desk({ home: t.home, github: t.gh, now: () => NOW, notify: () => {}, log: () => {} });
   assert.deepEqual(
     next.automations
       .all()
