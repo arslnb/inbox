@@ -251,7 +251,12 @@ struct InboxList: View {
                   InquiryRow(q: q, now: store.now)
                 }
                 .buttonStyle(RowPress()).deskRow()
-                .contextMenu { Button("Answer") { store.path.append(.inquiry(q.id)) } }
+                .contextMenu {
+                  Button("Answer") { store.path.append(.inquiry(q.id)) }
+                  Divider()
+                  // Left unanswered: the agent decides itself.
+                  Button("Dismiss") { Task { await store.answer(q, text: nil) } }
+                }
               }
               ForEach(active) { s in SessionLine(s: s) }
               ForEach(due) { n in NoteRow(n: n, now: store.now).deskRow() }
