@@ -721,6 +721,21 @@ enum Lists {
 
   static func cleared(_ v: QueueView) -> [Card] { v.cleared.filter { $0.status != "done" } }
 
+  // Blocked's tree guide, from its rows' depths in the desk's order: per row, one per level (view.ts's treeGuides()):
+  // ├ a branch with more under the same row, └ its last, │ the line past a deeper row, or nothing.
+  enum Guide: Equatable, Sendable { case tee, end, rail, gap }
+
+  static func treeGuides(_ depths: [Int]) -> [[Guide]] {
+    // Whether a later row hangs at level k under the same row as this one does, before the tree climbs above k.
+    let more = { (i: Int, k: Int) -> Bool in
+      for d in depths[(i + 1)...] where d <= k { return d == k }
+      return false
+    }
+    return depths.enumerated().map { i, d in
+      (0..<max(d, 0)).map { l in l + 1 == d ? (more(i, d) ? .tee : .end) : more(i, l + 1) ? .rail : .gap }
+    }
+  }
+
   // Where a row on the Inbox can move: one section up or down (RowMenu.tsx's MOVES), each an action /api/act takes.
   static let sectionName = ["urgent": "Urgent", "standard": "Standard", "fyi": "FYI"]
   static func moves(_ c: Card) -> [String] {

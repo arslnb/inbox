@@ -292,6 +292,19 @@ final class FormatTests: XCTestCase {
     XCTAssertNil(Words.issueURL("a b/c#1"))
   }
 
+  // web/test/view.test.ts: "treeGuides draws Blocked's tree from its depths: a branch with more under it, its last, the
+  // line past a deeper row, none".
+  func testBlockedsTreeGuides() throws {
+    // web#1; web#2 and web#3 under it, web#4 under web#3 and web#5 under web#2; then a chain of its own.
+    XCTAssertEqual(Lists.treeGuides([0, 1, 2, 1, 2, 0, 1]), [[], [.tee], [.rail, .end], [.end], [.gap, .end], [], [.end]])
+    XCTAssertEqual(Lists.treeGuides([0, 0]), [[], []], "rows of their own draw nothing")
+    XCTAssertEqual(Lists.treeGuides([]), [])
+    let q: QueueView = try Fixture.decode("queue")
+    let drawn = Lists.treeGuides((q.sections?.blocked ?? []).map { $0.depth ?? 0 })
+    XCTAssertEqual(Array(drawn[2...4]), [[], [.end], [.gap, .end]], "billing#2300, #2302 under it, #2303 under that")
+    XCTAssertEqual(Array(drawn[7...10]), [[], [.tee], [.end], [.gap, .end]], "web#2306 with two under it, the second with one of its own")
+  }
+
   // RowMenu.tsx's MOVES: one section up or down, for an active card on the Inbox.
   func testWhereARowCanMove() throws {
     let card = { (more: String) in

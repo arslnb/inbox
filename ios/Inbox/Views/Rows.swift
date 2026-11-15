@@ -343,6 +343,50 @@ struct MergingRow: View {
   }
 }
 
+// Blocked's tree, in a row's indent: a hairline per level, as the window's `.tree` (a branch, its last, the line past
+// a deeper row). It runs the row's whole height, so the lines of neighbouring rows meet.
+struct TreeGuides: View {
+  let guides: [Lists.Guide]
+  static let step: CGFloat = 16  // a level's width
+  static let most = 6  // levels drawn: a deeper row sits at the sixth
+
+  var body: some View {
+    HStack(spacing: 0) {
+      ForEach(Array(guides.prefix(TreeGuides.most).enumerated()), id: \.offset) { _, g in
+        Line(guide: g).stroke(Theme.ruleStrong, lineWidth: 1).frame(width: TreeGuides.step)
+      }
+    }
+    .frame(maxHeight: .infinity)
+    .accessibilityHidden(true)
+  }
+
+  private struct Line: Shape {
+    let guide: Lists.Guide
+
+    func path(in rect: CGRect) -> Path {
+      var p = Path()
+      let x: CGFloat = 7.5
+      let mid: CGFloat = 20.5  // the title's first line
+      switch guide {
+      case .gap: break
+      case .rail:
+        p.move(to: .init(x: x, y: 0))
+        p.addLine(to: .init(x: x, y: rect.height))
+      case .tee:
+        p.move(to: .init(x: x, y: 0))
+        p.addLine(to: .init(x: x, y: rect.height))
+        p.move(to: .init(x: x, y: mid))
+        p.addLine(to: .init(x: x + 5, y: mid))
+      case .end:
+        p.move(to: .init(x: x, y: 0))
+        p.addLine(to: .init(x: x, y: mid - 5))
+        p.addQuadCurve(to: .init(x: x + 5, y: mid), control: .init(x: x, y: mid))
+      }
+      return p
+    }
+  }
+}
+
 // A section's heading: its name and its count on one baseline; a tap folds it.
 struct GroupHead: View {
   let label: String

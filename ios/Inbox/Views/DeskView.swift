@@ -143,13 +143,15 @@ struct CardLine: View {
   @Environment(\.openURL) private var openURL
   let card: Card
   let variant: RowVariant
-  var indent: CGFloat = 0
+  var guides: [Lists.Guide] = []  // Blocked's tree: the row sits a level in per guide
 
   var body: some View {
     Button {
       store.path.append(.item(card.id))
     } label: {
-      CardRow(card: card, variant: variant, now: store.now).padding(.leading, indent)
+      CardRow(card: card, variant: variant, now: store.now)
+        .padding(.leading, CGFloat(min(guides.count, TreeGuides.most)) * TreeGuides.step)
+        .overlay(alignment: .topLeading) { if !guides.isEmpty { TreeGuides(guides: guides).padding(.leading, Theme.pad) } }
     }
     .buttonStyle(RowPress())
     .deskRow()
@@ -431,7 +433,10 @@ struct BlockedList: View {
         } else {
           Section {
             // A tree in the desk's order; filtered, some of it is missing, so it lies flat.
-            ForEach(cards) { c in CardLine(card: c, variant: .blocked, indent: filtering ? 0 : CGFloat(min(c.depth ?? 0, 4)) * 16) }
+            let guides = filtering ? [] : Lists.treeGuides(cards.map { $0.depth ?? 0 })
+            ForEach(Array(cards.enumerated()), id: \.element.id) { i, c in
+              CardLine(card: c, variant: .blocked, guides: guides.isEmpty ? [] : guides[i])
+            }
           } header: {
             GroupHead(label: "Blocked", count: filtering ? "\(cards.count) of \(all.count)" : "\(all.count)").deskHead()
           }
