@@ -9,6 +9,7 @@ export const SETTINGS_PARTS: readonly { id: string; name: string; plugin?: true;
   { id: "appearance", name: "Appearance" },
   { id: "app", name: "This device" },
   { id: "tailscale", name: "Tailscale" },
+  { id: "lan", name: "Local network" },
   { id: "github", name: "GitHub", plugin: true },
   { id: "sessions", name: "Sessions", plugin: true, automations: false },
 ];

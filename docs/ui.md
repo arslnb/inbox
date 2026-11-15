@@ -462,7 +462,7 @@ Code: `src/links.ts`; the protocol in `electron/main.ts`.
 
 No tabs. In Settings the sidebar lists its parts in place of the pages, under **‹ Inbox** (⌘1–⌘4 still open the pages):
 
-- The core's: Inbox and notifications, Local Agent Integration, Automation Rules, Appearance, This device, Tailscale.
+- The core's: Inbox and notifications, Local Agent Integration, Automation Rules, Appearance, This device, Tailscale, Local network.
 - Under a hairline, one per plugin: GitHub, Sessions.
 
 `SETTINGS_PARTS` in `web/src/view.ts`. The sidebar's Settings and `#/settings` open the first part.
@@ -566,6 +566,10 @@ Your criteria on one sheet, under your automations ([api.md → Urgency](api.md#
 ### Tailscale
 
 Only in the desktop app (in a browser it says to open the app): **Use it from your other devices**, under it where it serves and each paired device with **Revoke**, then **Tailscale login allowed in** ([api.md → Security model](api.md#security-model)).
+
+### Local network
+
+**Read it from your local network** and **Local network token** ([api.md → Security model](api.md#security-model)).
 
 #### Themes
 

@@ -35,6 +35,7 @@ export const SECTIONS: SettingsSection[] = [
   { id: "queue", title: "Inbox and notifications" },
   { id: "app", title: "This device" },
   { id: "tailscale", title: "Tailscale" },
+  { id: "lan", title: "Local network" },
 ];
 
 export const SETTINGS = [
@@ -351,6 +352,23 @@ export const SETTINGS = [
     type: "string",
     default: "",
     help: "Empty: the login that owns this machine in Tailscale.",
+  },
+  {
+    key: "lan.on",
+    section: "lan",
+    label: "Read it from your local network",
+    type: "boolean",
+    default: false,
+    help: "Read only, over plain HTTP on every interface, at the desk's port + 1 (47824), with the token below.",
+  },
+  {
+    key: "lan.token",
+    section: "lan",
+    label: "Local network token",
+    type: "secret",
+    default: "",
+    placeholder: "Any long random string",
+    help: "A browser asks for it (any username); curl -u :<token>, or Authorization: Bearer <token>.",
   },
 ] as const satisfies readonly SettingDef[];
 

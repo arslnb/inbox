@@ -69,6 +69,9 @@ export const serveOff = tailscale(["serve", HTTPS, "off"]).pipe(Effect.asVoid);
 const digest = (s: string) => crypto.createHash("sha256").update(s).digest("hex");
 const same = (a: string, b: string) => a.length === b.length && crypto.timingSafeEqual(Buffer.from(a), Buffer.from(b));
 
+// The local network's token against what was sent, in constant time.
+export const sameSecret = (given: string, secret: string) => same(digest(given), digest(secret));
+
 const ALPHABET = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ"; // no 0/O, 1/I
 const CODE_MS = 10 * 60_000;
 const TRIES = 5; // pairing attempts a minute, from anyone

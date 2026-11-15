@@ -2,6 +2,7 @@
 import fs from "node:fs";
 import { Server, type IncomingMessage } from "node:http";
 import net from "node:net";
+import os from "node:os";
 import path from "node:path";
 import type { Duplex } from "node:stream";
 import { fileURLToPath } from "node:url";
@@ -38,7 +39,7 @@ import { instrument, logLine } from "./sentry.ts";
 import { openUrl } from "./notify.ts";
 import { readOmarchy, watchOmarchy } from "./omarchy.ts";
 import type { AppUpdater } from "./updates.ts";
-import { Remote, readTailnet, serveOff, serveOn } from "./remote.ts";
+import { Remote, readTailnet, sameSecret, serveOff, serveOn } from "./remote.ts";
 import { dropHostSession, fetchPr, generateReview, installed, loggedIn } from "./review.ts";
 import { fetchIssue, findClone, generateIssueReview } from "./issue.ts";
 import { DOC_CSP } from "./render.ts";
@@ -161,6 +162,14 @@ export const remoteFetch =
     REMOTE.add(req);
     return app.fetch(req, env);
   };
+// Requests that came in on the local network's listener (Settings → Local network): read only, with its token.
+const LAN = new WeakSet<Request>();
+export const lanFetch =
+  (app: Hono) =>
+  (req: Request, env?: unknown): Response | Promise<Response> => {
+    LAN.add(req);
+    return app.fetch(req, env);
+  };
 const SESSION = "__Host-inbox"; // a paired browser's token: HttpOnly, Secure, SameSite=Strict, this host only
 
 // The desk's own page, for its GitHub writes (approve, a reply, ready for review, the More menu's), hand-offs and asks: a browser marks the request same-origin and sends an Origin, which
@@ -270,10 +279,31 @@ export function createApp(desk: Desk, port: number, remote: Remote = new Remote(
       }
       return Effect.fail(new Unauthorized({ message: "pair this device first: run desk pair on the desk's machine" }));
     });
+  // From the local network: the desk's own address as Origin, GET only, and the token, as Basic auth's password or a bearer.
+  const lan = (c: Context) =>
+    Effect.suspend((): Effect.Effect<void, Forbidden | Unauthorized> => {
+      const refused = (message: string) => Effect.fail(new Forbidden({ message }));
+      const secret = desk.settings["lan.token"];
+      if (!desk.settings["lan.on"] || !secret) return refused("this desk isn't served on the local network now");
+      if (c.req.method !== "GET" && c.req.method !== "HEAD") return refused("from the local network the desk is read only");
+      const origin = c.req.header("origin");
+      if (origin && origin !== new URL(c.req.url).origin) return refused("forbidden origin");
+      const site = c.req.header("sec-fetch-site");
+      if ((site === "cross-site" || site === "same-site") && (c.req.path.startsWith("/api/") || c.req.path === "/mcp"))
+        return refused("forbidden cross-site request");
+      const auth = c.req.header("authorization") ?? "";
+      const basic = /^Basic (\S+)$/i.exec(auth)?.[1];
+      const given =
+        /^Bearer (\S+)$/i.exec(auth)?.[1] ?? (basic ? Buffer.from(basic, "base64").toString().split(":").slice(1).join(":") : "");
+      if (given && sameSecret(given, secret)) return Effect.void;
+      return Effect.fail(new Unauthorized({ message: "the local network token, from Settings → Local network" }));
+    });
   app.use("*", async (c: Context, next: Next) => {
-    const checked = Effect.runSyncExit(REMOTE.has(c.req.raw) ? tailnet(c) : local(c));
-    if (Exit.isFailure(checked)) c.res = reply(c, checked, log);
-    else {
+    const checked = Effect.runSyncExit(REMOTE.has(c.req.raw) ? tailnet(c) : LAN.has(c.req.raw) ? lan(c) : local(c));
+    if (Exit.isFailure(checked)) {
+      c.res = reply(c, checked, log);
+      if (LAN.has(c.req.raw) && c.res.status === 401) c.res.headers.set("WWW-Authenticate", 'Basic realm="Inbox", charset="UTF-8"');
+    } else {
       await next();
       // A review document's page runs nothing and asks for nothing; only the desk's window frames it (#/doc/<id>).
       const doc = DOC_PAGE.test(c.req.path);
@@ -1105,10 +1135,10 @@ type ServeOptions = {
 };
 type Served = { url: string; desk: Desk; close(): Promise<void> };
 
-// Listening on 127.0.0.1, or why it can't: the port in use, or Node's error.
-const listen = (fetch: (req: Request, env?: unknown) => Response | Promise<Response>, port: number, url: string) =>
+// Listening on 127.0.0.1 (or `hostname`), or why it can't: the port in use, or Node's error.
+const listen = (fetch: (req: Request, env?: unknown) => Response | Promise<Response>, port: number, url: string, hostname = "127.0.0.1") =>
   Effect.callback<ServerType, ListenFailed>((resume) => {
-    const s = serve({ fetch, port, hostname: "127.0.0.1" }, () => {
+    const s = serve({ fetch, port, hostname }, () => {
       resume(Effect.succeed(s));
     });
     s.once("error", (cause: Error) => {
@@ -1198,6 +1228,53 @@ function overTailnet(app: Hono, remote: Remote, desk: Desk, wanted: () => boolea
   };
 }
 
+// Served on every interface at `port` while Settings → Local network is on with a token; a failed start waits for a change.
+function onLan(app: Hono, desk: Desk, port: number) {
+  const lock = Semaphore.makeUnsafe(1);
+  let server: ServerType | null = null;
+  let failed = false;
+  let closed = false;
+  const wanted = () => !closed && desk.settings["lan.on"] && !!desk.settings["lan.token"];
+  const settle: Effect.Effect<void> = Effect.suspend(() => {
+    const want = wanted();
+    if (!want) failed = false;
+    if (want === !!server || (want && failed)) return Effect.void;
+    if (!want) {
+      const s = server;
+      server = null;
+      desk.log("stopped serving on the local network");
+      return s ? shut(s) : Effect.void;
+    }
+    return listen(lanFetch(app), port, `port ${port} on every interface`, "0.0.0.0").pipe(
+      Effect.match({
+        onFailure: (e) => {
+          failed = true;
+          desk.log(`can't serve on the local network: ${e.message}`);
+        },
+        onSuccess: (s) => {
+          server = s;
+          const at = Object.values(os.networkInterfaces())
+            .flatMap((l) => l ?? [])
+            .filter((a) => a.family === "IPv4" && !a.internal)
+            .map((a) => `http://${a.address}:${port}`);
+          desk.log(`serving read only on the local network at ${at.join(", ") || `port ${port}`}`);
+        },
+      }),
+      Effect.andThen(() => settle),
+    );
+  });
+  const settled = lock.withPermits(1)(settle);
+  return {
+    check: () => {
+      if (!closed && !!server !== wanted()) desk.runner.fork("local network", settled);
+    },
+    stop: Effect.suspend(() => {
+      closed = true;
+      return settled;
+    }),
+  };
+}
+
 // What the desk installed in your agents, kept current and renamed from before Inbox, on every start of the owner's desk
 // (desk serve, the app's own): what it did, in the log.
 export const refreshAgents = (desk: Desk, url: string): Effect.Effect<void> =>
@@ -1263,6 +1340,9 @@ export const startDesk = Effect.fnUntraced(function* (
   const tailscale = overTailnet(app, remote, desk, () => !!opts.tailscale || desk.settings["app.tailscale"]);
   desk.onChange(tailscale.check);
   tailscale.check();
+  const lanServer = onLan(app, desk, port + 1);
+  desk.onChange(lanServer.check);
+  lanServer.check();
   if (opts.open) openUrl(url);
 
   // The desk stops at once; its agents may take a moment.
@@ -1275,7 +1355,7 @@ export const startDesk = Effect.fnUntraced(function* (
   });
   // The port is let go even when closing the desk dies.
   const closing = Effect.andThen(
-    tailscale.stop,
+    Effect.andThen(tailscale.stop, lanServer.stop),
     Effect.all([Effect.exit(desk.close()), stopListening], { concurrency: 2 }).pipe(Effect.flatMap(([closed]) => closed)),
   );
   return { url, desk, close: () => Effect.runPromise(closing) };
