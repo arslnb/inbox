@@ -346,14 +346,14 @@ struct MergingRow: View {
 // A section's heading: its name and its count on one baseline; a tap folds it.
 struct GroupHead: View {
   let label: String
-  let count: Int
+  let count: String  // "12", or "3 of 12" while filtering
   var open = true
   var toggle: (() -> Void)?
 
   var body: some View {
     let head = HStack(alignment: .firstTextBaseline, spacing: 10) {
       Text(label).sans(15, 650, tracking: -0.01).foregroundStyle(open ? Theme.ink : Theme.pencil)
-      Text("\(count)").sans(13, 450, tabular: true).foregroundStyle(Theme.pencil)
+      Text(count).sans(13, 450, tabular: true).foregroundStyle(Theme.pencil)
       Spacer(minLength: 0)
     }
     // On the sheet, as the heading of the window's two-line list. One that folds takes a finger, so it's 44pt tall with

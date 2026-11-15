@@ -55,6 +55,7 @@ final class Store {
   var path: [Route] = []
   var showSettings = false
   var snoozing: Card?  // the row whose Snooze was swiped: its options are asked for
+  var filter = ""  // the lists' filter, as typed: one for the Inbox, Blocked and the Archive
   var noting: Noting?  // the note box: a new note, or one you opened
   var noteDraft = ""  // a new note's words, kept while its box is closed
 
@@ -189,6 +190,7 @@ final class Store {
     showSettings = false
     noting = nil
     noteDraft = ""
+    filter = ""
   }
 
   // Forgets the token on this phone. The device stays listed on the desk until its owner revokes it there.
@@ -697,6 +699,12 @@ final class Store {
 
   // MARK: Finding what's on screen
 
+  var filtering: Bool { !filter.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+
+  // A list's rows the filter keeps, less the ones on their way off.
+  func shown(_ cards: [Card]) -> [Card] { cards.filter { !leaving.contains($0.id) && Filter.matches($0, filter, me: me) } }
+  func shown(_ notes: [Note]?) -> [Note] { (notes ?? []).filter { !leaving.contains(Store.noteKey($0.id)) && Filter.matches($0, filter) } }
+
   func card(_ id: String) -> Card? {
     guard let q = queue else { return inflight?.rows.first { $0.card.id == id }?.card }
     let lists = [q.inbox?.urgent, q.inbox?.standard, q.inbox?.fyi, q.sections?.blocked, q.cleared, q.resolved, q.hidden]
@@ -771,6 +779,7 @@ final class Store {
     //   -issue running|again|failed|stale|none|off|injection|blocked   with -open: an issue's pre-review in that state
     //   -step <n>   with -open: an issue's walk at its nth step
     //   -note new|<note id>   the note box: a new note, or that one opened
+    //   -filter "<text>" [-filterFocus]   the lists' filter as typed (a term then a space is a pill); with the cursor in its box
     func applyLaunchArguments(_ args: UserDefaults = .standard, flags: [String] = ProcessInfo.processInfo.arguments) {
       guard flags.contains(where: { ["-deskURL", "-connect"].contains($0) }) else { return }
       stopLive()
@@ -802,6 +811,8 @@ final class Store {
       debugIssue = args.string(forKey: "issue")
       debugStep = args.object(forKey: "step") == nil ? nil : args.integer(forKey: "step")
       debugNote = args.string(forKey: "note")
+      filter = args.string(forKey: "filter") ?? ""
+      debugFilterFocus = flags.contains("-filterFocus")
     }
 
     var scrollTo: String?
@@ -814,6 +825,7 @@ final class Store {
     var debugIssue: String?  // an issue's pre-review as the mock never sends it: see ItemDetail.debugging()
     var debugStep: Int?
     var debugScan: String?  // what the camera would have read: the connect screen takes it once
+    @ObservationIgnored var debugFilterFocus = false  // the filter's box takes the cursor, so its suggestions show
     var debugNote: String?  // "new", or a note's id: its box, opened once the desk has answered
 
     // The note box -note asks for, once.

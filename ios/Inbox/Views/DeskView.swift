@@ -44,6 +44,8 @@ struct ListPage: View {
       }
     }
     .background(Theme.sheet)
+    // Merging has no filter, as the window's.
+    .safeAreaInset(edge: .top, spacing: 0) { if store.page != .merging { FilterBar() } }
     // An opened page has them above its own bar.
     .safeAreaInset(edge: .bottom, spacing: 0) { NoticeStack() }
     .navigationTitle(store.page.name)
@@ -235,23 +237,25 @@ struct InboxList: View {
 
   var body: some View {
     if let view = store.queue {
+      // The filter keeps cards and notes; an agent's question and a session that needs you always show.
+      let filtering = store.filtering
       let active = view.sessions.filter { $0.status == "active" && !store.leaving.contains($0.id) }
-      let cards = { (list: [Card]?) in (list ?? []).filter { !store.leaving.contains($0.id) } }
-      let urgent = cards(view.inbox?.urgent)
-      let standard = cards(view.inbox?.standard)
-      let fyi = cards(view.inbox?.fyi)
-      let notes = { (list: [Note]?) in (list ?? []).filter { !store.leaving.contains(Store.noteKey($0.id)) } }
-      let due = notes(view.notes?.due)
-      let open = notes(view.notes?.open)
+      let total = { (list: [Card]?) in (list ?? []).filter { !store.leaving.contains($0.id) }.count }
+      let urgent = store.shown(view.inbox?.urgent ?? [])
+      let standard = store.shown(view.inbox?.standard ?? [])
+      let fyi = store.shown(view.inbox?.fyi ?? [])
+      let due = store.shown(view.notes?.due)
+      let open = store.shown(view.notes?.open)
       let asked = view.inquiries.filter { !store.leaving.contains($0.id) }
       let lead = asked.count + active.count + due.count
       let any = lead + urgent.count + open.count + standard.count + fyi.count > 0
-      let first = view.firstPass?.line
+      // A new desk's first minutes, in the desk's words; not while filtering.
+      let first = filtering ? nil : view.firstPass?.line
       ScrollViewReader { proxy in
         List {
           if let first, any { QuietLine(text: first, size: 14).deskLine() }
           if lead + urgent.count > 0 {
-            section("urgent", "Urgent", lead + urgent.count) {
+            section("urgent", "Urgent", lead + total(view.inbox?.urgent), matched: urgent.count) {
               ForEach(asked) { q in
                 Button {
                   store.path.append(.inquiry(q.id))
@@ -272,14 +276,14 @@ struct InboxList: View {
             }
           }
           if open.count + standard.count > 0 {
-            section("standard", "Standard", open.count + standard.count) {
+            section("standard", "Standard", open.count + total(view.inbox?.standard), matched: standard.count) {
               ForEach(open) { n in NoteLine(n: n) }
               ForEach(standard) { c in CardLine(card: c, variant: .active) }
             }
           }
           if !fyi.isEmpty {
-            let cut = Lists.fyiCut(fyi.count, all: allFyi, filtering: false)
-            section("fyi", "FYI", fyi.count) {
+            let cut = Lists.fyiCut(fyi.count, all: allFyi, filtering: filtering)
+            section("fyi", "FYI", total(view.inbox?.fyi), matched: fyi.count) {
               ForEach(cut.map { Array(fyi.prefix($0)) } ?? fyi) { c in CardLine(card: c, variant: .active) }
               if let cut {
                 Button {
@@ -296,7 +300,7 @@ struct InboxList: View {
             }
           }
           if !any {
-            if let first { QuietLine(text: first).deskLine() } else { QuietLine(text: "Nothing needs you right now.").deskLine() }
+            if let first { QuietLine(text: first).deskLine() } else { QuietLine(text: filtering ? "No matches." : "Nothing needs you right now.").deskLine() }
           }
           if let n = view.reviewing, n > 0 {
             QuietLine(
@@ -322,13 +326,15 @@ struct InboxList: View {
     }
   }
 
+  // A section the filter has matches in opens, and stays open until the filter clears (its heading is no toggle then).
   @ViewBuilder
-  private func section<Rows: View>(_ key: String, _ label: String, _ count: Int, @ViewBuilder rows: () -> Rows) -> some View {
-    let open = !store.folded.contains(key)
+  private func section<Rows: View>(_ key: String, _ label: String, _ count: Int, matched: Int, @ViewBuilder rows: () -> Rows) -> some View {
+    let forced = store.filtering && matched > 0 && store.folded.contains(key)
+    let open = !store.folded.contains(key) || forced
     Section {
       if open { rows() }
     } header: {
-      GroupHead(label: label, count: count, open: open) { store.folded.formSymmetricDifference([key]) }.deskHead().id(key)
+      GroupHead(label: label, count: "\(count)", open: open, toggle: forced ? nil : { store.folded.formSymmetricDifference([key]) }).deskHead().id(key)
     }
   }
 }
@@ -416,15 +422,18 @@ struct BlockedList: View {
 
   var body: some View {
     if let view = store.queue {
-      let cards = (view.sections?.blocked ?? []).filter { !store.leaving.contains($0.id) }
+      let all = (view.sections?.blocked ?? []).filter { !store.leaving.contains($0.id) }
+      let cards = store.shown(all)
+      let filtering = store.filtering
       List {
         if cards.isEmpty {
-          QuietLine(text: "Nothing is blocked.").deskLine()
+          QuietLine(text: filtering ? "No matches." : "Nothing is blocked.").deskLine()
         } else {
           Section {
-            ForEach(cards) { c in CardLine(card: c, variant: .blocked, indent: CGFloat(min(c.depth ?? 0, 4)) * 16) }
+            // A tree in the desk's order; filtered, some of it is missing, so it lies flat.
+            ForEach(cards) { c in CardLine(card: c, variant: .blocked, indent: filtering ? 0 : CGFloat(min(c.depth ?? 0, 4)) * 16) }
           } header: {
-            GroupHead(label: "Blocked", count: cards.count).deskHead()
+            GroupHead(label: "Blocked", count: filtering ? "\(cards.count) of \(all.count)" : "\(all.count)").deskHead()
           }
         }
       }
@@ -446,19 +455,20 @@ struct ArchiveList: View {
   var body: some View {
     if let view = store.queue {
       let gone = { (list: [Card]) in list.filter { !store.leaving.contains($0.id) } }
-      let later = (view.notes?.later ?? []).filter { !store.leaving.contains(Store.noteKey($0.id)) }
+      let later = store.shown(view.notes?.later)
       let archive = gone(Lists.archive(view))
       let cleared = gone(Lists.cleared(view))
       let hidden = gone(view.hidden)
+      let filtering = store.filtering
       List {
-        if later.isEmpty && archive.isEmpty && cleared.isEmpty && hidden.isEmpty {
-          QuietLine(text: "Nothing here yet: what you finish, and what's dealt with, lands here.").deskLine()
+        if later.isEmpty && store.shown(archive + cleared + hidden).isEmpty {
+          QuietLine(text: filtering ? "No matches." : "Nothing here yet: what you finish, and what's dealt with, lands here.").deskLine()
         }
         if !later.isEmpty {
           Section {
             ForEach(later) { n in NoteLine(n: n) }
           } header: {
-            GroupHead(label: "Reminders", count: later.count).deskHead()
+            GroupHead(label: "Reminders", count: "\(later.count)").deskHead()
           }
         }
         group("archive", "Archive", archive) { Lists.archiveNote($0) }
@@ -472,14 +482,21 @@ struct ArchiveList: View {
     }
   }
 
+  // While filtering: only groups with a match, each opened by it, counted "3 of 12".
   @ViewBuilder
-  private func group(_ key: String, _ label: String, _ cards: [Card], note: @escaping (Card) -> String) -> some View {
+  private func group(_ key: String, _ label: String, _ all: [Card], note: @escaping (Card) -> String) -> some View {
+    let cards = store.shown(all)
     if !cards.isEmpty {
-      let open = !store.folded.contains(key)
+      let forced = store.filtering && store.folded.contains(key)
+      let open = !store.folded.contains(key) || forced
       Section {
         if open { ForEach(cards) { c in CardLine(card: c, variant: .note(note(c))) } }
       } header: {
-        GroupHead(label: label, count: cards.count, open: open) { store.folded.formSymmetricDifference([key]) }.deskHead()
+        GroupHead(
+          label: label, count: store.filtering ? "\(cards.count) of \(all.count)" : "\(all.count)", open: open,
+          toggle: forced ? nil : { store.folded.formSymmetricDifference([key]) }
+        )
+        .deskHead()
       }
     }
   }
@@ -517,7 +534,7 @@ struct MergingList: View {
             Section {
               ForEach(landed) { row in line(row) }
             } header: {
-              GroupHead(label: "Merged", count: landed.count).deskHead()
+              GroupHead(label: "Merged", count: "\(landed.count)").deskHead()
             }
           }
         }

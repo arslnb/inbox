@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		09B80DD034643D43D5C13A22 /* Acting.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58F1723D88F33B6D0D06287F /* Acting.swift */; };
 		0A472E38A8BCBB0BE4C039ED /* AiBlock.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA83EB4A0F6BDDE7BAB5EC8A /* AiBlock.swift */; };
+		0CD5942B9F3E96F4AAB80792 /* FilterBar.swift in Sources */ = {isa = PBXBuildFile; fileRef = DCD80A5AD3F5528ADCD9EE15 /* FilterBar.swift */; };
 		243E4031449240A3110F26FE /* ActionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 191882B1EBFEB895A9C4608D /* ActionTests.swift */; };
 		2C63189910B7188FD6BA7657 /* reviewers.json in Resources */ = {isa = PBXBuildFile; fileRef = 83673558401C16BE791F742E /* reviewers.json */; };
 		340EEA6BD2B346A4B9472E2F /* item-issue-steps.json in Resources */ = {isa = PBXBuildFile; fileRef = EB176F3FAD93D1B612C29B69 /* item-issue-steps.json */; };
@@ -112,6 +113,7 @@
 		D57AC94DEAC4A0ABBF82148C /* inflight.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = inflight.json; sourceTree = "<group>"; };
 		D7A80D83ED061CB494AB9056 /* ClientTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ClientTests.swift; sourceTree = "<group>"; };
 		D90175A3BA5EC831E9A8702B /* Support.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Support.swift; sourceTree = "<group>"; };
+		DCD80A5AD3F5528ADCD9EE15 /* FilterBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FilterBar.swift; sourceTree = "<group>"; };
 		DD433E110FA257BFDBC4F5A4 /* Address.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Address.swift; sourceTree = "<group>"; };
 		EA851981E14A4D90E0B2E268 /* FormatTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FormatTests.swift; sourceTree = "<group>"; };
 		EB176F3FAD93D1B612C29B69 /* item-issue-steps.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "item-issue-steps.json"; sourceTree = "<group>"; };
@@ -128,6 +130,7 @@
 				412FA186A30EEB5E95FAFA15 /* ConnectView.swift */,
 				F04C3ACC667161B9AB92E023 /* DeskView.swift */,
 				1669E5C9016905AF55097E8E /* DiffView.swift */,
+				DCD80A5AD3F5528ADCD9EE15 /* FilterBar.swift */,
 				4DA40F8D799363AFD72BA581 /* IssuePre.swift */,
 				7402469F00F8F99EF3BDBD7B /* ItemPage.swift */,
 				0B52C1DF9613CF539C35E26C /* NoteSheet.swift */,
@@ -348,6 +351,7 @@
 				E89DC73D38524E692F477FD9 /* ConnectView.swift in Sources */,
 				CD92BDD8280FEC25648B3419 /* DeskView.swift in Sources */,
 				37E4CB149A666311A3413CBC /* DiffView.swift in Sources */,
+				0CD5942B9F3E96F4AAB80792 /* FilterBar.swift in Sources */,
 				ADDA38C5172EB9B22C9BB66C /* Format.swift in Sources */,
 				FA4C1E210463D2527D2040BC /* Guide.swift in Sources */,
 				F7489DABC0919467EEAB5469 /* InboxApp.swift in Sources */,
