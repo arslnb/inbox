@@ -526,16 +526,29 @@ struct MergingList: View {
     .contextMenu { CardMenu(card: row.card) }
   }
 
-  // One quiet line: how your agent is, and where to watch it.
+  // One quiet line: how your agent is, where to watch it, and Wake it (Start it now, Try again), as the window's.
   @ViewBuilder
   private func agentLine(_ c: InflightView.Coordinator) -> some View {
     Group {
       if c.on != true {
-        Text("Your agent is off in Settings → Agent.").foregroundStyle(Theme.pencil)
+        Text("Your agent is off in Settings → Local Agent Integration.").foregroundStyle(Theme.pencil)
       } else if let error = c.error, !error.isEmpty {
-        Lead(label: "Your agent can't run:", text: error, labelColor: Theme.red)
+        VStack(alignment: .leading, spacing: 6) {
+          Lead(label: "Your agent can't run:", text: error, labelColor: Theme.red)
+          wake("Try again")
+        }
       } else if c.id == nil {
-        Text("Your agent starts on your first hand-off or ask.").foregroundStyle(Theme.pencil)
+        let says = Text("Your agent starts on your first hand-off or ask.").foregroundStyle(Theme.pencil)
+        ViewThatFits(in: .horizontal) {
+          HStack(spacing: 8) {
+            says.fixedSize()
+            wake("Start it now")
+          }
+          VStack(alignment: .leading, spacing: 6) {
+            says
+            wake("Start it now")
+          }
+        }
       } else {
         HStack(spacing: 0) {
           Text("Your agent").foregroundStyle(Theme.pencil)
@@ -550,11 +563,25 @@ struct MergingList: View {
             }
             .buttonStyle(.plain)
           }
+          Text("·").foregroundStyle(Theme.faint).padding(.horizontal, 6)
+          wake("Wake it")
         }
       }
     }
     .sans(13)
     .padding(.init(top: 18, leading: Theme.pad, bottom: 12, trailing: Theme.pad))
     .frame(maxWidth: .infinity, alignment: .leading)
+  }
+
+  // A turn of your agent on each press; off while one is on its way.
+  private func wake(_ label: String) -> some View {
+    Button {
+      Task { await store.wake() }
+    } label: {
+      Text(label).underline(color: Theme.ruleStrong).foregroundStyle(Theme.ink2).fixedSize()
+        .contentShape(Rectangle().inset(by: -13))
+    }
+    .buttonStyle(.plain)
+    .disabled(store.busy(Store.coordinator))
   }
 }

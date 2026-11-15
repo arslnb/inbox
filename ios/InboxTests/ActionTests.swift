@@ -722,6 +722,57 @@ final class StoreWriteTests: XCTestCase {
     XCTAssertEqual(store.inboxCount, count, "and its row is back")
   }
 
+  // Merging's Wake it, Start it now and Try again are one route; what it says depends on whether your agent was running.
+  func testWakingYourAgent() async throws {
+    let inflight = String(decoding: try Fixture.data("inflight"), as: UTF8.self)
+    let lane = { (coordinator: String) -> Answer in
+      var json = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(inflight.utf8)) as? [String: Any])
+      json["coordinator"] = try JSONSerialization.jsonObject(with: Data(coordinator.utf8))
+      return Answer(body: String(decoding: try JSONSerialization.data(withJSONObject: json), as: UTF8.self))
+    }
+    let ok = Answer(body: #"{"ok":true}"#)
+    // Running: Wake it.
+    try desk(["/api/inflight": Answer(body: inflight), "/api/coordinator/wake": ok])
+    await store.openMerging()
+    XCTAssertEqual(store.inflight?.coordinator?.id, "4be71c2a")
+    var took = await store.wake()
+    XCTAssertTrue(took)
+    XCTAssertEqual(store.toast?.text, "Asked your agent to look at Merging.")
+    XCTAssertEqual(store.toast?.undoable, false)
+    let posts = StubProtocol.requests().filter { $0.httpMethod == "POST" }
+    XCTAssertEqual(posts.map { $0.url?.path }, ["/api/coordinator/wake"], "one turn of your agent")
+    XCTAssertEqual(try JSONSerialization.jsonObject(with: try XCTUnwrap(posts[0].sentBody)) as? NSDictionary, [:])
+    XCTAssertTrue(paths().contains("GET /api/inflight"), "Merging is read again")
+    // Not started yet (Start it now), and one that can't run (Try again): it starts.
+    for coordinator in [#"{"on":true,"id":null,"url":null,"error":null}"#, #"{"on":true,"id":null,"url":null,"error":"claude isn't logged in"}"#] {
+      try desk(["/api/inflight": try lane(coordinator), "/api/coordinator/wake": ok])
+      await store.load()
+      took = await store.wake()
+      XCTAssertTrue(took)
+      XCTAssertEqual(store.toast?.text, "Started your agent.")
+    }
+    // The desk's refusals are bubbles in its words.
+    for (status, words) in [(409, "your agent is off: Settings → Local Agent Integration"), (502, "Your agent didn't start: claude exited 1")] {
+      try desk(["/api/inflight": Answer(body: inflight), "/api/coordinator/wake": no(status, words)])
+      took = await store.wake()
+      XCTAssertFalse(took)
+      XCTAssertEqual(store.notices.last?.title, words)
+    }
+    XCTAssertFalse(store.busy(Store.coordinator))
+  }
+
+  // A double tap on Wake it is one turn of your agent.
+  func testASecondWakeWhileOneIsOnItsWaySendsNothing() async throws {
+    try desk(["/api/coordinator/wake": Answer(hangs: true)])
+    let first = Task { await self.store.wake() }
+    for _ in 0..<150 where StubProtocol.requests().isEmpty { try await Task.sleep(for: .milliseconds(20)) }
+    XCTAssertTrue(store.busy(Store.coordinator))
+    let second = await store.wake()
+    XCTAssertFalse(second)
+    XCTAssertEqual(StubProtocol.requests().filter { $0.url?.path == "/api/coordinator/wake" }.count, 1)
+    first.cancel()
+  }
+
   // A session's Done, Snooze and Mute are /api/act's, by its id; its snooze says only the time (it has no activity to wake on).
   func testTriagingASession() async throws {
     let s = try XCTUnwrap(store.queue?.sessions.first)

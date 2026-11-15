@@ -268,6 +268,11 @@ struct APIClient: Sendable {
     try await post("/api/sessions/\(APIClient.segment(session))/kick")
   }
 
+  // Wake it, Start it now, Try again: starts your agent, or has it look at Merging now. A turn of your agent, so only on a press.
+  func wake() async throws {
+    let _: Ok = try await post("/api/coordinator/wake")
+  }
+
   // done, snooze (with `until`), mute, unmute, restore, seen; and inflight (Hand off for merge) and takeback (Back to desk).
   func act(_ id: String, _ action: String, until: String? = nil) async throws -> ActAnswer {
     var body = ["id": id, "action": action]

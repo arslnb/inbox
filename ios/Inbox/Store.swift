@@ -546,6 +546,18 @@ final class Store {
     }
   }
 
+  // Merging's Wake it (Start it now, Try again): your agent starts, or looks at Merging now. Each is a turn of your
+  // agent, so only a press calls this, and a second press while one is on its way sends nothing.
+  static let coordinator = "coordinator"  // what busy() knows it by
+  @discardableResult
+  func wake() async -> Bool {
+    let running = inflight?.coordinator?.id != nil
+    return await write(Store.coordinator, still: "Still asking your agent.") { client in
+      try await client.wake()
+      return Toast(text: running ? "Asked your agent to look at Merging." : "Started your agent.")
+    }
+  }
+
   // An issue's pre-review, now: Analyze it, Try again, Read it again; `trust` after a flag ("Not an injection: analyze
   // it"). It spends your agent, so only a press calls it; opening an issue is what the window's open is, one GET.
   @discardableResult
