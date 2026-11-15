@@ -41,6 +41,7 @@
 		AD130016A163111BCA64B877 /* Theme.swift in Sources */ = {isa = PBXBuildFile; fileRef = CDD3F75F2D8E3B634810AA5D /* Theme.swift */; };
 		ADDA38C5172EB9B22C9BB66C /* Format.swift in Sources */ = {isa = PBXBuildFile; fileRef = A09CD7F77DA88B56BFB08254 /* Format.swift */; };
 		B19E7A54C9BE63B956B04EBA /* PatchLinesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 007CD99E3D1EFFE031869329 /* PatchLinesTests.swift */; };
+		C20C5FA34F36A0F176FC17B0 /* Chat.swift in Sources */ = {isa = PBXBuildFile; fileRef = 879AE6A19041C9F6FB0894FB /* Chat.swift */; };
 		C444106D32B248F3FDF162AF /* ItemPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7402469F00F8F99EF3BDBD7B /* ItemPage.swift */; };
 		CD92BDD8280FEC25648B3419 /* DeskView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F04C3ACC667161B9AB92E023 /* DeskView.swift */; };
 		CDC83790A232DEDAC8748E35 /* ReviewState.swift in Sources */ = {isa = PBXBuildFile; fileRef = D0DA7227B62F17FEF758A35A /* ReviewState.swift */; };
@@ -97,6 +98,7 @@
 		7C638CAE9B9282EEEDCF4026 /* review.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = review.json; sourceTree = "<group>"; };
 		83354D6860BC9E1A70BBF151 /* InboxApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InboxApp.swift; sourceTree = "<group>"; };
 		83673558401C16BE791F742E /* reviewers.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = reviewers.json; sourceTree = "<group>"; };
+		879AE6A19041C9F6FB0894FB /* Chat.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Chat.swift; sourceTree = "<group>"; };
 		89822F5B99BA945CFC5DA0AA /* health.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = health.json; sourceTree = "<group>"; };
 		8D4EEE0869A1B9F6A5FE620E /* APIClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = APIClient.swift; sourceTree = "<group>"; };
 		906A52F20D38C5219AD0E740 /* PatchLines.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatchLines.swift; sourceTree = "<group>"; };
@@ -133,6 +135,7 @@
 			children = (
 				58F1723D88F33B6D0D06287F /* Acting.swift */,
 				CA83EB4A0F6BDDE7BAB5EC8A /* AiBlock.swift */,
+				879AE6A19041C9F6FB0894FB /* Chat.swift */,
 				412FA186A30EEB5E95FAFA15 /* ConnectView.swift */,
 				F04C3ACC667161B9AB92E023 /* DeskView.swift */,
 				1669E5C9016905AF55097E8E /* DiffView.swift */,
@@ -360,6 +363,7 @@
 				0A472E38A8BCBB0BE4C039ED /* AiBlock.swift in Sources */,
 				2AA57FBF2C2A2D28BE98E915 /* Asking.swift in Sources */,
 				A3109EE4502759AF810C1B86 /* Blocks.swift in Sources */,
+				C20C5FA34F36A0F176FC17B0 /* Chat.swift in Sources */,
 				E89DC73D38524E692F477FD9 /* ConnectView.swift in Sources */,
 				CD92BDD8280FEC25648B3419 /* DeskView.swift in Sources */,
 				37E4CB149A666311A3413CBC /* DiffView.swift in Sources */,

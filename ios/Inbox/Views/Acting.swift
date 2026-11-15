@@ -145,6 +145,7 @@ struct WriteSheet<Above: View>: View {
   let button: String
   var optional = false  // may be sent with nothing typed
   var limit: Int?  // the most characters the desk takes: typing stops there, as the window's box
+  var aside: (label: String, press: () -> Void)?  // a quiet way out beside the button: the box's Ask your agent
   @Binding var draft: String
   let send: (String) async -> Bool
   @ViewBuilder var above: () -> Above
@@ -168,20 +169,32 @@ struct WriteSheet<Above: View>: View {
           .background(Theme.sheet, in: RoundedRectangle(cornerRadius: 9))
           .overlay(RoundedRectangle(cornerRadius: 9).strokeBorder(Theme.ruleStrong, lineWidth: 1))
         if let failed { Text(failed).sans(13).foregroundStyle(Theme.red).fixedSize(horizontal: false, vertical: true) }
-        Button(button) {
-          Task {
-            sending = true
-            failed = await refusal(store) { await send(draft.trimmingCharacters(in: .whitespacesAndNewlines)) }
-            sending = false
-            if failed == nil {
-              draft = ""
+        HStack(spacing: 8) {
+          // It never reads what you typed: your words stay in this box's draft.
+          if let aside {
+            Button {
               dismiss()
+              aside.press()
+            } label: {
+              Text(aside.label).sans(13, 550).underline(color: Theme.ruleStrong).foregroundStyle(Theme.ink2).frame(minHeight: 36).contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+          }
+          Spacer(minLength: 0)
+          Button(button) {
+            Task {
+              sending = true
+              failed = await refusal(store) { await send(draft.trimmingCharacters(in: .whitespacesAndNewlines)) }
+              sending = false
+              if failed == nil {
+                draft = ""
+                dismiss()
+              }
             }
           }
+          .buttonStyle(AccentAct())
+          .disabled(sending || (empty && !optional))
         }
-        .buttonStyle(AccentAct())
-        .disabled(sending || (empty && !optional))
-        .frame(maxWidth: .infinity, alignment: .trailing)
       }
       .padding(.horizontal, Theme.pad)
       .padding(.vertical, 14)
@@ -203,7 +216,7 @@ extension WriteSheet where Above == EmptyView {
     title: String, prompt: String = "", button: String, optional: Bool = false, limit: Int? = nil, draft: Binding<String>,
     send: @escaping (String) async -> Bool
   ) {
-    self.init(title: title, prompt: prompt, button: button, optional: optional, limit: limit, draft: draft, send: send) { EmptyView() }
+    self.init(title: title, prompt: prompt, button: button, optional: optional, limit: limit, aside: nil, draft: draft, send: send) { EmptyView() }
   }
 }
 

@@ -278,9 +278,44 @@ struct APIClient: Sendable {
     let _: Ok = try await post("/api/notes/\(APIClient.segment(id))/done")
   }
 
-  // Wake it, Start it now, Try again: starts your agent, or has it look at Merging now. A turn of your agent, so only on a press.
-  func wake() async throws {
-    let _: Ok = try await post("/api/coordinator/wake")
+  // Wake it, Start it now, Try again: starts your agent, or has it look at Merging now; with `ask`, hands it that ask of
+  // yours again. A turn of your agent, so only on a press.
+  func wake(ask: String? = nil) async throws {
+    let _: Ok = try await post("/api/coordinator/wake", ask.map { ["ask": $0] } ?? [:])
+  }
+
+  // Your chat with your agent: every ask oldest first, and what it's doing about the one it hasn't answered. Free: it
+  // starts nothing, and answers before the desk's first sync.
+  func asks() async throws -> AsksView { try await get("/api/asks") }
+
+  private struct AskBody: Encodable {
+    var text: String
+    var item_id: String?
+    var thread_id: String?
+    var thread_url: String?
+    var lines: Lines?
+
+    struct Lines: Encodable {
+      var path: String
+      var line: Int
+      var side: String
+      var head: String
+    }
+  }
+
+  // Your words to your agent, about an item, a thread of its review or a line of its diff (never both), or nothing. It
+  // wakes your agent with them: a turn on your own Claude, so only ever on a press.
+  func ask(_ text: String, about: ChatAbout) async throws -> AskAnswer {
+    var b = AskBody(text: text, item_id: about.item)
+    if about.item != nil {
+      if let t = about.thread {
+        b.thread_id = t.id
+        b.thread_url = t.url
+      } else if let l = about.lines {
+        b.lines = .init(path: l.path, line: l.line, side: l.side, head: l.head)
+      }
+    }
+    return try await post("/api/ask", json: b)
   }
 
   // done, snooze (with `until`), mute, unmute, restore, seen; and inflight (Hand off for merge) and takeback (Back to desk).

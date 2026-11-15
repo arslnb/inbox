@@ -73,6 +73,7 @@ struct SaidComments: View {
 struct SaidActions: View {
   var reply: (() -> Void)?
   var url: String?
+  var ask: (() -> Void)?  // Ask your agent, about this conversation: your chat, on it
 
   var body: some View {
     HStack(spacing: 18) {
@@ -82,7 +83,9 @@ struct SaidActions: View {
       if let url = url.flatMap(URL.init(string:)) {
         Link(destination: url) { Text("Open on GitHub").underline(color: Theme.ruleStrong) }.frame(minHeight: 36).contentShape(Rectangle())
       }
-      // Ask your agent, about this conversation, goes here (the chat).
+      if let ask {
+        Button("Ask your agent", action: ask).buttonStyle(.plain).underline(color: Theme.ruleStrong).frame(minHeight: 36).contentShape(Rectangle())
+      }
     }
     .sans(13, 550).foregroundStyle(Theme.ink2)
   }
@@ -95,6 +98,7 @@ struct WhatWasSaid: View {
   var answered: [Conversation] = []  // answered from this page, until the review read again says so
   var sent: [SentWords] = []
   var reply: ((Conversation) -> Void)?  // nil: not open, so nothing takes a reply
+  var ask: ((Conversation) -> Void)?  // nil: your agent is off
   @State private var said: Set<String> = []  // whose own words are unfolded
   @State private var more = false
   @State private var opened: Set<String> = []  // of the ones not waiting on you
@@ -168,7 +172,7 @@ struct WhatWasSaid: View {
       VStack(alignment: .leading, spacing: 0) {
         Fold(label: Words.saidLabel(c), open: isOpen) { said.formSymmetricDifference([c.id]) }
         if isOpen { SaidComments(comments: c.comments, mine: mine(c)).padding(.top, 2).padding(.bottom, 4) }
-        SaidActions(reply: reply.map { r in { r(c) } }, url: c.url)
+        SaidActions(reply: reply.map { r in { r(c) } }, url: c.url, ask: ask.map { a in { a(c) } })
       }
       .padding(.vertical, -4)
     }
@@ -197,7 +201,7 @@ struct WhatWasSaid: View {
       .accessibilityAddTraits(isOpen ? .isSelected : [])
       if isOpen {
         SaidComments(comments: c.comments, mine: mine(c))
-        SaidActions(reply: reply.map { r in { r(c) } }, url: c.url).padding(.top, 2)
+        SaidActions(reply: reply.map { r in { r(c) } }, url: c.url, ask: ask.map { a in { a(c) } }).padding(.top, 2)
       }
     }
     .ruled()

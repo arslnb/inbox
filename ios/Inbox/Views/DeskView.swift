@@ -14,6 +14,7 @@ struct DeskView: View {
           case .item(let id): ItemPage(id: id)
           case .inquiry(let id): InquiryPage(id: id)
           case .session(let id): SessionPage(id: id)
+          case .chat(let about): ChatPage(about: about)
           }
         }
     }
@@ -48,6 +49,10 @@ struct ListPage: View {
     .safeAreaInset(edge: .top, spacing: 0) { if store.page != .merging { FilterBar() } }
     // An opened page has them above its own bar.
     .safeAreaInset(edge: .bottom, spacing: 0) { NoticeStack() }
+    // Whether your latest ask still waits, for the menu's line: read once, then again only while one waits. Free.
+    .task(id: store.loads) {
+      if store.loads > 0, store.asksAgent, store.asks == nil || Asking.waiting(store.asks) { await store.readAsks() }
+    }
     .navigationTitle(store.page.name)
     .navigationBarTitleDisplayMode(.inline)
     .toolbarBackground(Theme.paper, for: .navigationBar)
@@ -72,6 +77,11 @@ struct ListPage: View {
           // The window's New note (its sidebar's, ⌘N): a note to yourself lands on the Inbox.
           Divider()
           Button("New note") { store.noting = Noting() }
+          // The window's Ask your agent (its sidebar's foot): your chat, about nothing in particular. Not with your agent off.
+          if store.asksAgent {
+            Divider()
+            Button(Asking.waiting(store.asks) ? "Your agent · waiting" : "Ask your agent") { store.openChat() }
+          }
         } label: {
           HStack(spacing: 7) {
             Mark().fill(Theme.accentInk).frame(width: 24, height: 24)

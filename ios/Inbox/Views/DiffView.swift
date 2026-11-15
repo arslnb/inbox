@@ -14,6 +14,7 @@ struct DiffView: View {
   var github: URL?  // the PR's Files changed, for what isn't drawn here
   var comment: ((LineSpot) -> Void)?  // nil: not open, so a line takes no comment
   var reply: ((Conversation) -> Void)?
+  var ask: ((Conversation) -> Void)?  // Ask your agent, about a thread on a line
   var notes: [AiReview.Note] = []  // the AI review's, which the sections index into
   var looks: [AiReview.Look] = []  // where correctness hinges; none for a review of an earlier commit
   var bugs = 0  // the first of `notes` are its concerns: potential bugs
@@ -282,7 +283,7 @@ struct DiffView: View {
         if c.resolved == true { Text("Resolved").sans(13).foregroundStyle(Theme.pencil) }
         // The same drawing as under "What was said" on the page (Said.swift).
         SaidComments(comments: c.comments, mine: mine)
-        SaidActions(reply: reply.map { r in { r(c) } }, url: c.url)
+        SaidActions(reply: reply.map { r in { r(c) } }, url: c.url, ask: ask.map { a in { a(c) } })
       }
     }
     .ruled()

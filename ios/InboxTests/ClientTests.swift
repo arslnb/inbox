@@ -551,6 +551,28 @@ final class StoreTests: XCTestCase {
     XCTAssertEqual(StubProtocol.requests().map(\.url?.absoluteString), ["http://localhost:47841/api/item?id=acme%2Fworker%23860"])
   }
 
+  // Opening the chat is one GET: nothing is sent to your agent, and Merging isn't read for it.
+  func testOpeningTheChatOnlyReadsYourAsks() async throws {
+    let store = try await local()
+    StubProtocol.reset(["/api/asks": StubProtocol.Answer(body: String(decoding: try Fixture.data("asks"), as: UTF8.self))])
+    store.openChat(ChatAbout(item: "me/notes-app#12"))
+    await store.readAsks()
+    XCTAssertEqual(StubProtocol.requests().map { "\($0.httpMethod ?? "") \($0.url?.absoluteString ?? "")" }, ["GET http://localhost:47841/api/asks"])
+    XCTAssertEqual(store.path, [.chat(ChatAbout(item: "me/notes-app#12"))])
+    XCTAssertEqual(store.asks?.asks.count, 3)
+    XCTAssertTrue(Asking.waiting(store.asks), "the page menu says Your agent · waiting")
+    // A read that fails keeps what's drawn; the next update tries again.
+    StubProtocol.reset(["/api/asks": StubProtocol.Answer(error: .cannotConnectToHost)])
+    await store.readAsks()
+    XCTAssertEqual(store.asks?.asks.count, 3)
+    XCTAssertNotNil(store.address)
+    // A desk that isn't syncing yet still answers it; one that refuses the read changes nothing either.
+    StubProtocol.reset(["/api/asks": StubProtocol.Answer(status: 503, body: #"{"error":"the desk hasn't synced yet","reason":"starting"}"#)])
+    await store.readAsks()
+    XCTAssertEqual(store.asks?.asks.count, 3)
+    XCTAssertEqual(StubProtocol.requests().filter { $0.httpMethod != "GET" }.count, 0)
+  }
+
   // An open that never reached the desk is tried as an open again; one the desk refused was seen by it.
   func testAnOpenTheDeskNeverSawIsAnOpenAgain() async throws {
     let id = "acme/api#4127"

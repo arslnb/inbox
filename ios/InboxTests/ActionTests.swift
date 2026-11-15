@@ -1100,4 +1100,124 @@ final class StoreWriteTests: XCTestCase {
     XCTAssertTrue(store.notices.isEmpty, "the review may well be on its way: no bubble, and the desk isn't called away")
     XCTAssertFalse(store.asking.contains(id))
   }
+
+  // MARK: Ask your agent (each send is a turn of your agent: only on a press)
+
+  private func json(_ r: URLRequest?) throws -> NSDictionary? {
+    try JSONSerialization.jsonObject(with: try XCTUnwrap(try XCTUnwrap(r).sentBody)) as? NSDictionary
+  }
+
+  private func asked() -> [URLRequest] { StubProtocol.requests().filter { $0.httpMethod == "POST" && $0.url?.path == "/api/ask" } }
+
+  private func asks() throws -> Answer { Answer(body: String(decoding: try Fixture.data("asks"), as: UTF8.self)) }
+
+  // What Send carries: your words alone from the page's menu, the item from its More, the thread from a conversation,
+  // the line at the diff's commit from the diff; never a thread and lines both.
+  func testSendCarriesOnlyWhatItIsAbout() async throws {
+    let took = Answer(body: #"{"ok":true,"ask":{"id":"mock1","at":"2026-11-15T10:00:00.000Z","text":"what's left?","item_id":null,"thread_id":null,"thread_url":null,"lines":null,"answer":null}}"#)
+    try desk(["/api/ask": took, "/api/asks": try asks()])
+    await store.readAsks()
+    XCTAssertEqual(store.asks?.asks.count, 3)
+    var sent = await store.ask("what's left?", about: ChatAbout())
+    XCTAssertTrue(sent)
+    XCTAssertEqual(asked().count, 1)
+    XCTAssertEqual(try json(asked().last), ["text": "what's left?"])
+    XCTAssertEqual(asked().last?.value(forHTTPHeaderField: "Authorization"), "Bearer inbox_abc", "a phone's token: the desk takes it as its window")
+    XCTAssertNil(store.toast, "the ask shows in the chat: no toast")
+    XCTAssertEqual(store.asks?.asks.last?.id, "mock1", "drawn at once, before the next read")
+    XCTAssertTrue(paths().contains("GET /api/queue"), "read again")
+    XCTAssertFalse(store.busy(Store.chat))
+
+    sent = await store.ask("is it safe to merge?", about: ChatAbout(item: "acme/api#4127"))
+    XCTAssertTrue(sent)
+    XCTAssertEqual(try json(asked().last), ["text": "is it safe to merge?", "item_id": "acme/api#4127"])
+    XCTAssertEqual(store.asks?.asks.filter { $0.id == "mock1" }.count, 1, "an ask the chat already has isn't drawn twice")
+
+    let review: ReviewView = try Fixture.decode("review-own")
+    let c = try XCTUnwrap(review.conversation.first { $0.id == "PRRT_name" })
+    sent = await store.ask("is this done?", about: .thread("me/notes-app#12", c))
+    XCTAssertTrue(sent)
+    XCTAssertEqual(
+      try json(asked().last),
+      ["text": "is this done?", "item_id": "me/notes-app#12", "thread_id": "PRRT_name", "thread_url": "https://github.com/me/notes-app/pull/12#c2"])
+
+    let line = ChatAbout(item: "acme/api#4127", lines: .init(path: "src/planner/stream.ts", line: 12, side: "new", head: head))
+    sent = await store.ask("why a generator?", about: line)
+    XCTAssertTrue(sent)
+    XCTAssertEqual(
+      try json(asked().last),
+      ["text": "why a generator?", "item_id": "acme/api#4127", "lines": ["path": "src/planner/stream.ts", "line": 12, "side": "new", "head": head] as NSDictionary])
+    XCTAssertEqual(asked().count, 4, "one request a send")
+  }
+
+  // The desk's refusal is the chat's to say, beside your words: its own words, no bubble, no toast, and nothing drawn as sent.
+  func testARefusedSendSaysWhyAndClaimsNothing() async throws {
+    try desk(["/api/asks": try asks()])
+    await store.readAsks()
+    for (status, words) in [
+      (409, "your agent is off: Settings → Local Agent Integration"), (400, "thread_url must be a GitHub URL"),
+      (400, "lines need head: the 40-character commit they were read at"), (403, "ask your agent from the desk's window"),
+    ] {
+      try desk(["/api/ask": no(status, words)])
+      let sent = await store.ask("My words", about: ChatAbout(item: "acme/api#4127"))
+      XCTAssertFalse(sent)
+      XCTAssertEqual(store.whyNot, words)
+      XCTAssertNil(store.toast)
+      XCTAssertTrue(store.notices.isEmpty, "said in the chat, not in a bubble too")
+      XCTAssertEqual(store.asks?.asks.count, 3)
+      XCTAssertEqual(asked().count, 1, "never retried")
+    }
+    // A desk that didn't answer: it may have been sent.
+    try desk(["/api/ask": Answer(error: .timedOut)])
+    let sent = await store.ask("My words", about: ChatAbout())
+    XCTAssertFalse(sent)
+    XCTAssertEqual(store.whyNot, "The desk didn't answer, so it may or may not have been sent. Look before sending it again.")
+    XCTAssertNotNil(store.address)
+  }
+
+  // A double tap on Send is one turn of your agent.
+  func testASecondSendWhileOneIsOnItsWaySendsNothing() async throws {
+    try desk(["/api/ask": Answer(hangs: true)])
+    let first = Task { await self.store.ask("once", about: ChatAbout()) }
+    for _ in 0..<150 where StubProtocol.requests().isEmpty { try await Task.sleep(for: .milliseconds(20)) }
+    XCTAssertTrue(store.busy(Store.chat))
+    let second = await store.ask("once", about: ChatAbout())
+    XCTAssertFalse(second)
+    XCTAssertEqual(store.whyNot, "Still sending your last words.")
+    XCTAssertEqual(asked().count, 1)
+    first.cancel()
+  }
+
+  // Wake it, under an ask your agent stopped on: it's handed that ask again. The chat says how it went, so no toast.
+  func testWakeItHandsTheAskOverAgain() async throws {
+    try desk(["/api/coordinator/wake": Answer(body: #"{"ok":true}"#)])
+    var took = await store.wake(ask: "b7d3e410", toast: false)
+    XCTAssertTrue(took)
+    let posts = StubProtocol.requests().filter { $0.httpMethod == "POST" }
+    XCTAssertEqual(posts.map { $0.url?.path }, ["/api/coordinator/wake"])
+    XCTAssertEqual(try json(posts.first), ["ask": "b7d3e410"])
+    XCTAssertNil(store.toast)
+    try desk(["/api/coordinator/wake": no(502, "Your agent didn't start: claude exited 1")])
+    took = await store.wake(ask: "b7d3e410", toast: false)
+    XCTAssertFalse(took)
+    XCTAssertEqual(store.whyNot, "Your agent didn't start: claude exited 1")
+    XCTAssertTrue(store.notices.isEmpty)
+  }
+
+  // Make PR with fix opens the chat on the issue, where your agent's answer lands, as the window does.
+  func testMakePRWithFixOpensTheChatOnTheIssue() async throws {
+    let c = try card("acme/worker#860")
+    try desk(["/api/issue/acme/worker#860/fix": Answer(body: #"{"ok":true,"ask":{"id":"a1"}}"#)])
+    store.path = [.item(c.id)]
+    let took = await store.fixIssue(c)
+    XCTAssertTrue(took)
+    XCTAssertEqual(store.path, [.item(c.id), .chat(ChatAbout(item: c.id))])
+    XCTAssertFalse(paths().contains("POST /api/ask"), "the desk made the ask itself: nothing more is sent")
+    // Refused: the page stays.
+    store.path = [.item(c.id)]
+    try desk(["/api/issue/acme/worker#860/fix": no(409, "your agent is off: Settings → Local Agent Integration")])
+    let again = await store.fixIssue(c)
+    XCTAssertFalse(again)
+    XCTAssertEqual(store.path, [.item(c.id)])
+  }
 }

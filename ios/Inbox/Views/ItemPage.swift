@@ -217,6 +217,8 @@ struct ItemPage: View {
       Button(c.draft == true ? "Ready for review, asking reviewers" : "Add reviewers") { box = .reviewers }
     }
     if open, c.handsOff, c.mine || c.review == "approved", main != "handoff" { Button("Hand off for merge") { press("handoff", c) } }
+    // Your chat with your agent, about this PR or issue. Nothing is sent until you send it there.
+    if store.asksAgent { Button("Ask your agent") { store.openChat(ChatAbout(item: c.id)) } }
     // On GitHub, as the window's More: what the desk allows now, less what has its own button here or on the list.
     let writes = (c.actions ?? []).filter { $0 != main && !["draft", "ready", "reopen"].contains($0) && Words.more[$0] != nil }
     if !writes.isEmpty {
@@ -314,7 +316,7 @@ struct ItemPage: View {
           .ruled()
         }
       case .line(let at):
-        WriteSheet(title: "Comment on \(at.name)", prompt: "Your comment", button: "Comment", draft: draft) { words in
+        WriteSheet(title: "Comment on \(at.name)", prompt: "Your comment", button: "Comment", aside: askLine(c, at), draft: draft) { words in
           // Pinned to the commit the diff is at, so the line is the one that was read.
           let took = await store.inline(c, at: at, body: words, head: review?.diffHead ?? "")
           if took { sent.append(SentWords(spot: at, body: words)) }
@@ -329,6 +331,19 @@ struct ItemPage: View {
     }
   }
 
+  // MARK: Ask your agent
+
+  // About one conversation: its thread goes with the ask. None with your agent off.
+  private func asking(_ c: Card) -> ((Conversation) -> Void)? {
+    store.asksAgent ? { store.openChat(ChatAbout.thread(c.id, $0)) } : nil
+  }
+
+  // About one line of the diff, at the commit the diff was read at, as the window's box sends it (spotOf() in Review.tsx).
+  private func askLine(_ c: Card, _ at: LineSpot) -> (label: String, press: () -> Void)? {
+    guard store.asksAgent, let head = review?.diffHead, head.count == 40 else { return nil }
+    return ("Ask your agent", { store.openChat(ChatAbout(item: c.id, lines: .init(path: at.path, line: at.line, side: at.side, head: head))) })
+  }
+
   // MARK: What reviewers said
 
   // Each conversation waiting on you, then the rest under one line. Reply is for an open PR; the bar's answers the first.
@@ -340,7 +355,7 @@ struct ItemPage: View {
       if !review.conversation.isEmpty {
         WhatWasSaid(
           review: review, waiting: waiting, answered: owing.filter(answered), sent: Diff.pending(sent, in: review.conversation, me: store.me),
-          reply: item?.state == "open" ? { box = .reply($0) } : nil
+          reply: item?.state == "open" ? { box = .reply($0) } : nil, ask: asking(c)
         )
         .id("said")
       }
@@ -512,7 +527,7 @@ struct ItemPage: View {
       DiffView(
         model: diff, files: review.files, conversation: review.conversation,
         sent: Diff.pending(sent, in: review.conversation, me: store.me), github: c.url.flatMap { URL(string: $0 + "/files") },
-        comment: can ? { box = .line($0) } : nil, reply: can ? { box = .reply($0) } : nil,
+        comment: can ? { box = .line($0) } : nil, reply: can ? { box = .reply($0) } : nil, ask: asking(c),
         notes: review.ai?.notes ?? [], looks: review.aiStale == true ? [] : review.ai?.look ?? [], bugs: bugs(review),
         diagrams: review.ai?.diagrams ?? [],
         show: { proxy.scrollTo($0) }, jump: { reach($0, .top, proxy) },

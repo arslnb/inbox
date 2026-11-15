@@ -20,6 +20,7 @@ enum Route: Hashable, Sendable {
   case item(String)
   case inquiry(String)
   case session(String)
+  case chat(ChatAbout)  // Ask your agent, about an item, a spot in its review, or nothing
 }
 
 struct Noting: Identifiable {
@@ -62,6 +63,8 @@ final class Store {
   private(set) var overview: Overview?
   private(set) var queue: QueueView?
   private(set) var inflight: InflightView?
+  private(set) var asks: AsksView?  // your chat with your agent, as last read: the chat's page and the page menu's "waiting"
+  var askDrafts: [String: String] = [:]  // what you'd typed to your agent and not sent, per item ("" for none)
   private(set) var loads = 0  // bumped on every answer from the desk: an opened item refetches
   private(set) var offline = false
   private(set) var starting: String?
@@ -174,6 +177,8 @@ final class Store {
     overview = nil
     queue = nil
     inflight = nil
+    asks = nil
+    askDrafts = [:]
     offline = false
     starting = nil
     broken = nil
@@ -373,7 +378,8 @@ final class Store {
   // `leaves`: the row goes at once, as in the window, and is back if the desk refuses.
   private func write(
     _ id: String, leaves: Bool = false, still: String = "Something else is still on its way for it: try again in a moment.",
-    _ run: (APIClient) async throws -> Toast
+    bubble: Bool = true,  // false where the page says the refusal itself, beside what was pressed
+    _ run: (APIClient) async throws -> Toast?
   ) async -> Bool {
     guard let client else { return false }
     if sending.contains(id) {
@@ -388,12 +394,11 @@ final class Store {
       leaving.remove(id)
     }
     do {
-      let said = try await run(client)
-      flash(said.text, revert: said.revert)
+      if let said = try await run(client) { flash(said.text, revert: said.revert) }
       await load()
       return true
     } catch let e as APIError {
-      took(e, action: true)
+      if case .refused = e, !bubble {} else { took(e, action: true) }
       switch e {
       case .unreachable, .notDesk:
         // No answer isn't a no: a write that reached the desk lands whether or not its answer got back. Read what it has.
@@ -461,16 +466,24 @@ final class Store {
   // events redraw the page, and only the desk's own refusal is said. An answer that never came says nothing.
   @discardableResult
   func askReview(_ c: Card, _ review: ReviewView?) -> Task<Void, Never>? {
-    guard let client, !asking.contains(c.id) else { return nil }
-    if review?.generating == true {
+    if review?.generating == true, client != nil, !asking.contains(c.id) {
       flash("The AI review is already being written")
       return nil
     }
-    asking.insert(c.id)
-    flash("\(agent) is reviewing \(c.shortRef)\(review?.ai != nil || review?.aiError != nil ? " again" : "").")
+    return sendReview(c.id, again: review?.ai != nil || review?.aiError != nil, force: review?.ai != nil && review?.aiStale != true)
+  }
+
+  // Try again on a failed review in Merging's "<agent>'s work": the same ask, by the PR's id alone.
+  @discardableResult
+  func retryReview(_ id: String) -> Task<Void, Never>? { sendReview(id, again: true, force: false) }
+
+  private func sendReview(_ id: String, again: Bool, force: Bool) -> Task<Void, Never>? {
+    guard let client, !asking.contains(id) else { return nil }
+    asking.insert(id)
+    flash("\(agent) is reviewing \(Asking.shortId(id))\(again ? " again" : "").")
     return Task { [weak self] in
       do {
-        try await client.askReview(c.id, force: review?.ai != nil && review?.aiStale != true)
+        try await client.askReview(id, force: force)
       } catch let e as APIError {
         switch e {
         case .refused, .starting, .rules: self?.took(e, action: true)
@@ -478,7 +491,7 @@ final class Store {
         case .unreachable, .notDesk: break
         }
       } catch {}
-      self?.asking.remove(c.id)
+      self?.asking.remove(id)
       await self?.load()
     }
   }
@@ -611,8 +624,52 @@ final class Store {
     return took
   }
 
-  // Where the window opens Ask your agent on the item just asked about. The phone's page stays; its toast says it.
-  func askedAbout(_ id: String) {}
+  // Where the window opens Ask your agent on the item just asked about: the chat, where its answer lands.
+  func askedAbout(_ id: String) { openChat(ChatAbout(item: id)) }
+
+  // MARK: Ask your agent
+
+  func openChat(_ about: ChatAbout = ChatAbout()) { path.append(.chat(about)) }
+
+  // Whether Ask your agent is offered: not with your agent off (the chat itself says so when it's opened anyway).
+  var asksAgent: Bool { overview?.agent != false }
+
+  // Your chat, read again: free, it starts nothing. A read that fails keeps what's drawn; the next update tries again.
+  func readAsks() async {
+    guard let client else { return }
+    do {
+      var view = try await client.asks()
+      #if DEBUG
+        if let state = debugAsks { view = view.debugging(state) }
+      #endif
+      asks = view
+    } catch let e as APIError {
+      if case .unpaired = e { took(e) }
+    } catch {}
+  }
+
+  // Send: your words to your agent, about what the chat is on. It wakes your agent with them (a turn on your own Claude),
+  // so only a press calls this, and a second press while one is on its way sends nothing. No toast: the ask shows in
+  // the chat, and so does a refusal, in the desk's words (`whyNot`), with your words kept.
+  static let chat = "ask"  // what busy() knows a send by
+  @discardableResult
+  func ask(_ text: String, about: ChatAbout) async -> Bool {
+    await write(Store.chat, still: "Still sending your last words.", bubble: false) { client in
+      // An update can land first and bring the ask already.
+      if let a = try await client.ask(text, about: about).ask, self.asks?.asks.contains(where: { $0.id == a.id }) == false { self.asks?.asks.append(a) }
+      return nil
+    }
+  }
+
+  // Wake it under an ask your agent stopped on, and Try again on a failed ask in its work: it's handed that ask again.
+  // A turn of your agent. The chat says how it went itself (`toast` false); Merging's row says it in a toast.
+  @discardableResult
+  func wake(ask id: String, toast: Bool) async -> Bool {
+    await write(Store.coordinator, still: "Still asking your agent.", bubble: toast) { client in
+      try await client.wake(ask: id)
+      return toast ? Toast(text: "Asked your agent again.") : nil
+    }
+  }
 
   // Block or Unblock its author on the desk: their items are muted and no agent reads them. Nothing on GitHub.
   @discardableResult
@@ -780,6 +837,8 @@ final class Store {
     //   -step <n>   with -open: an issue's walk at its nth step
     //   -note new|<note id>   the note box: a new note, or that one opened
     //   -filter "<text>" [-filterFocus]   the lists' filter as typed (a term then a space is a pill); with the cursor in its box
+    //   -chat [<item id>]   Ask your agent, about that item or nothing
+    //   -asks empty|off|on|waiting|queued|onit|stopped|error|none   with -chat: the chat as the mock never sends it (AsksView.debugging())
     func applyLaunchArguments(_ args: UserDefaults = .standard, flags: [String] = ProcessInfo.processInfo.arguments) {
       guard flags.contains(where: { ["-deskURL", "-connect"].contains($0) }) else { return }
       stopLive()
@@ -800,6 +859,11 @@ final class Store {
         else if open.hasPrefix("session:") { path = [.session(open)] }
         else { path = [.item(open)] }
       }
+      if flags.contains("-chat") {
+        let item = args.string(forKey: "chat") ?? ""
+        path.append(.chat(ChatAbout(item: item.contains("#") ? item : nil)))
+      }
+      debugAsks = args.string(forKey: "asks")
       showSettings = flags.contains("-settings")
       scrollTo = args.string(forKey: "scrollTo")
       debugBox = args.string(forKey: "box")
@@ -824,6 +888,7 @@ final class Store {
     var debugAi: String?
     var debugIssue: String?  // an issue's pre-review as the mock never sends it: see ItemDetail.debugging()
     var debugStep: Int?
+    @ObservationIgnored var debugAsks: String?
     var debugScan: String?  // what the camera would have read: the connect screen takes it once
     @ObservationIgnored var debugFilterFocus = false  // the filter's box takes the cursor, so its suggestions show
     var debugNote: String?  // "new", or a note's id: its box, opened once the desk has answered
