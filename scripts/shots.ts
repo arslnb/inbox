@@ -577,27 +577,26 @@ const headSays = (page: Page) =>
   page.evaluate<string | null>(
     `(() => { const h = document.querySelector(".page-head"); return h && (h.querySelector("input")?.placeholder ?? h.textContent.trim()); })()`,
   );
-// In Settings: the page head's words, then the sidebar's items, "|" for its hairline and the one it marks current in brackets:
-// "Agent: Inbox Inbox and notifications [Agent] Your automations This device | GitHub"; null outside Settings.
+// In Settings: the page head's words, then the sidebar's items, the one it marks current in brackets:
+// "Agent: Inbox Inbox and notifications [Agent] Your automations This device GitHub"; null outside Settings.
 const SETTINGS_SIDE = SETTINGS_PARTS.filter((p) => !p.plugin).map((p) => p.name);
 const settingsSays = (page: Page) =>
   page.evaluate<string | null>(`(() => {
     const nav = document.querySelector('.side-nav[aria-label="Settings"]');
     if (!nav) return null;
     const items = [...nav.children].map((el) =>
-      el.classList.contains("side-sep") ? "|" : el.getAttribute("aria-current") === "page" ? "[" + el.textContent.trim() + "]" : el.textContent.trim(),
+      el.getAttribute("aria-current") === "page" ? "[" + el.textContent.trim() + "]" : el.textContent.trim(),
     );
     return document.querySelector(".page-head").textContent.trim() + ": " + items.join(" ");
   })()`);
 // What settingsSays reads on the part named `on`.
-const onPart = (on: string) =>
-  `${on}: Inbox ${[...SETTINGS_SIDE, "|", "GitHub", "Sessions"].map((p) => (p === on ? `[${p}]` : p)).join(" ")}`;
-// The sidebar's pages in order, "|" for its hairline; null where it's hidden.
+const onPart = (on: string) => `${on}: Inbox ${[...SETTINGS_SIDE, "GitHub", "Sessions"].map((p) => (p === on ? `[${p}]` : p)).join(" ")}`;
+// The sidebar's pages in order; null where it's hidden.
 const sidePages = (page: Page) =>
   page.evaluate<string | null>(`(() => {
     const nav = document.querySelector(".side-nav");
     if (!nav?.getClientRects().length) return null;
-    return [...nav.children].map((el) => (el.classList.contains("side-sep") ? "|" : el.querySelector(".side-name")?.textContent.trim())).join(" ");
+    return [...nav.children].map((el) => el.querySelector(".side-name")?.textContent.trim()).join(" ");
   })()`);
 // The words of the open More menu, top to bottom, its heading as "#On GitHub".
 const moreItems = (page: Page) =>
@@ -4764,7 +4763,7 @@ const SHOTS: Shot[] = [
     go: async (page) => {
       await at("#/")(page);
       const side = await sidePages(page);
-      if (side !== "Inbox Blocked | Merging Archive") failures.push(`sidebar-used: the sidebar reads ${side}`);
+      if (side !== "Inbox Blocked Merging Archive") failures.push(`sidebar-used: the sidebar reads ${side}`);
       await page.locator(".side-item", { hasText: "Blocked" }).click();
       await at("#/settings/notify")(page);
     },
@@ -5338,18 +5337,17 @@ async function iconSheets(browser: Browser, url: string): Promise<string[]> {
       await page.goto(`${url}/#/`);
       const brand = page.locator(".side-brand");
       await brand.waitFor({ timeout: 15_000 });
-      // The sidebar's colours and the Mark as the window draws them.
-      const s = await page.evaluate<{ side: string; pencil: string; color: string; mark: string; w: number; h: number }>(`(() => {
-        const css = getComputedStyle(document.documentElement), mark = document.querySelector(".side-brand .mark");
+      // The sidebar's colours, and the Mark (no longer in the sidebar) from its master in the accent the window draws it in.
+      const s = await page.evaluate<{ side: string; pencil: string; color: string; w: number; h: number }>(`(() => {
+        const css = getComputedStyle(document.documentElement);
         const r = document.querySelector(".side-brand").getBoundingClientRect();
-        return { side: css.getPropertyValue("--side"), pencil: css.getPropertyValue("--pencil"), color: getComputedStyle(mark).color, mark: mark.outerHTML, w: r.width, h: r.height };
+        return { side: css.getPropertyValue("--chrome"), pencil: css.getPropertyValue("--chrome-pencil"), color: css.getPropertyValue("--chrome-accent"), w: r.width, h: r.height };
       })()`);
+      const mark = fs.readFileSync(path.join(root, "assets/brand/mark.svg"), "utf8");
       const row = (label: string, cells: string[]) =>
         `<div class="row"><div class="label">${label}</div><div class="cells">${cells.join("")}</div></div>`;
       const cell = (px: number | string, img: string) => `<figure>${img}<figcaption>${px}</figcaption></figure>`;
-      const marks = ICON_PX.map((px) =>
-        cell(px, `<span class="mk" style="width:${px}px;height:${px}px;color:${s.color}">${s.mark}</span>`),
-      );
+      const marks = ICON_PX.map((px) => cell(px, `<span class="mk" style="width:${px}px;height:${px}px;color:${s.color}">${mark}</span>`));
       const tiles = (src: string) => ICON_PX.map((px) => cell(px, `<img src="${src}" width="${px}" height="${px}">`));
       // macOS draws a template image in the menu bar's text colour: black on a light bar, white on a dark one.
       const template = `<img src="${asset("trayTemplate.png")}" width="22" height="16"${scheme === "dark" ? ' style="filter:invert(1)"' : ""}>`;

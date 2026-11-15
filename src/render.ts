@@ -25,7 +25,6 @@ const Elk = elkExport;
 const WEB = path.join(import.meta.dirname, "..", "web", "src");
 const FONTS: Record<string, string> = {
   "instrument-sans-latin-standard-normal.woff2": "",
-  "jetbrains-mono-latin-wght-normal.woff2": "",
 };
 // The classes and elements this page draws: the window's rules for them are its look.
 const USED = new Set(

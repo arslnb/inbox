@@ -14,11 +14,11 @@ two filled paths in a 64×64 viewBox.
 - **Keep its viewBox.** The silhouette spans x 8–56 and y 19.6–44.5; the room around it is deliberate.
 - **A status dot goes on the tile's corner** (the tray's alert), never on the mark.
 - **Colours.** The tile is petrol `#365D60` with a warm-white `#F7F6F2` mark, the same in every theme. In the window the
-  mark is `--accent-ink` (petrol in Light, a light petrol in Dark, each theme's accent elsewhere). A coloured mark on a
+  mark is `--accent-ink` (purple in Light, a light purple in Dark, each theme's accent elsewhere). A coloured mark on a
   light surface, a light one on a dark surface; never dark petrol on a dark panel.
 - **In the window** it's `Mark` (`web/src/components/Mark.tsx`): inline SVG at 24px (a silhouette about 18×9px),
-  `aria-hidden`, beside the word "Inbox" in the sidebar's brand row. In the macOS app (traffic lights in that row) and
-  at 641–1000px the mark stands alone.
+  `aria-hidden`, on the first-run page. The sidebar's brand row has no mark: the word "Inbox" in a browser, nothing
+  beside the traffic lights in the macOS app.
 
 `npm run icons` (`scripts/icons.ts`, run in Electron, which rasterizes) reads the master's paths and writes:
 
@@ -53,30 +53,31 @@ Tokens live in `web/src/styles.css`:
 
 | Token                                 | Role                                                                                                  | Light                           | Dark                            |
 | ------------------------------------- | ----------------------------------------------------------------------------------------------------- | ------------------------------- | ------------------------------- |
-| `--paper`                             | the canvas: the page and its head                                                                     | `#f5f6f8`                       | `#14171c`                       |
-| `--sheet`                             | a panel: a list page under its head, the list beside a review, menus, bubbles                         | `#fff`                          | `#1b1f26`                       |
-| `--wash`                              | a quiet fill: the filter, loading bars, your words in the chat, an off switch's track, a greyed field | `#edeff2`                       | `#242a33`                       |
-| `--ink`                               | text                                                                                                  | `#20242c`                       | `#eceff4`                       |
-| `--ink-2`                             | strong secondary text: the sidebar's pages; an on switch's fill                                       | `#3d4450`                       | `#c9cfd9`                       |
-| `--pencil`                            | secondary text: a row's facts and its label, the sidebar's footer                                     | `#5c6573`                       | `#a7b0be`                       |
-| `--faint`                             | the quietest: separators; never text                                                                  | `#979eaa`                       | `#6b7482`                       |
-| `--rule`, `--rule-strong`             | a hairline, a firmer one                                                                              | `#dde1e7`, `#c9ced6`            | `#343b46`, `#424a57`            |
-| `--control`                           | a control's necessary edge (a field, a switch, the fold button's ring)                                | `#7c8798`                       | `#6b7686`                       |
-| `--sel`                               | a selected thing's fill outside the tables (the PR on screen in a stack, the file you're in)          | `#eef1f4`                       | `#222830`                       |
-| `--side`, `--side-hover`, `--side-on` | the sidebar, under the pointer, where you are                                                         | `#eff1f4`, `#e7eaee`, `#dfe3e8` | `#111419`, `#1c2027`, `#252b34` |
+| `--paper`                             | the canvas: the page and its head                                                                     | `#eeecf3`                       | `#100d17`                       |
+| `--sheet`                             | a panel: a list page under its head, the list beside a review, menus, bubbles                         | `#faf9fc`                       | `#181421`                       |
+| `--wash`                              | a quiet fill: the filter, loading bars, your words in the chat, an off switch's track, a greyed field | `#e6e3ee`                       | `#231e30`                       |
+| `--ink`                               | text                                                                                                  | `#221f2b`                       | `#eeebf4`                       |
+| `--ink-2`                             | strong secondary text: the sidebar's pages; an on switch's fill                                       | `#3f3a4c`                       | `#cdc7da`                       |
+| `--pencil`                            | secondary text: a row's facts and its label, the sidebar's footer                                     | `#5c5570`                       | `#aca4bd`                       |
+| `--faint`                             | the quietest: separators; never text                                                                  | `#9a94aa`                       | `#6f6782`                       |
+| `--rule`, `--rule-strong`             | a hairline, a firmer one                                                                              | `#dcd8e5`, `#c8c3d4`            | `#322b41`, `#413952`            |
+| `--control`                           | a control's necessary edge (a field, a switch, the fold button's ring)                                | `#7e7791`                       | `#706886`                       |
+| `--sel`                               | a selected thing's fill outside the tables (the PR on screen in a stack, the file you're in)          | `#ebe8f2`                       | `#1f1a2b`                       |
+| `--side`, `--side-hover`, `--side-on` | the sidebar before the chrome took it over (see `--chrome` below); still each theme's                 | `#e9e6f0`, `#e3dfeb`, `#dcd7e6` | `#0c0a12`, `#1b1626`, `#272135` |
 | `--red`, `--red-wash`                 | failing: CI failing, a high risk, sync failed, desk offline, your agent can't run, Connect failed     | `#b42318`, `#fcebe9`            | `#ffb4ab`, `#3b2421`            |
 | `--amber`, `--amber-wash`             | caution: changes requested, a merge conflict, a medium risk                                           | `#8a4b08`, `#faefdf`            | `#ebc076`, `#33291b`            |
 | `--green`                             | done or fine: a low risk, what you did in a review ("✓ Approved")                                     | `#176847`                       | `#8dceaf`                       |
 | `--go`, `--on-go`                     | Approve and Hand off for merge, filled                                                                | `#176847`, `#fff`               | `#8dceaf`, `#0e2419`            |
-| `--accent`, `--on-accent`             | the one call to action to press, filled                                                               | `#365d60`, `#fff`               | `#a8cacb`, `#162b2d`            |
-| `--accent-ink`                        | links, the focus ring, a row's tinted call to action, the Agent label on a question's page, the mark  | `#365d60`                       | `#a3c5c7`                       |
-| `--accent-wash`                       | a row's tinted call to action                                                                         | `#d5e8e7`                       | `#243a3d`                       |
+| `--accent`, `--on-accent`             | the one call to action to press, filled                                                               | `#6a3dbd`, `#fff`               | `#c4a7f5`, `#1f1336`            |
+| `--accent-ink`                        | links, the focus ring, a row's tinted call to action, the Agent label on a question's page, the mark  | `#6236b3`                       | `#bfa2f2`                       |
+| `--accent-wash`                       | a row's tinted call to action                                                                         | `#e7defa`                       | `#2d2344`                       |
 | `--shadow`                            | only what lies over the page: menus, toasts, bubbles, the chat over a narrow page                     | ink at 6 % and 12 %             | black at 35 % and 50 %          |
 
 - **Colour carries information.** Red fails, amber cautions, green is done or fine, always with words ("CI failing",
   "changes requested"). The brand colour never stands in for them. Everything else is ink and pencil, including what a
   Merging row waits on and an AI review's or the judge's failure (it's about the agent, not the PR).
-- **Type.** Instrument Sans for the UI, JetBrains Mono for code, both bundled. Sentence case, no all-caps, no monospace
+- **Type.** The system's font for the UI (SF Pro on a Mac, Segoe UI on Windows) and SF Mono for code, as the Claude app
+  does; diagrams keep the bundled Instrument Sans their boxes are measured in. Sentence case, no all-caps, no monospace
   outside code.
 
   | Text                                  | Size                     |
@@ -115,6 +116,10 @@ Tokens live in `web/src/styles.css`:
 
 No top bar: the sidebar is the window's only global chrome, and each page has its own head.
 
+The chrome (the sidebar, a page's head and the list's head beside it) is near black in every theme: `--chrome`, the
+theme's paper mixed into black, with light text from the `--chrome-*` tokens, which `.side`, `.page-head` and
+`.beside-head` put in place of `--ink`, `--pencil`, `--rule` and the rest, so what's drawn in them reads on the dark.
+
 ```
 ┌──────────┬──────────────┬────────────────────────────────┬────────────┐
 │ ▬ Inbox  │ Inbox 21  ‹› │ ‹ Inbox                        │ Your agent │  the heads: 52px, sticky, drag handles
@@ -134,7 +139,7 @@ No top bar: the sidebar is the window's only global chrome, and each page has it
 
 | Region                                            | Width                                                                                                                                                                               | Scrolls                            |
 | ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- |
-| The sidebar (`Sidebar.tsx`)                       | 200px; 148px at 641–1000px; one row across the top at 640px and below                                                                                                               | inside itself; sideways in its row |
+| The sidebar (`Sidebar.tsx`)                       | 230px, or as wide as you drag its edge (160px to 30% of the window, kept per device); 148px at 641–1000px; one row across the top at 640px and below                                | inside itself; sideways in its row |
 | The list beside a review (`Beside.tsx`)           | 320–360px (28vw), or as wide as you drag its edge (260px to half the window, kept per device); folded, nothing but its button; only for a review or a question, at 1160px and wider | inside itself                      |
 | The page's column (`.col`, `PageHead.tsx` on top) | the rest: a list edge to edge, a review with the page's padding, Settings 760px, Searches and rules 1180px, a question 880px                                                        | the window                         |
 | The chat (`Chat.tsx`)                             | 320–420px (25vw): a third column above 1100px, over the page's right edge at 1100px and below                                                                                       | inside itself                      |
@@ -143,16 +148,16 @@ No top bar: the sidebar is the window's only global chrome, and each page has it
 ### The sidebar
 
 - The brand row: 52px, the desktop app's drag handle, 86px of left padding for the macOS traffic lights.
-- The pages: Inbox with its count, Blocked, a hairline, Merging, the Archive (⌘1 to ⌘4). FYI is a section of the Inbox,
+- The pages: Inbox with its count, Blocked, Merging, the Archive (⌘1 to ⌘4), no hairline between them. FYI is a section of the Inbox,
   not a page. The pill marks only where you are.
 - The footer, bottom up: Settings, the update line (only when a newer Inbox exists), Ask your agent ("Ask" at
   641–1000px).
 - In Settings the sidebar lists Settings' parts in the pages' place, under a quieter **‹ Inbox**: the core's, then the
-  plugins' under a hairline. The part you're on has the neutral pill. No tabs.
+  plugins'. The part you're on has the neutral pill. No tabs.
 
 ### The page's head
 
-- Sticky, 52px (as tall as the brand row and the list's head), on `--paper`, a hairline under it. It's a drag handle,
+- Sticky, 52px (as tall as the brand row and the list's head), on `--chrome`, a hairline under it. It's a drag handle,
   its controls excepted.
 - It holds only the page's own: a list's filter (on the rows' text edge), Merging's or a Settings part's name (on the
   rows' text), or Back for a review, a question or a Settings view ("‹ Inbox", "‹ Question", "‹ GitHub",
