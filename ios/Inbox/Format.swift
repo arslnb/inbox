@@ -17,6 +17,11 @@ enum Words {
   // "12m", "5h", "3d"
   static func age(_ at: String?, now: Date) -> String {
     guard let then = date(at) else { return "" }
+    return span(then, now)
+  }
+
+  // The time from one moment to a later one, as age() says it.
+  static func span(_ then: Date, _ now: Date) -> String {
     let m = max(0, Int((now.timeIntervalSince(then) / 60).rounded()))
     if m < 60 { return "\(m)m" }
     // Rounded before the switch, so 47.6h and 48.3h both read "2d".

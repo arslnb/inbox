@@ -567,4 +567,57 @@ final class DecodingTests: XCTestCase {
     XCTAssertEqual([lean.conversationError, lean.readingError], ["rate limited", "timed out"])
     XCTAssertEqual(lean.reading, true)
   }
+
+  // GET /api/asks, as the mock sends it: your chat oldest first, and what your agent is doing.
+  func testAsks() throws {
+    let v: AsksView = try Fixture.decode("asks")
+    XCTAssertEqual(v.on, true)
+    XCTAssertEqual(v.asks.map(\.id), ["c4e9a7d1", "a1f0c2e9", "b7d3e410"])
+    XCTAssertEqual(v.asks[0].itemId, "me/notes-app#12")
+    XCTAssertEqual(v.asks[0].answer?.text?.hasPrefix("Two things, both small:"), true)
+    XCTAssertEqual(v.asks[1].threadId, "PRRT_name")
+    XCTAssertEqual(v.asks[1].threadUrl, "https://github.com/me/notes-app/pull/12#discussion_r2")
+    XCTAssertNil(v.asks[2].answer)
+    XCTAssertTrue(Asking.waiting(v))
+    XCTAssertEqual(v.coordinator?.status, "busy")
+    XCTAssertEqual(v.coordinator?.queued, [])
+    XCTAssertEqual(v.coordinator?.activity?.count, 5)
+    XCTAssertEqual(v.coordinator?.activity?.last, "Searched for idempotency_key")
+  }
+
+  // An older desk sends a coordinator without status, queued or activity, and an ask's lines may be a range.
+  func testAsksFromAnOlderDeskAndLines() throws {
+    let json = #"{"on":false,"asks":[{"id":"a1","at":"2026-10-27T11:00:00Z","text":"why?","item_id":"acme/api#1","thread_id":null,"thread_url":null,"#
+      + #""lines":{"path":"src/plan.ts","line":23,"side":"new","start":{"line":20,"side":"new"},"head":"0000000000000000000000000000000000000001"},"answer":null},"#
+      + #"{"at":"no id: skipped"}],"coordinator":{"on":false,"id":null,"url":null,"error":null}}"#
+    let v = try DeskJSON.decoder().decode(AsksView.self, from: Data(json.utf8))
+    XCTAssertEqual(v.on, false)
+    XCTAssertEqual(v.asks.count, 1)
+    XCTAssertEqual(v.asks[0].lines?.start?.line, 20)
+    XCTAssertNil(v.coordinator?.status)
+    XCTAssertNil(v.coordinator?.queued)
+    XCTAssertNil(v.coordinator?.activity)
+    XCTAssertEqual(try DeskJSON.decoder().decode(AsksView.self, from: Data("{}".utf8)).asks.count, 0)
+  }
+
+  // Merging's work, as the mock sends it: two reviews being written, your ask, a review that failed three times, an answer nobody read.
+  func testWork() throws {
+    let v: InflightView = try Fixture.decode("inflight")
+    XCTAssertEqual(v.work.map(\.kind), ["ai_review", "ai_review", "ask", "ai_review", "answer"])
+    XCTAssertEqual(v.work.map(\.state), ["running", "running", "running", "failed", "failed"])
+    XCTAssertEqual(v.work.map(\.attempts), [2, 1, 1, 3, 0])
+    XCTAssertEqual(v.work[0].id, "ai_review acme/web#2301")
+    XCTAssertEqual(v.work[2].key, "b7d3e410")
+    XCTAssertEqual(v.work[2].item, "me/notes-app#12")
+    XCTAssertEqual(v.work[3].key, "acme/worker#890")
+    XCTAssertNotNil(v.work[3].finishedAt)
+    XCTAssertEqual(v.work[4].from, "seer: code mode research")
+    XCTAssertNil(v.work[4].item)
+    XCTAssertEqual(v.coordinator?.status, "busy")
+    // A desk from before the ledger sends none; a row it can't read is skipped.
+    let old = try DeskJSON.decoder().decode(InflightView.self, from: Data(#"{"rows":[]}"#.utf8))
+    XCTAssertTrue(old.work.isEmpty)
+    let odd = try DeskJSON.decoder().decode(InflightView.self, from: Data(#"{"rows":[],"work":[{"kind":"ask"},{"kind":"ask","key":"a1"}]}"#.utf8))
+    XCTAssertEqual(odd.work.map(\.key), ["a1"])
+  }
 }

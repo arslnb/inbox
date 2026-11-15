@@ -485,4 +485,211 @@ final class FormatTests: XCTestCase {
     take = Words.takeSplit("At 10:30 it ran")
     XCTAssertNil(take.call, "a colon inside a word isn't one")
   }
+
+  // MARK: Ask your agent (Chat.tsx)
+
+  private func coordinator(_ json: String) throws -> InflightView.Coordinator {
+    try DeskJSON.decoder().decode(InflightView.Coordinator.self, from: Data(json.utf8))
+  }
+
+  // What your agent is doing about an ask it hasn't answered, in the window's order: the first that holds wins.
+  func testTheWaitingLinePerState() throws {
+    XCTAssertEqual(Wait(ask: "a1", live: nil), .answer)
+    XCTAssertEqual(Wait(ask: "a1", live: nil).words, "Waiting for its answer")
+    XCTAssertNil(Wait(ask: "a1", live: nil).link)
+    let url = #""url":"https://claude.ai/code/session_01""#
+    let table: [(String, Wait, String, String?, Bool)] = [
+      // An error wins over everything else it says.
+      (#"{"on":true,\#(url),"error":"claude isn't logged in","status":"waiting","queued":["a1"],"activity":["Read app.py"]}"#, .cantRun("claude isn't logged in"),
+        "It can't run: claude isn't logged in", nil, false),
+      (#"{"on":true,\#(url),"error":null,"status":"waiting","queued":["a1"],"activity":["Read app.py"]}"#, .permission, "Waiting on a permission prompt",
+        "Answer it on claude.ai", false),
+      (#"{"on":true,\#(url),"error":null,"status":"busy","queued":["a1"],"activity":["Read app.py"]}"#, .queued,
+        "Queued: it gets this when it's done with what it's on", "Watch it on claude.ai", true),
+      (#"{"on":true,\#(url),"error":null,"status":"busy","queued":["other"],"activity":["Read app.py","Searched for idempotency_key"]}"#,
+        .step("Searched for idempotency_key"), "Searched for idempotency_key", "Watch it on claude.ai", true),
+      (#"{"on":true,\#(url),"error":null,"status":"shell","queued":[],"activity":["Ran the tests"]}"#, .step("Ran the tests"), "Ran the tests", "Watch it on claude.ai", true),
+      (#"{"on":true,\#(url),"error":null,"status":"busy","queued":[],"activity":[]}"#, .onIt, "On it", "Watch it on claude.ai", true),
+      (#"{"on":true,\#(url),"error":null,"status":"shell"}"#, .onIt, "On it", "Watch it on claude.ai", true),
+      // Its steps are only what it's doing while it works.
+      (#"{"on":true,\#(url),"error":null,"status":"idle","queued":[],"activity":["Read app.py"]}"#, .stopped, "It stopped without answering", "Watch it on claude.ai", false),
+      (#"{"on":true,\#(url),"error":null,"status":"stopped","queued":[],"activity":[]}"#, .stopped, "It stopped without answering", "Watch it on claude.ai", false),
+      (#"{"on":true,"id":null,"url":null,"error":null,"status":null}"#, .stopped, "It stopped without answering", "Watch it on claude.ai", false),
+      // An older desk says nothing of what it's doing.
+      (#"{"on":true,"id":"4be71c2a","url":null,"error":null}"#, .stopped, "It stopped without answering", "Watch it on claude.ai", false),
+    ]
+    for (json, wait, words, link, busy) in table {
+      let w = Wait(ask: "a1", live: try coordinator(json))
+      XCTAssertEqual(w, wait, json)
+      XCTAssertEqual(w.words, words, json)
+      XCTAssertEqual(w.link, link, json)
+      XCTAssertEqual(w.busy, busy, json)
+    }
+    // The mock's: busy, with its latest step.
+    let mock: AsksView = try Fixture.decode("asks")
+    XCTAssertEqual(Wait(ask: "b7d3e410", live: mock.coordinator), .step("Searched for idempotency_key"))
+  }
+
+  // Under your words: when, the item, and where in it.
+  func testAnAsksMetaLine() throws {
+    let ask = { (more: String) in
+      try DeskJSON.decoder().decode(Ask.self, from: Data(#"{"id":"a1","at":"\#(self.back(3))","text":"t"\#(more)}"#.utf8))
+    }
+    XCTAssertEqual(Asking.meta(try ask(""), now: now, agent: "Claude"), ["3h"])
+    XCTAssertEqual(Asking.meta(try ask(#","item_id":"me/notes-app#12","thread_id":null,"thread_url":null"#), now: now, agent: "Claude"), ["3h", "notes-app#12"])
+    XCTAssertEqual(
+      Asking.meta(try ask(#","item_id":"me/notes-app#12","thread_id":"PRRT_1","thread_url":"https://github.com/me/notes-app/pull/12#discussion_r2""#), now: now, agent: "Claude"),
+      ["3h", "notes-app#12", "on a thread"])
+    let head = #""head":"0000000000000000000000000000000000000001""#
+    XCTAssertEqual(
+      Asking.meta(try ask(#","item_id":"acme/api#4127","lines":{"path":"src/planner/plan.ts","line":23,"side":"new","start":{"line":20,"side":"new"},\#(head)}"#), now: now, agent: "Claude"),
+      ["3h", "api#4127", "on plan.ts:20\u{2013}23"])
+    XCTAssertEqual(
+      Asking.meta(try ask(#","item_id":"acme/api#4127","lines":{"path":"plan.ts","line":7,"side":"old",\#(head)}"#), now: now, agent: "Claude").last, "on plan.ts:7, removed")
+    XCTAssertEqual(
+      Asking.meta(try ask(#","item_id":"acme/api#4127","lines":{"path":"a/plan.ts","line":7,"side":"new","note":true,\#(head)}"#), now: now, agent: "Codex").last,
+      "on Codex's note on plan.ts:7")
+    // Mixed sides read as the new file's lines: only an all-removed range says so.
+    XCTAssertEqual(Asking.linesLabel(path: "plan.ts", line: 9, side: "old", start: (7, "new")), "plan.ts:7\u{2013}9")
+    XCTAssertEqual(Asking.linesLabel(path: "plan.ts", line: 9, side: "old", start: (7, "old")), "plan.ts:7\u{2013}9, removed")
+    let fresh = try DeskJSON.decoder().decode(Ask.self, from: Data(#"{"id":"a2","at":"\#(back(0.005))","text":"t"}"#.utf8))
+    XCTAssertEqual(Asking.meta(fresh, now: now, agent: "Claude"), ["just now"])
+    XCTAssertEqual(Asking.shortId("me/notes-app#12"), "notes-app#12")
+    XCTAssertEqual(Asking.empty("acme/api#4127"), "Ask or tell it something about api#4127: it answers here.")
+    XCTAssertEqual(Asking.empty(nil), "Ask or tell it something: it answers here.")
+    XCTAssertEqual(Asking.off, "Your agent is off in Settings → Local Agent Integration, so nothing is sent.")
+  }
+
+  // What an ask from a conversation or a line carries, and the x's one step wider.
+  func testWhatTheChatIsAbout() throws {
+    let review: ReviewView = try Fixture.decode("review-own")
+    let c = try XCTUnwrap(review.conversation.first { ($0.path ?? "").isEmpty == false })
+    let about = ChatAbout.thread("me/notes-app#12", c)
+    XCTAssertEqual(about.thread?.id, c.id)
+    XCTAssertEqual(about.thread?.url, c.url)
+    XCTAssertEqual(about.spot, "\(c.comments.first?.author ?? "")'s \(c.kind ?? "") on \(Words.place(c))")
+    XCTAssertEqual(about.wider, ChatAbout(item: "me/notes-app#12"))
+    XCTAssertEqual(about.wider.wider, ChatAbout())
+    let line = ChatAbout(item: "acme/api#4127", lines: .init(path: "src/planner/plan.ts", line: 23, side: "old", head: String(repeating: "0", count: 40)))
+    XCTAssertEqual(line.spot, "plan.ts:23, removed")
+    XCTAssertNil(ChatAbout(item: "acme/api#4127").spot)
+  }
+
+  // MARK: <agent>'s work (Inflight.tsx's WorkRow)
+
+  private func work(_ json: String) throws -> Work {
+    try DeskJSON.decoder().decode(Work.self, from: Data(#"{"title":"Queue: a leases table","queued_at":"\#(back(2))",\#(json)}"#.utf8))
+  }
+
+  func testAWorkRowsPhrasePerStateKindAndAttempts() throws {
+    let ahead = ISO8601DateFormatter().string(from: now.addingTimeInterval(120))
+    let late = "no answer in 5 minutes, so it was stopped"
+    let table: [(String, [String])] = [
+      (#""kind":"ai_review","key":"a/b#1","state":"running","attempts":1"#, ["Claude is reviewing it"]),
+      (#""kind":"ai_review","key":"a/b#1","state":"running","attempts":2,"error":"\#(late)""#, ["Claude is reviewing it", "try 2 of 3"]),
+      (#""kind":"ask","key":"a1","state":"running","attempts":1"#, ["Your agent has it"]),
+      (#""kind":"ask","key":"a1","state":"running","attempts":3"#, ["Your agent has it", "try 3 of 3"]),
+      (#""kind":"ai_review","key":"a/b#1","state":"queued","attempts":0"#, ["Waiting its turn"]),
+      (#""kind":"ask","key":"a1","state":"queued","attempts":0"#, ["Waiting for your agent"]),
+      (#""kind":"ai_review","key":"a/b#1","state":"queued","attempts":1,"retry_at":"\#(ahead)","error":"\#(late)""#, ["Tries again in 2m", late]),
+      (#""kind":"ai_review","key":"a/b#1","state":"queued","attempts":1,"retry_at":"\#(back(0.1))","error":"\#(late)""#, ["Tries again shortly", late]),
+      (#""kind":"ai_review","key":"a/b#1","state":"failed","attempts":1,"error":"\#(late)""#, ["Failed: \(late)"]),
+      (#""kind":"ai_review","key":"a/b#1","state":"failed","attempts":3,"error":"\#(late)""#, ["Failed 3 times: \(late)"]),
+      // An ask never counts its tries.
+      (#""kind":"ask","key":"a1","state":"failed","attempts":3,"error":"your agent didn't start""#, ["Failed: your agent didn't start"]),
+      (#""kind":"answer","key":"q1","state":"failed","attempts":0,"from":"seer: code mode research","error":"that session has probably ended""#,
+        ["Your answer to seer: code mode research hasn't been picked up", "that session has probably ended"]),
+      (#""kind":"answer","key":"q1","state":"queued","attempts":0,"from":"Inbox coordinator""#, ["Your answer to your agent hasn't been picked up"]),
+    ]
+    for (json, phrase) in table { XCTAssertEqual(Asking.workPhrase(try work(json), agent: "Claude", now: now), phrase, json) }
+    XCTAssertEqual(Asking.workPhrase(try work(#""kind":"ai_review","key":"a/b#1","state":"running","attempts":1"#), agent: "Codex", now: now), ["Codex is reviewing it"])
+  }
+
+  // Your ask's words in quotes; since when; and Try again only on a failed review or ask.
+  func testAWorkRowsTitleAgeAndTryAgain() throws {
+    XCTAssertEqual(Asking.workTitle(try work(#""kind":"ai_review","key":"a/b#1""#)), "Queue: a leases table")
+    XCTAssertEqual(Asking.workTitle(try work(#""kind":"ask","key":"a1""#)), "\u{201C}Queue: a leases table\u{201D}")
+    XCTAssertEqual(Asking.workTitle(try work(#""kind":"answer","key":"q1""#)), "Queue: a leases table")
+    let times = #""started_at":"\#(back(1))","finished_at":"\#(back(0.5))""#
+    XCTAssertEqual(Asking.workSince(try work(#""kind":"ai_review","key":"a/b#1","state":"running",\#(times)"#)), back(1))
+    XCTAssertEqual(Asking.workSince(try work(#""kind":"ai_review","key":"a/b#1","state":"failed",\#(times)"#)), back(0.5))
+    XCTAssertEqual(Asking.workSince(try work(#""kind":"ai_review","key":"a/b#1","state":"queued",\#(times)"#)), back(2))
+    XCTAssertEqual(Asking.workSince(try work(#""kind":"ai_review","key":"a/b#1","state":"running""#)), back(2), "not started yet: since it was queued")
+    XCTAssertEqual(Asking.workSince(try work(#""kind":"answer","key":"q1","state":"failed",\#(times)"#)), back(2), "an answer: since you gave it")
+    XCTAssertTrue(Asking.canRetry(try work(#""kind":"ai_review","key":"a/b#1","state":"failed""#)))
+    XCTAssertTrue(Asking.canRetry(try work(#""kind":"ask","key":"a1","state":"failed""#)))
+    XCTAssertFalse(Asking.canRetry(try work(#""kind":"answer","key":"q1","state":"failed""#)), "only the session that asked can read it")
+    XCTAssertFalse(Asking.canRetry(try work(#""kind":"ai_review","key":"a/b#1","state":"running""#)))
+    // The mock's five, as Merging says them.
+    let mock: InflightView = try Fixture.decode("inflight")
+    XCTAssertEqual(mock.work.map { Asking.workPhrase($0, agent: "Claude", now: now).first }, [
+      "Claude is reviewing it", "Claude is reviewing it", "Your agent has it", "Failed 3 times: no answer in 5 minutes, so it was stopped",
+      "Your answer to seer: code mode research hasn't been picked up",
+    ])
+    XCTAssertEqual(mock.work.filter(Asking.canRetry).map(\.key), ["acme/worker#890"])
+  }
+
+  // MARK: An agent's words as blocks (src/prose.ts)
+
+  func testProseBlocks() {
+    let t = { (s: String) in Span(text: s) }
+    XCTAssertEqual(Blocks.parse("One line\nstill it.\n\nAnother."), [.p([t("One line\nstill it.")]), .p([t("Another.")])])
+    XCTAssertEqual(
+      Blocks.parse("Two things:\n\n1. kai's nit (`lamport()` \u{2192} `nextClock()`)\n2. azulus's question\n\nCI is green."),
+      [
+        .p([t("Two things:")]),
+        .ol(start: 1, items: [[t("kai's nit ("), Span(text: "lamport()", code: true), t(" \u{2192} "), Span(text: "nextClock()", code: true), t(")")], [t("azulus's question")]]),
+        .p([t("CI is green.")]),
+      ])
+    XCTAssertEqual(
+      Blocks.parse("What I checked:\n- both call sites\n  in `merge.ts`\n* **nothing else is open**, so it's safe"),
+      [
+        .p([t("What I checked:")]),
+        .ul([[t("both call sites\nin "), Span(text: "merge.ts", code: true)], [Span(text: "nothing else is open", bold: true), t(", so it's safe")]]),
+      ])
+    XCTAssertEqual(Blocks.parse("3. third\n4. fourth"), [.ol(start: 3, items: [[t("third")], [t("fourth")]])])
+    // A fenced block keeps its lines and its language; one never closed still shows.
+    XCTAssertEqual(
+      Blocks.parse("Once, in `replay.ts`:\n\n```ts\nconst at = lamport(state); // **not bold**\n\n  indented\n```\nAfter."),
+      [.p([t("Once, in "), Span(text: "replay.ts", code: true), t(":")]), .pre(text: "const at = lamport(state); // **not bold**\n\n  indented", info: "ts"), .p([t("After.")])])
+    XCTAssertEqual(Blocks.parse("```\nnpm test"), [.pre(text: "npm test", info: "")])
+    XCTAssertEqual(Blocks.parse("```not a language!\nx\n```"), [.pre(text: "x", info: "")])
+    XCTAssertEqual(Blocks.parse("```\n\n```"), [], "an empty block is nothing")
+    // A heading is a bold paragraph, without its hashes.
+    XCTAssertEqual(Blocks.parse("## What's left\nNothing."), [.p([Span(text: "What's left", bold: true)]), .p([t("Nothing.")])])
+    // Unpaired marks are text.
+    XCTAssertEqual(Blocks.inline("a ** b"), [t("a ** b")])
+    XCTAssertEqual(Blocks.inline("**a** and **b"), [Span(text: "a", bold: true), t(" and **b")])
+    XCTAssertEqual(Blocks.inline("an odd ` tick"), [t("an odd ` tick")])
+    XCTAssertEqual(Blocks.inline("**bold `code`**"), [Span(text: "bold ", bold: true), Span(text: "code", code: true, bold: true)])
+    // A URL stays the text it is; a markdown link shows where it goes.
+    XCTAssertEqual(Blocks.parse("I can push it: https://github.com/me/notes-app/pull/14"), [.p([t("I can push it: https://github.com/me/notes-app/pull/14")])])
+    XCTAssertEqual(Blocks.inline("see [the PR](https://github.com/me/notes-app/pull/14)."), [t("see the PR (https://github.com/me/notes-app/pull/14).")])
+    XCTAssertEqual(Blocks.inline("[x](javascript:alert(1))"), [t("[x](javascript:alert(1))")])
+    XCTAssertEqual(Blocks.parse(""), [])
+    XCTAssertEqual(Blocks.parse("a\r\nb"), [.p([t("a\nb")])])
+  }
+
+  // Copy keeps the fence, longer than any backtick run that opens a line inside.
+  func testFencedCopy() {
+    XCTAssertEqual(Blocks.fencedCopy("const a = 1", info: "ts"), "```ts\nconst a = 1\n```")
+    XCTAssertEqual(Blocks.fencedCopy("```\ninner\n```", info: ""), "````\n```\ninner\n```\n````")
+    XCTAssertEqual(Blocks.fencedCopy("a ``` b", info: "suggestion"), "```suggestion\na ``` b\n```")
+  }
+
+  // The mock's answers, whole: nothing of them is lost to the parse.
+  func testTheMocksAnswersParse() throws {
+    let v: AsksView = try Fixture.decode("asks")
+    let first = Blocks.parse(v.asks[0].answer?.text ?? "")
+    XCTAssertEqual(first.count, 3)
+    guard case .ol(1, let items) = first[1] else { return XCTFail("a numbered list") }
+    XCTAssertEqual(items.count, 2)
+    let second = Blocks.parse(v.asks[1].answer?.text ?? "")
+    XCTAssertEqual(second.count, 6)
+    guard case .ul(let checked) = second[2] else { return XCTFail("a list") }
+    XCTAssertEqual(checked.count, 3)
+    XCTAssertEqual(checked[2].first, Span(text: "nothing else in kai's thread is open", bold: true))
+    XCTAssertEqual(second[4], .pre(text: "const at = lamport(state); // becomes nextClock(state)", info: "ts"))
+    XCTAssertEqual(second[5], .p([Span(text: "I can push that fix there once this merges: https://github.com/me/notes-app/pull/14")]))
+  }
 }

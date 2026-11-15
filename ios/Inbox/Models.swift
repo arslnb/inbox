@@ -304,6 +304,7 @@ struct InflightView: Decodable, Sendable {
   @Lossy var rows: [Row]
   var stacks: [String: Stack]?
   var coordinator: Coordinator?
+  @Lossy var work: [Work]  // what your agent owes you, as the desk's ledger has it: the group under the live rows
 
   struct Row: Decodable, Identifiable, Sendable {
     let card: Card
@@ -328,7 +329,66 @@ struct InflightView: Decodable, Sendable {
     var id: String?
     var url: String?
     var error: String?
+    var status: String?  // "busy" | "shell" | "waiting" | "idle" | "stopped"; none before its first turn
+    var queued: [String]?  // your asks it hasn't been handed yet
+    var activity: [String]?  // its latest steps, oldest first: the session's own words, so text
   }
+}
+
+// One job of Merging's "<agent>'s work": an AI review, an ask of yours, or an answer whoever asked hasn't read.
+struct Work: Decodable, Identifiable, Sendable {
+  let kind: String  // "ai_review" | "ask" | "answer"
+  let key: String  // the PR's id, the ask's, the question's
+  var item: String?
+  var state: String?  // "queued" | "running" | "done" | "failed"
+  var attempts: Int?
+  var queuedAt: String?
+  var startedAt: String?
+  var finishedAt: String?
+  var retryAt: String?
+  var error: String?
+  var title: String?
+  var from: String?  // an answer's: the session that asked
+  var id: String { "\(kind) \(key)" }
+
+  static let tries = 3  // src/types.ts's JOB_ATTEMPTS
+}
+
+// GET /api/asks: your chat with your agent, oldest first, and what it's doing about the one it hasn't answered.
+struct AsksView: Decodable, Sendable {
+  var on: Bool?  // the coordinator setting: off, nothing is sent
+  @Lossy var asks: [Ask]
+  var coordinator: InflightView.Coordinator?
+}
+
+#if DEBUG
+  extension AsksView {
+    // The chat as the mock never sends it, for shots and for trying a state by hand (-asks): no asks, your agent off,
+    // and each thing your agent can be doing about the last ask.
+    func debugging(_ state: String) -> AsksView {
+      var v = self
+      switch state {
+      case "empty": v.asks = []
+      case "off":
+        v.on = false
+        v.asks = []
+      case "on": v.on = true  // though the desk says off: a send is then refused, in its words
+      case "waiting": v.coordinator?.status = "waiting"
+      case "queued": v.coordinator?.queued = asks.last.map { [$0.id] }
+      case "onit": v.coordinator?.activity = []
+      case "stopped": v.coordinator?.status = "stopped"
+      case "error": v.coordinator?.error = "claude isn't logged in: run `claude` once in a terminal"
+      case "none": v.coordinator = nil
+      default: break
+      }
+      return v
+    }
+  }
+#endif
+
+// POST /api/ask's answer.
+struct AskAnswer: Decodable, Sendable {
+  var ask: Ask?
 }
 
 // MARK: An item, opened
@@ -762,8 +822,14 @@ struct Ask: Decodable, Identifiable, Sendable {
     var path: String?
     var line: Int?
     var side: String?
+    var start: Start?  // a range's first line; the phone sends single lines, the window may have sent a range
     var head: String?
     var note: Bool?
+
+    struct Start: Decodable, Sendable {
+      var line: Int?
+      var side: String?
+    }
   }
 
   struct Answer: Decodable, Sendable {
