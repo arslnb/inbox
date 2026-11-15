@@ -153,6 +153,16 @@ final class FormatTests: XCTestCase {
   }
 
   // The one list the client sorts: what you finished and what resolved, newest first.
+  // Queue.tsx's cut: five of seven, all of six, all once asked or while filtering.
+  func testFYIShowsItsFirstFive() {
+    XCTAssertEqual(Lists.fyiCut(7, all: false, filtering: false), 5)
+    XCTAssertEqual(Lists.fyiCut(40, all: false, filtering: false), 5)
+    XCTAssertNil(Lists.fyiCut(6, all: false, filtering: false), "one row is never hidden alone")
+    XCTAssertNil(Lists.fyiCut(5, all: false, filtering: false))
+    XCTAssertNil(Lists.fyiCut(7, all: true, filtering: false))
+    XCTAssertNil(Lists.fyiCut(7, all: false, filtering: true))
+  }
+
   func testTheArchive() throws {
     let q: QueueView = try Fixture.decode("queue")
     let archive = Lists.archive(q)

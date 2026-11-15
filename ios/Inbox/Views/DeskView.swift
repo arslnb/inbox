@@ -212,6 +212,7 @@ struct CardMenu: View {
 // each in the desk's order.
 struct InboxList: View {
   @Environment(Store.self) private var store
+  @State private var allFyi = false  // Show more was pressed: until you leave the page
 
   var body: some View {
     if let view = store.queue {
@@ -252,8 +253,21 @@ struct InboxList: View {
             }
           }
           if !fyi.isEmpty {
+            let cut = Lists.fyiCut(fyi.count, all: allFyi, filtering: false)
             section("fyi", "FYI", fyi.count) {
-              ForEach(fyi) { c in CardLine(card: c, variant: .active) }
+              ForEach(cut.map { Array(fyi.prefix($0)) } ?? fyi) { c in CardLine(card: c, variant: .active) }
+              if let cut {
+                Button {
+                  allFyi = true
+                } label: {
+                  Text("Show \(fyi.count - cut) more").sans(13).underline(color: Theme.ruleStrong).foregroundStyle(Theme.ink2)
+                    .padding(.horizontal, Theme.pad)
+                    .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .deskLine()
+              }
             }
           }
           if !any {

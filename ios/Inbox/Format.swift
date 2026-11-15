@@ -523,6 +523,13 @@ enum Lists {
 
   static func cleared(_ v: QueueView) -> [Card] { v.cleared.filter { $0.status != "done" } }
 
+  // FYI shows its first rows (Queue.tsx's FYI_SHOWN): the rest wait behind Show more until you ask, filter, or leave
+  // the page. One row is never hidden alone, so the cut starts at two more.
+  static let fyiShown = 5
+  static func fyiCut(_ count: Int, all: Bool, filtering: Bool) -> Int? {
+    !all && !filtering && count > fyiShown + 1 ? fyiShown : nil
+  }
+
   // What a row in the Archive says after its ref: why it's there.
   static func archiveNote(_ c: Card) -> String { c.resolved ?? "done: back when someone else acts" }
   static func hiddenNote(_ c: Card) -> String { (c.why ?? "").isEmpty ? "hidden by your rules" : c.why! }
