@@ -200,7 +200,10 @@ merge, where Snooze does); More is its three dots only where it doesn't fit even
   name, shards of one check folded into one row, the passing ones behind "N more passing" past six rows; a check opens
   its page. Reviewers opens to who and where each stands, with + Add reviewers on your open PR that's ready. Under the
   title, the reviewers with a verdict: a green tick, or "changes" in amber. Your own PR with no AI review shows its
-  description's first paragraph there instead. A diff or a conversation that couldn't load says so in its place.
+  description's first paragraph there instead. A diff or a conversation that couldn't load says so in its place. A PR in a stack lists it
+  under its State, as the window's: "Stack on main", its open PRs bottom first with this one in bold (failing,
+  changes or a tick only where that's news); a long stack shows four around this PR and "16 more" (Fewer), and the
+  stack's other branches come under "Other branches" (`Stack.around()`). A press opens that PR.
 - **Guided Review and Traditional.** A review with steps reads two ways, picked by two words above the diff; the
   choice is kept on this phone (`review.view`), Guided first. Guided is only the review's steps: "2 of 4" and the
   step's title, its words, "Check:", its note, its diagram, then its sections, each under Look or Skim and why; at its

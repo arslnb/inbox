@@ -411,6 +411,32 @@ final class FormatTests: XCTestCase {
     XCTAssertTrue(Asking.offered(try XCTUnwrap(cards.first { $0.isPR }), blockedAuthor: nil, landed: false), "a PR's review has it")
   }
 
+  // A review's stack list, as the window's StackList: open PRs and the one on screen, four around it and "N more".
+  func testALongStackShowsFourAroundThisPR() throws {
+    func stack(_ states: [String], forks: [String] = []) throws -> Stack {
+      let member = { (i: Int, s: String) in #"{"id":"a/b#\#(i)","number":\#(i),"title":"t","state":"\#(s)"}"# }
+      let line = states.enumerated().map { member($0.offset + 1, $0.element) }.joined(separator: ",")
+      let other = forks.enumerated().map { member($0.offset + 100, $0.element) }.joined(separator: ",")
+      return try DeskJSON.decoder().decode(Stack.self, from: Data(#"{"base":"main","line":[\#(line)],"forks":[\#(other)]}"#.utf8))
+    }
+    // PR 3 of 20, the first two merged: 18 open, four from this one, "14 more".
+    let long = try stack(["merged", "merged"] + Array(repeating: "open", count: 18), forks: ["open", "closed"])
+    var got = long.around("a/b#3", all: false)
+    XCTAssertEqual(got.line.map(\.number), [3, 4, 5, 6])
+    XCTAssertEqual(got.more, 14)
+    XCTAssertEqual(got.forks.map(\.number), [100], "other branches: the open ones")
+    got = long.around("a/b#10", all: false)
+    XCTAssertEqual(got.line.map(\.number), [9, 10, 11, 12], "the one below it first")
+    XCTAssertEqual(long.around("a/b#20", all: false).line.map(\.number), [17, 18, 19, 20])
+    XCTAssertEqual(long.around("a/b#3", all: true).line.count, 18)
+    // A merged PR's own page still lists it.
+    XCTAssertEqual(long.around("a/b#1", all: true).line.count, 19)
+    // Five open: one would hide, so none does.
+    let short = try stack(Array(repeating: "open", count: 5))
+    XCTAssertEqual(short.around("a/b#1", all: false).line.count, 5)
+    XCTAssertEqual(short.around("a/b#1", all: false).more, 0)
+  }
+
   // An opened page's one call to action: the row's own first, then what the item is there for.
   func testAPagesCallToAction() throws {
     let queue: QueueView = try Fixture.decode("queue")

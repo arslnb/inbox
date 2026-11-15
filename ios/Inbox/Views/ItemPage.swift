@@ -18,6 +18,7 @@ struct ItemPage: View {
   @State private var drafts: [String: String] = [:]
   @State private var diff: DiffModel?  // the review's diff, as it last landed
   @State private var drawn: (mark: String, at: Date)?  // what Store.mark() said when the review on screen was asked for
+  @State private var stackAll = false  // a long stack, shown whole
   @State private var fixAsked = false  // Make PR with fix was taken from this page: a second press would ask your agent twice
   @State private var sent: [SentWords] = []  // yours on the diff's lines, until the conversation has them
   // This phone's choice where a review has steps: the guided review, or every file ("traditional"). The window's own.
@@ -602,36 +603,54 @@ struct ItemPage: View {
 
   // MARK: Its stack
 
+  // Its open PRs bottom first, as the window's: a long one shows four around this PR and "16 more"; then the stack's
+  // other branches.
   @ViewBuilder
   private func stackBlock(_ stack: Stack) -> some View {
+    let list = stack.around(id, all: stackAll)
     VStack(alignment: .leading, spacing: 0) {
       SmallHead(text: "Stack on \(stack.base ?? "its base")")
-      ForEach(stack.line) { m in
-        let on = m.id == id
+      ForEach(list.line) { m in member(m) }
+      if list.more > 0 {
         Button {
-          if !on { store.path.append(.item(m.id)) }
+          stackAll.toggle()
         } label: {
-          HStack(alignment: .firstTextBaseline, spacing: 6) {
-            Text(m.state == "merged" ? "●" : m.state == "closed" ? "×" : "○").font(.system(size: 9)).foregroundStyle(Theme.pencil)
-              .frame(width: 12)
-            Text("#\(String(m.number ?? 0))").sans(13, on ? 600 : 400, tabular: true).foregroundStyle(on ? Theme.ink : Theme.pencil)
-              .fixedSize()
-            Text(m.title ?? "").sans(13, on ? 600 : 400).foregroundStyle(on ? Theme.ink : Theme.ink2).lineLimit(1)
-            Spacer(minLength: 6)
-            // Only what's news.
-            if m.state == "open" {
-              if m.ci == "red" { Text("failing").sans(13).foregroundStyle(Theme.red).fixedSize() }
-              if m.review == "changes_requested" { Text("changes").sans(13).foregroundStyle(Theme.amber).fixedSize() }
-              if m.review == "approved" { Text("✓").font(.system(size: 12)).foregroundStyle(Theme.green) }
-            }
-          }
-          .frame(minHeight: 44)
-          .contentShape(Rectangle())
+          Text(stackAll ? "Fewer" : "\(list.more) more").sans(13).foregroundStyle(Theme.pencil).padding(.leading, 18)
+            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading).contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .accessibilityAddTraits(on ? .isSelected : [])
+      }
+      if !list.forks.isEmpty {
+        SmallHead(text: "Other branches").padding(.top, 8)
+        ForEach(list.forks) { m in member(m) }
       }
     }
+  }
+
+  private func member(_ m: Stack.Member) -> some View {
+    let on = m.id == id
+    return Button {
+      if !on { store.path.append(.item(m.id)) }
+    } label: {
+      HStack(alignment: .firstTextBaseline, spacing: 6) {
+        Text(m.state == "merged" ? "●" : m.state == "closed" ? "×" : "○").font(.system(size: 9)).foregroundStyle(Theme.pencil)
+          .frame(width: 12)
+        Text("#\(String(m.number ?? 0))").sans(13, on ? 600 : 400, tabular: true).foregroundStyle(on ? Theme.ink : Theme.pencil)
+          .fixedSize()
+        Text(m.title ?? "").sans(13, on ? 600 : 400).foregroundStyle(on ? Theme.ink : Theme.ink2).lineLimit(1)
+        Spacer(minLength: 6)
+        // Only what's news.
+        if m.state == "open" {
+          if m.ci == "red" { Text("failing").sans(13).foregroundStyle(Theme.red).fixedSize() }
+          if m.review == "changes_requested" { Text("changes").sans(13).foregroundStyle(Theme.amber).fixedSize() }
+          if m.review == "approved" { Text("✓").font(.system(size: 12)).foregroundStyle(Theme.green) }
+        }
+      }
+      .frame(minHeight: 44)
+      .contentShape(Rectangle())
+    }
+    .buttonStyle(.plain)
+    .accessibilityAddTraits(on ? .isSelected : [])
   }
 
   // MARK: Recent activity

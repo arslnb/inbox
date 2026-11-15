@@ -226,6 +226,19 @@ struct Stack: Decodable, Sendable {
     var review: String?
     var current: Bool?
   }
+
+  static let shown = 4
+
+  // What a review's stack list draws, as Review.tsx's StackList: the open PRs bottom first and the one on screen,
+  // four of them around it when two or more would go behind "N more" (`more`, 0 for no fold), and the other branches.
+  func around(_ id: String, all: Bool) -> (line: [Member], more: Int, forks: [Member]) {
+    let live = { (ms: [Member]) in ms.filter { $0.state == "open" || $0.current == true || $0.id == id } }
+    let line = live(self.line)
+    let more = line.count - Stack.shown
+    guard more >= 2 else { return (line, 0, live(forks)) }
+    let from = min(max(0, (line.firstIndex { $0.current == true || $0.id == id } ?? 0) - 1), more)
+    return (all ? line : Array(line[from..<from + Stack.shown]), more, live(forks))
+  }
 }
 
 struct Inquiry: Decodable, Identifiable, Sendable {
