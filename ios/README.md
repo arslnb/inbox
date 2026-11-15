@@ -234,7 +234,8 @@ merge, where Snooze does); More is its three dots only where it doesn't fit even
   words show as "You · sent"; it leaves the page only when the desk took the PR off (`Store.left()`: a reply was all
   it asked of you and this was the last one waiting). The bar's Reply answers the first one waiting; a draft is kept
   per conversation. Ask your agent, beside Reply, opens your chat on that conversation. A
-  comment is text: `code` in the mono face, links as their URL, GitHub's tags and headings' hashes taken off.
+  comment is text: `code` in the mono face, a URL as text (never a link to follow, as the window's), GitHub's tags and
+  headings' hashes taken off.
 - **An issue's pre-review**, as the window's (`IssuePre` in `Detail.tsx`), under why it's here: "A bug." (a feature
   request, a question, an issue) and its summary; whether it was read from the code in your clone or the issue's text
   alone; What's wrong, Cause, where in the code (`path:line` and why), The fix (or What we'd do); then its walk, one

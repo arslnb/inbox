@@ -38,8 +38,9 @@ struct SaidComments: View {
       ForEach(comments) { m in
         VStack(alignment: .leading, spacing: 3) {
           WhoLine(who: m.author ?? "", bot: m.bot == true, rest: [Words.age(m.at, now: store.now)])
-          Prose(text: Words.saidText(m.body), size: 13.5, links: true)
-            .foregroundStyle(Theme.ink).tint(Theme.ink2).lineSpacing(3).lineLimit(lines)
+          // A reviewer's or a bot's words: a URL in them stays text, as the window's (docs/ui.md), never a link to follow.
+          Prose(text: Words.saidText(m.body), size: 13.5)
+            .foregroundStyle(Theme.ink).lineSpacing(3).lineLimit(lines)
             .fixedSize(horizontal: false, vertical: true)
         }
       }
