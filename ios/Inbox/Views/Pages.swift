@@ -218,6 +218,11 @@ struct SessionPage: View {
             Dotted(parts: facts(s)).sans(13)
             Text(s.name ?? "").sans(22, 650, tracking: -0.015).foregroundStyle(Theme.ink).lineSpacing(1)
               .fixedSize(horizontal: false, vertical: true)
+            // Where it runs, whole: two sessions in folders of one name are told apart here.
+            if let cwd = s.cwd, !cwd.isEmpty {
+              Text(cwd).mono(12).foregroundStyle(Theme.pencil).lineSpacing(2).fixedSize(horizontal: false, vertical: true)
+                .textSelection(.enabled)
+            }
           }
           .padding(.bottom, 4)
           Lead(label: Words.capitalized(s.reason ?? ""), text: "for \(Words.age(s.since, now: store.now)).", size: 15)
@@ -253,7 +258,10 @@ struct SessionPage: View {
             Quiet(label: "Done") { _ in act(s, "done", nil) },
             // A session snoozes until a time; done brings it back when it moves on.
             Quiet(label: "Snooze", options: [SnoozeOption.times]) { act(s, "snooze", $0) },
-          ])
+          ], hasMore: true
+        ) {
+          Button("Mute") { act(s, "mute", nil) }
+        }
       } else {
         BottomBar()
       }
@@ -271,12 +279,11 @@ struct SessionPage: View {
     if store.path.last == .session(id) { store.path.removeLast() }
   }
 
-  // What it is and where: its kind, whether it runs, its folder (the last of its path) and branch.
+  // What it is: its kind, whether it runs, and its branch. Its folder is the line under its name.
   private func facts(_ s: SessionCard) -> [Dotted.Part] {
-    let folder = (s.cwd ?? "").split(whereSeparator: { $0 == "/" || $0 == "\\" }).last.map(String.init) ?? (s.cwd ?? "")
     var out: [Dotted.Part] = [.init("\(Words.sessionKind[s.kind ?? ""] ?? (s.kind ?? "")) session")]
     if s.kind != "codex" { out.append(.init(s.alive == true ? "running" : "no process")) }
-    return out + [.init(folder), .init(s.branch ?? "")]
+    return out + [.init(s.branch ?? "")]
   }
 }
 

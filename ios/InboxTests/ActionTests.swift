@@ -722,6 +722,38 @@ final class StoreWriteTests: XCTestCase {
     XCTAssertEqual(store.inboxCount, count, "and its row is back")
   }
 
+  // A session's Done, Snooze and Mute are /api/act's, by its id; its snooze says only the time (it has no activity to wake on).
+  func testTriagingASession() async throws {
+    let s = try XCTUnwrap(store.queue?.sessions.first)
+    let name = "Fix the flaky upload test"
+    let ok = Answer(body: #"{"ok":true,"state":{"id":"\#(s.id)","muted":true},"undo_seq":0}"#)
+    try desk(["/api/act": ok])
+    store.act(s.id, name: name, "mute")
+    XCTAssertEqual(store.leaving, [s.id], "it leaves at once")
+    for _ in 0..<150 where store.toast == nil { try await Task.sleep(for: .milliseconds(20)) }
+    XCTAssertEqual(store.toast?.text, "Muted: \(name)")
+    XCTAssertEqual(store.toast?.undoable, false, "the desk gave no undo")
+    var body = try JSONDecoder().decode([String: String].self, from: try XCTUnwrap(StubProtocol.requests()[0].sentBody))
+    XCTAssertEqual(body, ["id": s.id, "action": "mute"])
+
+    let said = ["1h": "for an hour", "3h": "for 3 hours", "tomorrow": "until tomorrow 9:00", "monday": "until Monday 9:00"]
+    for option in SnoozeOption.times {
+      try desk(["/api/act": ok])
+      store.act(s.id, name: name, "snooze", snooze: option)
+      let words = "Snoozed \(said[option.until] ?? ""): \(name)"
+      for _ in 0..<150 where store.toast?.text != words { try await Task.sleep(for: .milliseconds(20)) }
+      XCTAssertEqual(store.toast?.text, words)
+      body = try JSONDecoder().decode([String: String].self, from: try XCTUnwrap(StubProtocol.requests()[0].sentBody))
+      XCTAssertEqual(body, ["id": s.id, "action": "snooze", "until": option.until])
+    }
+    // A card's keeps what else wakes it.
+    let c = try card("acme/web#2301")
+    try desk(["/api/act": ok])
+    store.act(c.id, name: c.shortRef, "snooze", snooze: SnoozeOption.times[2])
+    for _ in 0..<150 where store.toast?.text.hasSuffix("web#2301") != true { try await Task.sleep(for: .milliseconds(20)) }
+    XCTAssertEqual(store.toast?.text, "Snoozed until tomorrow 9:00 (or new activity): web#2301")
+  }
+
   func testKickingASession() async throws {
     let s = try XCTUnwrap(store.queue?.sessions.first { $0.actions == ["kick"] })
     let path = "/api/sessions/\(s.id)/kick"

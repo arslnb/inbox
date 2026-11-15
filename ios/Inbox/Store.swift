@@ -335,7 +335,9 @@ final class Store {
           "done": "Done", "mute": "Muted", "unmute": "Unmuted", "restore": "Restored", "urgent": "Moved to Urgent", "standard": "Moved to Standard",
           "fyi": "Moved to FYI",
         ]
-        let verb = snooze.map { "Snoozed \($0.toast)" } ?? verbs[action] ?? Words.capitalized(action)
+        // A session has no activity to wake on: its snooze says only the time.
+        let until = { (o: SnoozeOption) in id.hasPrefix("session:") ? o.toast.replacingOccurrences(of: #" \(or .*\)$"#, with: "", options: .regularExpression) : o.toast }
+        let verb = snooze.map { "Snoozed \(until($0))" } ?? verbs[action] ?? Words.capitalized(action)
         flash("\(verb): \(name)", undo: (answer.undoSeq ?? 0) > 0 ? answer.undoSeq : nil)
         await load()
       } catch let e as APIError {
