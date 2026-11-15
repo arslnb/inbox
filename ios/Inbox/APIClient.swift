@@ -215,6 +215,23 @@ struct APIClient: Sendable {
     return try await post("/api/github", b)
   }
 
+  private struct Force: Encodable {
+    var force: Bool
+  }
+
+  static let reviewWait: TimeInterval = 360  // the desk stops a review that hasn't answered in 5 minutes
+
+  // Asks your agent for the PR's AI review; `force` writes one again where this commit has one. It spends your agent, so
+  // only ever on a press. The desk holds its answer until the review is written, minutes later: this one request waits
+  // that long, and nothing should wait on it (the desk's events say when it lands).
+  func askReview(_ id: String, force: Bool) async throws {
+    var req = request("POST", "/api/review/\(APIClient.segment(id))/ai")
+    req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    req.httpBody = try? JSONEncoder().encode(Force(force: force))
+    req.timeoutInterval = APIClient.reviewWait
+    let _: Ok = try await send(req)
+  }
+
   private struct Dismiss: Encodable {
     var dismiss = true
   }

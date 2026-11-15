@@ -704,4 +704,94 @@ final class StoreWriteTests: XCTestCase {
     XCTAssertEqual(e.words, "acme/worker#860 is an issue; reviews are for pull requests")
     XCTAssertTrue(store.notices.isEmpty, "the page says a failed read; no bubble")
   }
+
+  // MARK: Asking for the AI review (it spends your agent: only on a press)
+
+  private func ais() -> [URLRequest] { StubProtocol.requests().filter { $0.url?.path.hasSuffix("/ai") == true } }
+
+  func testOpeningAPRNeverAsksForItsAIReview() async throws {
+    let id = "acme/api#4127"
+    try desk(["/api/review/\(id)": Answer(body: String(decoding: try Fixture.data("review-steps"), as: UTF8.self))])
+    _ = await store.readReview(id)
+    _ = await store.readReview(id)
+    store.closeReview(id)
+    _ = await store.readReview(id)
+    XCTAssertEqual(StubProtocol.requests().filter { $0.httpMethod == "POST" }.count, 0)
+    XCTAssertTrue(ais().isEmpty)
+    XCTAssertTrue(store.asking.isEmpty)
+  }
+
+  func testAPressAsksOnceAndWaitsAsLongAsAReviewTakes() async throws {
+    let id = "acme/api#4127"
+    let c = try card(id)
+    let read: ReviewView = try Fixture.decode("review-steps")
+    try desk(["/api/review/\(id)/ai": Answer(body: #"{"ok":true,"ai":{"verdict":"look"}}"#)])
+    let sent = try XCTUnwrap(store.askReview(c, read))
+    XCTAssertEqual(store.toast?.text, "Claude is reviewing api#4127 again.", "said at once, before any answer")
+    XCTAssertTrue(store.asking.contains(id))
+    await sent.value
+    XCTAssertEqual(ais().count, 1)
+    let r = try XCTUnwrap(ais().first)
+    XCTAssertEqual(r.httpMethod, "POST")
+    XCTAssertEqual(r.url?.absoluteString, "https://desk.tail1234.ts.net/api/review/acme%2Fapi%234127/ai")
+    XCTAssertEqual(r.value(forHTTPHeaderField: "Authorization"), "Bearer inbox_abc")
+    XCTAssertGreaterThanOrEqual(r.timeoutInterval, 300, "the desk answers when the review is written")
+    XCTAssertEqual(try JSONSerialization.jsonObject(with: try XCTUnwrap(r.sentBody)) as? NSDictionary, ["force": true], "this commit has one: again")
+    XCTAssertFalse(store.asking.contains(id))
+    XCTAssertTrue(paths().contains("GET /api/queue"), "read again")
+    XCTAssertTrue(store.notices.isEmpty)
+  }
+
+  func testTheFirstAskAndAStaleOneAreNotForced() async throws {
+    let id = "acme/api#4127"
+    let c = try card(id)
+    var read: ReviewView = try Fixture.decode("review-steps")
+    read.aiStale = true
+    try desk(["/api/review/\(id)/ai": Answer(body: #"{"ok":true,"ai":{}}"#)])
+    await store.askReview(c, read)?.value
+    XCTAssertEqual(try JSONSerialization.jsonObject(with: try XCTUnwrap(ais().last?.sentBody)) as? NSDictionary, ["force": false])
+    read.ai = nil
+    await store.askReview(c, read)?.value
+    XCTAssertEqual(try JSONSerialization.jsonObject(with: try XCTUnwrap(ais().last?.sentBody)) as? NSDictionary, ["force": false])
+    XCTAssertEqual(store.toast?.text, "Claude is reviewing api#4127.")
+    // One being written already is only said.
+    read.generating = true
+    XCTAssertNil(store.askReview(c, read))
+    XCTAssertEqual(store.toast?.text, "The AI review is already being written")
+    XCTAssertEqual(ais().count, 2)
+  }
+
+  func testASecondPressWhileOneIsOnItsWayDoesNothing() async throws {
+    let id = "acme/api#4127"
+    let c = try card(id)
+    try desk(["/api/review/\(id)/ai": Answer(hangs: true)])
+    XCTAssertNotNil(store.askReview(c, nil))
+    XCTAssertNil(store.askReview(c, nil))
+    XCTAssertNil(store.askReview(c, nil))
+    try await Task.sleep(for: .milliseconds(200))
+    XCTAssertEqual(ais().count, 1)
+    XCTAssertTrue(store.asking.contains(id), "still on its way")
+    XCTAssertTrue(store.notices.isEmpty)
+    // Another PR's goes meanwhile.
+    XCTAssertNotNil(store.askReview(try card("acme/worker#879"), nil))
+  }
+
+  func testARefusedAskShowsTheDesksWords() async throws {
+    let id = "acme/api#4127"
+    let c = try card(id)
+    try desk(["/api/review/\(id)/ai": no(409, "already reviewing acme/api#4127")])
+    await store.askReview(c, nil)?.value
+    XCTAssertEqual(store.notices.map(\.title), ["already reviewing acme/api#4127"])
+    XCTAssertFalse(store.asking.contains(id), "it can be pressed again")
+    XCTAssertEqual(ais().count, 1, "never retried")
+  }
+
+  func testAnAskNothingAnsweredSaysNothing() async throws {
+    let id = "acme/api#4127"
+    let c = try card(id)
+    try desk(["/api/review/\(id)/ai": Answer(error: .timedOut)])
+    await store.askReview(c, nil)?.value
+    XCTAssertTrue(store.notices.isEmpty, "the review may well be on its way: no bubble, and the desk isn't called away")
+    XCTAssertFalse(store.asking.contains(id))
+  }
 }

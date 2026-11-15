@@ -61,6 +61,7 @@ final class Store {
   private(set) var refused: String?  // the desk's words for a read it wouldn't give (another Tailscale login, a desk this app can't read)
   private(set) var leaving: Set<String> = []
   private(set) var sending: Set<String> = []  // what has a write on its way: an item's, question's or session's id
+  private(set) var asking: Set<String> = []  // the PRs whose AI review was asked for from here and hasn't answered yet
   private(set) var pins: [String: String] = [:]  // an opened PR's commit, as its review last drew it: what Approve and Merge send
   private(set) var toast: Toast?
   private(set) var failures: [Notice] = []
@@ -434,6 +435,34 @@ final class Store {
     await write("\(c.id) \(spot.path):\(spot.line)", still: "Still sending your last comment there.") { client in
       _ = try await client.inline(c.id, at: spot, body: body, head: head)
       return Toast(text: "Commented on \(spot.name) on GitHub")
+    }
+  }
+
+  // Ask <agent> for one, and Try again: your agent writes the PR's AI review (again, where this commit has one). It
+  // spends your agent, so only a press calls this. The desk answers when the review is written, minutes later, so
+  // nothing waits on it: the words show at once, `asking` holds meanwhile (a second press does nothing), the desk's
+  // events redraw the page, and only the desk's own refusal is said. An answer that never came says nothing.
+  @discardableResult
+  func askReview(_ c: Card, _ review: ReviewView?) -> Task<Void, Never>? {
+    guard let client, !asking.contains(c.id) else { return nil }
+    if review?.generating == true {
+      flash("The AI review is already being written")
+      return nil
+    }
+    asking.insert(c.id)
+    flash("\(agent) is reviewing \(c.shortRef)\(review?.ai != nil || review?.aiError != nil ? " again" : "").")
+    return Task { [weak self] in
+      do {
+        try await client.askReview(c.id, force: review?.ai != nil && review?.aiStale != true)
+      } catch let e as APIError {
+        switch e {
+        case .refused, .starting, .rules: self?.took(e, action: true)
+        case .unpaired: self?.took(e)
+        case .unreachable, .notDesk: break
+        }
+      } catch {}
+      self?.asking.remove(c.id)
+      await self?.load()
     }
   }
 
