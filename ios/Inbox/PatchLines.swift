@@ -1,0 +1,235 @@
+import Foundation
+
+// A PR's diff as the page draws it, from the hunks in the desk's reading order (ReviewOrder) alone: a patch's lines with
+// their numbers, the files in Traditional order, the threads on their lines, and where a comment on a line goes. The
+// twins of patchLines() in src/review.ts, traditional() and onLines() in src/sections.ts, threadsOn() and inlineAt() in
+// web/src/view.ts. Pure: nothing here asks the desk.
+
+struct PatchLine: Equatable, Sendable {
+  enum Kind: Sendable { case add, del, context, hunk }
+
+  let kind: Kind
+  var old: Int?  // its number in the old file: a removed or an unchanged line's; a hunk's first
+  var new: Int?  // its number in the new file: an added or an unchanged line's; a hunk's first
+  let text: String  // without its sign; a hunk's whole @@ line
+}
+
+// Each line of a unified patch with its old- and new-file line numbers. What isn't a line of either file is left out
+// ("\ No newline at end of file").
+func patchLines(_ patch: String) -> [PatchLine] {
+  var out: [PatchLine] = []
+  var o = 0
+  var n = 0
+  for line in patch.split(separator: "\n", omittingEmptySubsequences: false) {
+    if let h = Diff.header(line) {
+      o = h.old
+      n = h.new
+      out.append(PatchLine(kind: .hunk, old: o, new: n, text: String(line)))
+    } else if line.hasPrefix("+") {
+      out.append(PatchLine(kind: .add, old: nil, new: n, text: String(line.dropFirst())))
+      n += 1
+    } else if line.hasPrefix("-") {
+      out.append(PatchLine(kind: .del, old: o, new: nil, text: String(line.dropFirst())))
+      o += 1
+    } else if line.hasPrefix(" ") {
+      out.append(PatchLine(kind: .context, old: o, new: n, text: String(line.dropFirst())))
+      o += 1
+      n += 1
+    }
+  }
+  return out
+}
+
+// One file of the diff: its hunks in diff order. Under the fold, a file the desk folded away, with why.
+struct DiffSection: Identifiable, Sendable {
+  let key: String
+  let path: String
+  let file: Int  // index in ReviewView.files
+  var level: String?  // "skip" under a ranked review's fold; nil in Traditional order
+  var why: String?  // why the desk folded the file
+  let hunks: [ReviewHunk]  // none for a file with no text diff
+  let rows: Int  // how many lines it draws, its @@ lines among them
+  var id: String { key }
+
+  var additions: Int { hunks.reduce(0) { $0 + ($1.additions ?? 0) } }
+  var deletions: Int { hunks.reduce(0) { $0 + ($1.deletions ?? 0) } }
+}
+
+// Where a comment goes: one line of one side of a file, and what the line says.
+struct LineSpot: Hashable, Sendable {
+  let path: String
+  let line: Int
+  let side: String  // "new" | "old": old is a removed line, numbered in the old file
+  var text = ""
+
+  // "plan.ts:23", as the window's lineName().
+  var name: String { "\(Diff.splitPath(path).name):\(line)" }
+  var key: String { "\(path):\(side):\(line)" }
+}
+
+// Yours from this page, shown until the conversation read again has it.
+struct SentWords: Identifiable, Equatable, Sendable {
+  let id = UUID()
+  var spot: LineSpot?  // a comment on a line
+  var thread: String?  // a reply in a thread
+  let body: String
+}
+
+enum Diff {
+  static let cap = 400  // a section's lines drawn on the phone; the rest are on GitHub
+  static let heavy = 3000  // past this many lines in all, every file starts folded
+
+  // "@@ -12,7 +12,9 @@ fn" as its numbers; a count left out is 1.
+  static func header(_ line: some StringProtocol) -> (old: Int, oldCount: Int, new: Int, newCount: Int)? {
+    guard line.hasPrefix("@@ -") else { return nil }
+    let parts = line.dropFirst(4).split(separator: " ", maxSplits: 2, omittingEmptySubsequences: false)
+    guard parts.count == 3, parts[1].hasPrefix("+"), parts[2].hasPrefix("@@") else { return nil }
+    func pair(_ s: some StringProtocol) -> (Int, Int)? {
+      let p = s.split(separator: ",", omittingEmptySubsequences: false)
+      guard p.count <= 2, let from = digits(p[0]) else { return nil }
+      guard p.count == 2 else { return (from, 1) }
+      return digits(p[1]).map { (from, $0) }
+    }
+    guard let a = pair(parts[0]), let b = pair(parts[1].dropFirst()) else { return nil }
+    return (a.0, a.1, b.0, b.1)
+  }
+
+  private static func digits(_ s: some StringProtocol) -> Int? {
+    !s.isEmpty && s.utf8.allSatisfy { $0 >= 48 && $0 <= 57 } ? Int(s) : nil
+  }
+
+  // How many lines patchLines() makes of it, without making them.
+  static func rows(_ patch: String) -> Int {
+    patch.utf8.split(separator: 10, omittingEmptySubsequences: false).reduce(0) { n, line in
+      switch line.first {
+      case 43, 45, 32: n + 1  // + - space
+      case 64: n + (header(Substring(line)) == nil ? 0 : 1)  // @
+      default: n
+      }
+    }
+  }
+
+  // Traditional: every file in the PR's order, each one section with all its hunks in diff order; then, from `rest` on,
+  // the files the desk folds away. No ranking, no levels.
+  static func traditional(_ o: ReviewOrder) -> (list: [DiffSection], rest: Int) {
+    var byFile: [Int: [ReviewHunk]] = [:]
+    for h in o.chunks + o.unread + o.skipped { byFile[h.file ?? 0, default: []].append(h) }
+    let number = { (h: ReviewHunk) in Int(h.id.dropFirst()) ?? 0 }
+    let list = byFile.keys.sorted().map { file in
+      let hunks = (byFile[file] ?? []).sorted { number($0) < number($1) }
+      return section("file:\(file)", hunks.first?.path ?? "", file, level: nil, why: nil, hunks)
+    }
+    let folded = o.rest.map { r in
+      section("rest:\(r.path ?? "")", r.path ?? "", r.file ?? 0, level: o.ranked == true ? "skip" : nil, why: r.why, r.hunks)
+    }
+    return (list + folded, list.count)
+  }
+
+  private static func section(_ key: String, _ path: String, _ file: Int, level: String?, why: String?, _ hunks: [ReviewHunk]) -> DiffSection {
+    DiffSection(key: key, path: path, file: file, level: level, why: why, hunks: hunks, rows: hunks.reduce(0) { $0 + rows($1.patch ?? "") })
+  }
+
+  // A section's lines, its hunks one after another.
+  static func lines(_ s: DiffSection) -> [PatchLine] { s.hunks.flatMap { patchLines($0.patch ?? "") } }
+
+  // Of a section's lines, how many are drawn and how many are left for GitHub.
+  static func capped(_ rows: Int) -> (shown: Int, more: Int) {
+    (min(rows, cap), max(0, rows - cap))
+  }
+
+  // Whether a line sits on one of these hunks; one that doesn't is only in the conversation.
+  static func onLines(_ hunks: [ReviewHunk], line: Int, side: String) -> Bool {
+    hunks.contains { h in
+      guard let m = header(h.header ?? "") else { return false }
+      let (from, count) = side == "old" ? (m.old, m.oldCount) : (m.new, m.newCount)
+      return line >= from && line < from + count
+    }
+  }
+
+  // The review threads on these hunks' lines, to show where they are; outdated ones are only in the conversation.
+  static func threadsOn(_ conversation: [Conversation], path: String, hunks: [ReviewHunk]) -> [Conversation] {
+    conversation.filter { c in
+      guard c.kind == "thread", c.path == path, c.outdated != true, let line = c.line, let side = c.side, !side.isEmpty else { return false }
+      return onLines(hunks, line: line, side: side)
+    }
+  }
+
+  // Where a comment on this line goes: a removed line is the old file's, any other the new one's; a @@ line takes none.
+  static func spot(_ path: String, _ l: PatchLine) -> LineSpot? {
+    switch l.kind {
+    case .hunk: nil
+    case .del: l.old.map { LineSpot(path: path, line: $0, side: "old", text: l.text) }
+    case .add, .context: l.new.map { LineSpot(path: path, line: $0, side: "new", text: l.text) }
+    }
+  }
+
+  // The line a thread or a comment is on, among a section's.
+  static func index(_ lines: [PatchLine], line: Int, side: String) -> Int? {
+    lines.firstIndex { $0.kind != .hunk && (side == "old" ? $0.old : $0.new) == line }
+  }
+
+  // Yours from here that the conversation read again doesn't have yet.
+  static func pending(_ sent: [SentWords], in conversation: [Conversation], me: String) -> [SentWords] {
+    sent.filter { s in
+      !conversation.contains { c in
+        c.comments.contains { ($0.author ?? "").lowercased() == me.lowercased() && ($0.body ?? "").trimmingCharacters(in: .whitespacesAndNewlines) == s.body }
+      }
+    }
+  }
+
+  // "src/planner/" and "plan.ts", so the name can stay whole while the folder truncates.
+  static func splitPath(_ p: String) -> (dir: String, name: String) {
+    guard let i = p.lastIndex(of: "/") else { return ("", p) }
+    return (String(p[...i]), String(p[p.index(after: i)...]))
+  }
+}
+
+// One review's sections, and each one's lines once it has been drawn: a patch is parsed the first time it's unfolded or
+// scrolled to. A new one is made for every review that lands.
+@MainActor
+final class DiffModel {
+  struct Row: Identifiable {
+    let id: String  // "<section>:<index>"
+    let line: PatchLine
+  }
+
+  let list: [DiffSection]
+  let rest: Int  // from here on, what the desk folded away
+  let total: Int
+  private var parsed: [String: [Row]] = [:]
+
+  init(_ order: ReviewOrder) {
+    (list, rest) = Diff.traditional(order)
+    total = list.reduce(0) { $0 + $1.rows }
+  }
+
+  // The lines it draws: its first Diff.cap.
+  func rows(_ s: DiffSection) -> [Row] {
+    if let have = parsed[s.key] { return have }
+    let rows = Diff.lines(s).prefix(Diff.cap).enumerated().map { Row(id: "\(s.key):\($0.offset)", line: $0.element) }
+    parsed[s.key] = rows
+    return rows
+  }
+
+  // Folded until pressed: what the desk folded away, and every file of a diff too long to draw at once.
+  func startsShut(_ s: DiffSection) -> Bool { s.level == "skip" || total > Diff.heavy }
+
+  #if DEBUG
+    // For a shot: the row of the first thread on a line, and a line of the new file by its number.
+    func firstThread(_ conversation: [Conversation]) -> String? {
+      for s in list.prefix(rest) {
+        for c in Diff.threadsOn(conversation, path: s.path, hunks: s.hunks) {
+          if let i = Diff.index(rows(s).map(\.line), line: c.line ?? 0, side: c.side ?? "new") { return "\(s.key):\(i)" }
+        }
+      }
+      return nil
+    }
+
+    func spot(_ at: String) -> LineSpot? {
+      guard let colon = at.lastIndex(of: ":"), let line = Int(at[at.index(after: colon)...]) else { return nil }
+      let path = String(at[..<colon])
+      guard let s = list.first(where: { $0.path == path }), let i = Diff.index(rows(s).map(\.line), line: line, side: "new") else { return nil }
+      return Diff.spot(path, rows(s)[i].line)
+    }
+  #endif
+}
