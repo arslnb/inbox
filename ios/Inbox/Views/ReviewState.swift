@@ -229,14 +229,16 @@ struct HeadReviewers: View {
   var body: some View {
     let shown = list.filter { $0.state == "approved" || $0.state == "changes requested" }
     if !shown.isEmpty {
-      shown.enumerated().reduce(Text("reviewers").foregroundStyle(Theme.pencil)) { line, r in
-        let approved = r.element.state == "approved"
-        return line + Text(r.offset == 0 ? "  " : "  ·  ").foregroundStyle(Theme.faint) + Text(r.element.who ?? "").foregroundStyle(Theme.ink2)
-          + Text(approved ? " ✓" : " changes").foregroundStyle(approved ? Theme.green : Theme.amber)
-      }
+      // Each with their picture, as the window's head.
+      Dotted(
+        parts: shown.enumerated().map { i, r in
+          let approved = r.state == "approved"
+          return .init(
+            r.who ?? "", Theme.ink2, lead: i == 0 ? "reviewers" : nil, face: r.face,
+            mark: Text(approved ? " ✓" : " changes").foregroundStyle(approved ? Theme.green : Theme.amber))
+        }
+      )
       .sans(13)
-      .lineSpacing(3)
-      .fixedSize(horizontal: false, vertical: true)
       .accessibilityLabel("Reviewers: " + shown.map { "\($0.who ?? "") \($0.state ?? "")" }.joined(separator: ", "))
     }
   }

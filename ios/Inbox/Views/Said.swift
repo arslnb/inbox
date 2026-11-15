@@ -10,31 +10,11 @@ struct WhoLine: View {
   var bot = false
   var rest: [String] = []
   @Environment(Store.self) private var store
-  @ScaledMetric(relativeTo: .body) private var scale: CGFloat = 100
 
   var body: some View {
-    HStack(alignment: .firstTextBaseline, spacing: 0) {
-      // A person's picture before the name; a bot has none, as in the window, and nor do you.
-      if !bot, !who.isEmpty, who.lowercased() != store.me.lowercased() { Avatar(login: who, size: 13.5) }
-      words
-    }
-  }
-
-  private var words: some View {
-    let size = 12.5 * scale / 100
-    var line = AttributedString(who)
-    line.font = Font(Typeface.sans.font(size, weight: 550))
-    line.foregroundColor = Theme.ink2
-    for part in rest where !part.isEmpty {
-      var dot = AttributedString("  ·  ")
-      dot.foregroundColor = Theme.faint
-      var words = AttributedString(part)
-      words.foregroundColor = Theme.pencil
-      var more = dot + words
-      more.font = Font(Typeface.sans.font(size))
-      line += more
-    }
-    return Text(line).lineSpacing(2).fixedSize(horizontal: false, vertical: true)
+    // A person's picture before the name; a bot has none, as in the window, and nor do you.
+    let face = !bot && !who.isEmpty && who.lowercased() != store.me.lowercased() ? who : nil
+    Dotted(parts: [.init(who, Theme.ink2, face: face, strong: 12.5)] + rest.map { .init($0) }).sans(12.5)
   }
 }
 

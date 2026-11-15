@@ -441,7 +441,8 @@ struct ItemPage: View {
       let through = c.authorBot == true ? ", through \(c.author ?? "")" : ""
       out.append(.init("by you\(through)", Theme.ink2))
     } else {
-      out.append(.init("by \(c.author ?? c.by ?? "")\(c.authorBot == true ? " (bot)" : "")"))
+      // Their picture before the name, as the window's head; a bot has none.
+      out.append(.init("\(c.author ?? c.by ?? "")\(c.authorBot == true ? " (bot)" : "")", lead: "by", face: c.authorBot == true ? nil : c.author ?? c.by))
     }
     // Amber only on yours, where it's work for you; in Merging your agent has it, so it stays pencil.
     if let stage = c.stage {
@@ -656,25 +657,88 @@ struct ItemPage: View {
 
 // MARK: Small pieces an opened page shares
 
-// Parts of one line with a dot between them, wrapping as words do.
+// Parts of one line with a dot between them. A part that doesn't fit goes whole to the next line, and no dot is drawn
+// where the line breaks: none dangles at a line's end or start, and no fact is split in two.
 struct Dotted: View {
   struct Part {
     let text: String
     var color: Color = Theme.pencil
-    init(_ text: String, _ color: Color = Theme.pencil) {
+    var lead: String?  // "by", "reviewers": pencil words before the picture
+    var face: String?  // whose picture goes before the text
+    var strong: CGFloat?  // a name: this size at 550
+    var mark: Text?  // after the text: a reviewer's tick
+    init(_ text: String, _ color: Color = Theme.pencil, lead: String? = nil, face: String? = nil, strong: CGFloat? = nil, mark: Text? = nil) {
       self.text = text
       self.color = color
+      self.lead = lead
+      self.face = face
+      self.strong = strong
+      self.mark = mark
     }
   }
 
   let parts: [Part]
 
   var body: some View {
-    parts.filter { !$0.text.isEmpty }.enumerated().reduce(Text("")) { line, part in
-      line + (part.offset > 0 ? Text("  ·  ").foregroundStyle(Theme.faint) : Text("")) + Text(part.element.text).foregroundStyle(part.element.color)
+    DotFlow {
+      ForEach(Array(parts.filter { !$0.text.isEmpty }.enumerated()), id: \.offset) { i, p in
+        if i > 0 { Text("·").foregroundStyle(Theme.faint).accessibilityHidden(true) }
+        HStack(alignment: .firstTextBaseline, spacing: 0) {
+          if let lead = p.lead { Text(lead + " ").foregroundStyle(Theme.pencil).fixedSize() }
+          if let face = p.face { Avatar(login: face, size: p.strong.map { $0 + 1 } ?? 14) }
+          let words = (Text(p.text).foregroundStyle(p.color) + (p.mark ?? Text(""))).lineSpacing(3).fixedSize(horizontal: false, vertical: true)
+          if let size = p.strong { words.sans(size, 550) } else { words }
+        }
+      }
     }
-    .lineSpacing(3)
-    .fixedSize(horizontal: false, vertical: true)
+    .accessibilityElement(children: .combine)
+  }
+}
+
+// Dotted's line: parts and the dots between them (every second subview is a dot), each part whole on its line.
+struct DotFlow: Layout {
+  var gap: CGFloat = 7  // either side of a dot
+  var leading: CGFloat = 3  // between lines
+
+  // Where each subview goes; nil for a dot at a line's break.
+  private func frames(_ subviews: Subviews, width: CGFloat) -> (frames: [CGRect?], size: CGSize) {
+    var out = [CGRect?](repeating: nil, count: subviews.count)
+    var x: CGFloat = 0
+    var y: CGFloat = 0
+    var tall: CGFloat = 0
+    var wide: CGFloat = 0
+    for i in stride(from: 0, to: subviews.count, by: 2) {
+      let size = subviews[i].sizeThatFits(ProposedViewSize(width: width, height: nil))
+      let dot = i > 0 ? subviews[i - 1].sizeThatFits(.unspecified) : .zero
+      if i > 0, x + gap + dot.width + gap + size.width <= width {
+        out[i - 1] = CGRect(origin: CGPoint(x: x + gap, y: y), size: dot)
+        x += gap + dot.width + gap
+      } else if i > 0 {
+        y += tall + leading
+        x = 0
+        tall = 0
+      }
+      out[i] = CGRect(origin: CGPoint(x: x, y: y), size: size)
+      x += size.width
+      tall = max(tall, size.height)
+      wide = max(wide, x)
+    }
+    return (out, CGSize(width: wide, height: y + tall))
+  }
+
+  func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+    frames(subviews, width: proposal.width ?? .infinity).size
+  }
+
+  func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+    for (i, frame) in frames(subviews, width: bounds.width).frames.enumerated() {
+      if let frame {
+        subviews[i].place(at: CGPoint(x: bounds.minX + frame.minX, y: bounds.minY + frame.minY), proposal: ProposedViewSize(frame.size))
+      } else {
+        // A dot at a break: off the page.
+        subviews[i].place(at: CGPoint(x: bounds.minX - 10_000, y: bounds.minY), proposal: .zero)
+      }
+    }
   }
 }
 
