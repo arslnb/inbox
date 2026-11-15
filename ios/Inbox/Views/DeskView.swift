@@ -162,7 +162,8 @@ struct CardLine: View {
   }
 }
 
-// A row's menu, in the window's order and words: triage, then its way out to GitHub. What writes is on its page.
+// A row's menu, in the window's order and words: Done or Back on the desk, Snooze, Move to …, Close on GitHub; then the
+// phone's own Mute and its way out to GitHub. Every other write is on its page.
 struct CardMenu: View {
   @Environment(Store.self) private var store
   @Environment(\.openURL) private var openURL
@@ -189,6 +190,10 @@ struct CardMenu: View {
       }
       ForEach(Lists.moves(card), id: \.self) { to in
         Button("Move to \(Lists.sectionName[to] ?? to)") { store.act(card.id, name: card.shortRef, to) }
+      }
+      // One press, as the window's menu: the toast's Undo reopens a PR.
+      if card.actions?.contains("close") == true {
+        Button("Close on GitHub") { Task { await store.github(card, "close") } }
       }
       if !card.mine {
         if card.status == "muted" {
