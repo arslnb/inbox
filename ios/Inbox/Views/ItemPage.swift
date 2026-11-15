@@ -1,7 +1,7 @@
 import SwiftUI
 
-// A PR or an issue, opened: what it is, why it's here, what waits on your reply, the AI review, its state, its stack
-// and what happened lately; at its foot, what you do with it. Drawn at once from its row's card. A PR's rest lands from
+// A PR or an issue, opened: what it is, why it's here, what waits on your reply, the AI review, its state, its stack,
+// a PR's diff and what happened lately; at its foot, what you do with it. Drawn at once from its row's card. A PR's rest lands from
 // one GET /api/review/:id (the window's open), an issue's from GET /api/item; Store.readReview() says what each costs.
 struct ItemPage: View {
   @Environment(Store.self) private var store
@@ -14,11 +14,14 @@ struct ItemPage: View {
   @State private var replied: Set<String> = []
   @State private var box: Box?
   @State private var drafts: [String: String] = [:]
+  @State private var diff: DiffModel?  // the review's diff, as it last landed
+  @State private var sent: [SentWords] = []  // yours on the diff's lines, until the conversation has them
 
   // A box that writes, as a sheet.
   enum Box: Identifiable {
     case approve, comment, changes, reviewers
-    case reply(Conversation)
+    case reply(Conversation, onLine: Bool = false)  // onLine: from its line of the diff, where the page stays
+    case line(LineSpot)
 
     var id: String {
       switch self {
@@ -26,7 +29,8 @@ struct ItemPage: View {
       case .comment: "comment"
       case .changes: "changes"
       case .reviewers: "reviewers"
-      case .reply(let c): "reply:\(c.id)"
+      case .reply(let c, _): "reply:\(c.id)"
+      case .line(let at): "line:\(at.key)"
       }
     }
   }
@@ -46,6 +50,10 @@ struct ItemPage: View {
   private var waiting: [Conversation] { (review?.conversation ?? []).filter { $0.waitingOnYou == true && !replied.contains($0.id) } }
 
   var body: some View {
+    ScrollViewReader { proxy in page(proxy) }
+  }
+
+  private func page(_ proxy: ScrollViewProxy) -> some View {
     ScrollView {
       VStack(alignment: .leading, spacing: 16) {
         if let card {
@@ -56,6 +64,7 @@ struct ItemPage: View {
           if let error = review?.filesError { Text("Couldn't load the diff: \(error)").sans(13).foregroundStyle(Theme.red) }
           if let review { ReviewState(card: card, review: review, addReviewers: adds(card) ? { box = .reviewers } : nil) }
           if let stack { stackBlock(stack) }
+          if let review, let diff, !diff.list.isEmpty { diffBlock(card, review, diff, proxy) }
           activity(card)
           if !landed, failed == nil { LoadingLines() }
           if let failed { Text(failed).sans(13).foregroundStyle(Theme.red) }
@@ -86,6 +95,7 @@ struct ItemPage: View {
         switch await store.readReview(id) {
         case .success(let r):
           review = r
+          diff = r.order.map { DiffModel($0) }
           failed = nil
           if let c = r.card { saw(c) }
         case .failure(.refused(400, _)) where kind == nil: await readItem()
@@ -99,6 +109,15 @@ struct ItemPage: View {
         if let want = store.debugBox, let c = card, landed, want != "reply" || !waiting.isEmpty {
           store.debugBox = nil
           press(want, c)
+        }
+        if let diff, let to = store.debugScroll {
+          store.debugScroll = nil
+          try? await Task.sleep(for: .milliseconds(300))
+          proxy.scrollTo(to == "thread" ? diff.firstThread(review?.conversation ?? []) ?? "diff" : "diff", anchor: to == "thread" ? .center : .top)
+        }
+        if let diff, let at = store.debugComment.flatMap(diff.spot) {
+          store.debugComment = nil
+          box = .line(at)
         }
       #endif
     }
@@ -239,14 +258,31 @@ struct ItemPage: View {
         }
       case .reviewers:
         ReviewersSheet(card: c, keep: c.cta != "reviewers" && c.draft != true) { back() }
-      case .reply(let conversation):
+      case .reply(let conversation, let onLine):
         WriteSheet(title: "Reply to \(conversation.comments.last?.author ?? "them")", prompt: "Your reply", button: "Reply", draft: draft) { words in
-          let sent = await store.reply(c, to: conversation, body: words)
-          if sent { replied.insert(conversation.id) }
+          let took = await store.reply(c, to: conversation, body: words)
+          if took { replied.insert(conversation.id) }
+          // From its line of the diff the page stays, with your words under the thread until it's read again.
+          if onLine {
+            if took { sent.append(SentWords(thread: conversation.id, body: words)) }
+            return took
+          }
           // The last one answered: nothing more waits on you here.
-          return sent && waiting.isEmpty ? leave(true) : sent
+          return took && waiting.isEmpty ? leave(true) : took
         } above: {
           said(conversation, whole: true)
+        }
+      case .line(let at):
+        WriteSheet(title: "Comment on \(at.name)", prompt: "Your comment", button: "Comment", draft: draft) { words in
+          // Pinned to the commit the diff is at, so the line is the one that was read.
+          let took = await store.inline(c, at: at, body: words, head: review?.diffHead ?? "")
+          if took { sent.append(SentWords(spot: at, body: words)) }
+          return took
+        } above: {
+          Text(at.text.isEmpty ? " " : at.text).mono(12).foregroundStyle(Theme.ink).lineLimit(3)
+            .padding(.horizontal, 10).padding(.vertical, 6)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(at.side == "old" ? Theme.delWash : Theme.wash, in: RoundedRectangle(cornerRadius: 6))
         }
       }
     }
@@ -429,6 +465,24 @@ struct ItemPage: View {
       }
     } else if landed {
       Text(open ? "No AI review yet." : "No AI review.").sans(13).foregroundStyle(Theme.pencil)
+    }
+  }
+
+  // MARK: Its diff
+
+  // Every file's lines in the PR's order. On an open PR a line is pressed to comment on it; a closed one only reads.
+  private func diffBlock(_ c: Card, _ review: ReviewView, _ diff: DiffModel, _ proxy: ScrollViewProxy) -> some View {
+    let can = item?.state == "open" && review.diffHead != nil
+    return VStack(alignment: .leading, spacing: 6) {
+      SmallHead(text: Words.plural(review.files.isEmpty ? diff.list.count : review.files.count, "file") + " changed").id("diff")
+      DiffView(
+        model: diff, files: review.files, conversation: review.conversation,
+        sent: Diff.pending(sent, in: review.conversation, me: store.me), github: c.url.flatMap { URL(string: $0 + "/files") },
+        comment: can ? { box = .line($0) } : nil, reply: can ? { box = .reply($0, onLine: true) } : nil,
+        show: { proxy.scrollTo($0) }
+      )
+      // Edge to edge: a line's wash runs the page's width, its text keeps the gutter.
+      .padding(.horizontal, -Theme.pad)
     }
   }
 
