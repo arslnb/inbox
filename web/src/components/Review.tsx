@@ -170,6 +170,7 @@ export function Review({
   onReady,
   onAskReviewers,
   onAddReviewer,
+  onReviewer,
   onComment,
   onBack,
   chat,
@@ -194,6 +195,7 @@ export function Review({
   onReady: (c: Card, picked: Reviewer[]) => void;
   onAskReviewers: (c: Card, picked: Reviewer[]) => void; // your ready PR nobody's asked to review: ask who you picked
   onAddReviewer: (c: Card, r: Reviewer) => Effect.Effect<boolean>; // one picked in the sidebar: asked at once
+  onReviewer: (c: Card, login: string, act: "remove" | "rerequest") => void; // a reviewer's icon in the sidebar
   onComment: (c: Card, body: string) => Effect.Effect<boolean>; // your comment on the PR; true once GitHub has it
   onBack: () => void;
   chat: boolean; // your chat with your agent is open: it takes the sidebar's place
@@ -1105,19 +1107,45 @@ export function Review({
             size={size && { ...size, files: item.changed_files }}
             tone={calm(card)}
           />
-          {view.stack && <StackList stack={view.stack} />}
+          {/* Only while it's stacked: another open PR in its stack (the list shows the open ones and this one). */}
+          {view.stack && [...view.stack.line, ...view.stack.forks].some((m) => m.state === "open" && !m.current) && (
+            <StackList stack={view.stack} />
+          )}
           <SidePart
             id="reviewers"
             name="Reviewers"
             line={view.reviewers.list.length ? "" : view.reviewers.line}
             bad={view.reviewers.changes ? "t-warn" : ""}
             tone={calm(card)}
-            rows={view.reviewers.list.map((r) => ({
-              name: r.who,
-              ...(r.who !== "you" && !r.who.startsWith("@") && { login: r.who }),
-              state: r.state,
-              bad: r.state === "changes requested" ? "t-warn" : "",
-            }))}
+            rows={view.reviewers.list.map((r) => {
+              const person = r.who !== "you" && !r.who.startsWith("@"); // a team's ask is the team's
+              const yours = card.by === "you" && item.state === "open" && !acted;
+              const remove = yours && person && r.state === "asked";
+              const again = yours && person && !item.draft && r.state !== "asked";
+              return {
+                name: r.who,
+                ...(r.who === "you" ? me && { login: me } : person && { login: r.who }),
+                state: r.state,
+                bad: r.state === "changes requested" ? "t-warn" : "",
+                ...((remove || again) && {
+                  tools: (
+                    <button
+                      type="button"
+                      className="rv-rev-tool"
+                      title={remove ? `Remove ${r.who} as a reviewer` : `Ask ${r.who} to review again`}
+                      aria-label={remove ? `Remove ${r.who} as a reviewer` : `Ask ${r.who} to review again`}
+                      onClick={() => {
+                        onReviewer(card, r.who, remove ? "remove" : "rerequest");
+                      }}
+                    >
+                      <svg className="i" viewBox="0 0 16 16" aria-hidden="true">
+                        {remove ? <path d="m4.5 4.5 7 7m0-7-7 7" /> : <path d="M12.5 8a4.5 4.5 0 1 1-1.3-3.2M12.5 3v2.5H10" />}
+                      </svg>
+                    </button>
+                  ),
+                }),
+              };
+            })}
             add={yoursOpen && !asking && !acted && !sideAdding ? addReviewers : undefined}
           >
             {sideAdding && !acted && (
@@ -1431,8 +1459,6 @@ function Shell({
 }
 
 type Tone = "good" | "warn" | "bad";
-const MARK_OF: Record<Tone, string> = { good: "✓", warn: "!", bad: "×" };
-const RISK_TONE: Record<AiShown["risk"], Tone> = { low: "good", medium: "warn", high: "bad" };
 
 // How the checks stand, in words and a colour: a required one failing is red; an optional one failing, one cancelled or
 // one still running is yellow.
@@ -1487,12 +1513,6 @@ function StatusRow({
   );
 }
 
-const mark = (tone: Tone) => (
-  <span className={cls("rv-status-mark", `m-${tone}`)} aria-hidden="true">
-    {MARK_OF[tone]}
-  </span>
-);
-
 // Status, at the top of the sidebar: the AI review's risk, the checks and how big the change is, a row each; a click on one
 // shows its reasons, its list of checks or its counts.
 function StatusPart({
@@ -1526,7 +1546,14 @@ function StatusPart({
           <StatusRow
             id="risk"
             said={`${ai.risk[0]!.toUpperCase()}${ai.risk.slice(1)} risk`}
-            end={mark(RISK_TONE[ai.risk])}
+            end={
+              // Like a phone's signal: one red bar for high, two yellow for medium, all three green for low.
+              <span className={cls("rv-signal", `s-${ai.risk}`)} title={`${ai.risk} risk`} aria-hidden="true">
+                <span />
+                <span />
+                <span />
+              </span>
+            }
             open={!!open.risk}
             setOpen={toggle("risk")}
           >
@@ -1553,7 +1580,6 @@ function StatusPart({
             open={!!open.checks}
             setOpen={toggle("checks")}
           >
-            <p className="rv-status-why">{checks.line}</p>
             <CheckRows checks={checks} />
           </StatusRow>
         )}
@@ -1574,10 +1600,11 @@ function StatusPart({
             open={!!open.changes}
             setOpen={toggle("changes")}
           >
-            <p className="rv-status-why">
-              {size.files !== null && `${size.files} ${size.files === 1 ? "file" : "files"}: `}
-              {size.add} {size.add === 1 ? "line" : "lines"} added, {size.del} removed
-            </p>
+            <ul className="rv-status-why">
+              {size.files !== null && <li>{`${size.files} ${size.files === 1 ? "file" : "files"} changed`}</li>}
+              <li>{`${size.add} ${size.add === 1 ? "line" : "lines"} added`}</li>
+              <li>{`${size.del} ${size.del === 1 ? "line" : "lines"} removed`}</li>
+            </ul>
           </StatusRow>
         )}
       </ol>
@@ -1603,7 +1630,7 @@ function SidePart({
   line: string; // "" when its rows say it all
   bad: string; // t-bad, t-warn, or "" for ink
   tone?: string; // calm(): on a sorted-away PR its problems are grey
-  rows?: { name: string; login?: string; state: string; bad: string }[];
+  rows?: { name: string; login?: string; state: string; bad: string; tools?: ReactNode }[];
   add?: (() => void) | undefined; // the reviewers' Add reviewers, on your open PR
 }) {
   return (
@@ -1626,6 +1653,7 @@ function SidePart({
                   {r.name}
                 </span>
                 <span className={cls("rv-part-state", "fact-word", r.bad)}>{r.state}</span>
+                {r.tools}
               </span>
             </li>
           ))}

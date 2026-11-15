@@ -2471,8 +2471,7 @@ const SHOTS: Shot[] = [
         };
       })()`);
       const opened = await read();
-      if (opened.line !== "3 failing, 1 running of 11 checks")
-        failures.push(`review-checks: its line reads ${JSON.stringify(opened.line)}`);
+      if (opened.line) failures.push(`review-checks: opened, it still says ${JSON.stringify(opened.line)} over the rows`);
       // Shards fold into one row with a count; what's wrong first; every check shown, the passing ones too.
       if (
         opened.rows.slice(0, 3).join(" | ") !== "red e2e ×2 | red unit tests ×3 | amber visual diff ↗" ||

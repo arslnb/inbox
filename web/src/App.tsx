@@ -1141,6 +1141,25 @@ export function App() {
     runUi(finish(c, `Asking ${names} to review ${shortRef(c)}…`, { what: `Asked ${names}`, where: "archive" }, write));
   }
 
+  // One reviewer's icon in the review's sidebar: off your PR, or asked again; the PR stays where it is.
+  function changeReviewer(c: Card, login: string, how: "remove" | "rerequest") {
+    const [doing, done] = how === "remove" ? ["Removing", "Removed"] : ["Asking", "Asked"];
+    flash(`${doing} ${login}${how === "remove" ? ` from ${shortRef(c)}` : ` to review ${shortRef(c)} again`}…`);
+    runUi(
+      api.reviewer(c.id, login, how).pipe(
+        Effect.match({
+          onSuccess: () => {
+            flash(`${done} ${login}${how === "remove" ? ` as a reviewer of ${shortRef(c)}` : ` to review ${shortRef(c)} again`} on GitHub`);
+          },
+          onFailure: (e) => {
+            flash(`Couldn't ${how === "remove" ? "remove" : "ask"} ${login}: ${e.message}`, true);
+          },
+        }),
+        Effect.tap(refreshNow),
+      ),
+    );
+  }
+
   // One reviewer picked in the review's sidebar: asked at once, and the PR stays where it is. False when GitHub says no.
   function addReviewer(c: Card, r: Reviewer): Effect.Effect<boolean> {
     const ask = r.team ? { users: [], teams: [r.id] } : { users: [r.id], teams: [] };
@@ -1779,6 +1798,7 @@ export function App() {
               onReady={markReady}
               onAskReviewers={askReviewers}
               onAddReviewer={addReviewer}
+              onReviewer={changeReviewer}
               onComment={comment}
               onBack={() => {
                 go(reviewQuestion ? { name: "inquiry", id: reviewQuestion } : { name: reviewFrom });

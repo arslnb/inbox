@@ -519,6 +519,14 @@ export function createApp(desk: Desk, port: number, remote: Remote = new Remote(
       Effect.flatMap(reviewerIds(b), (ask) => Effect.as(desk.askReviewers(c.req.param("id"), ask, b.keep === true), { ok: true })),
     ),
   );
+  // One reviewer of your open PR, from the review's sidebar: { login, act: "remove" | "rerequest" }, from the desk's own window only.
+  app.post("/api/review/:id{.+}/reviewer", (c) =>
+    write(c, "change a reviewer from the PR's review in the desk's window", (b) => {
+      const act = oneOf(["remove", "rerequest"] as const, b.act);
+      if (typeof b.login !== "string" || !b.login.trim() || !act) return bad('need { login, act: "remove" | "rerequest" }');
+      return Effect.as(desk.reviewerAct(c.req.param("id"), b.login.trim(), act), { ok: true });
+    }),
+  );
   // The More menu's GitHub writes (close, draft, ready, merge, reopen, request changes), from the desk's own window only.
   app.post("/api/github", (c) =>
     write(c, "GitHub actions are yours, from the desk's window", (b) => {

@@ -3882,6 +3882,35 @@ export class Desk {
     });
   }
 
+  // POST /api/review/:id/reviewer: one reviewer of your open PR, from its review's sidebar, on your click. remove takes off
+  // someone asked who hasn't reviewed yet (the REST unrequest, for that login); rerequest asks someone who reviewed again
+  // (that login alone). A team's ask stays the team's; the PR stays where it is on your desk.
+  reviewerAct(ref: string, login: string, act: "remove" | "rerequest"): Effect.Effect<void, WriteError> {
+    return Effect.gen({ self: this }, function* () {
+      yield* this.notStopped();
+      const e = yield* this.pr(ref);
+      const it = e.item;
+      const id = it.id;
+      if (!e.analysis.signals.me.author) return yield* new Conflict({ message: `${id} isn't your PR` });
+      if (it.state !== "open") return yield* new Conflict({ message: `${id} isn't open` });
+      const who = login.toLowerCase();
+      const asked = it.review_requests.find((r) => r.type === "user" && r.reviewer.toLowerCase() === who);
+      const reviewed = rerequestable(it).find((l) => l.toLowerCase() === who);
+      if (act === "remove" && !asked) return yield* new Conflict({ message: `${login} isn't asked to review ${id}` });
+      if (act === "rerequest" && (!reviewed || it.draft)) return yield* new Conflict({ message: `${login} can't be asked again on ${id}` });
+      const writer = this.writer;
+      if (!writer) return yield* new Conflict({ message: "changing reviewers isn't available in this desk" });
+      const name = asked?.reviewer ?? reviewed ?? login;
+      const write = Effect.gen({ self: this }, function* () {
+        const sent = act === "remove" ? writer.unrequest(it.repo, it.number, name) : writer.rerequest(it.node_id, [name]);
+        yield* sent.pipe(Effect.mapError(upstream(act === "remove" ? "GitHub didn't remove the reviewer: " : "GitHub didn't ask again: ")));
+        this.store.logWrite(id, act === "remove" ? "unrequest" : "rerequest", this.now().toISOString());
+        this.log(act === "remove" ? `removed ${name} as a reviewer of ${id} on GitHub` : `asked ${name} again to review ${id} on GitHub`);
+      }).pipe(Effect.ensuring(this.refreshed(id)));
+      return yield* this.locked(this.approving, id, `already changing reviewers on ${id}`, write);
+    });
+  }
+
   // Whatever GitHub said to a write, the PR is read again; inside the write's region, so never on an interruption. Waited
   // for, so the window sees a PR that stays on your desk as the write left it (ready, with Add reviewers).
   private refreshed(id: string): Effect.Effect<void> {

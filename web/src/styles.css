@@ -5221,6 +5221,33 @@ a.rv-part-row:hover {
   flex: none;
 }
 
+/* A reviewer's one icon on your PR, after their state: remove (asked, not reviewed yet) or ask again (reviewed). */
+.rv-rev-tool {
+  display: grid;
+  flex: none;
+  place-items: center;
+  align-self: center;
+  width: 20px;
+  height: 20px;
+  margin: -2px -4px -2px 0;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  background: none;
+  color: var(--pencil);
+  cursor: pointer;
+}
+
+.rv-rev-tool:hover {
+  background: var(--side-hover);
+  color: var(--ink);
+}
+
+.rv-rev-tool .i {
+  width: 13px;
+  height: 13px;
+}
+
 .rv-part-state:not(.t-bad, .t-warn) {
   color: var(--pencil);
 }
@@ -5827,29 +5854,44 @@ a.rv-part-row:hover {
   white-space: nowrap;
 }
 
-.rv-status-mark {
-  display: grid;
+/* Risk's signal: three rising bars, as a phone shows its signal; one red for high, two yellow for medium, all three green
+   for low, the rest faint. */
+.rv-signal {
+  display: inline-flex;
   flex: none;
-  place-items: center;
-  width: 15px;
-  height: 15px;
-  border-radius: 50%;
-  color: var(--sheet); /* white on Light's deep colours, near black on Dark's pastels */
-  font-size: 10px;
-  font-weight: 700;
-  line-height: 1;
+  align-items: flex-end;
+  gap: 2px;
+  height: 12px;
 }
 
-.rv-status-mark.m-good {
-  background: var(--green);
+.rv-signal span {
+  width: 3px;
+  border-radius: 1px;
+  background: var(--rule-strong);
 }
 
-.rv-status-mark.m-warn {
+.rv-signal span:nth-child(1) {
+  height: 5px;
+}
+
+.rv-signal span:nth-child(2) {
+  height: 8px;
+}
+
+.rv-signal span:nth-child(3) {
+  height: 12px;
+}
+
+.rv-signal.s-high span:nth-child(1) {
+  background: var(--red);
+}
+
+.rv-signal.s-medium span:nth-child(-n + 2) {
   background: var(--amber);
 }
 
-.rv-status-mark.m-bad {
-  background: var(--red);
+.rv-signal.s-low span {
+  background: var(--green);
 }
 
 .rv-status-more {
@@ -6176,7 +6218,7 @@ ul.rv-status-why {
   left: 12px;
   width: 1.5px;
   border-radius: 1px;
-  background: var(--rule-strong);
+  background: var(--rule);
 }
 
 .rv-step-row {
@@ -6204,22 +6246,31 @@ ul.rv-status-why {
   color: var(--ink);
 }
 
-/* Small dots in the accent, glowing; the step you're on 15% more opaque than the rest. */
+/* A pale node a step, its name dimmer; the step you're on is a glowing orb in the accent, its name in ink. */
 .rv-step-dot {
   flex: none;
   width: 5px;
   height: 5px;
   border-radius: 50%;
-  background: var(--accent);
-  box-shadow: 0 0 6px 1px color-mix(in oklab, var(--accent) 70%, transparent);
-  opacity: 0.85;
+  background: var(--rule-strong);
+}
+
+.rv-step-row:not(.on) .rv-step-name {
+  opacity: 0.6;
+}
+
+.rv-step-row:hover .rv-step-name {
+  opacity: 1;
 }
 
 .rv-step-row.on .rv-step-dot {
+  width: 7px;
+  height: 7px;
+  margin: 0 -1px;
+  background: var(--accent);
   box-shadow:
     0 0 0 2px color-mix(in oklab, var(--accent) 30%, transparent),
-    0 0 9px 2px color-mix(in oklab, var(--accent) 80%, transparent);
-  opacity: 1;
+    0 0 10px 2px color-mix(in oklab, var(--accent) 80%, transparent);
 }
 
 .rv-step-name {
