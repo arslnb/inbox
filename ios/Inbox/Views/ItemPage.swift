@@ -140,7 +140,7 @@ struct ItemPage: View {
         }
         if let diff, let at = store.debugComment.flatMap(diff.spot) {
           store.debugComment = nil
-          box = .line(at)
+          onLine(at)
         }
       #endif
     }
@@ -277,6 +277,13 @@ struct ItemPage: View {
     box = b
   }
 
+  // A line's box holds the commit its line was picked at, as the window's (Review.tsx: `head: v.diff_head` when picked):
+  // a push read under the sheet renumbers the lines, and the comment is for the one quoted in the box.
+  private func onLine(_ at: LineSpot) {
+    boxHead = review?.diffHead
+    box = .line(at)
+  }
+
   // What the desk took and took off the list goes back to the list, where its toast is.
   private func leave(_ took: Bool) -> Bool {
     if took { back() }
@@ -326,8 +333,8 @@ struct ItemPage: View {
         }
       case .line(let at):
         WriteSheet(title: "Comment on \(at.name)", prompt: "Your comment", button: "Comment", aside: askLine(c, at), draft: draft) { words in
-          // Pinned to the commit the diff is at, so the line is the one that was read.
-          let took = await store.inline(c, at: at, body: words, head: review?.diffHead ?? "")
+          // Pinned to the commit the line was picked at, so it is the one that was read.
+          let took = await store.inline(c, at: at, body: words, head: boxHead ?? "")
           if took { sent.append(SentWords(spot: at, body: words)) }
           return took
         } above: {
@@ -347,9 +354,9 @@ struct ItemPage: View {
     store.asksAgent ? { store.openChat(ChatAbout.thread(c.id, $0)) } : nil
   }
 
-  // About one line of the diff, at the commit the diff was read at, as the window's box sends it (spotOf() in Review.tsx).
+  // About one line of the diff, at the commit it was picked at, as the window's box sends it (spotOf() in Review.tsx).
   private func askLine(_ c: Card, _ at: LineSpot) -> (label: String, press: () -> Void)? {
-    guard store.asksAgent, let head = review?.diffHead, head.count == 40 else { return nil }
+    guard store.asksAgent, let head = boxHead, head.count == 40 else { return nil }
     return ("Ask your agent", { store.openChat(ChatAbout(item: c.id, lines: .init(path: at.path, line: at.line, side: at.side, head: head))) })
   }
 
@@ -536,7 +543,7 @@ struct ItemPage: View {
       DiffView(
         model: diff, files: review.files, conversation: review.conversation,
         sent: Diff.pending(sent, in: review.conversation, me: store.me), github: c.url.flatMap { URL(string: $0 + "/files") },
-        comment: can ? { box = .line($0) } : nil, reply: can ? { box = .reply($0) } : nil, ask: asking(c),
+        comment: can ? { onLine($0) } : nil, reply: can ? { box = .reply($0) } : nil, ask: asking(c),
         notes: review.ai?.notes ?? [], looks: review.aiStale == true ? [] : review.ai?.look ?? [], bugs: bugs(review),
         diagrams: review.ai?.diagrams ?? [],
         show: { proxy.scrollTo($0) }, jump: { reach($0, .top, proxy) },

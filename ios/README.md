@@ -214,7 +214,7 @@ default size all four fit beside the longest name, Hand off for merge).
   rest are on GitHub; past about 3,000 lines in all, every file starts folded. A review thread sits under its line
   (not an outdated one), drawn as under "What was said", with Reply and Open on GitHub; a resolved one is one line until pressed. On an open PR, press a
   line to comment on it: a removed line's comment goes on the old file's side, any other on the new one's. One line
-  only, pinned to the commit the diff is at. The box's Ask your agent opens your chat on that line instead (your
+  only, pinned to the commit the diff was at when the line was pressed (a push read under the box doesn't move it). The box's Ask your agent opens your chat on that line instead (your
   comment's words stay in the box). Your words show under the line as "You · sent" until the conversation
   read again has them. Code stops growing at the first accessibility text size; what people said grows on.
 - **What reviewers said.** Under the AI review, as the window's Conversation: "Waiting on your reply N", each with who,
