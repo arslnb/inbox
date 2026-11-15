@@ -1366,7 +1366,8 @@ test("with a decision model's key, a question goes to it instead of Claude: one 
     "nor in a request's body",
   );
 
-  // With the key cleared, the same question is Claude's again.
+  // With the key cleared, the same question is Claude's again: once the held run's other requests have all landed.
+  await api.quiet();
   runSync(t.desk.putSettings({ reset: ["agent.decision_key"] }));
   fake.answer("", []);
   down = null;
