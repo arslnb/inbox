@@ -11,6 +11,8 @@
 		0A472E38A8BCBB0BE4C039ED /* AiBlock.swift in Sources */ = {isa = PBXBuildFile; fileRef = CA83EB4A0F6BDDE7BAB5EC8A /* AiBlock.swift */; };
 		243E4031449240A3110F26FE /* ActionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 191882B1EBFEB895A9C4608D /* ActionTests.swift */; };
 		2C63189910B7188FD6BA7657 /* reviewers.json in Resources */ = {isa = PBXBuildFile; fileRef = 83673558401C16BE791F742E /* reviewers.json */; };
+		340EEA6BD2B346A4B9472E2F /* item-issue-steps.json in Resources */ = {isa = PBXBuildFile; fileRef = EB176F3FAD93D1B612C29B69 /* item-issue-steps.json */; };
+		344986D6DF797F447F9EF361 /* IssuePre.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4DA40F8D799363AFD72BA581 /* IssuePre.swift */; };
 		37E4CB149A666311A3413CBC /* DiffView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1669E5C9016905AF55097E8E /* DiffView.swift */; };
 		38F13AE8579999BDD6881232 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 69F526FB674D4AAE51D71285 /* Assets.xcassets */; };
 		3E5357227A982E45AB92FED3 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB729B1A844CE25803480AA6 /* Models.swift */; };
@@ -77,6 +79,7 @@
 		43D8D8BD75909D14400C988F /* review-steps.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "review-steps.json"; sourceTree = "<group>"; };
 		47B88BB7E7E38F244917BD42 /* overview.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = overview.json; sourceTree = "<group>"; };
 		4B4410229E7B52CEFFCF27BC /* Guide.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Guide.swift; sourceTree = "<group>"; };
+		4DA40F8D799363AFD72BA581 /* IssuePre.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = IssuePre.swift; sourceTree = "<group>"; };
 		58B8361D3A544EB208FEF985 /* inquiry.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = inquiry.json; sourceTree = "<group>"; };
 		58F1723D88F33B6D0D06287F /* Acting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Acting.swift; sourceTree = "<group>"; };
 		668AAD4DD3BC95A868ADD5FA /* jetbrains-mono-latin-wght-normal.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = "jetbrains-mono-latin-wght-normal.ttf"; sourceTree = "<group>"; };
@@ -109,6 +112,7 @@
 		D90175A3BA5EC831E9A8702B /* Support.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Support.swift; sourceTree = "<group>"; };
 		DD433E110FA257BFDBC4F5A4 /* Address.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Address.swift; sourceTree = "<group>"; };
 		EA851981E14A4D90E0B2E268 /* FormatTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FormatTests.swift; sourceTree = "<group>"; };
+		EB176F3FAD93D1B612C29B69 /* item-issue-steps.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "item-issue-steps.json"; sourceTree = "<group>"; };
 		F04C3ACC667161B9AB92E023 /* DeskView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DeskView.swift; sourceTree = "<group>"; };
 		FB0AB6E5B1F51C063204A788 /* queue.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = queue.json; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -122,6 +126,7 @@
 				412FA186A30EEB5E95FAFA15 /* ConnectView.swift */,
 				F04C3ACC667161B9AB92E023 /* DeskView.swift */,
 				1669E5C9016905AF55097E8E /* DiffView.swift */,
+				4DA40F8D799363AFD72BA581 /* IssuePre.swift */,
 				7402469F00F8F99EF3BDBD7B /* ItemPage.swift */,
 				AB601B10CD92C49B76EBC105 /* Pages.swift */,
 				D0DA7227B62F17FEF758A35A /* ReviewState.swift */,
@@ -159,6 +164,7 @@
 				89822F5B99BA945CFC5DA0AA /* health.json */,
 				D57AC94DEAC4A0ABBF82148C /* inflight.json */,
 				58B8361D3A544EB208FEF985 /* inquiry.json */,
+				EB176F3FAD93D1B612C29B69 /* item-issue-steps.json */,
 				B68EB4652AF48E4EFA96A474 /* item-issue.json */,
 				D11E16C2CD1C7E90BCB8426D /* item.json */,
 				47B88BB7E7E38F244917BD42 /* overview.json */,
@@ -302,6 +308,7 @@
 				A045FCDB398F4F9D779A93B4 /* health.json in Resources */,
 				4360AF9B4B2E1AB0DDA25628 /* inflight.json in Resources */,
 				56C76E4A633C95AA51173ED3 /* inquiry.json in Resources */,
+				340EEA6BD2B346A4B9472E2F /* item-issue-steps.json in Resources */,
 				E76AB71898F7873F82F00324 /* item-issue.json in Resources */,
 				59287E8848A82C802B128D15 /* item.json in Resources */,
 				FCDBB92690C6864C83551DCA /* overview.json in Resources */,
@@ -341,6 +348,7 @@
 				ADDA38C5172EB9B22C9BB66C /* Format.swift in Sources */,
 				FA4C1E210463D2527D2040BC /* Guide.swift in Sources */,
 				F7489DABC0919467EEAB5469 /* InboxApp.swift in Sources */,
+				344986D6DF797F447F9EF361 /* IssuePre.swift in Sources */,
 				C444106D32B248F3FDF162AF /* ItemPage.swift in Sources */,
 				8E55F11BB67BBDCEE9CFF48A /* Keychain.swift in Sources */,
 				3E5357227A982E45AB92FED3 /* Models.swift in Sources */,

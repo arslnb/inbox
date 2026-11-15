@@ -1,7 +1,7 @@
 import SwiftUI
 
-// A PR or an issue, opened: what it is, why it's here, the AI review, what reviewers said, its state, its stack,
-// a PR's diff and what happened lately; at its foot, what you do with it. Drawn at once from its row's card. A PR's rest lands from
+// A PR or an issue, opened: what it is, why it's here, the AI review (an issue's pre-review), what reviewers said, its
+// state, its stack, a PR's diff and what happened lately; at its foot, what you do with it. Drawn at once from its row's card. A PR's rest lands from
 // one GET /api/review/:id (the window's open), an issue's from GET /api/item; Store.readReview() says what each costs.
 struct ItemPage: View {
   @Environment(Store.self) private var store
@@ -15,6 +15,7 @@ struct ItemPage: View {
   @State private var box: Box?
   @State private var drafts: [String: String] = [:]
   @State private var diff: DiffModel?  // the review's diff, as it last landed
+  @State private var fixAsked = false  // Make PR with fix was taken from this page: a second press would ask your agent twice
   @State private var sent: [SentWords] = []  // yours on the diff's lines, until the conversation has them
   // This phone's choice where a review has steps: the guided review, or every file ("traditional"). The window's own.
   @AppStorage("review.view") private var reading = "guided"
@@ -65,6 +66,9 @@ struct ItemPage: View {
           why(card)
           if card.isPR { aiBlock(card, proxy) }
           if card.isPR { saidBlock(card) }
+          if !card.isPR, let detail {
+            IssuePre(detail: detail, busy: store.busy(card.id), run: { press($0, card) }, at: debugStep)
+          }
           if let error = review?.filesError { Text("Couldn't load the diff: \(error)").sans(13).foregroundStyle(Theme.red) }
           if let review { ReviewState(card: card, review: review, addReviewers: adds(card) ? { box = .reviewers } : nil) }
           if let stack { stackBlock(stack) }
@@ -107,6 +111,11 @@ struct ItemPage: View {
         case nil: break
         }
       } else {
+        // One read on open, as the window's (the desk may start its pre-review); a redraw waits for its events to settle.
+        if detail != nil {
+          try? await Task.sleep(for: .seconds(1))
+          if Task.isCancelled { return }
+        }
         await readItem()
       }
       #if DEBUG
@@ -139,7 +148,10 @@ struct ItemPage: View {
 
   private func readItem() async {
     switch await store.fetchItem(id) {
-    case .success(let d):
+    case .success(var d):
+      #if DEBUG
+        if let state = store.debugIssue { d = d.debugging(state) }
+      #endif
       detail = d
       failed = nil
       saw(d.card)
@@ -164,12 +176,15 @@ struct ItemPage: View {
   @ViewBuilder
   private var bar: some View {
     if let c = card {
-      let main = c.act(open: open)
+      // An issue's pre-review can take the page's one call to action: Make PR with fix, or Block on a flagged one.
+      let flagged = detail?.issueAi?.injection != nil && detail?.blockedAuthor != true
+      let main = detail?.fixable == true && !fixAsked ? "fix" : flagged ? "block" : c.act(open: open)
+      let name = main == "block" ? "Block @\(detail?.issueAi?.injection?.who ?? "")" : main.flatMap { Words.act[$0] }
       // Approve needs the desk's say and, as Merge, the commit it's pinned to; Reply needs what was said.
       let notYet =
         (main == "approve" && (read == nil || review?.cantApprove != nil)) || (main == "merge" && read == nil) || (main == "reply" && waiting.isEmpty)
       BottomBar(
-        cta: main.flatMap { Words.act[$0] }, off: store.busy(c.id) || notYet, press: { if let main { press(main, c) } }, quiet: quiet(c),
+        cta: name, off: store.busy(c.id) || notYet, press: { if let main { press(main, c) } }, quiet: quiet(c),
         hasMore: true
       ) { more(c, main) }
     } else {
@@ -234,6 +249,15 @@ struct ItemPage: View {
     // Ready with nobody asked stays on the desk, and its page then offers Add reviewers; one already asked leaves it.
     case "ready": Task { if await store.ready(c), store.card(c.id)?.active != true { back() } }
     case "handoff": Task { if await store.handOff(c) { back() } }
+    // An issue's pre-review: each spends your agent or changes the desk's blocklist, so only ever from a press.
+    case "analyze", "trust": Task { await store.analyzeIssue(c, trust: key == "trust") }
+    case "fix": Task { if await store.fixIssue(c) { fixAsked = true } }
+    case "block", "unblock":
+      Task {
+        // Blocking mutes their items: this one may have left its list.
+        let was = store.card(c.id)
+        if await store.blockAuthor(c, key == "block"), let was, store.left(was) { back() }
+      }
     case "takeback": Task { if await store.backToDesk(c) { back() } }
     default:
       Task {
@@ -384,7 +408,10 @@ struct ItemPage: View {
       out.append(.init(stage, stage == "changes requested" && c.mine && c.inflight != true ? Theme.amber : Theme.pencil))
     }
     out.append(.init(Words.age(c.resolvedAt ?? c.doneAt ?? c.waitingSince, now: store.now)))
+    // An issue's row doesn't say how you were asked; its why may.
+    if let me = detail?.signals?.me, !Words.says(c.why ?? "", Words.asked(me)) { out.append(.init(Words.asked(me))) }
     if let n = item?.commentsTotal, n > 0 { out.append(.init(Words.plural(n, "comment"))) }
+    if !c.isPR, let by = Words.placedBy(c.placedBy, agent: store.agent), !Words.says(c.why ?? "", by) { out.append(.init(by)) }
     return out
   }
 
@@ -450,6 +477,14 @@ struct ItemPage: View {
         .padding(.top, 2)
       }
     }
+  }
+
+  private var debugStep: Int {
+    #if DEBUG
+      (store.debugStep ?? 1) - 1
+    #else
+      0
+    #endif
   }
 
   private var debugAiOpen: Bool {
