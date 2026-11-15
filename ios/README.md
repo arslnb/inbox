@@ -6,7 +6,7 @@ Simulator.
 
 The phone pairs as a **phone** (a bearer token the desk takes as its own window's, unlike a machine's, which is an
 agent's). So it shows everything, it triages (Done, Snooze, Mute, Back on the desk, Undo), and it does what an item is
-on your desk for: approve, comment, reply, mark ready, ask reviewers, merge, hand off for merge, answer a question, kick
+on your desk for: approve, comment (on a PR, or on a line of its diff), reply, mark ready, ask reviewers, merge, hand off for merge, answer a question, kick
 a session. See [What the phone does](#what-the-phone-does-and-what-it-leaves). A phone paired before this (as a device)
 is still refused every write: disconnect it and pair again.
 
@@ -62,6 +62,8 @@ xcrun simctl launch booted dev.inbox.ios -deskURL http://localhost:47841 -page m
 | `-scrollTo standard`                           | the Inbox scrolled to a section (`urgent`, `standard`, `fyi`)           |
 | `-box approve\|comment\|changes\|reviewers\|reply\|answer` | with `-open`: that page's box, opened once the page has loaded |
 | `-part checks\|reviewers`                      | with `-open`: that line of a PR's State, opened                         |
+| `-scroll diff\|thread`                         | with `-open`: a PR's page scrolled to its diff, or to the first thread on a line of it |
+| `-comment <path>:<line>`                       | with `-open`: the box for a comment on that line of the new file        |
 | `-settings`                                    | the settings sheet                                                      |
 | `-empty`                                       | the desk as if nothing were on it                                       |
 | `-connect [-connectAddress <text>] [-connectError "<words>"]` | the connect screen, with that address and those words in red |
@@ -77,7 +79,8 @@ ios/shots.sh inbox item-pr   # only these
 It builds, installs on the booted simulator, starts the mock on port 47841 (and stops it), and writes
 `ios/.shots/<state>-<light|dark>.png` for: `connect` (in the Simulator, Scan the code is off and says why), `connect-error`, `connect-scan-wrong` (a QR that isn't a desk's), `inbox`, `inbox-scrolled`, `inbox-empty`,
 `blocked`, `merging`, `archive`, `item-pr` (with an AI review and its State; Approve), `item-pr-checks` (a failing
-run, its checks opened), `item-pr-own` (your PR: who reviews it, + Add reviewers), `item-issue` (Comment), `item-reply` (what
+run, its checks opened), `item-pr-own` (your PR: who reviews it, + Add reviewers), `item-pr-diff` (its diff, from the first file),
+`item-pr-diff-thread` (a thread under its line), `item-pr-line-comment` (the box for a comment on a line), `item-issue` (Comment), `item-reply` (what
 waits on your reply), `item-draft` (Ready for review; its description's first paragraph where a review would be), `item-mine` (Hand off for merge), `item-merging` (Back to desk),
 the boxes `approve`, `reply`, `reviewers` and `answer`, `question`, `session`, `session-kick`, `item-large` and `item-largest` (accessibility
 text sizes, where the bar's quiet buttons fold into More and the longest call to action keeps its words), `settings` and `offline` (a desk that isn't
@@ -149,8 +152,20 @@ default size all four fit beside the longest name, Hand off for merge).
   its page. Reviewers opens to who and where each stands, with + Add reviewers on your open PR that's ready. Under the
   title, the reviewers with a verdict: a green tick, or "changes" in amber. Your own PR with no AI review shows its
   description's first paragraph there instead. A diff or a conversation that couldn't load says so in its place.
+- **A PR's diff.** Under its State and stack, every file once in the PR's order (the window's Traditional), each under
+  a header that folds it and stays at the top while its lines scroll: the name with its folder cut from the head, the
+  lines added and removed, and under it new, deleted or renamed from where. Lines are unified and wrapped, never
+  scrolled sideways (that would fight the swipe back): the new file's number (the old one on a removed line), the
+  sign, the text, a faint green or red behind what was added or removed. Then the files the desk folded away, under
+  "Not worth reviewing · N files", each with why (a lockfile; no text diff). A file's first 400 lines are drawn, the
+  rest are on GitHub; past about 3,000 lines in all, every file starts folded. A review thread sits under its line
+  (not an outdated one), with Reply and On GitHub; a resolved one is one line until pressed. On an open PR, press a
+  line to comment on it: a removed line's comment goes on the old file's side, any other on the new one's. One line
+  only, pinned to the commit the diff is at. Your words show under the line as "You · sent" until the conversation
+  read again has them. Code stops growing at the first accessibility text size; what people said grows on.
 - **After a write** that takes it off your desk (Approve, Comment on the PR, Request changes, Close, Merge) the phone
-  goes back to the list, where its toast is; the window stays on the review. Deliberate: only a reply stays on the page.
+  goes back to the list, where its toast is; the window stays on the review. Deliberate: only a comment on a line and
+  a reply from a line of the diff stay on the page (a reply from "Waiting on your reply" stays until it was the last).
 - **A row that owes a reply** lists each conversation waiting on you (where, your agent's read, its last words, Reply);
   a press opens its reply box. The bar's Reply answers the first.
 - **A question.** Its answers come straight under it, each a button that answers with it; Answer takes your own words;
@@ -164,13 +179,14 @@ sheet says so and the desk is read again, rather than claiming it wasn't sent. `
 meanwhile), says what the window says when it lands, and reads the desk again. The toast's Undo reopens a PR you closed
 and makes a converted draft ready again.
 
-Left for the computer: a comment on a diff line (the phone draws no diff), a session's Open and its attach command
+Left for the computer: in the diff, the guided review's order and its steps, your agent's notes on lines, "more
+lines" around a hunk, word-level changes, syntax highlighting and a comment on a range of lines; a session's Open and its attach command
 (they act on the desk's computer; the session's page says so once), Merging's Wake it, Start it now and Copy attach
 command for your agent, Ask your agent, and everything in Settings.
 
 What it calls: reads (`/api/overview`, `/api/queue`, `/api/inflight`, `/api/item`, `/api/inquiries/:id`,
 `/api/reviewers/:id`, `/api/events`, `/health`), `POST /api/act` (done, snooze, mute, unmute, restore, seen, inflight,
-takeback), `/api/undo`, `/api/sync`, the writes above (`/api/review/:id/approve|comment|reply|ready|reviewers`,
+takeback), `/api/undo`, `/api/sync`, the writes above (`/api/review/:id/approve|comment|inline|reply|ready|reviewers`,
 `/api/github`, `/api/inquiries/:id/answer`, `/api/sessions/:id/kick`) and, once, `/api/pair`.
 
 What opening a PR costs: one `GET /api/review/:id` without `ahead`, exactly the window's open, so the desk may start
@@ -181,7 +197,7 @@ review, and nothing is prefetched. The answer is the whole review (`ReviewView` 
 its hunks in, the AI review's parts, checks, reviewers, conversations); each file's own `patch` is never kept, since
 the same lines are in the order's hunks.
 
-Not in v0: the diff, the filter, notes (shown, not written or finished), Claude's work on
+Not in v0: the filter, notes (shown, not written or finished), Claude's work on
 Merging, people's pictures, notifications, themes other than the default light and dark, iPad.
 
 ## Where things are
@@ -197,6 +213,8 @@ Merging, people's pictures, notifications, themes other than the default light a
 | The pages and their lists, a row's menu     | `Inbox/Views/DeskView.swift`                                                           |
 | An item's page                              | `Inbox/Views/ItemPage.swift`                                                           |
 | A PR's State (checks, reviewers, merge)     | `Inbox/Views/ReviewState.swift`; `CheckGroup.of()` in `Format.swift` (view.ts's `checkGroups()`) |
+| A PR's diff: lines, order, threads, the fold | `Inbox/PatchLines.swift` (`patchLines()`, `Diff.traditional()`, `threadsOn()`, `spot()`, `DiffModel`: the twins of `src/review.ts`, `src/sections.ts` and `web/src/view.ts`); drawn by `Inbox/Views/DiffView.swift` |
+| A comment on a line                         | `Store.inline()`, `APIClient.inline()`; the box is `ItemPage`'s `.line`               |
 | When a PR's review is read, and the pin     | `Store.readReview()`, `closeReview()`, `pins` in `Inbox/Store.swift`                   |
 | A question, a session, Settings, bubbles    | `Inbox/Views/Pages.swift`                                                              |
 | An opened page's bar, the boxes that write  | `Inbox/Views/Acting.swift` (`BottomBar`, `WriteSheet`, `ReviewersSheet`, the swipe back) |

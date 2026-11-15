@@ -89,6 +89,10 @@ wanted item-pr && shot item-pr -deskURL "$DESK" -open "acme/api#4127"
 # A PR's State: its checks opened to each by name (a failing run), and your own PR's reviewers with + Add reviewers.
 wanted item-pr-checks && shot item-pr-checks -deskURL "$DESK" -open "oss/tinyhttp#205" -part checks
 wanted item-pr-own && shot item-pr-own -deskURL "$DESK" -open "acme/worker#875" -part reviewers
+# A PR's diff: scrolled to its first file, a thread under its line, and the box for a comment on a line.
+wanted item-pr-diff && shot item-pr-diff -deskURL "$DESK" -open "acme/api#4127" -scroll diff
+wanted item-pr-diff-thread && shot item-pr-diff-thread -deskURL "$DESK" -open "acme/api#4127" -scroll thread
+wanted item-pr-line-comment && shot item-pr-line-comment -deskURL "$DESK" -open "acme/api#4127" -scroll diff -comment "src/planner/stream.ts:12"
 wanted item-issue && shot item-issue -deskURL "$DESK" -open "acme/worker#860"
 # Yours: one that owes a reply (what was said, and Reply), a draft, one through review, one in Merging.
 wanted item-reply && shot item-reply -deskURL "$DESK" -open "me/notes-app#12"
