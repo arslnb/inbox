@@ -11,28 +11,21 @@
   font-display: swap;
 }
 
-@font-face {
-  font-family: "JetBrains Mono";
-  src: url("./fonts/jetbrains-mono-latin-wght-normal.woff2") format("woff2");
-  font-weight: 100 800;
-  font-display: swap;
-}
-
 :root {
-  --paper: #f5f6f8;
-  --sheet: #fff;
-  --wash: #edeff2;
-  --ink: #20242c;
-  --ink-2: #3d4450;
-  --pencil: #5c6573;
-  --faint: #979eaa;
-  --rule: #dde1e7;
-  --rule-strong: #c9ced6;
-  --control: #7c8798;
-  --sel: #eef1f4;
-  --side: #eff1f4;
-  --side-on: #dfe3e8;
-  --side-hover: #e7eaee;
+  --paper: #eeecf3;
+  --sheet: #faf9fc;
+  --wash: #e6e3ee;
+  --ink: #221f2b;
+  --ink-2: #3f3a4c;
+  --pencil: #5c5570;
+  --faint: #9a94aa;
+  --rule: #dcd8e5;
+  --rule-strong: #c8c3d4;
+  --control: #7e7791;
+  --sel: #ebe8f2;
+  --side: #e9e6f0;
+  --side-on: #dcd7e6;
+  --side-hover: #e3dfeb;
   --red: #b42318;
   --red-wash: #fcebe9;
   --amber: #8a4b08;
@@ -40,13 +33,13 @@
   --green: #176847;
   --go: #176847;
   --on-go: #fff;
-  --accent: #365d60;
-  --accent-ink: #365d60;
-  --accent-wash: #d5e8e7;
+  --accent: #6a3dbd;
+  --accent-ink: #6236b3;
+  --accent-wash: #e7defa;
   --on-accent: #fff;
   --shadow: 0 1px 2px rgb(32 36 44 / 6%), 0 10px 30px rgb(32 36 44 / 12%);
-  --sans: "Instrument Sans", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
-  --mono: "JetBrains Mono", ui-monospace, "SF Mono", menlo, consolas, monospace;
+  --sans: -apple-system, blinkmacsystemfont, "Segoe UI", system-ui, sans-serif;
+  --mono: "SF Mono", ui-monospace, menlo, consolas, monospace;
 
   /* A row's type: compact, so a table of them reads at a glance. */
   --title-size: 15px;
@@ -55,23 +48,44 @@
   color-scheme: light;
 }
 
+/* Shared by every theme, worked out from its tokens: not theirs to set (web/test/themes.test.ts reads :root as a theme). */
+html {
+  /* Diagram boxes are sized from Instrument Sans's widths (src/metrics.ts), so their text stays in it. */
+  --diagram: "Instrument Sans", var(--sans);
+
+  /* The chrome (the sidebar and the heads across the top): near black in every theme, tinted by its accent, its text light. */
+  --chrome: color-mix(in oklab, #000 88%, var(--accent));
+  --chrome-ink: color-mix(in oklab, #fff 92%, var(--paper));
+  --chrome-ink-2: color-mix(in oklab, var(--chrome-ink) 80%, var(--chrome));
+  --chrome-pencil: color-mix(in oklab, var(--chrome-ink) 60%, var(--chrome));
+  --chrome-faint: color-mix(in oklab, var(--chrome-ink) 40%, var(--chrome));
+  --chrome-control: color-mix(in oklab, var(--chrome-ink) 45%, var(--chrome));
+  --chrome-rule: color-mix(in oklab, var(--chrome-ink) 14%, var(--chrome));
+  --chrome-rule-strong: color-mix(in oklab, var(--chrome-ink) 22%, var(--chrome));
+  --chrome-sheet: color-mix(in oklab, var(--chrome-ink) 6%, var(--chrome));
+  --chrome-wash: color-mix(in oklab, var(--chrome-ink) 13%, var(--chrome));
+  --chrome-hover: color-mix(in oklab, var(--chrome-ink) 9%, var(--chrome));
+  --chrome-on: color-mix(in oklab, var(--chrome-ink) 16%, var(--chrome));
+  --chrome-accent: color-mix(in oklab, var(--accent-ink) 55%, #fff);
+}
+
 /* System: dark when the computer is, unless a theme was picked. */
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme]) {
-    --paper: #14171c;
-    --sheet: #1b1f26;
-    --wash: #242a33;
-    --ink: #eceff4;
-    --ink-2: #c9cfd9;
-    --pencil: #a7b0be;
-    --faint: #6b7482;
-    --rule: #343b46;
-    --rule-strong: #424a57;
-    --control: #6b7686;
-    --sel: #222830;
-    --side: #111419;
-    --side-on: #252b34;
-    --side-hover: #1c2027;
+    --paper: #100d17;
+    --sheet: #181421;
+    --wash: #231e30;
+    --ink: #eeebf4;
+    --ink-2: #cdc7da;
+    --pencil: #aca4bd;
+    --faint: #6f6782;
+    --rule: #322b41;
+    --rule-strong: #413952;
+    --control: #706886;
+    --sel: #1f1a2b;
+    --side: #0c0a12;
+    --side-on: #272135;
+    --side-hover: #1b1626;
     --red: #ffb4ab;
     --red-wash: #3b2421;
     --amber: #ebc076;
@@ -79,10 +93,10 @@
     --green: #8dceaf;
     --go: #8dceaf;
     --on-go: #0e2419;
-    --accent: #a8cacb;
-    --accent-ink: #a3c5c7;
-    --accent-wash: #243a3d;
-    --on-accent: #162b2d;
+    --accent: #c4a7f5;
+    --accent-ink: #bfa2f2;
+    --accent-wash: #2d2344;
+    --on-accent: #1f1336;
     --shadow: 0 1px 2px rgb(0 0 0 / 35%), 0 12px 32px rgb(0 0 0 / 50%);
 
     color-scheme: dark;
@@ -90,20 +104,20 @@
 }
 
 :root[data-theme="dark"] {
-  --paper: #14171c;
-  --sheet: #1b1f26;
-  --wash: #242a33;
-  --ink: #eceff4;
-  --ink-2: #c9cfd9;
-  --pencil: #a7b0be;
-  --faint: #6b7482;
-  --rule: #343b46;
-  --rule-strong: #424a57;
-  --control: #6b7686;
-  --sel: #222830;
-  --side: #111419;
-  --side-on: #252b34;
-  --side-hover: #1c2027;
+  --paper: #100d17;
+  --sheet: #181421;
+  --wash: #231e30;
+  --ink: #eeebf4;
+  --ink-2: #cdc7da;
+  --pencil: #aca4bd;
+  --faint: #6f6782;
+  --rule: #322b41;
+  --rule-strong: #413952;
+  --control: #706886;
+  --sel: #1f1a2b;
+  --side: #0c0a12;
+  --side-on: #272135;
+  --side-hover: #1b1626;
   --red: #ffb4ab;
   --red-wash: #3b2421;
   --amber: #ebc076;
@@ -111,10 +125,10 @@
   --green: #8dceaf;
   --go: #8dceaf;
   --on-go: #0e2419;
-  --accent: #a8cacb;
-  --accent-ink: #a3c5c7;
-  --accent-wash: #243a3d;
-  --on-accent: #162b2d;
+  --accent: #c4a7f5;
+  --accent-ink: #bfa2f2;
+  --accent-wash: #2d2344;
+  --on-accent: #1f1336;
   --shadow: 0 1px 2px rgb(0 0 0 / 35%), 0 12px 32px rgb(0 0 0 / 50%);
 
   color-scheme: dark;
@@ -642,7 +656,7 @@ p {
 /* The sidebar is the only global chrome; each page has its own head. */
 .app {
   --chat-w: var(--chat-w-user, clamp(320px, 25vw, 420px));
-  --side-w: 200px;
+  --side-w: var(--side-w-user, 230px);
   --list-w: 0px; /* the list beside a review, when it's there */
 
   display: grid;
@@ -661,15 +675,41 @@ p {
 
 /* Sidebar ------------------------------------------------------------------ */
 
+/* The chrome's own tokens, so everything drawn in it (words, the pill, a head's filter and buttons) reads on the dark. */
+.side,
+.page-head,
+.beside-head {
+  --ink: var(--chrome-ink);
+  --ink-2: var(--chrome-ink-2);
+  --pencil: var(--chrome-pencil);
+  --faint: var(--chrome-faint);
+  --control: var(--chrome-control);
+  --rule: var(--chrome-rule);
+  --rule-strong: var(--chrome-rule-strong);
+  --sheet: var(--chrome-sheet);
+  --wash: var(--chrome-wash);
+  --sel: var(--chrome-wash);
+  --side-hover: var(--chrome-hover);
+  --side-on: var(--chrome-on);
+  --accent-ink: var(--chrome-accent);
+
+  color-scheme: dark;
+}
+
 .side {
   position: sticky;
   top: 0;
   display: flex;
   flex-direction: column;
   height: 100vh;
-  overflow-y: auto;
+  overflow: hidden auto;
   border-right: 1px solid var(--rule);
-  background: var(--side);
+  background: var(--chrome);
+}
+
+/* Its right edge, to drag; inside it, as it scrolls on its own. */
+.side .side-resize {
+  right: 0;
 }
 
 .side-brand {
@@ -693,13 +733,6 @@ p {
   align-content: start;
   gap: 1px;
   padding: 6px 10px 24px;
-}
-
-/* Merging and the Archive sit under a hairline, below the pages you look at; in Settings, the plugins' parts. */
-.side-sep {
-  height: 1px;
-  margin: 8px 10px;
-  background: var(--rule);
 }
 
 .side-item {
@@ -788,9 +821,12 @@ p {
   flex: none;
 }
 
-/* The word fills the row, so it sits by its icon: .side-item spreads its parts apart. */
+/* The word fills the row, so it sits by its icon: .side-item spreads its parts apart; cut short in a narrow sidebar. */
 .side-foot .side-name {
   flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* A newer Inbox: the accent, as a call to action. */
@@ -822,7 +858,7 @@ p {
   border-bottom: 1px solid var(--rule);
 
   /* Opaque, so rows scrolling under it don't show through. */
-  background: var(--paper);
+  background: var(--chrome);
   -webkit-app-region: drag;
   user-select: none;
 }
@@ -903,6 +939,23 @@ p {
   display: flex;
   flex: 0 1 380px;
   min-width: 120px;
+}
+
+/* In a page's head it waits narrow, and grows to its width when you're in it or it holds a filter. */
+.page-head .search-box {
+  flex-basis: 200px;
+  transition: flex-basis 180ms ease;
+}
+
+.page-head .search-box:focus-within,
+.page-head .search-box:has(.search-pill, input:not(:placeholder-shown)) {
+  flex-basis: 380px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page-head .search-box {
+    transition: none;
+  }
 }
 
 .search {
@@ -1220,14 +1273,14 @@ p {
   border-top: 0;
 }
 
-/* A section heading on the rows' text, clearly further from the table above than from its own. The section you're in keeps
-   its heading pinned under the page's head; the next section's pushes it off. Opaque, so rows don't show through. */
+/* A section heading on the rows' text, as far from the table above as from its own. The section you're in keeps its heading
+   pinned under the page's head; the next section's pushes it off. Opaque, so rows don't show through. */
 .queue .group-head {
   position: sticky;
   top: 52px;
   z-index: 5;
   margin: 0;
-  padding: 24px var(--pad) 8px;
+  padding: 14px var(--pad);
   background: var(--paper);
 }
 
@@ -1912,6 +1965,7 @@ p {
   height: 52px;
   padding: 0 16px;
   border-bottom: 1px solid var(--rule);
+  background: var(--chrome);
   -webkit-app-region: drag;
   user-select: none;
 }
@@ -4848,7 +4902,7 @@ fieldset.au-field > legend {
 
 /* Beside the diff where the page's column has room for it (Review.tsx's ROOM), whatever narrows it: the window, the list
    beside the review, the chat. */
-@container pane (width >= 700px) {
+@container pane (width >= 680px) {
   .review.side-open {
     grid-template-columns: minmax(0, 1fr) var(--rv-side-w-user, 240px);
   }
@@ -4927,7 +4981,7 @@ fieldset.au-field > legend {
 }
 
 /* Narrower, it opens over the diff's right edge rather than squeezing it. */
-@container pane (width < 700px) {
+@container pane (width < 680px) {
   .rv-side {
     position: fixed;
     top: 52px;
@@ -6506,7 +6560,7 @@ p.rv-next {
   display: block;
   max-width: 100%;
   height: auto;
-  font: 12.5px var(--sans);
+  font: 12.5px var(--diagram);
 }
 
 .dg-node rect,
@@ -6641,7 +6695,8 @@ p.rv-next {
   }
 
   .side-brand span,
-  .side-ask-long {
+  .side-ask-long,
+  .side-resize {
     display: none;
   }
 
@@ -6710,13 +6765,6 @@ p.rv-next {
     gap: 6px;
     padding: 0 6px;
     white-space: nowrap;
-  }
-
-  .side-sep {
-    flex: none;
-    width: 1px;
-    height: 16px;
-    margin: 0 6px;
   }
 
   .side-nav .side-back {

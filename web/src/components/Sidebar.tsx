@@ -1,13 +1,12 @@
-import { Fragment, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { Overview } from "../../../src/types.ts";
 import { cls, MOD } from "../format.ts";
 import { SETTINGS_PARTS } from "../settings-parts.ts";
 import { pageOf, routeHash, settingsPart, type ListPage, type Route } from "../view.ts";
-import { Mark } from "./Mark.tsx";
+import { Splitter, type Width } from "./Splitter.tsx";
 
-// The window's only global chrome. The pages, in the owner's order: Inbox, Blocked, then Merging and the Archive under
-// a hairline; in Settings, its parts instead, under the way back to the Inbox: the core's, then the plugins' under a
-// hairline. In the footer, bottom up, Settings, a newer Inbox (only when there's one) and Ask your agent; what's wrong with
+// The window's only global chrome, as wide as you drag it. The pages, in the owner's order: Inbox, Blocked, Merging and
+// the Archive; in Settings, its parts instead, under the way back to the Inbox: the core's, then the plugins'. In the footer, bottom up, Settings, a newer Inbox (only when there's one) and Ask your agent; what's wrong with
 // the sync is a bubble (Bubbles.tsx).
 export function Sidebar({
   route,
@@ -58,7 +57,6 @@ export function Sidebar({
     <aside ref={side} className={cls("side", more && "more")}>
       {/* Not a link: on macOS this row is the window's drag handle, which swallows clicks. */}
       <div className="wordmark side-brand">
-        <Mark />
         <span>Inbox</span>
       </div>
       {onSettings ? (
@@ -69,19 +67,17 @@ export function Sidebar({
             </svg>
             <span className="side-name">Inbox</span>
           </a>
-          {SETTINGS_PARTS.map((p, i) => {
+          {SETTINGS_PARTS.map((p) => {
             const on = p.id === part;
             return (
-              <Fragment key={p.id}>
-                {p.plugin && !SETTINGS_PARTS[i - 1]?.plugin && <div className="side-sep" aria-hidden="true" />}
-                <a
-                  href={routeHash({ name: "settings", section: p.id })}
-                  className={cls("side-item", on && "on")}
-                  aria-current={on ? "page" : undefined}
-                >
-                  <span className="side-name">{p.name}</span>
-                </a>
-              </Fragment>
+              <a
+                key={p.id}
+                href={routeHash({ name: "settings", section: p.id })}
+                className={cls("side-item", on && "on")}
+                aria-current={on ? "page" : undefined}
+              >
+                <span className="side-name">{p.name}</span>
+              </a>
             );
           })}
         </nav>
@@ -112,7 +108,6 @@ export function Sidebar({
           >
             <span className="side-name">Blocked</span>
           </a>
-          <div className="side-sep" aria-hidden="true" />
           {/* No count: nothing there needs you, the coordinator has it. */}
           <a
             href="#/inflight"
@@ -190,6 +185,9 @@ export function Sidebar({
           <span className="side-name">Settings</span>
         </a>
       </div>
+      <Splitter width={SIDE} edge="right" column={() => side.current} label="the sidebar" className="side-resize" />
     </aside>
   );
 }
+
+const SIDE: Width = { key: "desk.side.width", cssVar: "--side-w-user", min: 160, max: 0.3 };
