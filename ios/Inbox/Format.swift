@@ -189,6 +189,30 @@ enum Words {
     ["bug": "A bug", "feature": "A feature request", "question": "A question"][kind ?? ""] ?? "An issue"
   }
 
+  static let bucketLabel = ["now": "Now", "today": "Today", "blocked": "Blocked", "later": "Later", "fyi": "FYI", "hide": "Hidden"]
+
+  // Where an issue sits and from which board, and why it moved from where the rule put it: Detail.tsx's why-block,
+  // less its rule trace. `place` is the bold lead; nil where the card's own why already says it all.
+  static func placement(_ d: ItemDetail, board: (String) -> String, agent: String) -> (place: String?, rest: String, moved: String?) {
+    let card = d.card
+    guard let main = d.placements.first(where: { $0.board == card.board }) ?? d.placements.first else { return (nil, "", nil) }
+    let label = { (b: String?) in bucketLabel[b ?? ""] ?? (b ?? "") }
+    let judged = main.judge?.bucket.map { !$0.isEmpty && $0 == main.ruleBucket } ?? false
+    let sorter = (main.judge?.by).map { "automation \($0)" } ?? agent
+    let why = main.why ?? ""
+    var place: String?
+    var rest = ""
+    if card.resolved != nil || why != (card.why ?? "") || judged {
+      place = (card.resolved != nil ? "Otherwise " : "") + (["now", "today"].contains(main.bucket ?? "") ? "In the Inbox" : label(main.bucket))
+      rest = ", from the \(board(main.board ?? "")) board" + (judged && !(main.judge?.why ?? "").isEmpty ? ", sorted by \(sorter)" : "")
+        + (!why.isEmpty && why != card.why ? ": \(why)" : "")
+    }
+    let moved = main.demoted.map { because in
+      "\(judged ? (sorter.hasPrefix("a") ? "A" + sorter.dropFirst() : sorter) : "The rule") said \(label(main.ruleBucket).lowercased()); it moved to \(label(main.bucket).lowercased()) because \(because.prefix(1).lowercased() + because.dropFirst())."
+    }
+    return (place, rest, moved)
+  }
+
   // Who placed it (view.ts's PLACED_BY).
   static func placedBy(_ by: String?, agent: String) -> String? {
     switch by {

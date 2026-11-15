@@ -480,6 +480,15 @@ struct ItemPage: View {
       } else if let why = c.why, !why.isEmpty, c.inflight != true {
         Prose(text: Words.capitalized(why), size: 15, weight: 550).foregroundStyle(Theme.ink)
       }
+      // An issue's: where it sits and from which board, and why it moved, as the window's (its rule trace stays there).
+      if !c.isPR, let detail {
+        let p = Words.placement(detail, board: { store.overview?.boardLabel($0) ?? $0 }, agent: store.agent)
+        if let place = p.place {
+          (Text(place).foregroundStyle(Theme.ink) + Text(p.rest).foregroundStyle(Theme.ink2)).sans(13).lineSpacing(3)
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        if let moved = p.moved { Text(moved).sans(13).foregroundStyle(Theme.pencil).lineSpacing(3).fixedSize(horizontal: false, vertical: true) }
+      }
       if let h = c.handoff {
         Lead(label: (h.from ?? "").isEmpty ? "Handed to you:" : "From \(h.from!):", text: h.why ?? "", size: 14)
       }

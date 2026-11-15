@@ -448,6 +448,38 @@ final class FormatTests: XCTestCase {
     XCTAssertEqual(Words.resolvedHead([], "no longer requested", me: "me"), "no longer requested")
   }
 
+  // An issue's page says where it sits and from which board, and why it moved from where the rule put it (Detail.tsx).
+  func testWhereAnIssueSitsAndWhyItMoved() throws {
+    let overview: Overview = try Fixture.decode("overview")
+    XCTAssertEqual(overview.boardLabel("work-review"), "PRs to review")
+    XCTAssertEqual(overview.boardLabel("gone"), "gone")
+    func detail(_ card: String, _ placement: String) throws -> ItemDetail {
+      let json = #"{"card":{"id":"a/b#1","kind":"issue","repo":"a/b","number":1,"title":"t","board":"work-review"\#(card)},"placements":[{"board":"other","bucket":"hide"},\#(placement)]}"#
+      return try DeskJSON.decoder().decode(ItemDetail.self, from: Data(json.utf8))
+    }
+    let board = { overview.boardLabel($0) }
+    // The card's why says it all: nothing more.
+    var p = Words.placement(try detail(#","why":"assigned to you""#, #"{"board":"work-review","bucket":"now","rule_bucket":"now","why":"assigned to you","judge":{"bucket":"today","why":""}}"#), board: board, agent: "Claude")
+    XCTAssertNil(p.place)
+    XCTAssertNil(p.moved)
+    // Sorted by your agent, with another why, then capped down.
+    p = Words.placement(
+      try detail(#","why":"new activity""#, #"{"board":"work-review","bucket":"fyi","rule_bucket":"today","why":"mentions you","demoted":"The AI says skip it","judge":{"bucket":"today","why":"small"}}"#),
+      board: board, agent: "Claude")
+    XCTAssertEqual((p.place ?? "") + p.rest, "FYI, from the PRs to review board, sorted by Claude: mentions you")
+    XCTAssertEqual(p.moved, "Claude said today; it moved to fyi because the AI says skip it.")
+    // A rule's place, moved by a cap; resolved says Otherwise; an automation is named.
+    p = Words.placement(
+      try detail(#","why":"x","resolved":"closed""#, #"{"board":"work-review","bucket":"today","rule_bucket":"now","why":"x","demoted":"3 from PRs to review are urgent already"}"#),
+      board: board, agent: "Claude")
+    XCTAssertEqual((p.place ?? "") + p.rest, "Otherwise In the Inbox, from the PRs to review board")
+    XCTAssertEqual(p.moved, "The rule said now; it moved to today because 3 from PRs to review are urgent already.")
+    p = Words.placement(
+      try detail("", #"{"board":"work-review","bucket":"later","rule_bucket":"later","demoted":"quiet","judge":{"bucket":"later","why":"w","by":"triage"}}"#), board: board, agent: "Claude")
+    XCTAssertEqual((p.place ?? "") + p.rest, "Later, from the PRs to review board, sorted by automation triage")
+    XCTAssertEqual(p.moved, "Automation triage said later; it moved to later because quiet.")
+  }
+
   // An opened page's one call to action: the row's own first, then what the item is there for.
   func testAPagesCallToAction() throws {
     let queue: QueueView = try Fixture.decode("queue")

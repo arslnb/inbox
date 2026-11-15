@@ -384,7 +384,9 @@ Left out on purpose, each said here once.
 - **Diagrams drawn as figures** (ELK layout, Excalidraw): a diagram is its lines as text, the window's own fallback.
 - **"Open the drawn review"** (the desk's rendered review document, in a web view): cheap, not built; it's a second
   way to read the same review.
-- **The rule trace on an item**: a fold for tuning rules, which is done in Settings on the computer.
+- **The rule trace on an item**: a fold for tuning rules, which is done in Settings on the computer. Where an issue
+  sits, from which board and why it moved are on its page ("FYI, from the Mentions board, sorted by Claude: …", "The
+  rule said today; it moved to fyi because …"), as the window's; the other boards' placements are in the trace.
 - **Keys** (Esc, ⌘↵, ⌘1 to ⌘4, the arrows) **and the list beside a review**: they belong to a keyboard and a wide
   window.
 - **Prefetching a review before it's opened** (the window's hover): a phone has no hover, and the desk already warms

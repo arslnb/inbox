@@ -67,6 +67,24 @@ struct Overview: Decodable, Sendable {
   var agent: Bool?
   var aiAgent: String?
   var rateLimit: RateLimit?
+  @Lossy var spaces: [Space]  // for a board's name, where an item says which board placed it
+
+  struct Space: Decodable, Sendable {
+    var name: String?
+    @Lossy var boards: [Board]
+
+    struct Board: Decodable, Sendable {
+      var id: String?
+      var name: String?
+    }
+  }
+
+  // App.tsx's boardLabel(): the board's name, with its space's when two boards share one.
+  func boardLabel(_ id: String) -> String {
+    let all = spaces.flatMap { s in s.boards.map { (board: $0, space: s.name ?? "") } }
+    guard let b = all.first(where: { $0.board.id == id }), let name = b.board.name else { return id }
+    return all.filter { $0.board.name == name }.count > 1 ? "\(name) (\(b.space))" : name
+  }
 
   struct ConfigError: Decodable, Sendable {
     var path: String?
@@ -138,6 +156,7 @@ struct Card: Decodable, Identifiable, Sendable {
   var people: [String]?
   var stage: String?
   var bucket: String?
+  var board: String?
   var why: String?
   var handoff: Handoff?
   var demoted: String?
@@ -423,6 +442,22 @@ struct ItemDetail: Decodable, Sendable {
   var issueAiState: String?  // "running" | "failed" | "off"
   var issueAiError: String?
   var blockedAuthor: Bool?
+  @Lossy var placements: [Placement]  // where each board put it; its rule trace is never read
+
+  struct Placement: Decodable, Sendable {
+    var board: String?
+    var bucket: String?
+    var ruleBucket: String?  // before caps
+    var why: String?
+    var demoted: String?  // why it moved down: "3 from PRs to review are urgent already"
+    var judge: Judge?
+
+    struct Judge: Decodable, Sendable {
+      var bucket: String?
+      var why: String?
+      var by: String?  // an automation's name
+    }
+  }
 
   // Written before the issue's latest activity.
   var preStale: Bool { issueAi != nil && issueAi?.updatedAt != item?.updatedAt }
