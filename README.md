@@ -186,7 +186,7 @@ Over [Tailscale](https://tailscale.com), for you alone. On the desk's computer, 
 - It needs Tailscale signed in, with MagicDNS and HTTPS certificates on. The setting says what's missing.
 - Only your own Tailscale login gets in (More → Tailscale login allowed changes whose), and only from a device you paired.
 
-Pair a device with a one-time code (10 minutes, one try): press **Pair a device** under the setting (a QR code for your phone's camera, the link, and the command for another machine), or on the desk's computer:
+Pair a device with a one-time code (10 minutes, one try): press **Pair a device** under the setting (a QR code to scan in the Inbox app on your phone, the link for another device's browser, and the command for another machine), or on the desk's computer:
 
 ```bash
 desk pair

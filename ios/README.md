@@ -64,6 +64,7 @@ xcrun simctl launch booted dev.inbox.ios -deskURL http://localhost:47841 -page m
 | `-settings`                                    | the settings sheet                                                      |
 | `-empty`                                       | the desk as if nothing were on it                                       |
 | `-connect [-connectAddress <text>] [-connectError "<words>"]` | the connect screen, with that address and those words in red |
+| `-connect -scan "<text>"`                      | the connect screen as if the camera had read that QR (the Simulator has no camera) |
 
 ## Look at it
 
@@ -73,7 +74,7 @@ ios/shots.sh inbox item-pr   # only these
 ```
 
 It builds, installs on the booted simulator, starts the mock on port 47841 (and stops it), and writes
-`ios/.shots/<state>-<light|dark>.png` for: `connect`, `connect-error`, `inbox`, `inbox-scrolled`, `inbox-empty`,
+`ios/.shots/<state>-<light|dark>.png` for: `connect` (in the Simulator, Scan the code is off and says why), `connect-error`, `connect-scan-wrong` (a QR that isn't a desk's), `inbox`, `inbox-scrolled`, `inbox-empty`,
 `blocked`, `merging`, `archive`, `item-pr` (with an AI review; Approve), `item-issue` (Comment), `item-reply` (what
 waits on your reply), `item-draft` (Ready for review), `item-mine` (Hand off for merge), `item-merging` (Back to desk),
 the boxes `approve`, `reply`, `reviewers` and `answer`, `question`, `session`, `session-kick`, `item-large` and `item-largest` (accessibility
@@ -96,9 +97,17 @@ Not tried on a phone yet: v0 has only run in the Simulator, and the project has 
    The desk then answers at `https://<machine>.<tailnet>.ts.net` on your tailnet only. It needs the `tailscale` command
    on the desk's PATH.
 2. On the phone: Tailscale on, signed in with the **same login** that owns the desk's computer.
-3. On the desk's computer: Settings → Network → **Pair a device** (or `desk pair`). It shows the address and a code (one try, 10 minutes). Its QR is the same link for a browser: the app has no scanner yet, so type or paste it.
-4. In the app: the address and the code, or paste the whole link it prints (`https://<name>/pair#<code>`) into the
-   address field.
+3. On the desk's computer: Settings → Network → **Pair a device**. It shows a QR, the address and a code (one try,
+   10 minutes).
+4. In the app: **Scan the code** and point it at the QR. Scan it in the app, not with the phone's Camera app, which
+   opens the link in Safari and spends the code there. Or type the address and the code (`desk pair` prints both), or
+   paste the whole link (`https://<name>/pair#<code>`) into the address field.
+
+Scan the code takes only a desk's pairing link: any other QR is said to be none, in red under the viewfinder, and
+nothing is asked of anyone, so no try is spent. A desk's link is traded once and the sheet closes; a refusal (a used
+code, Tailscale off) shows on the connect screen with the address kept and the code field empty for a new one. The live
+camera, iOS's ask for it and the screen for a camera that was refused can't run in the Simulator, which has no camera:
+only what happens with what was read is tested (`-scan`, `AddressTests`, `StoreTests`).
 
 The app trades the code once for a token and keeps it in the Keychain (this device only); the address is in
 UserDefaults. Settings → Disconnect forgets the token on the phone. The device stays listed on the desk until you revoke
@@ -172,5 +181,6 @@ Merging, people's pictures, notifications, themes other than the default light a
 | A question, a session, Settings, bubbles    | `Inbox/Views/Pages.swift`                                                              |
 | An opened page's bar, the boxes that write  | `Inbox/Views/Acting.swift` (`BottomBar`, `WriteSheet`, `ReviewersSheet`, the swipe back) |
 | The connect screen                          | `Inbox/Views/ConnectView.swift`                                                        |
+| Scan the code (the camera, the QR it reads) | `Inbox/Views/ScanView.swift`; what counts as a desk's link: `DeskAddress.scanned()`    |
 | The fonts                                   | `Inbox/Fonts/` (copies of `web/src/fonts`, see its README)                             |
 | The app icon                                | `Inbox/Assets.xcassets/AppIcon.appiconset` (the mark, full-bleed on petrol)            |

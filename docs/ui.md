@@ -569,7 +569,7 @@ Two sections: Tailscale, then Local network.
 
 #### Tailscale
 
-Only in the desktop app (in a browser it says to open the app): **Use it from your other devices**, under it where it serves with **Pair a device** (a one-time code as a QR for a phone's camera, its link and the `desk connect` command; it closes once the device pairs) and each paired device with **Revoke**, then **Tailscale login allowed in** ([api.md → Security model](api.md#security-model)).
+Only in the desktop app (in a browser it says to open the app): **Use it from your other devices**, under it where it serves with **Pair a device** (a one-time code as a QR to scan in the Inbox app on your phone, its link for another device's browser and the `desk connect` command; it closes once the device pairs) and each paired device with **Revoke**, then **Tailscale login allowed in** ([api.md → Security model](api.md#security-model)).
 
 #### Local network
 

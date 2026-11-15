@@ -980,7 +980,7 @@ function RemoteRows({
   );
 }
 
-// A code being paired: its QR for a phone's camera, the link for a browser, the command for another machine's agents.
+// A code being paired: its QR for the iPhone app's scanner (a phone's own camera would open the link in Safari and spend the code there), the link for a browser, the command for another machine's agents.
 function PairRow({
   p,
   expired,
@@ -1008,7 +1008,9 @@ function PairRow({
           <p className="s-help">Press New code for another.</p>
         ) : (
           <>
-            <p className="s-help">Scan it with your phone's camera, or open the link on the other device. Works once, for 10 minutes.</p>
+            <p className="s-help">
+              Scan it in the Inbox app on your phone, or open the link in the other device's browser. Works once, for 10 minutes.
+            </p>
             <p className="s-help">
               <code>{p.pair_url}</code>{" "}
               <button

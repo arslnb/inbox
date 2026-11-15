@@ -526,7 +526,7 @@ const pair = Effect.fnUntraced(function* (x: Ctx) {
   x.out(`Pairing code ${x.c.bold(p.code)}: works once, for 10 minutes.`);
   x.out("");
   x.out(`A browser on your other device: open ${p.pair_url}`);
-  x.out(`The iPhone app: enter ${p.url} and the code.`);
+  x.out(`The iPhone app: scan the QR in Settings → Network → Pair a device, or enter ${p.url} and the code.`);
   x.out(`Another machine with an Inbox checkout: bin/desk connect ${p.url} --code ${p.code}`);
   x.out(`One without: run desk pair --print here instead, and paste what it prints there.`);
   return 0;
