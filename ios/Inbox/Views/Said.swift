@@ -39,12 +39,52 @@ struct SaidComments: View {
         VStack(alignment: .leading, spacing: 3) {
           WhoLine(who: m.author ?? "", bot: m.bot == true, rest: [Words.age(m.at, now: store.now)])
           // A reviewer's or a bot's words: a URL in them stays text, as the window's (docs/ui.md), never a link to follow.
-          Prose(text: Words.saidText(m.body), size: 13.5)
-            .foregroundStyle(Theme.ink).lineSpacing(3).lineLimit(lines)
-            .fixedSize(horizontal: false, vertical: true)
+          if let lines {
+            Prose(text: Words.saidText(m.body), size: 13.5)
+              .foregroundStyle(Theme.ink).lineSpacing(3).lineLimit(lines)
+              .fixedSize(horizontal: false, vertical: true)
+          } else {
+            SaidText(said: Blocks.said(m.body ?? ""))
+          }
         }
       }
       ForEach(mine) { s in YoursSent(words: s) }
+    }
+    .frame(maxWidth: .infinity, alignment: .leading)
+  }
+}
+
+// What a reviewer wrote, as the window's SaidText: paragraphs, lists, a code block with its Copy, a <details> folded
+// under its summary until pressed, <sub> as small print. Text only, never HTML.
+struct SaidText: View {
+  let said: [Said]
+  @State private var open: Set<Int> = []
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 8) {
+      ForEach(Array(said.enumerated()), id: \.offset) { i, s in
+        switch s {
+        case .block(let b): ProseBlocks(blocks: [b], size: 13.5)
+        case .small(let spans): ProseBlocks(blocks: [.p(spans)], size: 12, color: Theme.pencil)
+        case .details(let summary, let blocks):
+          VStack(alignment: .leading, spacing: 4) {
+            Button {
+              open.formSymmetricDifference([i])
+            } label: {
+              HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Image(systemName: "chevron.right").font(.system(size: 9, weight: .semibold)).foregroundStyle(Theme.pencil)
+                  .rotationEffect(.degrees(open.contains(i) ? 90 : 0)).frame(width: 9).accessibilityHidden(true)
+                ProseBlocks(blocks: [.p(summary)], size: 13.5, color: Theme.ink2)
+              }
+              .frame(minHeight: 36)
+              .contentShape(Rectangle())
+            }
+            .buttonStyle(.plain)
+            .accessibilityAddTraits(open.contains(i) ? .isSelected : [])
+            if open.contains(i) { SaidText(said: blocks).padding(.leading, 15) }
+          }
+        }
+      }
     }
     .frame(maxWidth: .infinity, alignment: .leading)
   }

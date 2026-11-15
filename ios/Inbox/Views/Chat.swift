@@ -268,14 +268,26 @@ struct ChatPage: View {
 // An agent's words as the blocks they were written in (Blocks.parse): paragraphs, lists, bold, `code`, and a code block
 // on the sheet with a quiet Copy that keeps its fence. Text only: a URL is shown, never followed.
 struct ProseBlocks: View {
-  let text: String
+  let blocks: [Block]
   var size: CGFloat = 14
+  var color = Theme.ink
   @ScaledMetric(relativeTo: .body) private var scale: CGFloat = 100
   @State private var copied: Set<Int> = []
 
+  init(text: String, size: CGFloat = 14) {
+    blocks = Blocks.parse(text)
+    self.size = size
+  }
+
+  init(blocks: [Block], size: CGFloat = 14, color: Color = Theme.ink) {
+    self.blocks = blocks
+    self.size = size
+    self.color = color
+  }
+
   var body: some View {
     VStack(alignment: .leading, spacing: 8) {
-      ForEach(Array(Blocks.parse(text).enumerated()), id: \.offset) { i, block in
+      ForEach(Array(blocks.enumerated()), id: \.offset) { i, block in
         switch block {
         case .p(let spans): line(spans)
         case .ul(let items): list(items.map { ("\u{2022}", $0) })
@@ -295,7 +307,7 @@ struct ProseBlocks: View {
       run.font = Font(span.code ? Typeface.mono.font(s * 0.9, weight: span.bold ? 600 : 400) : Typeface.sans.font(s, weight: span.bold ? 600 : 400))
       out += run
     }
-    return Text(out).foregroundStyle(Theme.ink).lineSpacing(4).fixedSize(horizontal: false, vertical: true)
+    return Text(out).foregroundStyle(color).lineSpacing(4).fixedSize(horizontal: false, vertical: true)
   }
 
   private func list(_ items: [(String, [Span])]) -> some View {

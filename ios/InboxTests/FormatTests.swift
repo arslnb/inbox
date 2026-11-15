@@ -719,6 +719,25 @@ final class FormatTests: XCTestCase {
 
   // MARK: An agent's words as blocks (src/prose.ts)
 
+  // What a reviewer wrote, as the window's saidBlocks(): a <details> is a fold, <sub> small print, a fence a block.
+  func testWhatAReviewerWroteAsBlocks() {
+    let t = { (s: String) in Span(text: s) }
+    let body = "<!-- bot -->\n### Findings\n\n<details>\n<summary><b>2 issues</b> found</summary>\n\n- one\n- two\n\n```suggestion\nlet a = <b>1</b>\n```\n\n</details>\n\nSee https://example.com<br>now.\n\n<sub>Reviewed by a bot</sub>"
+    XCTAssertEqual(
+      Blocks.said(body),
+      [
+        .block(.p([Span(text: "Findings", bold: true)])),
+        .details(
+          summary: [Span(text: "2 issues", bold: true), t(" found")],
+          blocks: [.block(.ul([[t("one")], [t("two")]])), .block(.pre(text: "let a = <b>1</b>", info: "suggestion"))]),
+        .block(.p([t("See https://example.com\nnow.")])),
+        .small([t("Reviewed by a bot")]),
+      ])
+    XCTAssertEqual(Blocks.said("<details>plain</details>"), [.details(summary: [t("Details")], blocks: [.block(.p([t("plain")]))])])
+    XCTAssertEqual(Blocks.said("a <kbd>k</kbd>"), [.block(.p([t("a <kbd>k</kbd>")]))], "any other tag stays text")
+    XCTAssertEqual(Blocks.said(""), [])
+  }
+
   func testProseBlocks() {
     let t = { (s: String) in Span(text: s) }
     XCTAssertEqual(Blocks.parse("One line\nstill it.\n\nAnother."), [.p([t("One line\nstill it.")]), .p([t("Another.")])])

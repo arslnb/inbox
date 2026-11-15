@@ -17,7 +17,65 @@ enum Block: Equatable, Sendable {
   case pre(text: String, info: String)  // info: the fence's ```suggestion or ```ts, kept only for Copy
 }
 
+// What a reviewer wrote on GitHub, as blocks to draw (src/prose.ts's Said): markdown's blocks, a <details> as a fold
+// under its <summary>, a paragraph in <sub> as small print.
+indirect enum Said: Equatable, Sendable {
+  case block(Block)
+  case details(summary: [Span], blocks: [Said])
+  case small([Span])
+}
+
 enum Blocks {
+  // src/prose.ts's saidBlocks(): <!-- --> comments gone, <br> a line break, <b> bold, <code> code; any other tag stays text.
+  static func said(_ text: String) -> [Said] {
+    let plain = text.replacingOccurrences(of: "\r", with: "").replacingOccurrences(of: #"<!--[\s\S]*?(?:-->|$)"#, with: "", options: .regularExpression)
+    let whole = plain as NSString
+    let details = try? NSRegularExpression(
+      pattern: #"<details[^>]*>\s*(?:<summary[^>]*>([\s\S]*?)</summary>)?([\s\S]*?)</details>"#, options: .caseInsensitive)
+    if let m = details?.firstMatch(in: plain, range: NSRange(location: 0, length: whole.length)) {
+      let part = { (i: Int) in m.range(at: i).location == NSNotFound ? nil : whole.substring(with: m.range(at: i)) }
+      let summary = inline(tags(part(1) ?? "Details").trimmingCharacters(in: .whitespacesAndNewlines))
+      return said(whole.substring(to: m.range.location)) + [.details(summary: summary, blocks: said(part(2) ?? ""))]
+        + said(whole.substring(from: m.range.location + m.range.length))
+    }
+    // A paragraph all in <sub> is small print, unless a ``` block it sits in makes it code; the rest is markdown.
+    var out: [Said] = []
+    var md: [String] = []
+    let flush = { (md: inout [String], out: inout [Said]) in
+      out += parse(tags(md.joined(separator: "\n\n"))).map { .block($0) }
+      md = []
+    }
+    let fenced = { (md: [String]) in md.joined(separator: "\n").components(separatedBy: "\n").filter { prefix($0, #"^ {0,3}```"#) != nil }.count % 2 == 1 }
+    for para in plain.replacingOccurrences(of: #"\n\s*\n"#, with: "\u{0}", options: .regularExpression).components(separatedBy: "\u{0}") {
+      if !fenced(md), let sub = para.range(of: #"^\s*<sub>[\s\S]*?</sub>\s*$"#, options: [.regularExpression, .caseInsensitive]) {
+        flush(&md, &out)
+        let inner = para[sub].replacingOccurrences(of: #"^\s*<sub>|</sub>\s*$"#, with: "", options: [.regularExpression, .caseInsensitive])
+        let spans = inline(tags(inner).trimmingCharacters(in: .whitespacesAndNewlines))
+        if !spans.isEmpty { out.append(.small(spans)) }
+      } else {
+        md.append(para)
+      }
+    }
+    flush(&md, &out)
+    return out
+  }
+
+  // Outside ``` blocks only: a tag in code is code.
+  private static func tags(_ s: String) -> String {
+    var fenced = false
+    return s.components(separatedBy: "\n").map { line in
+      let fence = prefix(line, #"^ {0,3}```"#) != nil
+      if fence { fenced.toggle() }
+      if fence || fenced { return line }
+      var l = line
+      for (pattern, with) in [(#"<br\s*/?>"#, "\n"), (#"</?(?:b|strong)>"#, "**"), (#"</?code>"#, "`"), (#"</?(?:p|div|span|em|i|sup)>"#, "")] {
+        l = l.replacingOccurrences(of: pattern, with: with, options: [.regularExpression, .caseInsensitive])
+      }
+      return l
+    }
+    .joined(separator: "\n")
+  }
+
   private struct Raw {
     var kind: String  // "p" | "ul" | "ol" | "pre"
     var lines: [String] = []  // a paragraph's

@@ -242,8 +242,10 @@ merge, where Snooze does); More is its three dots only where it doesn't fit even
   words show as "You · sent"; it leaves the page only when the desk took the PR off (`Store.left()`: a reply was all
   it asked of you and this was the last one waiting). The bar's Reply answers the first one waiting; a draft is kept
   per conversation. Ask your agent, beside Reply, opens your chat on that conversation. A
-  comment is text: `code` in the mono face, a URL as text (never a link to follow, as the window's), GitHub's tags and
-  headings' hashes taken off.
+  comment is drawn as the window's `SaidText` (`Blocks.said()`, the twin of `saidBlocks()`): paragraphs, lists, bold,
+  `code`, a fenced block on the sheet with Copy, a `<details>` folded under its summary until pressed, a paragraph in
+  `<sub>` as small print; text only, a URL never a link to follow, any other tag left as the text it is. The reply
+  box's quote stays plain text, cut to a few lines.
 - **An issue's pre-review**, as the window's (`IssuePre` in `Detail.tsx`), under why it's here: "A bug." (a feature
   request, a question, an issue) and its summary; whether it was read from the code in your clone or the issue's text
   alone; What's wrong, Cause, where in the code (`path:line` and why), The fix (or What we'd do); then its walk, one
@@ -421,6 +423,7 @@ Not built at all: notifications, an iPad layout.
 | Ask your agent (the chat)                   | `Inbox/Views/Chat.swift` (`ChatPage`); what it's about, its words and the waiting line: `ChatAbout`, `Wait`, `Asking` in `Inbox/Asking.swift` (Chat.tsx's); `Store.asks`, `readAsks()`, `ask()`, `wake(ask:toast:)`, `openChat()`, `askDrafts`; `APIClient.asks()`, `ask()`; `AsksView` in `Models.swift`; the route is `Route.chat` |
 | Where the chat opens from                   | the page menu in `DeskView.swift`; More, `asking()` and `askLine()` in `ItemPage.swift`; `SaidActions` (`ask`); `WriteSheet`'s `aside`; `Store.askedAbout()` |
 | An agent's answer as text                   | `Blocks.parse()`, `inline()`, `fencedCopy()` in `Inbox/Blocks.swift` (the twins of `src/prose.ts`); drawn by `ProseBlocks` in `Chat.swift` |
+| What a reviewer wrote, as blocks            | `Blocks.said()` in `Inbox/Blocks.swift` (`saidBlocks()` in `src/prose.ts`); drawn by `SaidText` in `Said.swift`      |
 | Your agent's work in Merging                | `WorkLine` in `DeskView.swift`; `Asking.workTitle()`, `workPhrase()`, `workSince()`, `canRetry()`; `Work` in `Models.swift`; Try again: `Store.retryReview()`, `wake(ask:toast:)` |
 | An item's page                              | `Inbox/Views/ItemPage.swift`                                                           |
 | A PR's State (checks, reviewers, merge)     | `Inbox/Views/ReviewState.swift`; `CheckGroup.of()` in `Format.swift` (view.ts's `checkGroups()`) |
