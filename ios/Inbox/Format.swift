@@ -417,6 +417,30 @@ struct SnoozeOption: Identifiable, Equatable {
   static func all(_ c: Card) -> [SnoozeOption] { times + [activity] + waits(c) }
 }
 
+// MARK: A note's reminder (Note.tsx's WHEN)
+
+enum Remind {
+  // None, a time from now as a snooze reads it, or one you pick.
+  static let choices: [(value: String, label: String)] = [
+    ("", "No reminder"), ("1h", "In 1 hour"), ("3h", "In 3 hours"), ("tomorrow", "Tomorrow 9:00"), ("monday", "Monday 9:00"), ("pick", "Pick a time…"),
+  ]
+
+  // What /api/notes takes as `remind`: "" for none, the choice itself, or the picked time as the desk writes times.
+  // A reminder left where it was goes back as the desk sent it, so the desk sees it unchanged.
+  static func value(_ pick: String, at: Date, was: Note? = nil) -> String {
+    guard pick == "pick" else { return pick }
+    if let old = was?.remindAt, Words.date(old) == at { return old }
+    let f = ISO8601DateFormatter()
+    f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+    return f.string(from: at)
+  }
+
+  // Where Pick a time… starts: the next full hour.
+  static func nextHour(_ now: Date, calendar: Calendar = .current) -> Date {
+    calendar.nextDate(after: now, matching: DateComponents(minute: 0, second: 0), matchingPolicy: .nextTime) ?? now.addingTimeInterval(3600)
+  }
+}
+
 // MARK: Bubbles (what's wrong with the system), as notices.ts orders them
 
 struct Notice: Identifiable, Equatable {

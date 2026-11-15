@@ -286,6 +286,10 @@ struct Note: Decodable, Identifiable, Sendable {
   var remindAt: String?
 }
 
+struct NoteAnswer: Decodable, Sendable {
+  var note: Note?
+}
+
 struct NotesView: Decodable, Sendable {
   @Lossy var due: [Note]
   @Lossy var open: [Note]

@@ -217,12 +217,13 @@ func refusal(_ store: Store, _ write: () async -> Bool) async -> String? {
 struct SheetHead: View {
   @Environment(\.dismiss) private var dismiss
   let title: String
+  var close = "Cancel"
 
   var body: some View {
     HStack(alignment: .firstTextBaseline) {
       Text(title).sans(16, 650, tracking: -0.01).foregroundStyle(Theme.ink).lineLimit(1)
       Spacer(minLength: 8)
-      Button("Cancel") { dismiss() }.sans(15, 500).tint(Theme.ink2)
+      Button(close) { dismiss() }.sans(15, 500).tint(Theme.ink2)
     }
   }
 }

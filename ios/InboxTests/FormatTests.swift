@@ -153,6 +153,22 @@ final class FormatTests: XCTestCase {
   }
 
   // The one list the client sorts: what you finished and what resolved, newest first.
+  // Note.tsx's WHEN, and what goes to /api/notes as `remind`.
+  func testANotesReminder() throws {
+    XCTAssertEqual(Remind.choices.map(\.label), ["No reminder", "In 1 hour", "In 3 hours", "Tomorrow 9:00", "Monday 9:00", "Pick a time…"])
+    let at = try XCTUnwrap(Words.date("2026-11-16T09:30:00.000Z"))
+    for pick in ["", "1h", "3h", "tomorrow", "monday"] { XCTAssertEqual(Remind.value(pick, at: at), pick) }
+    XCTAssertEqual(Remind.value("pick", at: at), "2026-11-16T09:30:00.000Z", "as JavaScript's toISOString()")
+    // Left where it was, it goes back as the desk sent it; moved, as the new time.
+    let note = try DeskJSON.decoder().decode(Note.self, from: Data(#"{"id":"n1","text":"t","remind_at":"2026-11-16T09:30:00Z"}"#.utf8))
+    XCTAssertEqual(Remind.value("pick", at: at, was: note), "2026-11-16T09:30:00Z")
+    XCTAssertEqual(Remind.value("pick", at: at.addingTimeInterval(60), was: note), "2026-11-16T09:31:00.000Z")
+    XCTAssertEqual(Remind.value("", at: at, was: note), "", "No reminder takes it off")
+    var utc = Calendar(identifier: .gregorian)
+    utc.timeZone = try XCTUnwrap(TimeZone(identifier: "UTC"))
+    XCTAssertEqual(Remind.nextHour(try XCTUnwrap(Words.date("2026-11-16T09:30:10.000Z")), calendar: utc), Words.date("2026-11-16T10:00:00.000Z"))
+  }
+
   // format.ts's issueUrl(): what a question is about, when the desk doesn't hold its card. Nothing for what isn't an id.
   func testAnItemOnGitHubByItsId() {
     XCTAssertEqual(Words.issueURL("acme/api#4127")?.absoluteString, "https://github.com/acme/api/issues/4127")

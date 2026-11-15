@@ -268,6 +268,16 @@ struct APIClient: Sendable {
     try await post("/api/sessions/\(APIClient.segment(session))/kick")
   }
 
+  // A note to yourself, written (no id) or changed. `remind`: "" for none, "1h", "3h", "tomorrow", "monday" or an ISO time.
+  func saveNote(_ id: String?, text: String, remind: String) async throws -> NoteAnswer {
+    try await post("/api/notes" + (id.map { "/\(APIClient.segment($0))" } ?? ""), ["text": text, "remind": remind])
+  }
+
+  // Done: the note leaves your desk for good.
+  func doneNote(_ id: String) async throws {
+    let _: Ok = try await post("/api/notes/\(APIClient.segment(id))/done")
+  }
+
   // Wake it, Start it now, Try again: starts your agent, or has it look at Merging now. A turn of your agent, so only on a press.
   func wake() async throws {
     let _: Ok = try await post("/api/coordinator/wake")

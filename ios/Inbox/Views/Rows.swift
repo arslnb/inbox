@@ -265,7 +265,7 @@ struct SessionRow: View {
   }
 }
 
-// A note to yourself: read here, written and finished on the desk.
+// A note to yourself: Note, its words, Done, when it reminds (or reminded) you where a PR's author goes, its age.
 struct NoteRow: View {
   let n: Note
   let now: Date
@@ -275,7 +275,7 @@ struct NoteRow: View {
     RowLines(
       kind: "Note", title: n.text ?? "",
       facts: [Fact(text: n.remindAt != nil ? "at \(Words.when(n.remindAt, now: now))" : "by you")],
-      age: Words.age(n.remindAt != nil && !later ? n.remindAt : n.at, now: now)
+      cta: "Done", age: Words.age(n.remindAt != nil && !later ? n.remindAt : n.at, now: now)
     )
     .accessibilityElement(children: .combine)
   }

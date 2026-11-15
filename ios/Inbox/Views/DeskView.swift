@@ -18,6 +18,10 @@ struct DeskView: View {
         }
     }
     .sheet(isPresented: $store.showSettings) { SettingsSheet() }
+    .sheet(item: $store.noting) { noting in NoteSheet(note: noting.note, draft: store.noteDraft) }
+    #if DEBUG
+      .task(id: store.loads) { store.openDebugNote() }
+    #endif
     .confirmationDialog("Snooze", isPresented: Binding(get: { store.snoozing != nil }, set: { if !$0 { store.snoozing = nil } }), presenting: store.snoozing) { card in
       ForEach(SnoozeOption.all(card)) { option in
         Button(option.label) { store.act(card.id, name: card.shortRef, "snooze", snooze: option) }
@@ -63,6 +67,9 @@ struct ListPage: View {
           }
           .pickerStyle(.inline)
           .labelsHidden()
+          // The window's New note (its sidebar's, ⌘N): a note to yourself lands on the Inbox.
+          Divider()
+          Button("New note") { store.noting = Noting() }
         } label: {
           HStack(spacing: 7) {
             Mark().fill(Theme.accentInk).frame(width: 24, height: 24)
@@ -233,8 +240,9 @@ struct InboxList: View {
       let urgent = cards(view.inbox?.urgent)
       let standard = cards(view.inbox?.standard)
       let fyi = cards(view.inbox?.fyi)
-      let due = view.notes?.due ?? []
-      let open = view.notes?.open ?? []
+      let notes = { (list: [Note]?) in (list ?? []).filter { !store.leaving.contains(Store.noteKey($0.id)) } }
+      let due = notes(view.notes?.due)
+      let open = notes(view.notes?.open)
       let asked = view.inquiries.filter { !store.leaving.contains($0.id) }
       let lead = asked.count + active.count + due.count
       let any = lead + urgent.count + open.count + standard.count + fyi.count > 0
@@ -259,13 +267,13 @@ struct InboxList: View {
                 }
               }
               ForEach(active) { s in SessionLine(s: s) }
-              ForEach(due) { n in NoteRow(n: n, now: store.now).deskRow() }
+              ForEach(due) { n in NoteLine(n: n) }
               ForEach(urgent) { c in CardLine(card: c, variant: .active) }
             }
           }
           if open.count + standard.count > 0 {
             section("standard", "Standard", open.count + standard.count) {
-              ForEach(open) { n in NoteRow(n: n, now: store.now).deskRow() }
+              ForEach(open) { n in NoteLine(n: n) }
               ForEach(standard) { c in CardLine(card: c, variant: .active) }
             }
           }
@@ -349,6 +357,25 @@ struct Waiting: View {
   }
 }
 
+// A note's row: a tap opens it in the note box to change it; a swipe is Done, as a card's.
+struct NoteLine: View {
+  @Environment(Store.self) private var store
+  let n: Note
+
+  var body: some View {
+    Button {
+      store.noting = Noting(note: n)
+    } label: {
+      NoteRow(n: n, now: store.now)
+    }
+    .buttonStyle(RowPress())
+    .deskRow()
+    .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+      Button("Done") { Task { await store.doneNote(n) } }.tint(Theme.swipeAccent)
+    }
+  }
+}
+
 struct SessionLine: View {
   @Environment(Store.self) private var store
   let s: SessionCard
@@ -419,7 +446,7 @@ struct ArchiveList: View {
   var body: some View {
     if let view = store.queue {
       let gone = { (list: [Card]) in list.filter { !store.leaving.contains($0.id) } }
-      let later = view.notes?.later ?? []
+      let later = (view.notes?.later ?? []).filter { !store.leaving.contains(Store.noteKey($0.id)) }
       let archive = gone(Lists.archive(view))
       let cleared = gone(Lists.cleared(view))
       let hidden = gone(view.hidden)
@@ -429,7 +456,7 @@ struct ArchiveList: View {
         }
         if !later.isEmpty {
           Section {
-            ForEach(later) { n in NoteRow(n: n, now: store.now).deskRow() }
+            ForEach(later) { n in NoteLine(n: n) }
           } header: {
             GroupHead(label: "Reminders", count: later.count).deskHead()
           }

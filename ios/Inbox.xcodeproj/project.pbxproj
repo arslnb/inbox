@@ -17,6 +17,7 @@
 		38F13AE8579999BDD6881232 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 69F526FB674D4AAE51D71285 /* Assets.xcassets */; };
 		3E5357227A982E45AB92FED3 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB729B1A844CE25803480AA6 /* Models.swift */; };
 		4360AF9B4B2E1AB0DDA25628 /* inflight.json in Resources */ = {isa = PBXBuildFile; fileRef = D57AC94DEAC4A0ABBF82148C /* inflight.json */; };
+		4F0A62D49A45AF385726B725 /* NoteSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0B52C1DF9613CF539C35E26C /* NoteSheet.swift */; };
 		523C73889DEFAF38E4A961A4 /* jetbrains-mono-latin-wght-normal.ttf in Resources */ = {isa = PBXBuildFile; fileRef = 668AAD4DD3BC95A868ADD5FA /* jetbrains-mono-latin-wght-normal.ttf */; };
 		52632712EFAEF51B428A1ACD /* Pages.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB601B10CD92C49B76EBC105 /* Pages.swift */; };
 		559175B7203AB8C2544BBD4B /* queue.json in Resources */ = {isa = PBXBuildFile; fileRef = FB0AB6E5B1F51C063204A788 /* queue.json */; };
@@ -69,6 +70,7 @@
 		007CD99E3D1EFFE031869329 /* PatchLinesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PatchLinesTests.swift; sourceTree = "<group>"; };
 		052B157C4D8A2B459516F215 /* Said.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Said.swift; sourceTree = "<group>"; };
 		087EFBF229FCB05EF9893014 /* review-lean.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "review-lean.json"; sourceTree = "<group>"; };
+		0B52C1DF9613CF539C35E26C /* NoteSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NoteSheet.swift; sourceTree = "<group>"; };
 		1669E5C9016905AF55097E8E /* DiffView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DiffView.swift; sourceTree = "<group>"; };
 		191882B1EBFEB895A9C4608D /* ActionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ActionTests.swift; sourceTree = "<group>"; };
 		1B4561087522EDEA87D4A330 /* InboxTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = InboxTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -128,6 +130,7 @@
 				1669E5C9016905AF55097E8E /* DiffView.swift */,
 				4DA40F8D799363AFD72BA581 /* IssuePre.swift */,
 				7402469F00F8F99EF3BDBD7B /* ItemPage.swift */,
+				0B52C1DF9613CF539C35E26C /* NoteSheet.swift */,
 				AB601B10CD92C49B76EBC105 /* Pages.swift */,
 				D0DA7227B62F17FEF758A35A /* ReviewState.swift */,
 				BD80456E10B2E056D00E7E9F /* Rows.swift */,
@@ -352,6 +355,7 @@
 				C444106D32B248F3FDF162AF /* ItemPage.swift in Sources */,
 				8E55F11BB67BBDCEE9CFF48A /* Keychain.swift in Sources */,
 				3E5357227A982E45AB92FED3 /* Models.swift in Sources */,
+				4F0A62D49A45AF385726B725 /* NoteSheet.swift in Sources */,
 				52632712EFAEF51B428A1ACD /* Pages.swift in Sources */,
 				E601D6AC528054B614E4B992 /* PatchLines.swift in Sources */,
 				CDC83790A232DEDAC8748E35 /* ReviewState.swift in Sources */,

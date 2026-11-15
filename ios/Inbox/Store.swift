@@ -22,6 +22,11 @@ enum Route: Hashable, Sendable {
   case session(String)
 }
 
+struct Noting: Identifiable {
+  var note: Note?
+  var id: String { note?.id ?? "new" }
+}
+
 struct Toast: Equatable {
   let id = UUID()
   let text: String
@@ -50,6 +55,8 @@ final class Store {
   var path: [Route] = []
   var showSettings = false
   var snoozing: Card?  // the row whose Snooze was swiped: its options are asked for
+  var noting: Noting?  // the note box: a new note, or one you opened
+  var noteDraft = ""  // a new note's words, kept while its box is closed
 
   private(set) var overview: Overview?
   private(set) var queue: QueueView?
@@ -180,6 +187,8 @@ final class Store {
     path = []
     page = .inbox
     showSettings = false
+    noting = nil
+    noteDraft = ""
   }
 
   // Forgets the token on this phone. The device stays listed on the desk until its owner revokes it there.
@@ -546,6 +555,27 @@ final class Store {
     }
   }
 
+  // A note to yourself, new (nil) or changed: on the desk only, nothing on GitHub. What it says is the window's.
+  static func noteKey(_ id: String) -> String { "note:\(id)" }  // a note's row in `leaving` and `sending`
+  @discardableResult
+  func saveNote(_ n: Note?, text: String, remind: String) async -> Bool {
+    await write(Store.noteKey(n?.id ?? "new")) { client in
+      let saved = try await client.saveNote(n?.id, text: text, remind: remind).note
+      if n == nil { self.noteDraft = "" }
+      if let at = saved?.remindAt { return Toast(text: "I'll remind you \(Words.when(at, now: self.now))") }
+      return Toast(text: n != nil ? "Note changed" : "Noted: it's on your Inbox")
+    }
+  }
+
+  // Done on a note: it leaves your desk for good (no Undo, as the window).
+  @discardableResult
+  func doneNote(_ n: Note) async -> Bool {
+    await write(Store.noteKey(n.id), leaves: true) { client in
+      try await client.doneNote(n.id)
+      return Toast(text: "Note done")
+    }
+  }
+
   // Merging's Wake it (Start it now, Try again): your agent starts, or looks at Merging now. Each is a turn of your
   // agent, so only a press calls this, and a second press while one is on its way sends nothing.
   static let coordinator = "coordinator"  // what busy() knows it by
@@ -740,6 +770,7 @@ final class Store {
     //   -scroll guide|step-<n>|note|bugs   with -open: the guided review's first step, a later one, the first note on a line
     //   -issue running|again|failed|stale|none|off|injection|blocked   with -open: an issue's pre-review in that state
     //   -step <n>   with -open: an issue's walk at its nth step
+    //   -note new|<note id>   the note box: a new note, or that one opened
     func applyLaunchArguments(_ args: UserDefaults = .standard, flags: [String] = ProcessInfo.processInfo.arguments) {
       guard flags.contains(where: { ["-deskURL", "-connect"].contains($0) }) else { return }
       stopLive()
@@ -770,6 +801,7 @@ final class Store {
       debugAi = args.string(forKey: "ai")
       debugIssue = args.string(forKey: "issue")
       debugStep = args.object(forKey: "step") == nil ? nil : args.integer(forKey: "step")
+      debugNote = args.string(forKey: "note")
     }
 
     var scrollTo: String?
@@ -782,5 +814,13 @@ final class Store {
     var debugIssue: String?  // an issue's pre-review as the mock never sends it: see ItemDetail.debugging()
     var debugStep: Int?
     var debugScan: String?  // what the camera would have read: the connect screen takes it once
+    var debugNote: String?  // "new", or a note's id: its box, opened once the desk has answered
+
+    // The note box -note asks for, once.
+    func openDebugNote() {
+      guard let which = debugNote, let notes = queue?.notes else { return }
+      debugNote = nil
+      noting = which == "new" ? Noting() : (notes.due + notes.open + notes.later).first { $0.id == which }.map { Noting(note: $0) }
+    }
   #endif
 }

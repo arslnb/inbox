@@ -201,6 +201,30 @@ final class WriteTests: XCTestCase {
     XCTAssertEqual(e, .refused(status: 403, message: "hand a PR off for merge from the desk's window"))
   }
 
+  // A note to yourself: written, changed (the same body, by its id) and finished.
+  func testNotes() async throws {
+    let note = #"{"id":"n2","at":"2026-11-13T04:22:37.843Z","text":"Write it up","remind_at":null,"reminded_at":null}"#
+    for remind in ["", "1h", "3h", "tomorrow", "monday", "2026-11-16T09:00:00.000Z"] {
+      StubProtocol.reset(["/api/notes": Answer(body: #"{"ok":true,"note":\#(note)}"#)])
+      let saved = try await client().saveNote(nil, text: "Write it up", remind: remind)
+      XCTAssertEqual(saved.note?.id, "n2")
+      try sent("/api/notes", ["text": "Write it up", "remind": remind])
+    }
+    StubProtocol.reset(["/api/notes/n2": Answer(body: #"{"ok":true,"note":\#(note)}"#)])
+    _ = try await client().saveNote("n2", text: "Write it up today", remind: "3h")
+    try sent("/api/notes/n2", ["text": "Write it up today", "remind": "3h"])
+    StubProtocol.reset(["/api/notes/n2/done": Answer(body: #"{"ok":true}"#)])
+    try await client().doneNote("n2")
+    try sent("/api/notes/n2/done", [:])
+
+    var e = await refusal("/api/notes", 400, "the note is empty", tag: "BadRequest") { try await self.client().saveNote(nil, text: " ", remind: "") }
+    XCTAssertEqual(e, .refused(status: 400, message: "the note is empty"))
+    e = await refusal("/api/notes/gone", 404, #"no note "gone""#, tag: "NotFound") { try await self.client().saveNote("gone", text: "x", remind: "") }
+    XCTAssertEqual(e, .refused(status: 404, message: #"no note "gone""#))
+    e = await refusal("/api/notes/gone/done", 404, #"no note "gone""#, tag: "NotFound") { try await self.client().doneNote("gone") }
+    XCTAssertEqual(e?.words, #"no note "gone""#)
+  }
+
   func testAnsweringAQuestion() async throws {
     let path = "/api/inquiries/q1c0ffee/answer"
     let inquiry = String(decoding: try Fixture.data("inquiry"), as: UTF8.self)
@@ -720,6 +744,70 @@ final class StoreWriteTests: XCTestCase {
     XCTAssertFalse(took)
     XCTAssertEqual(store.notices.map(\.title), ["already answered"])
     XCTAssertEqual(store.inboxCount, count, "and its row is back")
+  }
+
+  // A note's toasts are the window's: where it landed, that it changed, or when it reminds you; Done takes its row at once.
+  func testWritingChangingAndFinishingANote() async throws {
+    let open = try XCTUnwrap(store.queue?.notes?.open.first)
+    let answer = { (id: String, remind: String) in
+      Answer(body: #"{"ok":true,"note":{"id":"\#(id)","at":"2026-11-13T04:22:37.843Z","text":"t","remind_at":\#(remind),"reminded_at":null}}"#)
+    }
+    try desk(["/api/notes": answer("n9", "null")])
+    store.noteDraft = "Ask about the migration"
+    var took = await store.saveNote(nil, text: "Ask about the migration", remind: "")
+    XCTAssertTrue(took)
+    XCTAssertEqual(store.toast?.text, "Noted: it's on your Inbox")
+    XCTAssertEqual(store.toast?.undoable, false)
+    XCTAssertEqual(store.noteDraft, "", "sent: the new note's words are let go")
+    XCTAssertEqual(paths().first, "POST /api/notes")
+    XCTAssertTrue(paths().contains("GET /api/queue"), "read again")
+
+    try desk(["/api/notes/\(open.id)": answer(open.id, "null")])
+    took = await store.saveNote(open, text: "Changed", remind: "")
+    XCTAssertTrue(took)
+    XCTAssertEqual(store.toast?.text, "Note changed")
+    XCTAssertEqual(try sentBody("/api/notes/\(open.id)"), ["text": "Changed", "remind": ""])
+
+    // With a reminder, new or changed: when it comes, as the window writes a time.
+    let at = "2026-11-17T09:00:00.000Z"
+    store.now = try XCTUnwrap(Words.date("2026-11-13T08:00:00.000Z"))
+    for (note, path) in [(nil, "/api/notes"), (open, "/api/notes/\(open.id)")] as [(Note?, String)] {
+      try desk([path: answer("n9", #""\#(at)""#)])
+      took = await store.saveNote(note, text: "t", remind: "monday")
+      XCTAssertTrue(took)
+      XCTAssertEqual(store.toast?.text, "I'll remind you \(Words.when(at, now: store.now))")
+      XCTAssertEqual(try sentBody(path)["remind"], "monday")
+    }
+
+    try desk(["/api/notes/\(open.id)/done": Answer(hangs: true)])
+    let waiting = Task { await self.store.doneNote(open) }
+    for _ in 0..<150 where StubProtocol.requests().isEmpty { try await Task.sleep(for: .milliseconds(20)) }
+    XCTAssertTrue(store.leaving.contains(Store.noteKey(open.id)), "its row leaves at once")
+    waiting.cancel()
+    for _ in 0..<150 where store.busy(Store.noteKey(open.id)) { try await Task.sleep(for: .milliseconds(20)) }
+    try desk(["/api/notes/\(open.id)/done": Answer(body: #"{"ok":true}"#)])
+    took = await store.doneNote(open)
+    XCTAssertTrue(took)
+    XCTAssertEqual(store.toast?.text, "Note done")
+    XCTAssertEqual(store.toast?.undoable, false)
+    XCTAssertTrue(store.leaving.isEmpty)
+  }
+
+  // A refused note stays in its box: the desk's words are there for the sheet, and a new note's draft is kept.
+  func testARefusedNoteKeepsItsWords() async throws {
+    let said = [
+      (400, "the note is empty"), (400, "keep a note under 2000 characters"),
+      (400, #"can't read the reminder "2020-01-01T00:00:00.000Z": pick a time to come"#), (404, #"no note "n2""#),
+    ]
+    for (status, words) in said {
+      try desk(["/api/notes": no(status, words)])
+      store.noteDraft = "My words"
+      let took = await store.saveNote(nil, text: "My words", remind: "2020-01-01T00:00:00.000Z")
+      XCTAssertFalse(took)
+      XCTAssertEqual(store.whyNot, words)
+      XCTAssertEqual(store.noteDraft, "My words")
+      XCTAssertEqual(store.notices.last?.title, words)
+    }
   }
 
   // Merging's Wake it, Start it now and Try again are one route; what it says depends on whether your agent was running.
