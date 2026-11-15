@@ -529,6 +529,7 @@ struct MergingList: View {
       if let view = store.inflight {
         let live = view.live
         let landed = view.landed
+        ScrollViewReader { proxy in
         List {
           if let c = view.coordinator { agentLine(c).deskLine() }
           if live.isEmpty {
@@ -545,6 +546,13 @@ struct MergingList: View {
             }
             ForEach(part) { row in line(row) }
           }
+          if !view.work.isEmpty {
+            Section {
+              ForEach(view.work) { w in WorkLine(w: w) }
+            } header: {
+              GroupHead(label: "\(store.agent)'s work", count: "\(view.work.count)").deskHead().id("work")
+            }
+          }
           if !landed.isEmpty {
             Section {
               ForEach(landed) { row in line(row) }
@@ -555,6 +563,14 @@ struct MergingList: View {
         }
         .deskList()
         .refreshable { await store.refresh() }
+        #if DEBUG
+          .task(id: store.loads) {
+            guard let to = store.scrollTo else { return }
+            try? await Task.sleep(for: .milliseconds(300))
+            proxy.scrollTo(to, anchor: .top)
+          }
+        #endif
+        }
       } else {
         Waiting()
       }
@@ -642,5 +658,56 @@ struct MergingList: View {
     }
     .buttonStyle(.plain)
     .disabled(store.busy(Store.coordinator))
+  }
+}
+
+// A row of "<agent>'s work", as Inflight.tsx's WorkRow: the PR's title, your ask's words or the question you answered,
+// its ref, where it stands and since when. A press opens what it's about: the review, your chat, the question. Try
+// again, on a failed review or ask, is its own button under the row: it spends your agent, so only a press sends it.
+// An answer has none: only the session that asked can read it.
+struct WorkLine: View {
+  @Environment(Store.self) private var store
+  let w: Work
+
+  var body: some View {
+    let ref = (w.item ?? "").split(separator: "#", maxSplits: 1).map(String.init)
+    VStack(alignment: .leading, spacing: 0) {
+      Button(action: open) {
+        RowLines(
+          title: Asking.workTitle(w),
+          repo: ref.count == 2 ? ref[0].split(separator: "/").last.map(String.init) : nil, number: ref.count == 2 ? "#\(ref[1])" : nil,
+          age: Words.age(Asking.workSince(w), now: store.now),
+          under: Asking.workPhrase(w, agent: store.agent, now: store.now).joined(separator: "  ·  "),
+          // Failed: in ink, not red; it's about the agent, not the PR.
+          underInk: w.state == "failed"
+        )
+        .accessibilityElement(children: .combine)
+      }
+      .buttonStyle(RowPress())
+      .accessibilityHint(w.kind == "ai_review" ? "Opens its review" : w.kind == "answer" ? "Opens the question" : "Opens your chat with your agent")
+      if Asking.canRetry(w) {
+        Button(action: retry) {
+          Text("Try again").sans(13).underline(color: Theme.ruleStrong).foregroundStyle(Theme.ink2)
+            .padding(.horizontal, Theme.pad)
+            .frame(minHeight: 36, alignment: .top)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(w.kind == "ask" ? store.busy(Store.coordinator) : store.asking.contains(w.key))
+      }
+    }
+    .deskRow()
+  }
+
+  private func open() {
+    switch w.kind {
+    case "ai_review": store.path.append(.item(w.key))
+    case "answer": store.path.append(.inquiry(w.key))
+    default: store.openChat(ChatAbout(item: w.item))
+    }
+  }
+
+  private func retry() {
+    if w.kind == "ask" { Task { await store.wake(ask: w.key, toast: true) } } else { store.retryReview(w.key) }
   }
 }

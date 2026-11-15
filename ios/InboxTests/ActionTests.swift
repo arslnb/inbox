@@ -1220,4 +1220,41 @@ final class StoreWriteTests: XCTestCase {
     XCTAssertFalse(again)
     XCTAssertEqual(store.path, [.item(c.id)])
   }
+
+  // MARK: <agent>'s work in Merging: its two Try agains
+
+  // A failed ask is handed to your agent again: one wake with its id.
+  func testTryAgainOnAFailedAskWakesYourAgentWithIt() async throws {
+    try desk(["/api/coordinator/wake": Answer(body: #"{"ok":true}"#)])
+    let took = await store.wake(ask: "b7d3e410", toast: true)
+    XCTAssertTrue(took)
+    XCTAssertEqual(store.toast?.text, "Asked your agent again.")
+    let posts = StubProtocol.requests().filter { $0.httpMethod == "POST" }
+    XCTAssertEqual(posts.map { $0.url?.path }, ["/api/coordinator/wake"], "once")
+    XCTAssertEqual(try json(posts.first), ["ask": "b7d3e410"])
+    // From Merging its refusal is a bubble, in the desk's words.
+    try desk(["/api/coordinator/wake": no(409, "your agent is off: Settings → Local Agent Integration")])
+    let again = await store.wake(ask: "b7d3e410", toast: true)
+    XCTAssertFalse(again)
+    XCTAssertEqual(store.notices.last?.title, "your agent is off: Settings → Local Agent Integration")
+  }
+
+  // A failed review is asked for again by its PR's id alone: one request that waits as long as a review takes, its
+  // words said at once, and a second press meanwhile sends nothing.
+  func testTryAgainOnAFailedReviewAsksOnce() async throws {
+    let lane: InflightView = try Fixture.decode("inflight")
+    let w = try XCTUnwrap(lane.work.first(where: Asking.canRetry))
+    XCTAssertEqual(w.key, "acme/worker#890")
+    try desk(["/api/review/\(w.key)/ai": Answer(body: #"{"ok":true,"ai":{"verdict":"skim"}}"#)])
+    let sent = try XCTUnwrap(store.retryReview(w.key))
+    XCTAssertEqual(store.toast?.text, "Claude is reviewing worker#890 again.", "said at once")
+    XCTAssertNil(store.retryReview(w.key), "one on its way already")
+    await sent.value
+    XCTAssertEqual(ais().count, 1)
+    XCTAssertEqual(ais().first?.url?.absoluteString, "https://desk.tail1234.ts.net/api/review/acme%2Fworker%23890/ai")
+    XCTAssertEqual(try json(ais().first), ["force": false])
+    XCTAssertGreaterThanOrEqual(ais().first?.timeoutInterval ?? 0, 300)
+    XCTAssertFalse(StubProtocol.requests().contains { $0.url?.path == "/api/coordinator/wake" })
+    XCTAssertFalse(store.asking.contains(w.key))
+  }
 }

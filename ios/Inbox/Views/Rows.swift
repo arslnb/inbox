@@ -127,6 +127,7 @@ struct RowLines: View {
   var cta: String?
   var age: String
   var under: String?  // a line of its own under the facts: why it's blocked, your agent's note
+  var underInk = false  // that line in ink: a job of your agent's that failed
 
   var body: some View {
     VStack(alignment: .leading, spacing: 4) {
@@ -170,7 +171,7 @@ struct RowLines: View {
       // One line with parts that never shrink: past the largest standard size they'd push the facts off the row. The title keeps growing.
       .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
       if let under, !under.isEmpty {
-        Text(under).sans(13).foregroundStyle(Theme.pencil).lineLimit(2).lineSpacing(1.5)
+        Text(under).sans(13).foregroundStyle(underInk ? Theme.ink2 : Theme.pencil).lineLimit(2).lineSpacing(1.5)
           .frame(maxWidth: .infinity, alignment: .leading)
       }
     }
