@@ -60,7 +60,7 @@ xcrun simctl launch booted dev.inbox.ios -deskURL http://localhost:47841 -page m
 | `-deskURL http://localhost:<port>`             | that desk (localhost only), leaving the saved one alone                 |
 | `-page inbox\|blocked\|merging\|archive`       | that page                                                               |
 | `-open <owner/repo#n>`                         | an item's page; `-open inquiry:<id>` a question, `-open session:<id>` a session |
-| `-scrollTo standard`                           | the Inbox scrolled to a section (`urgent`, `standard`, `fyi`)           |
+| `-scrollTo standard`                           | the Inbox scrolled to a section (`urgent`, `standard`, `fyi`); with `-page merging`, `work`: your agent's work |
 | `-box approve\|comment\|changes\|reviewers\|reply\|answer` | with `-open`: that page's box, opened once the page has loaded |
 | `-part checks\|reviewers`                      | with `-open`: that line of a PR's State, opened                         |
 | `-scroll diff\|thread\|said`                   | with `-open`: a PR's page scrolled to its diff, the first thread on a line of it, or what reviewers said |
@@ -69,6 +69,10 @@ xcrun simctl launch booted dev.inbox.ios -deskURL http://localhost:47841 -page m
 | `-review.view guided\|traditional`             | the diff's order where a review has steps, for this launch (the saved choice is left alone) |
 | `-said waiting\|more`                          | with `-open`: the first waiting conversation's own words unfolded, or the ones not waiting on you opened |
 | `-comment <path>:<line>`                       | with `-open`: the box for a comment on that line of the new file        |
+| `-issue running\|again\|failed\|stale\|none\|off\|injection\|blocked` | with `-open`: an issue's pre-review in a state the mock never sends     |
+| `-step <n>`                                    | with `-open`: an issue's walk at its nth step                           |
+| `-chat <owner/repo#n>\|none`                   | Ask your agent, about that item or nothing                              |
+| `-asks empty\|off\|on\|waiting\|queued\|onit\|stopped\|error\|none` | with `-chat`: the chat as the mock never sends it: nothing asked, your agent off (`on`: drawn as on though the desk says off, so a send is refused), and each thing it can be doing about the last ask |
 | `-filter "<text>" [-filterFocus]`              | the lists' filter as typed (`"author:dana "`: a term then a space is a pill); with the cursor in its box, so its suggestions show |
 | `-note new\|<note id>`                         | the note box: a new note, or that one opened (the mock's are `n1`, `n2`, `n3`) |
 | `-settings`                                    | the settings sheet                                                      |
@@ -87,7 +91,11 @@ It builds, installs on the booted simulator, starts the mock on port 47841 (and 
 `ios/.shots/<state>-<light|dark>.png` for: `connect` (in the Simulator, Scan the code is off and says why), `connect-error`, `connect-scan-wrong` (a QR that isn't a desk's), `inbox`, `inbox-scrolled`, `inbox-empty`,
 `inbox-filter` (the filter's box with the cursor in it: Filter by person), `inbox-filter-author` (a pill and what it
 keeps), `inbox-filter-large` (the same at an accessibility text size), `inbox-fyi` (FYI's first five and Show 3 more),
-`blocked` (its tree's guides), `blocked-filter` (flat, "4 of 11"), `merging` (your agent's line with Wake it), `archive`,
+`blocked` (its tree's guides), `blocked-filter` (flat, "4 of 11"), `merging` (your agent's line with Wake it),
+`merging-work` (Claude's work: two reviews being written, your ask, a failed review with Try again, an answer nobody
+picked up), `chat` (Ask your agent: your asks and its answers, and what it's on under the last), `chat-item` (about a
+PR: its ref and ×, your agent's open question above the box), `chat-empty`, `chat-off`, `chat-stopped` (Wake it),
+`chat-large` (an accessibility text size), `archive`,
 `archive-filter`, `note-new` and `note-edit` (the note box), `item-pr` (with an AI review, folded, and its State; Approve), `item-pr-ai-open` (a
 review with a goal, its fold opened), `item-pr-guided` (a step of the guide, its diagram as text), `item-pr-guided-note`
 (Look here and a potential bug under their line), `item-pr-guided-end` (the last step, its test file folded, the guide's
@@ -106,7 +114,8 @@ hand has whatever you did to it since): stop that first, or set `SHOTS_PORT`.
 Look at them after any change here, as `npm run shots` is looked at for the window: clipped or cut text, weights (a
 title is 500, a heading 650, a row's facts 400), the facts line when it runs out of room, both appearances, and the top
 and bottom edges: an opened page has no navigation bar, so its first line sits under the status bar and its bar at the
-foot stays on one line. What a shot can't show (the page menu with New note, a row's swipe and long press and each entry of its menu, the More
+foot stays on one line. What a shot can't show (the page menu with New note and Ask your agent, which reads "Your agent · waiting" while your
+latest ask has no answer; a send and its answer landing, Copy on a code block, the chat's ×, a row's swipe and long press and each entry of its menu, the More
 menu, Show more, a pick from the filter's suggestions and Backspace on a pill, the reminder's menu and its date picker,
 Wake it, a write and its toast or refusal, the toast's Undo, pull to refresh, and the swipe back from the left edge on each opened page, which
 `Views/Acting.swift` keeps alive with the bar hidden), try by hand against the mock.

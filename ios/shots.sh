@@ -107,7 +107,18 @@ wanted note-new && shot note-new -deskURL "$DESK" -note new
 wanted note-edit && shot note-edit -deskURL "$DESK" -note n3
 wanted blocked && shot blocked -deskURL "$DESK" -page blocked
 wanted merging && shot merging -deskURL "$DESK" -page merging
+# Merging's "<agent>'s work": two reviews being written, your ask, a review that failed three times (Try again), an answer nobody read.
+wanted merging-work && shot merging-work -deskURL "$DESK" -page merging -scrollTo work
 wanted archive && shot archive -deskURL "$DESK" -page archive
+# Ask your agent: your chat (its latest ask unanswered, with what your agent is on), about a PR, and what the mock never
+# sends (-asks): nothing asked yet, and your agent off.
+wanted chat && shot chat -deskURL "$DESK" -chat none
+wanted chat-item && shot chat-item -deskURL "$DESK" -chat "me/notes-app#12"
+wanted chat-empty && shot chat-empty -deskURL "$DESK" -chat "acme/api#4127" -asks empty
+wanted chat-off && shot chat-off -deskURL "$DESK" -chat none -asks off
+wanted chat-stopped && shot chat-stopped -deskURL "$DESK" -chat none -asks stopped
+wanted chat-large && shot chat-large -deskURL "$DESK" -chat "me/notes-app#12" \
+  -UIPreferredContentSizeCategoryName UICTContentSizeCategoryAccessibilityL
 wanted item-pr && shot item-pr -deskURL "$DESK" -open "acme/api#4127"
 # A PR's State: its checks opened to each by name (a failing run), and your own PR's reviewers with + Add reviewers.
 wanted item-pr-checks && shot item-pr-checks -deskURL "$DESK" -open "oss/tinyhttp#205" -part checks
