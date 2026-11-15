@@ -63,6 +63,9 @@ xcrun simctl launch booted dev.inbox.ios -deskURL http://localhost:47841 -page m
 | `-box approve\|comment\|changes\|reviewers\|reply\|answer` | with `-open`: that page's box, opened once the page has loaded |
 | `-part checks\|reviewers`                      | with `-open`: that line of a PR's State, opened                         |
 | `-scroll diff\|thread\|said`                   | with `-open`: a PR's page scrolled to its diff, the first thread on a line of it, or what reviewers said |
+| `-scroll guide\|step-<n>\|note`                | with `-open`: the guided review's first step, a later one (from 0), or the AI review's first note on a line |
+| `-ai open`                                     | with `-open`: the AI review's fold, opened                              |
+| `-review.view guided\|traditional`             | the diff's order where a review has steps, for this launch (the saved choice is left alone) |
 | `-said waiting\|more`                          | with `-open`: the first waiting conversation's own words unfolded, or the ones not waiting on you opened |
 | `-comment <path>:<line>`                       | with `-open`: the box for a comment on that line of the new file        |
 | `-settings`                                    | the settings sheet                                                      |
@@ -79,8 +82,13 @@ ios/shots.sh inbox item-pr   # only these
 
 It builds, installs on the booted simulator, starts the mock on port 47841 (and stops it), and writes
 `ios/.shots/<state>-<light|dark>.png` for: `connect` (in the Simulator, Scan the code is off and says why), `connect-error`, `connect-scan-wrong` (a QR that isn't a desk's), `inbox`, `inbox-scrolled`, `inbox-empty`,
-`blocked`, `merging`, `archive`, `item-pr` (with an AI review and its State; Approve), `item-pr-checks` (a failing
-run, its checks opened), `item-pr-own` (your PR: who reviews it, + Add reviewers), `item-pr-diff` (its diff, from the first file),
+`blocked`, `merging`, `archive`, `item-pr` (with an AI review, folded, and its State; Approve), `item-pr-ai-open` (a
+review with a goal, its fold opened), `item-pr-guided` (a step of the guide, its diagram as text), `item-pr-guided-note`
+(Look here and a potential bug under their line), `item-pr-guided-end` (the last step, its test file folded, the guide's
+end), `item-pr-ai-stale` (on an earlier commit, a new one being written), `item-pr-ai-failed` (Try again),
+`item-pr-ai-running`, `item-pr-ai-none` (Ask Claude for one), `item-pr-guided-large` (a step at an accessibility text
+size), `item-pr-checks` (a failing
+run, its checks opened), `item-pr-own` (your PR: who reviews it, + Add reviewers), `item-pr-diff` (its diff in Traditional, from the first file),
 `item-pr-diff-thread` (a thread under its line), `item-pr-line-comment` (the box for a comment on a line), `item-issue` (Comment), `item-reply` (what
 waits on your reply, each with your agent's read), `item-pr-said` (what one of them wrote, unfolded), `item-pr-more-conversations` (the ones not waiting on you, the first opened), `item-draft` (Ready for review; its description's first paragraph where a review would be), `item-mine` (Hand off for merge), `item-merging` (Back to desk),
 the boxes `approve`, `reply`, `reviewers` and `answer`, `question`, `session`, `session-kick`, `item-large` and `item-largest` (accessibility
@@ -147,12 +155,37 @@ default size all four fit beside the longest name, Hand off for merge).
   review that lands, as the window since 9f5819a): a push the page redrew is yours to approve, one it hasn't drawn yet
   the desk refuses, its words kept in the sheet. Whether you may approve is the desk's say (`approve.ok`): where it
   says no on an open PR, Approve is off and the page says why ("Can't approve: you approved this commit.").
+- **The AI review.** As the window draws it. Its goal leads, in ink (an older review without one leads with its
+  summary's first sentence). Then the verdict line: Look closely, Skim it or Skip it, how risky and the first reason
+  why, "on an earlier commit" when a push has left it behind. Pressed, the line opens the rest: the summary, "Also
+  risky:", Interfaces (each name, what changed, "breaking", what it means; a press goes to its line of the diff),
+  Could be better, and a diagram no step draws. Every PR opens folded. Never folded: "In the stack:", "Not quite what
+  the description says:" and "Since your review:". Its concerns are listed only when they can't sit in the code (a
+  review of an earlier commit, or one with no notes). While one is written: "Claude is reviewing it. The notes land in
+  the code below in a minute or two.", later with how long and which try. A failed one says why and when your agent
+  tries again, with **Try again**; an open PR with none has **Ask Claude for one**; a closed one says "No AI review."
+  Both ask your agent, so they spend it: only a press does (`Store.askReview()`), never opening the page. The words
+  "Claude is reviewing api#4127." show at once, the desk's events redraw the page, a second press meanwhile does
+  nothing, and only the desk's own refusal is a bubble (its answer comes when the review is written, minutes later,
+  so nothing waits for it). A PR in Merging has neither link: it's your agent's. Your own PR shows this only once a
+  review exists, is being written or failed. All of it is the model's words: plain text, a URL never a link.
 - **A PR's State.** Under the AI review, a table of one line each: Checks (red when one that counts fails), Reviewers
   (amber on changes requested), Merge (what stands in its way) and, with no stack, Depends. Checks opens to each by
   name, shards of one check folded into one row, the passing ones behind "N more passing" past six rows; a check opens
   its page. Reviewers opens to who and where each stands, with + Add reviewers on your open PR that's ready. Under the
   title, the reviewers with a verdict: a green tick, or "changes" in amber. Your own PR with no AI review shows its
   description's first paragraph there instead. A diff or a conversation that couldn't load says so in its place.
+- **Guided Review and Traditional.** A review with steps reads two ways, picked by two words above the diff; the
+  choice is kept on this phone (`review.view`), Guided first. Guided is only the review's steps: "2 of 4" and the
+  step's title, its words, "Check:", its note, its diagram, then its sections, each under Look or Skim and why; at its
+  foot "Next: …", which goes to the next step, and after the last "End of the guide. 3 more files change outside it:
+  read every file in Traditional". A potential bug no step covers still shows, under "Potential bugs outside the
+  guide". A test file starts folded there. A diagram is its title, its caption and one line per edge or message
+  ("Dispatch (new) → Lease (new): lease()"): the window's own fallback, never a figure.
+- **The AI review in the code.** In either order its notes sit under their lines, in the sans face with a rule down
+  the margin; the first of them are its concerns, each headed "Potential bug" with an amber edge. A note about the
+  whole file (or on a line the diff doesn't show) sits above the file's lines. "Look here, lines 12–14:" marks where
+  correctness hinges; a review of an earlier commit marks nothing.
 - **A PR's diff.** Under its State and stack, every file once in the PR's order (the window's Traditional), each under
   a header that folds it and stays at the top while its lines scroll: the name with its folder cut from the head, the
   lines added and removed, and under it new, deleted or renamed from where. Lines are unified and wrapped, never
@@ -188,21 +221,22 @@ sheet says so and the desk is read again, rather than claiming it wasn't sent. `
 meanwhile), says what the window says when it lands, and reads the desk again. The toast's Undo reopens a PR you closed
 and makes a converted draft ready again.
 
-Left for the computer: in the diff, the guided review's order and its steps, your agent's notes on lines, "more
+Left for the computer: a diagram drawn as a figure and the review's drawn document (the phone shows a diagram's lines
+as text), asking for an AI review of your own PR that has none (the window's More), in the diff "more
 lines" around a hunk, word-level changes, syntax highlighting and a comment on a range of lines; a session's Open and its attach command
 (they act on the desk's computer; the session's page says so once), Merging's Wake it, Start it now and Copy attach
 command for your agent, Ask your agent, and everything in Settings.
 
 What it calls: reads (`/api/overview`, `/api/queue`, `/api/inflight`, `/api/item`, `/api/inquiries/:id`,
 `/api/reviewers/:id`, `/api/events`, `/health`), `POST /api/act` (done, snooze, mute, unmute, restore, seen, inflight,
-takeback), `/api/undo`, `/api/sync`, the writes above (`/api/review/:id/approve|comment|inline|reply|ready|reviewers`,
+takeback), `/api/undo`, `/api/sync`, the writes above (`/api/review/:id/approve|comment|inline|reply|ready|reviewers|ai`,
 `/api/github`, `/api/inquiries/:id/answer`, `/api/sessions/:id/kick`) and, once, `/api/pair`.
 
 What opening a PR costs: one `GET /api/review/:id` without `ahead`, exactly the window's open, so the desk may start
 its AI review (`review.auto_ai`) and your agent's read of the conversations waiting on you. Every redraw after it (the
 desk's events, after a write) asks with `?ahead=1`, a second after the last event, so an event never restarts a failed
 job (`Store.readReview()`). A PR's page no longer asks `/api/item`: that is for issues. Rows and lists never ask for a
-review, and nothing is prefetched. The answer is the whole review (`ReviewView` in `Models.swift`: the order to read
+review, and nothing is prefetched. Nothing but a press on Ask Claude for one or Try again posts `/api/review/:id/ai`. The answer is the whole review (`ReviewView` in `Models.swift`: the order to read
 its hunks in, the AI review's parts, checks, reviewers, conversations); each file's own `patch` is never kept, since
 the same lines are in the order's hunks.
 
@@ -223,6 +257,9 @@ Merging, people's pictures, notifications, themes other than the default light a
 | An item's page                              | `Inbox/Views/ItemPage.swift`                                                           |
 | A PR's State (checks, reviewers, merge)     | `Inbox/Views/ReviewState.swift`; `CheckGroup.of()` in `Format.swift` (view.ts's `checkGroups()`) |
 | What reviewers said, a comment's drawing, Reply | `Inbox/Views/Said.swift` (`WhatWasSaid`; `SaidComments` and `SaidActions`, shared with the diff's threads); words in `Format.swift` (`Words.place()`, `gist()`, `takeSplit()`, `saidText()`, `replyTo()`); `Store.reply()`, `left()` |
+| The AI review's block, a diagram as text    | `Inbox/Views/AiBlock.swift` (`AiSection`, `DiagramLines`); words in `Format.swift` (`Words.lead()`, `reviewing()`, `reviewFailed()`, `listsConcerns()`, `fit`); `diagramText()` in `Inbox/Guide.swift` |
+| Asking for an AI review                     | `Store.askReview()`, `asking`; `APIClient.askReview()` (the one request that waits minutes) |
+| The guided review, notes on lines           | `Inbox/Guide.swift` (`Diff.walk()`, `guided()`, `isTestPath()`, `placed()`, `on()`: the twins of `src/sections.ts`); `DiffModel(guided:bugs:)`; steps, `AiNote` and Look here in `Inbox/Views/DiffView.swift`; the two tabs and `reach()` in `ItemPage.swift` |
 | A PR's diff: lines, order, threads, the fold | `Inbox/PatchLines.swift` (`patchLines()`, `Diff.traditional()`, `threadsOn()`, `spot()`, `DiffModel`: the twins of `src/review.ts`, `src/sections.ts` and `web/src/view.ts`); drawn by `Inbox/Views/DiffView.swift` |
 | A comment on a line                         | `Store.inline()`, `APIClient.inline()`; the box is `ItemPage`'s `.line`               |
 | When a PR's review is read, and the pin     | `Store.readReview()`, `closeReview()`, `pins` in `Inbox/Store.swift`                   |

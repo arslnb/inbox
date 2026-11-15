@@ -57,6 +57,8 @@ xcrun simctl status_bar "$UDID" override --time "9:41" --batteryState charged --
 shot() {
   name=$1
   shift
+  # Where a review has steps the diff opens Guided, whatever was last chosen on this simulator.
+  case "$*" in *review.view*) ;; *) set -- "$@" -review.view guided ;; esac
   for look in light dark; do
     xcrun simctl ui "$UDID" appearance "$look"
     xcrun simctl terminate "$UDID" "$BUNDLE" >/dev/null 2>&1 || true
@@ -90,9 +92,24 @@ wanted item-pr && shot item-pr -deskURL "$DESK" -open "acme/api#4127"
 wanted item-pr-checks && shot item-pr-checks -deskURL "$DESK" -open "oss/tinyhttp#205" -part checks
 wanted item-pr-own && shot item-pr-own -deskURL "$DESK" -open "acme/worker#875" -part reviewers
 # A PR's diff: scrolled to its first file, a thread under its line, and the box for a comment on a line.
-wanted item-pr-diff && shot item-pr-diff -deskURL "$DESK" -open "acme/api#4127" -scroll diff
-wanted item-pr-diff-thread && shot item-pr-diff-thread -deskURL "$DESK" -open "acme/api#4127" -scroll thread
-wanted item-pr-line-comment && shot item-pr-line-comment -deskURL "$DESK" -open "acme/api#4127" -scroll diff -comment "src/planner/stream.ts:12"
+wanted item-pr-diff && shot item-pr-diff -deskURL "$DESK" -open "acme/api#4127" -scroll diff -review.view traditional
+wanted item-pr-diff-thread && shot item-pr-diff-thread -deskURL "$DESK" -open "acme/api#4127" -scroll thread -review.view traditional
+wanted item-pr-line-comment && shot item-pr-line-comment -deskURL "$DESK" -open "acme/api#4127" -scroll diff -comment "src/planner/stream.ts:12" -review.view traditional
+# The AI review: its fold opened (a goal, interfaces, could be better), a step of the guide with its diagram as text,
+# its notes on a line, and where a review stands: on an earlier commit, failed, being written, none.
+wanted item-pr-ai-open && shot item-pr-ai-open -deskURL "$DESK" -open "acme/worker#879" -ai open
+wanted item-pr-guided && shot item-pr-guided -deskURL "$DESK" -open "acme/worker#879" -scroll guide
+wanted item-pr-guided-note && shot item-pr-guided-note -deskURL "$DESK" -open "acme/worker#879" -scroll note
+wanted item-pr-guided-end && shot item-pr-guided-end -deskURL "$DESK" -open "acme/api#4127" -scroll step-3
+wanted item-pr-ai-stale && shot item-pr-ai-stale -deskURL "$DESK" -open "acme/api#4099"
+wanted item-pr-ai-failed && shot item-pr-ai-failed -deskURL "$DESK" -open "acme/worker#890"
+wanted item-pr-ai-running && shot item-pr-ai-running -deskURL "$DESK" -open "acme/web#2301"
+# None: with the desk's own reviews off, so opening it starts none (the mock's setting, put back after).
+if wanted item-pr-ai-none; then
+  curl -fs -X PUT -H "Content-Type: application/json" -d '{"set":{"review.auto_ai":false}}' "$DESK/api/settings" >/dev/null
+  shot item-pr-ai-none -deskURL "$DESK" -open "acme/ml-pipeline#307"
+  curl -fs -X PUT -H "Content-Type: application/json" -d '{"set":{"review.auto_ai":true}}' "$DESK/api/settings" >/dev/null
+fi
 wanted item-issue && shot item-issue -deskURL "$DESK" -open "acme/worker#860"
 # Yours: one that owes a reply (what was said, and Reply), a draft, one through review, one in Merging.
 wanted item-reply && shot item-reply -deskURL "$DESK" -open "me/notes-app#12"
@@ -115,6 +132,11 @@ wanted session-kick && shot session-kick -deskURL "$DESK" -open "session:a83e61d
 if wanted item-large; then
   xcrun simctl ui "$UDID" content_size accessibility-large
   shot item-large -deskURL "$DESK" -open "acme/api#4127"
+  xcrun simctl ui "$UDID" content_size large
+fi
+if wanted item-pr-guided-large; then
+  xcrun simctl ui "$UDID" content_size accessibility-large
+  shot item-pr-guided-large -deskURL "$DESK" -open "acme/worker#879" -scroll guide
   xcrun simctl ui "$UDID" content_size large
 fi
 if wanted item-largest; then
