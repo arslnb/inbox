@@ -1975,7 +1975,7 @@ const SHOTS: Shot[] = [
       const bad = (m: string) => failures.push(`review-ai-parts: ${m}`);
       if (!(await ai.locator(".rv-gist").innerText()).startsWith("Splits the scheduler into Lease and Dispatch"))
         bad("the goal doesn't lead");
-      if ((await page.locator("[data-status=risk] .rv-status-word").innerText()) !== "medium") bad("Status's risk isn't medium");
+      if ((await page.locator("[data-status=risk] .rv-status-said").innerText()) !== "Medium risk") bad("Status's risk isn't Medium risk");
       if (!(await ai.innerText()).includes("Not quite what the description says:")) bad("no gap line");
       await page.locator(".rv-show").click();
       await page.waitForTimeout(200);
@@ -2432,7 +2432,7 @@ const SHOTS: Shot[] = [
   },
   // In a stack: its place after the ref, and the chain in the sidebar, this PR marked.
   { name: "review-stack", go: review("acme/api#4154") },
-  // A PR's checks, Status's second row: "failing" with a red mark while one that counts fails; a click opens every check by
+  // A PR's checks, Status's second row: "Checks failing", its passing count red, while one that counts fails; a click opens every check by
   // name with its state in words and a link to its page, what's wrong first, shards under one row.
   {
     name: "review-checks",
@@ -2445,16 +2445,16 @@ const SHOTS: Shot[] = [
         failures.push("review-checks: Status has no checks");
         return;
       }
-      const said = await page.evaluate<{ word: string; red: boolean }>(`(() => {
+      const said = await page.evaluate<{ said: string; red: boolean }>(`(() => {
         const probe = document.createElement("span");
-        probe.style.backgroundColor = "var(--red)";
+        probe.style.color = "var(--red)";
         document.body.append(probe);
-        const red = getComputedStyle(probe).backgroundColor;
+        const red = getComputedStyle(probe).color;
         probe.remove();
-        const mark = document.querySelector("[data-status=checks] .rv-status-mark");
-        return { word: document.querySelector("[data-status=checks] .rv-status-word").textContent, red: !!mark && getComputedStyle(mark).backgroundColor === red };
+        const n = document.querySelector("[data-status=checks] .rv-status-count > span");
+        return { said: document.querySelector("[data-status=checks] .rv-status-said").textContent, red: !!n && getComputedStyle(n).color === red };
       })()`);
-      if (said.word !== "failing" || !said.red) failures.push(`review-checks: Status's checks read ${JSON.stringify(said)}`);
+      if (said.said !== "Checks failing" || !said.red) failures.push(`review-checks: Status's checks read ${JSON.stringify(said)}`);
       await row.click();
       const part = page.locator("[data-status=checks] .rv-status-more");
       const read = () =>
@@ -2815,7 +2815,7 @@ const SHOTS: Shot[] = [
       );
       if (rows.join(" | ") !== "sam: changes requested") failures.push(`review-panel: the reviewers read ${rows.join(" | ")}`);
       const checks = await page.locator("[data-status=checks] .rv-status-row").innerText();
-      if (checks.replaceAll(/\s+/g, " ").trim() !== "Checks passing ✓")
+      if (!/^Checks passing \d+\/11$/.test(checks.replaceAll(/\s+/g, " ").trim()))
         failures.push(`review-panel: Status's checks read ${JSON.stringify(checks)}`);
       await faces(page, "review-panel", "[data-part=reviewers] .rv-part-name");
     },

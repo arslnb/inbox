@@ -1434,41 +1434,37 @@ type Tone = "good" | "warn" | "bad";
 const MARK_OF: Record<Tone, string> = { good: "✓", warn: "!", bad: "×" };
 const RISK_TONE: Record<AiShown["risk"], Tone> = { low: "good", medium: "warn", high: "bad" };
 
-// How the checks stand, in a word and a colour: a required one failing is red; an optional one failing, one cancelled or
+// How the checks stand, in words and a colour: a required one failing is red; an optional one failing, one cancelled or
 // one still running is yellow.
-function checksState(checks: Checks): { word: string; tone: Tone } {
-  if (checks.failing) return { word: "failing", tone: "bad" };
-  if (checks.list.some((c) => c.state === "failing" || c.state === "cancelled")) return { word: "some failing", tone: "warn" };
-  if (checks.list.some((c) => c.state === "running")) return { word: "running", tone: "warn" };
-  return { word: "passing", tone: "good" };
+function checksState(checks: Checks): { said: string; tone: Tone } {
+  if (checks.failing) return { said: "Checks failing", tone: "bad" };
+  if (checks.list.some((c) => c.state === "failing" || c.state === "cancelled")) return { said: "Some checks failing", tone: "warn" };
+  if (checks.list.some((c) => c.state === "running")) return { said: "Checks running", tone: "warn" };
+  return { said: "Checks passing", tone: "good" };
 }
 
 // How big it is, in a word: by its lines changed and its files.
 function changesWord(add: number, del: number, files: number | null): string {
   const lines = add + del;
   const n = files ?? 0; // unknown while it loads: its lines alone
-  if (lines <= 100 && n <= 5) return "small";
-  if (lines <= 600 && n <= 20) return "moderate";
-  return "lots of changes";
+  if (lines <= 100 && n <= 5) return "Small changes";
+  if (lines <= 600 && n <= 20) return "Moderate changes";
+  return "Lots of changes";
 }
 
-// One row of Status: its name, its word on the right and a mark in its colour (or what stands in for one); a click shows
-// or hides what's behind it.
+// One row of Status: what it says on the left, on the right a mark in its colour or what stands in for one (the checks'
+// count, the diff); a click shows or hides what's behind it.
 function StatusRow({
   id,
-  name,
-  word,
-  tone,
+  said,
   end,
   children,
   open,
   setOpen,
 }: {
   id: string;
-  name: string;
-  word: string;
-  tone?: Tone | undefined;
-  end?: ReactNode; // in the mark's place: Changes' + and −
+  said: string; // "High risk", "Some checks failing", "Lots of changes"
+  end: ReactNode;
   children: ReactNode;
   open: boolean;
   setOpen: (open: boolean) => void;
@@ -1483,19 +1479,19 @@ function StatusRow({
           setOpen(!open);
         }}
       >
-        <span className="rv-status-name">{name}</span>
-        <span className="rv-status-word">{word}</span>
-        {tone && (
-          <span className={cls("rv-status-mark", `m-${tone}`)} aria-hidden="true">
-            {MARK_OF[tone]}
-          </span>
-        )}
+        <span className="rv-status-said">{said}</span>
         {end}
       </button>
       {open && <div className="rv-status-more">{children}</div>}
     </li>
   );
 }
+
+const mark = (tone: Tone) => (
+  <span className={cls("rv-status-mark", `m-${tone}`)} aria-hidden="true">
+    {MARK_OF[tone]}
+  </span>
+);
 
 // Status, at the top of the sidebar: the AI review's risk, the checks and how big the change is, a row each; a click on one
 // shows its reasons, its list of checks or its counts.
@@ -1519,6 +1515,7 @@ function StatusPart({
   if (!ai && !checks && !checksError && !size) return null;
   const reasons = ai?.risk_reasons ?? [];
   const cs = checks && checksState(checks);
+  const passing = checks?.list.filter((c) => c.state === "passing").length ?? 0;
   return (
     <section className={cls("rv-part", tone)} data-part="status" aria-label="Status">
       <h2 className="rv-side-head">
@@ -1526,7 +1523,13 @@ function StatusPart({
       </h2>
       <ol className="rv-status-list">
         {ai && (
-          <StatusRow id="risk" name="Risk" word={ai.risk} tone={RISK_TONE[ai.risk]} open={!!open.risk} setOpen={toggle("risk")}>
+          <StatusRow
+            id="risk"
+            said={`${ai.risk[0]!.toUpperCase()}${ai.risk.slice(1)} risk`}
+            end={mark(RISK_TONE[ai.risk])}
+            open={!!open.risk}
+            setOpen={toggle("risk")}
+          >
             {reasons.length ? (
               <ul className="rv-status-why">
                 {reasons.map((x) => (
@@ -1539,21 +1542,30 @@ function StatusPart({
           </StatusRow>
         )}
         {checks && cs && (
-          <StatusRow id="checks" name="Checks" word={cs.word} tone={cs.tone} open={!!open.checks} setOpen={toggle("checks")}>
+          <StatusRow
+            id="checks"
+            said={cs.said}
+            end={
+              <span className="rv-status-count" title={`${passing} of ${checks.list.length} passing`}>
+                <span className={`c-${cs.tone}`}>{passing}</span>/{checks.list.length}
+              </span>
+            }
+            open={!!open.checks}
+            setOpen={toggle("checks")}
+          >
             <p className="rv-status-why">{checks.line}</p>
             <CheckRows checks={checks} />
           </StatusRow>
         )}
         {!checks && checksError && (
-          <StatusRow id="checks" name="Checks" word="couldn't load" open={!!open.checks} setOpen={toggle("checks")}>
+          <StatusRow id="checks" said="Checks couldn't load" end={null} open={!!open.checks} setOpen={toggle("checks")}>
             <p className="rv-status-why t-bad">{checksError}</p>
           </StatusRow>
         )}
         {size && (
           <StatusRow
             id="changes"
-            name="Changes"
-            word={changesWord(size.add, size.del, size.files)}
+            said={changesWord(size.add, size.del, size.files)}
             end={
               <span className="rv-size" title={`${size.add} lines added, ${size.del} removed`}>
                 <span className="add">+{size.add}</span> <span className="del">−{size.del}</span>

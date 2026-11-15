@@ -145,6 +145,10 @@ theme's paper mixed into black, with light text from the `--chrome-*` tokens, wh
 | The chat (`Chat.tsx`)                             | 320–420px (25vw): a third column above 1100px, over the page's right edge at 1100px and below                                                                                       | inside itself                      |
 | A review's sidebar (`.rv-side`)                   | 280px beside the diff while the page's column is 1000px or wider (container query `pane`), else over the diff's edge; its toggle is pinned                                          | inside itself                      |
 
+### Scrollbars
+
+The window's scrollbar is thin (10px), a faint rounded thumb on no track, and starts under the page's head (52px). The review's sidebar scrolls with the same. `html::-webkit-scrollbar` in `styles.css`.
+
 ### The sidebar
 
 - The brand row: 52px, the desktop app's drag handle, 86px of left padding for the macOS traffic lights.

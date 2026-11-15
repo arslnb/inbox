@@ -674,6 +674,43 @@ p {
   min-width: 0;
 }
 
+/* Scrollbars ---------------------------------------------------------------- */
+
+/* The window's: thin and quiet, a faint thumb on no track, starting under the page's head (52px) rather than beside it.
+   The review's sidebar scrolls with the same. */
+html::-webkit-scrollbar,
+.rv-side::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+  background: transparent;
+}
+
+html::-webkit-scrollbar-track,
+.rv-side::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+html::-webkit-scrollbar-track {
+  margin-top: 52px;
+}
+
+html::-webkit-scrollbar-thumb,
+.rv-side::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
+  border-radius: 5px;
+  background: color-mix(in oklab, var(--ink) 20%, transparent) padding-box;
+}
+
+html::-webkit-scrollbar-thumb:hover,
+.rv-side::-webkit-scrollbar-thumb:hover {
+  background-color: color-mix(in oklab, var(--ink) 38%, transparent);
+}
+
+html::-webkit-scrollbar-corner,
+.rv-side::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
 /* Sidebar ------------------------------------------------------------------ */
 
 /* The chrome's own tokens, so everything drawn in it (words, the pill, a head's filter and buttons) reads on the dark. */
@@ -5032,7 +5069,7 @@ fieldset.au-field > legend {
 
   /* Into the page's room under the review's last row, so it isn't pushed up under the head at the review's very end. */
   margin-bottom: -64px;
-  overflow: auto;
+  overflow: hidden auto;
   font-size: 12.5px;
 }
 
@@ -5085,7 +5122,7 @@ fieldset.au-field > legend {
   justify-content: space-between;
   margin: 0 0 6px;
   padding: 0 8px;
-  color: var(--pencil);
+  color: var(--ink-2);
   font-size: 12.5px;
   font-weight: 550;
 }
@@ -5759,13 +5796,34 @@ a.rv-part-row:hover {
   background: var(--side-hover);
 }
 
-.rv-status-name {
+.rv-status-said {
   flex: 1;
   min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
-.rv-status-word {
-  color: var(--ink-2);
+/* The checks passing of all of them, the first number in the checks' colour. */
+.rv-status-count {
+  color: var(--pencil);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.rv-status-count .c-good {
+  color: var(--green);
+}
+
+.rv-status-count .c-warn {
+  color: var(--amber);
+}
+
+.rv-status-count .c-bad {
+  color: var(--red);
+}
+
+.rv-status-row .rv-size {
   white-space: nowrap;
 }
 
@@ -6115,7 +6173,7 @@ ul.rv-status-why {
   position: absolute;
   top: 14px;
   bottom: 14px;
-  left: 14.5px;
+  left: 12px;
   width: 1.5px;
   border-radius: 1px;
   background: var(--rule-strong);
@@ -6146,25 +6204,22 @@ ul.rv-status-why {
   color: var(--ink);
 }
 
+/* Small dots in the accent, glowing; the step you're on 15% more opaque than the rest. */
 .rv-step-dot {
   flex: none;
-  width: 10px;
-  height: 10px;
-  border: 1.5px solid var(--rule-strong);
+  width: 5px;
+  height: 5px;
   border-radius: 50%;
-  background: var(--sheet);
-}
-
-.rv-step-row:hover .rv-step-dot {
-  border-color: var(--pencil);
+  background: var(--accent);
+  box-shadow: 0 0 6px 1px color-mix(in oklab, var(--accent) 70%, transparent);
+  opacity: 0.85;
 }
 
 .rv-step-row.on .rv-step-dot {
-  border-color: var(--accent);
-  background: var(--accent);
   box-shadow:
-    0 0 0 3px color-mix(in oklab, var(--accent) 28%, transparent),
-    0 0 10px 1px color-mix(in oklab, var(--accent) 55%, transparent);
+    0 0 0 2px color-mix(in oklab, var(--accent) 30%, transparent),
+    0 0 9px 2px color-mix(in oklab, var(--accent) 80%, transparent);
+  opacity: 1;
 }
 
 .rv-step-name {
