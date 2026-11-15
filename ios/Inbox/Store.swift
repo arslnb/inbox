@@ -89,7 +89,7 @@ final class Store {
         Keychain.delete(for: parsed.address.text)
         lastAddress = parsed.address.text
         connectNote =
-          "This phone was paired before it could act for you. Pair it again: desk pair on the desk's computer prints a code. Its old pairing can be revoked there, in Settings → This device."
+          "This phone was paired before it could act for you. Pair it again: Pair a device, in Settings → Network on the desk's computer, shows a code. Its old pairing can be revoked there, in Settings → Network."
       } else if parsed.address.isLocal || token != nil {
         // A tailnet address without its token can't ask anything: back to pairing.
         address = parsed.address
@@ -122,7 +122,7 @@ final class Store {
       } else {
         // A pasted pairing link's code wins: whatever was typed before it is a code already tried, and any try burns the new one.
         guard let code = parsed.code ?? PairingCode.normalize(typedCode) else {
-          return "A pairing code is 8 letters and digits, like ABCD-2345: desk pair prints one on the desk's computer."
+          return "A pairing code is 8 letters and digits, like ABCD-2345: Pair a device shows one, in Settings → Network on the desk's computer."
         }
         let answer = try await fresh.pair(code: code, name: UIDevice.current.name)
         guard let token = answer.token, !token.isEmpty else { return "The desk paired this device but sent no token." }

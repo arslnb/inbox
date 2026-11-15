@@ -203,7 +203,7 @@ Settings → Network → Tailscale lists paired devices; **Revoke** shuts one ou
 
 ## On your phone
 
-A small native iPhone app lives in [`ios/`](ios/README.md) (v0, Simulator only so far). It pairs as a phone with `desk pair`, shows your Inbox, Blocked, Merging and the Archive, triages (Done, Snooze, Mute, Undo) and acts as the window does: Approve, Comment, Reply, Ready for review, Ask reviewers, Merge, the More menu's writes, Hand off for merge, answering a question and kicking a session. The desk takes a paired phone as its own window. Checked against the mock desk; pairing as a phone through a real tailnet hasn't been run yet. [ios/README.md](ios/README.md) says how to build and run it.
+A small native iPhone app lives in [`ios/`](ios/README.md) (v0, Simulator only so far). It pairs as a phone (Settings → Network → Pair a device, or `desk pair`), shows your Inbox, Blocked, Merging and the Archive, triages (Done, Snooze, Mute, Undo) and acts as the window does: Approve, Comment, Reply, Ready for review, Ask reviewers, Merge, the More menu's writes, Hand off for merge, answering a question and kicking a session. The desk takes a paired phone as its own window. Checked against the mock desk; pairing as a phone through a real tailnet hasn't been run yet. [ios/README.md](ios/README.md) says how to build and run it.
 
 ## Coordinator
 

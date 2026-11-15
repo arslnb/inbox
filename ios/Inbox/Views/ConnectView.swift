@@ -49,7 +49,7 @@ struct ConnectView: View {
             .focused($focus, equals: .code)
             .submitLabel(.go)
             .onSubmit(connect)
-          Prose(text: "Run `desk pair` on the desk's computer for the address and a code. A code works once, for 10 minutes.")
+          Prose(text: "On the desk's computer, Settings → Network → Pair a device shows the address and a code (so does `desk pair`). A code works once, for 10 minutes.")
             .foregroundStyle(Theme.pencil).lineSpacing(2).padding(.top, 8)
         } else if parsed?.address.isLocal == true {
           Text("A desk on this computer needs no code.").sans(13).foregroundStyle(Theme.pencil).padding(.top, 8)

@@ -301,7 +301,7 @@ struct SettingsSheet: View {
           Text(
             store.address?.isLocal == true
               ? "Disconnect forgets this desk's address on this phone."
-              : "Disconnect forgets this phone's token. The device stays listed on the desk until you revoke it on the desk's computer: Settings → This device."
+              : "Disconnect forgets this phone's token. The device stays listed on the desk until you revoke it on the desk's computer: Settings → Network."
           )
           .sans(13).foregroundStyle(Theme.pencil).lineSpacing(3).padding(.top, 10)
         }

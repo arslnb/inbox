@@ -96,13 +96,13 @@ Not tried on a phone yet: v0 has only run in the Simulator, and the project has 
    The desk then answers at `https://<machine>.<tailnet>.ts.net` on your tailnet only. It needs the `tailscale` command
    on the desk's PATH.
 2. On the phone: Tailscale on, signed in with the **same login** that owns the desk's computer.
-3. On the desk's computer: `desk pair`. It prints the address and a code (one try, 10 minutes).
+3. On the desk's computer: Settings → Network → **Pair a device** (or `desk pair`). It shows the address and a code (one try, 10 minutes). Its QR is the same link for a browser: the app has no scanner yet, so type or paste it.
 4. In the app: the address and the code, or paste the whole link it prints (`https://<name>/pair#<code>`) into the
    address field.
 
 The app trades the code once for a token and keeps it in the Keychain (this device only); the address is in
 UserDefaults. Settings → Disconnect forgets the token on the phone. The device stays listed on the desk until you revoke
-it there (Settings → This device): if you do, the phone's next request is refused and it goes back to the connect
+it there (Settings → Network): if you do, the phone's next request is refused and it goes back to the connect
 screen.
 
 Checked in the Simulator on the desk's own Mac, through a desk served at its tailnet address, when the app still paired
@@ -113,7 +113,7 @@ the app's writes are checked against the mock. The first request after serving i
 Tailscale gets the address its certificate: Connect again with the same code, which an unanswered try doesn't burn.
 
 A phone paired by a build that paired as a machine holds a token the desk refuses every write: at its next launch the
-app forgets it and asks to pair again (revoke the old pairing in Settings → This device).
+app forgets it and asks to pair again (revoke the old pairing in Settings → Network).
 
 ## What the phone does, and what it leaves
 

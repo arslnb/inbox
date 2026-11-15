@@ -14,7 +14,7 @@ struct DeskAddress: Equatable, Sendable {
 
     var words: String {
       switch self {
-      case .empty: "Type the desk's address: desk pair prints it on the desk's computer."
+      case .empty: "Type the desk's address: Pair a device shows it, in Settings → Network on the desk's computer."
       case .notAnAddress: "That isn't an address. It looks like https://machine.tailnet.ts.net."
       case .plainHTTP: "Use the desk's https address: plain http only works for localhost."
       }
