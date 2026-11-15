@@ -1839,9 +1839,11 @@ test("a desk started on an empty home runs what GitHub comes with that's on: no 
     t.desk.automations.all().map((a) => `${a.id} ${a.on ? "on" : "off"}`),
     GITHUB_AUTOMATIONS.map((a) => `github.${a.id} ${a.on ? "on" : "off"}`),
   );
-  // "No model" is about the automations. The judge (on by default) is its own feature, and whether it gets to the desk
-  // before the check below is down to the machine's timing: off here, so only an automation could ask.
-  runSync(t.desk.putSettings({ set: { "policy.judge": false } }));
+  // "No model" is about the automations. What else uses the model is on by default (AI reviews, the judge, scoring, your
+  // agent), and whether it reaches the desk before the check below is down to the machine's timing: off here, so only an
+  // automation could ask.
+  const model = { "review.auto_ai": false, "policy.judge": false, "agent.score": false, "agent.coordinator": false };
+  runSync(t.desk.putSettings({ set: model }));
   t.desk.start();
   await idle(t.desk);
   t.desk.automations.tick(); // the minute's tick after the first sync
