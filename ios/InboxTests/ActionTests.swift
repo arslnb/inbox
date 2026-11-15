@@ -84,6 +84,21 @@ final class WriteTests: XCTestCase {
     XCTAssertEqual(e, .refused(status: 404, message: #"no conversation "nope" on me/notes-app#12"#))
   }
 
+  // A comment on one line: its path, its number on its side, your words and the commit the diff was read at. No range.
+  func testACommentOnALine() async throws {
+    let path = "/api/review/acme/api#4127/inline"
+    StubProtocol.reset([path: Answer(body: #"{"ok":true,"url":"https://github.com/acme/api/pull/4127#discussion-mock"}"#)])
+    let at = LineSpot(path: "src/planner/plan.ts", line: 17, side: "old", text: "export async function runPlan(q: Query): Promise<PlanResult> {")
+    let wrote = try await client().inline(pr, at: at, body: "Why the default?", head: head)
+    XCTAssertEqual(wrote.url, "https://github.com/acme/api/pull/4127#discussion-mock")
+    try sent(
+      "/api/review/acme%2Fapi%234127/inline", ["path": "src/planner/plan.ts", "line": 17, "side": "old", "body": "Why the default?", "head_oid": head])
+    let e = await refusal(path, 409, "can't comment on acme/api#4127: it's merged") {
+      try await self.client().inline(self.pr, at: at, body: "x", head: self.head)
+    }
+    XCTAssertEqual(e, .refused(status: 409, message: "can't comment on acme/api#4127: it's merged"))
+  }
+
   func testReadyForReview() async throws {
     let path = "/api/review/acme/web#2303/ready"
     StubProtocol.reset([path: Answer(body: #"{"ok":true,"done":false}"#)])
@@ -415,6 +430,49 @@ final class StoreWriteTests: XCTestCase {
     took = await store.reply(try card("me/notes-app#12"), to: convo, body: " ")
     XCTAssertFalse(took, "so the page keeps the draft")
     XCTAssertEqual(store.notices.map(\.title), ["the reply is empty"])
+  }
+
+  // A comment on a line is part of reviewing, not its end: sent once, at the commit the diff is at, and the PR and its page stay.
+  func testACommentOnALineStaysOnThePage() async throws {
+    let id = "acme/api#4127"
+    let c = try card(id)
+    let review: ReviewView = try Fixture.decode("review-steps")
+    let diffHead = try XCTUnwrap(review.diffHead)
+    let at = LineSpot(path: "src/planner/plan.ts", line: 23, side: "new")
+    let path = "/api/review/\(id)/inline"
+    store.path = [.item(id)]
+
+    try desk([path: Answer(body: #"{"ok":true,"url":"u"}"#)])
+    var took = await store.inline(c, at: at, body: "Say how many it dropped.", head: diffHead)
+    XCTAssertTrue(took)
+    XCTAssertEqual(store.toast?.text, "Commented on plan.ts:23 on GitHub")
+    XCTAssertEqual(paths().filter { $0.hasPrefix("POST") }, ["POST \(path)"], "once")
+    let body = try JSONSerialization.jsonObject(with: try XCTUnwrap(StubProtocol.requests()[0].sentBody)) as? NSDictionary
+    XCTAssertEqual(
+      body, ["path": "src/planner/plan.ts", "line": 23, "side": "new", "body": "Say how many it dropped.", "head_oid": diffHead] as NSDictionary,
+      "exactly these, pinned to the diff's commit")
+    XCTAssertEqual(store.path, [.item(id)], "the page isn't left")
+    XCTAssertNotNil(store.card(id), "and the PR stays on the desk")
+    XCTAssertTrue(store.leaving.isEmpty)
+
+    // Refused: the desk's words for the sheet, which keeps yours.
+    try desk([path: no(409, "can't comment on acme/api#4127: it's merged")])
+    took = await store.inline(c, at: at, body: "Say how many it dropped.", head: diffHead)
+    XCTAssertFalse(took, "so the sheet keeps the draft")
+    XCTAssertEqual(store.whyNot, "can't comment on acme/api#4127: it's merged")
+    XCTAssertEqual(store.path, [.item(id)])
+
+    // A second press while it's on its way sends nothing; another line's goes, and so does Approve.
+    try desk([path: Answer(hangs: true), "/api/review/\(id)/approve": Answer(body: #"{"ok":true,"url":"u"}"#)])
+    let first = Task { await self.store.inline(c, at: at, body: "One", head: diffHead) }
+    for _ in 0..<150 where StubProtocol.requests().isEmpty { try await Task.sleep(for: .milliseconds(20)) }
+    took = await store.inline(c, at: at, body: "Two", head: diffHead)
+    XCTAssertFalse(took)
+    XCTAssertEqual(store.whyNot, "Still sending your last comment there.")
+    XCTAssertEqual(paths(), ["POST \(path)"])
+    XCTAssertFalse(store.busy(id), "the PR itself isn't held: Approve stays")
+    XCTAssertFalse(store.leaving.contains(id))
+    first.cancel()
   }
 
   func testReadyForReviewAndAskingReviewers() async throws {

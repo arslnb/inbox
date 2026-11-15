@@ -176,6 +176,21 @@ struct APIClient: Sendable {
     try await post("/api/review/\(APIClient.segment(id))/reply", ["id": conversation, "body": body])
   }
 
+  private struct Inline: Encodable {
+    var path: String
+    var line: Int
+    var side: String
+    var body: String
+    var head_oid: String
+  }
+
+  // A comment on one line of the PR's diff: `side` old is a removed line, numbered in the old file. Pinned to the commit
+  // the diff was read at (ReviewView.diffHead), so its line numbers are the ones read. The PR stays where it is.
+  func inline(_ id: String, at spot: LineSpot, body: String, head: String) async throws -> Wrote {
+    try await post(
+      "/api/review/\(APIClient.segment(id))/inline", json: Inline(path: spot.path, line: spot.line, side: spot.side, body: body, head_oid: head))
+  }
+
   private struct Asked: Encodable {
     var users: [String]
     var teams: [String]

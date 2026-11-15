@@ -353,10 +353,13 @@ final class Store {
   private(set) var whyNot: String?
 
   // `leaves`: the row goes at once, as in the window, and is back if the desk refuses.
-  private func write(_ id: String, leaves: Bool = false, _ run: (APIClient) async throws -> Toast) async -> Bool {
+  private func write(
+    _ id: String, leaves: Bool = false, still: String = "Something else is still on its way for it: try again in a moment.",
+    _ run: (APIClient) async throws -> Toast
+  ) async -> Bool {
     guard let client else { return false }
     if sending.contains(id) {
-      whyNot = "Something else is still on its way for it: try again in a moment."
+      whyNot = still
       return false
     }
     whyNot = nil
@@ -416,6 +419,17 @@ final class Store {
     await write(c.id) { client in
       _ = try await client.reply(c.id, to: conversation.id, body: body)
       return Toast(text: "Sent your reply to \(conversation.comments.last?.author ?? "them")")
+    }
+  }
+
+  // A comment on a line of the diff, pinned to the commit the diff was read at (ReviewView.diffHead, not the item's
+  // head: they differ until the next sync). Part of reviewing, not its end: the PR stays, and so does its page. One at a
+  // time per line, as the desk's own lock; another line's goes meanwhile.
+  @discardableResult
+  func inline(_ c: Card, at spot: LineSpot, body: String, head: String) async -> Bool {
+    await write("\(c.id) \(spot.path):\(spot.line)", still: "Still sending your last comment there.") { client in
+      _ = try await client.inline(c.id, at: spot, body: body, head: head)
+      return Toast(text: "Commented on \(spot.name) on GitHub")
     }
   }
 
@@ -634,6 +648,8 @@ final class Store {
     //   -page inbox|blocked|merging|archive   -open <item id>|inquiry:<id>|session:<id>   -settings   -empty
     //   -box approve|comment|changes|reviewers|reply|answer   with -open: that page's box, opened once it has loaded
     //   -part checks|reviewers   with -open: that line of a PR's State, opened
+    //   -scroll diff|thread   with -open: a PR's page scrolled to its diff, or to the first thread on a line of it
+    //   -comment <path>:<line>   with -open: the box for a comment on that line of the new file
     func applyLaunchArguments(_ args: UserDefaults = .standard, flags: [String] = ProcessInfo.processInfo.arguments) {
       guard flags.contains(where: { ["-deskURL", "-connect"].contains($0) }) else { return }
       stopLive()
@@ -658,11 +674,15 @@ final class Store {
       scrollTo = args.string(forKey: "scrollTo")
       debugBox = args.string(forKey: "box")
       debugPart = args.string(forKey: "part")
+      debugScroll = args.string(forKey: "scroll")
+      debugComment = args.string(forKey: "comment")
     }
 
     var scrollTo: String?
     var debugBox: String?
     var debugPart: String?
+    var debugScroll: String?
+    var debugComment: String?
     var debugScan: String?  // what the camera would have read: the connect screen takes it once
   #endif
 }
