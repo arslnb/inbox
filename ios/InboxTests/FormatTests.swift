@@ -153,6 +153,16 @@ final class FormatTests: XCTestCase {
   }
 
   // The one list the client sorts: what you finished and what resolved, newest first.
+  // format.ts's issueUrl(): what a question is about, when the desk doesn't hold its card. Nothing for what isn't an id.
+  func testAnItemOnGitHubByItsId() {
+    XCTAssertEqual(Words.issueURL("acme/api#4127")?.absoluteString, "https://github.com/acme/api/issues/4127")
+    XCTAssertEqual(Words.issueURL("me/notes-app.v2#12")?.absoluteString, "https://github.com/me/notes-app.v2/issues/12")
+    XCTAssertNil(Words.issueURL("acme/api"))
+    XCTAssertNil(Words.issueURL("acme/api#x"))
+    XCTAssertNil(Words.issueURL("evil.example/a/b#1"))
+    XCTAssertNil(Words.issueURL("a b/c#1"))
+  }
+
   // RowMenu.tsx's MOVES: one section up or down, for an active card on the Inbox.
   func testWhereARowCanMove() throws {
     let card = { (more: String) in

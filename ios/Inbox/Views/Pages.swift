@@ -37,14 +37,18 @@ struct InquiryPage: View {
     .openedPage()
     .safeAreaInset(edge: .bottom, spacing: 0) {
       if let q, q.answer == nil {
-        BottomBar(cta: "Answer", off: store.busy(q.id), press: { writing = true }, quiet: [Quiet(label: "Dismiss") { _ in answer(q, nil) }])
+        // Send, as the window's own-words button: it opens the box your words go in.
+        BottomBar(cta: "Send", off: store.busy(q.id), press: { writing = true }, quiet: [Quiet(label: "Dismiss") { _ in answer(q, nil) }])
       } else {
         BottomBar()
       }
     }
     .sheet(isPresented: $writing) {
       if let q {
-        WriteSheet(title: "Answer \(Words.fromName(q.from, start: false))", prompt: "Your answer", button: "Answer", draft: $draft) { words in
+        WriteSheet(
+          title: "Answer \(Words.fromName(q.from, start: false))", prompt: q.options.isEmpty ? "Your answer" : "Or write your own answer", button: "Send",
+          limit: Words.maxAsk, draft: $draft
+        ) { words in
           let took = await store.answer(q, text: words)
           if took { back() }
           return took
@@ -81,8 +85,7 @@ struct InquiryPage: View {
   private func head(_ q: Inquiry) -> some View {
     VStack(alignment: .leading, spacing: 6) {
       HStack(alignment: .firstTextBaseline, spacing: 8) {
-        // "Your agent" already says whose question it is.
-        if !Words.isCoordinator(q.from) { Text("Agent").sans(13, 600).foregroundStyle(Theme.accentInk) }
+        Text("Agent").sans(13, 600).foregroundStyle(Theme.accentInk)
         Dotted(parts: [.init(Words.fromName(q.from), Words.isCoordinator(q.from) ? Theme.accentInk : Theme.pencil), .init(Words.age(q.at, now: store.now))])
           .sans(13, tabular: true)
       }
@@ -91,12 +94,13 @@ struct InquiryPage: View {
     }
   }
 
-  // What it's about: the item's ref, title and standing; a tap opens the item here.
+  // What it's about: the item's ref, title and standing; a tap opens the item here, or on GitHub when the desk doesn't hold it.
   private func about(_ item: String, _ card: Card?) -> some View {
     let repo = item.split(separator: "/").last.map(String.init)?.split(separator: "#").first.map(String.init) ?? item
     let number = item.split(separator: "#").last.map(String.init) ?? ""
+    // An item the desk doesn't hold has no page here: its ref opens on GitHub, as the window's.
     return Button {
-      if card != nil { store.path.append(.item(item)) }
+      if card != nil { store.path.append(.item(item)) } else if let url = Words.issueURL(item) { openURL(url) }
     } label: {
       VStack(alignment: .leading, spacing: 3) {
         (Text(repo).foregroundStyle(Theme.pencil) + Text("#\(number)").foregroundStyle(Theme.ink2)).sans(13, tabular: true)
@@ -104,6 +108,7 @@ struct InquiryPage: View {
           Text(card.title).sans(14, 550).foregroundStyle(Theme.ink).lineLimit(2)
           Dotted(parts: [.init("by \(card.by ?? card.author ?? "")"), .init(card.stage ?? ""), .init(card.resolved ?? "")]).sans(13)
         }
+        if card == nil { Text("On GitHub").sans(13).underline(color: Theme.ruleStrong).foregroundStyle(Theme.ink2) }
       }
       .padding(.init(top: 10, leading: 14, bottom: 10, trailing: 14))
       .frame(maxWidth: .infinity, alignment: .leading)

@@ -144,6 +144,7 @@ struct WriteSheet<Above: View>: View {
   var prompt = ""
   let button: String
   var optional = false  // may be sent with nothing typed
+  var limit: Int?  // the most characters the desk takes: typing stops there, as the window's box
   @Binding var draft: String
   let send: (String) async -> Bool
   @ViewBuilder var above: () -> Above
@@ -160,6 +161,9 @@ struct WriteSheet<Above: View>: View {
         above()
         TextField(prompt, text: $draft, axis: .vertical)
           .sans(15).foregroundStyle(Theme.ink).lineLimit(3...10).focused($typing)
+          .onChange(of: draft) { _, typed in
+            if let limit, typed.count > limit { draft = String(typed.prefix(limit)) }
+          }
           .padding(.init(top: 10, leading: 12, bottom: 10, trailing: 12))
           .background(Theme.sheet, in: RoundedRectangle(cornerRadius: 9))
           .overlay(RoundedRectangle(cornerRadius: 9).strokeBorder(Theme.ruleStrong, lineWidth: 1))
@@ -195,8 +199,11 @@ struct WriteSheet<Above: View>: View {
 }
 
 extension WriteSheet where Above == EmptyView {
-  init(title: String, prompt: String = "", button: String, optional: Bool = false, draft: Binding<String>, send: @escaping (String) async -> Bool) {
-    self.init(title: title, prompt: prompt, button: button, optional: optional, draft: draft, send: send) { EmptyView() }
+  init(
+    title: String, prompt: String = "", button: String, optional: Bool = false, limit: Int? = nil, draft: Binding<String>,
+    send: @escaping (String) async -> Bool
+  ) {
+    self.init(title: title, prompt: prompt, button: button, optional: optional, limit: limit, draft: draft, send: send) { EmptyView() }
   }
 }
 

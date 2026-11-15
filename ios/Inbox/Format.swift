@@ -66,6 +66,15 @@ enum Words {
     isCoordinator(from) ? (start ? "Your agent" : "your agent") : (from ?? "")
   }
 
+  static let maxAsk = 2000  // your answer to an agent's question, a note to yourself (src/desk.ts's MAX_ASK)
+
+  // An item on GitHub by its id alone (format.ts's issueUrl): GitHub sends a PR's number on to its pull page.
+  static func issueURL(_ id: String) -> URL? {
+    let parts = id.split(separator: "#", maxSplits: 1).map(String.init)
+    guard parts.count == 2, Int(parts[1]) != nil, parts[0].range(of: #"^[\w.-]+/[\w.-]+$"#, options: .regularExpression) != nil else { return nil }
+    return URL(string: "https://github.com/\(parts[0])/issues/\(parts[1])")
+  }
+
   static func capitalized(_ s: String) -> String {
     s.prefix(1).uppercased() + s.dropFirst()
   }
