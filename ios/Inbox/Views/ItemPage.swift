@@ -813,7 +813,8 @@ struct DotFlow: Layout {
     for i in stride(from: 0, to: subviews.count, by: 2) {
       let size = subviews[i].sizeThatFits(ProposedViewSize(width: width, height: nil))
       let dot = i > 0 ? subviews[i - 1].sizeThatFits(.unspecified) : .zero
-      if i > 0, x + gap + dot.width + gap + size.width <= width {
+      // Half a point of slack: placed in exactly the width it asked for, a sum of rounded sizes mustn't wrap.
+      if i > 0, x + gap + dot.width + gap + size.width <= width + 0.5 {
         out[i - 1] = CGRect(origin: CGPoint(x: x + gap, y: y), size: dot)
         x += gap + dot.width + gap
       } else if i > 0 {
