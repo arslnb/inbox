@@ -523,6 +523,13 @@ enum Lists {
 
   static func cleared(_ v: QueueView) -> [Card] { v.cleared.filter { $0.status != "done" } }
 
+  // Where a row on the Inbox can move: one section up or down (RowMenu.tsx's MOVES), each an action /api/act takes.
+  static let sectionName = ["urgent": "Urgent", "standard": "Standard", "fyi": "FYI"]
+  static func moves(_ c: Card) -> [String] {
+    guard c.status == "active", c.inflight != true else { return [] }
+    return ["urgent": ["standard"], "standard": ["urgent", "fyi"], "fyi": ["standard"]][c.section ?? ""] ?? []
+  }
+
   // FYI shows its first rows (Queue.tsx's FYI_SHOWN): the rest wait behind Show more until you ask, filter, or leave
   // the page. One row is never hidden alone, so the cut starts at two more.
   static let fyiShown = 5

@@ -166,6 +166,7 @@ struct Card: Decodable, Identifiable, Sendable {
   var reason: String?
   var quick: String?
   var placedBy: String?  // "hard" | "pin" | "claude" | "automation": whose its place is (Words.placedBy)
+  var section: String?  // "urgent" | "standard" | "fyi": where it is on the Inbox; absent off it
 
   struct Handoff: Decodable, Sendable {
     var why: String?

@@ -187,6 +187,9 @@ struct CardMenu: View {
           }
         }
       }
+      ForEach(Lists.moves(card), id: \.self) { to in
+        Button("Move to \(Lists.sectionName[to] ?? to)") { store.act(card.id, name: card.shortRef, to) }
+      }
       if !card.mine {
         if card.status == "muted" {
           Button("Unmute") { store.act(card.id, name: card.shortRef, "unmute") }

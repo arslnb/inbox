@@ -673,6 +673,26 @@ final class StoreWriteTests: XCTestCase {
     XCTAssertEqual(store.notices.map(\.title), ["nobody's asked to review acme/worker#875: add reviewers first"])
   }
 
+  // A row's Move to …: /api/act's urgent, standard and fyi, each with the desk's own Undo; the row stays on its list.
+  func testMovingARowToAnotherSection() async throws {
+    let c = try card("acme/web#2301")
+    XCTAssertEqual(c.section, "standard")
+    for (to, words) in [("urgent", "Moved to Urgent: web#2301"), ("fyi", "Moved to FYI: web#2301"), ("standard", "Moved to Standard: web#2301")] {
+      try desk(["/api/act": Answer(body: #"{"ok":true,"state":{"id":"acme/web#2301","section":"\#(to)"},"undo_seq":7}"#)])
+      store.act(c.id, name: c.shortRef, to)
+      XCTAssertTrue(store.leaving.isEmpty, "a move leaves it on the Inbox")
+      for _ in 0..<150 where store.toast?.text != words { try await Task.sleep(for: .milliseconds(20)) }
+      XCTAssertEqual(store.toast?.text, words)
+      XCTAssertEqual(store.toast?.undo, 7)
+      let body = try JSONDecoder().decode([String: String].self, from: try XCTUnwrap(StubProtocol.requests()[0].sentBody))
+      XCTAssertEqual(body, ["id": "acme/web#2301", "action": to])
+    }
+    try desk(["/api/act": no(409, "acme/web#2301 is in Merging, not on the Inbox")])
+    store.act(c.id, name: c.shortRef, "urgent")
+    for _ in 0..<150 where store.notices.isEmpty { try await Task.sleep(for: .milliseconds(20)) }
+    XCTAssertEqual(store.notices.map(\.title), ["acme/web#2301 is in Merging, not on the Inbox"])
+  }
+
   func testAnsweringAndDismissingAQuestion() async throws {
     let asked = try XCTUnwrap(store.queue?.inquiries)
     let own = try XCTUnwrap(asked.first { $0.id == "q1c0ffee" })  // the coordinator's

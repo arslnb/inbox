@@ -322,7 +322,8 @@ final class Store {
     return c.active && c.resolved == nil
   }
 
-  // done, snooze, mute, unmute, restore: triage, with the desk's own Undo. The row leaves at once, and comes back if the desk refuses.
+  // done, snooze, mute, unmute, restore, and a move to another section of the Inbox (urgent, standard, fyi): triage, with
+  // the desk's own Undo. The row leaves at once, and comes back if the desk refuses.
   func act(_ id: String, name: String, _ action: String, snooze: SnoozeOption? = nil) {
     guard let client else { return }
     let leaves = leaves(id, action)
@@ -330,7 +331,10 @@ final class Store {
     Task {
       do {
         let answer = try await client.act(id, action, until: snooze?.until)
-        let verbs = ["done": "Done", "mute": "Muted", "unmute": "Unmuted", "restore": "Restored"]
+        let verbs = [
+          "done": "Done", "mute": "Muted", "unmute": "Unmuted", "restore": "Restored", "urgent": "Moved to Urgent", "standard": "Moved to Standard",
+          "fyi": "Moved to FYI",
+        ]
         let verb = snooze.map { "Snoozed \($0.toast)" } ?? verbs[action] ?? Words.capitalized(action)
         flash("\(verb): \(name)", undo: (answer.undoSeq ?? 0) > 0 ? answer.undoSeq : nil)
         await load()

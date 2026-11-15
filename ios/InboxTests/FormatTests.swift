@@ -153,6 +153,24 @@ final class FormatTests: XCTestCase {
   }
 
   // The one list the client sorts: what you finished and what resolved, newest first.
+  // RowMenu.tsx's MOVES: one section up or down, for an active card on the Inbox.
+  func testWhereARowCanMove() throws {
+    let card = { (more: String) in
+      try DeskJSON.decoder().decode(Card.self, from: Data(#"{"id":"a/b#1","kind":"pr","repo":"a/b","number":1,"title":"t"\#(more)}"#.utf8))
+    }
+    XCTAssertEqual(Lists.moves(try card(#","section":"urgent","status":"active""#)), ["standard"])
+    XCTAssertEqual(Lists.moves(try card(#","section":"standard","status":"active""#)), ["urgent", "fyi"])
+    XCTAssertEqual(Lists.moves(try card(#","section":"fyi","status":"active""#)), ["standard"])
+    XCTAssertEqual(Lists.moves(try card(#","status":"active""#)), [], "not on the Inbox")
+    XCTAssertEqual(Lists.moves(try card(#","section":"standard","status":"snoozed""#)), [])
+    XCTAssertEqual(Lists.moves(try card(#","section":"standard","status":"active","inflight":true"#)), [], "in Merging")
+    XCTAssertEqual(Lists.moves(try card(#","section":"someday","status":"active""#)), [], "a newer desk's section")
+    let q: QueueView = try Fixture.decode("queue")
+    XCTAssertEqual(q.inbox?.urgent.first.map(Lists.moves), ["standard"])
+    XCTAssertEqual(q.inbox?.fyi.first?.section, "fyi")
+    XCTAssertNil(q.sections?.blocked.first?.section)
+  }
+
   // Queue.tsx's cut: five of seven, all of six, all once asked or while filtering.
   func testFYIShowsItsFirstFive() {
     XCTAssertEqual(Lists.fyiCut(7, all: false, filtering: false), 5)
