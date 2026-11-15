@@ -170,7 +170,9 @@ default size all four fit beside the longest name, Hand off for merge).
   writes the desk allows now, as the window's More (`Card.actions` less convert to draft, ready and reopen: Close,
   Merge now, Request changes, Re-request review, Remove me as a reviewer); then Open on GitHub and Copy GitHub link. Approve, Merge and Request changes are pinned to the commit the page last drew (`Store.pins`, moved by every
   review that lands, as the window since 9f5819a): a push the page redrew is yours to approve, one it hasn't drawn yet
-  the desk refuses, its words kept in the sheet. Whether you may approve is the desk's say (`approve.ok`): where it
+  the desk refuses, its words kept in the sheet. Approve's and Request changes' boxes hold the commit that was on
+  screen when they opened (`ItemPage.pinned()`): the page reads on under a sheet, so a push that lands there is
+  refused however often the button is pressed, until the box is closed and opened on what the page now shows. Whether you may approve is the desk's say (`approve.ok`): where it
   says no on an open PR, Approve is off and the page says why ("Can't approve: you approved this commit.").
 - **The AI review.** As the window draws it. Its goal leads, in ink (an older review without one leads with its
   summary's first sentence). Then the verdict line: Look closely, Skim it or Skip it, how risky and the first reason

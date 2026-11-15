@@ -13,6 +13,8 @@ struct ItemPage: View {
   @State private var sawIt = false
   @State private var replied: [String: String] = [:]  // answered from here: its latest comment then, so anything newer shows it again
   @State private var box: Box?
+  // The commit the page showed when the box opened: what its write is pinned to, however the page redraws under it.
+  @State private var boxHead: String?
   @State private var drafts: [String: String] = [:]
   @State private var diff: DiffModel?  // the review's diff, as it last landed
   @State private var fixAsked = false  // Make PR with fix was taken from this page: a second press would ask your agent twice
@@ -243,9 +245,9 @@ struct ItemPage: View {
   // A press sends at once, as the window's buttons do, or opens the box its words go in.
   private func press(_ key: String, _ c: Card) {
     switch key {
-    case "approve": box = .approve
+    case "approve": pinned(.approve)
     case "comment": box = .comment
-    case "request_changes", "changes": box = .changes
+    case "request_changes", "changes": pinned(.changes)
     case "reviewers": box = .reviewers
     case "reply": if let first = waiting.first { box = .reply(first) }
     // Ready with nobody asked stays on the desk, and its page then offers Add reviewers; one already asked leaves it.
@@ -268,6 +270,13 @@ struct ItemPage: View {
     }
   }
 
+  // Approve and Request changes send the commit that was on screen when their box opened. The page reads on under the
+  // sheet, so a push that lands meanwhile is refused (409) and stays refused until the box is opened again on what it drew.
+  private func pinned(_ b: Box) {
+    boxHead = read
+    box = b
+  }
+
   // What the desk took and took off the list goes back to the list, where its toast is.
   private func leave(_ took: Bool) -> Bool {
     if took { back() }
@@ -286,13 +295,13 @@ struct ItemPage: View {
       switch box {
       case .approve:
         WriteSheet(title: "Approve \(c.shortRef)", prompt: "A comment, if you like", button: "Approve", optional: true, draft: draft) { words in
-          leave(await store.approve(c, body: words.isEmpty ? nil : words))
+          leave(await store.approve(c, head: boxHead ?? "", body: words.isEmpty ? nil : words))
         }
       case .comment:
         WriteSheet(title: "Comment on \(c.shortRef)", prompt: "Your comment", button: "Comment", draft: draft) { leave(await store.comment(c, body: $0)) }
       case .changes:
         WriteSheet(title: "Request changes on \(c.shortRef)", prompt: "What needs to change", button: "Request changes", draft: draft) {
-          leave(await store.github(c, "request_changes", body: $0))
+          leave(await store.github(c, "request_changes", head: boxHead ?? "", body: $0))
         }
       case .reviewers:
         ReviewersSheet(card: c, keep: c.cta != "reviewers" && c.draft != true) { back() }

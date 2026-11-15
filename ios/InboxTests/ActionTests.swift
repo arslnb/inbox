@@ -381,6 +381,29 @@ final class StoreWriteTests: XCTestCase {
     XCTAssertNil(store.pins[id], "its page left: the next open pins afresh")
   }
 
+  // A box holds the commit that was on screen when it opened: the page reads on under the sheet, and a push that lands
+  // there was never in front of you, so Approve and Request changes send the box's commit and the desk refuses it.
+  func testABoxSendsTheCommitItOpenedOnNotTheOneReadUnderIt() async throws {
+    let id = "acme/api#4127"
+    let c = try card(id)
+    try desk(["/api/review/\(id)": try review("review-steps", head: "a1")])
+    _ = await store.readReview(id)
+    let opened = try XCTUnwrap(store.pins[id])
+    try desk(["/api/review/\(id)": try review("review-steps", head: "b2")])
+    _ = await store.readReview(id)
+    XCTAssertEqual(store.pins[id], "b2", "read under the sheet")
+
+    try desk(["/api/review/\(id)/approve": no(409, "can't approve \(id): it has new commits since you opened it"), "/api/github": no(409, "stale")])
+    for _ in 0..<2 {
+      let took = await store.approve(c, head: opened, body: "LGTM")
+      XCTAssertFalse(took, "a second press of the same button is refused as the first")
+    }
+    _ = await store.github(c, "request_changes", head: opened, body: "Needs a test")
+    let sent = StubProtocol.requests().filter { $0.httpMethod == "POST" }.compactMap { $0.sentBody }
+      .compactMap { try? JSONDecoder().decode([String: String].self, from: $0)["head_oid"] }
+    XCTAssertEqual(sent, ["a1", "a1", "a1"], "never the commit nobody saw")
+  }
+
   // The desk says whether you may approve, and why not: the page's Approve is off with its reason.
   func testApproveIsOffWithTheDesksReason() async throws {
     try desk(["/api/review/acme/api#4127": Answer(body: String(decoding: try Fixture.data("review-lean"), as: UTF8.self))])
