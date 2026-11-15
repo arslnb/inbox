@@ -1786,8 +1786,7 @@ p {
   vertical-align: calc(0.3em - var(--face) / 2);
 }
 
-.rv-by .avatar,
-.rv-revs .avatar {
+.rv-by .avatar {
   --face: 1.4em;
 }
 
@@ -5550,20 +5549,12 @@ a.rv-part-row:hover {
   color: var(--pencil);
 }
 
-/* Under the title: its size, + green and − red, then who reviews it. */
-.rv-size-line {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 18px;
-  align-items: center;
-  margin: 0;
-  color: var(--ink-2);
-  font-size: clamp(13px, 11.5px + 0.2vw, 14.5px);
-}
-
+/* Its size, + green and − red, at the far end of the ref's line. */
 .rv-size {
+  margin-left: auto;
   font-variant-numeric: tabular-nums;
   font-weight: 550;
+  white-space: nowrap;
 }
 
 .rv-size .add {
@@ -5572,23 +5563,6 @@ a.rv-part-row:hover {
 
 .rv-size .del {
   color: var(--red);
-}
-
-/* Who reviews it: faces and names, a verdict's mark in its colour. */
-.rv-revs {
-  display: inline-flex;
-  flex-wrap: wrap;
-  gap: 2px 12px;
-  min-width: 0;
-}
-
-.rv-rev {
-  white-space: nowrap;
-}
-
-.rv-rev-mark {
-  margin-left: 4px;
-  font-weight: 500;
 }
 
 .rv-title {
@@ -5734,30 +5708,6 @@ a.rv-part-row:hover {
   max-width: 780px;
 }
 
-/* The verdict folds the rest of the summary; its chevron hangs in the gutter, as a file header's does, so the verdict keeps the title's edge. */
-.rv-ai-lead {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 2px 16px;
-  padding: 0;
-  border: 0;
-  background: none;
-  text-align: left;
-  cursor: pointer;
-}
-
-.rv-ai-lead .rv-chev {
-  margin: 0 -14px 0 -12px;
-  font-size: 1.2em;
-  font-weight: 600;
-  line-height: 1;
-}
-
-.rv-ai-lead:hover .rv-chev {
-  color: var(--ink);
-}
-
 /* The goal leads, in ink and a step larger; the rest a step quieter, at the section's size. */
 .rv-gist {
   color: var(--ink);
@@ -5777,8 +5727,17 @@ a.rv-part-row:hover {
   font-weight: 600;
 }
 
-/* The first risk reason sits after the meter, in pencil. */
-.rv-verdict .rv-reason {
+/* Show more and Show less: a link under what it opens or closes. */
+.rv-show {
+  justify-self: start;
+}
+
+/* The risk part's reason: under its meter, in pencil. */
+.rv-part-why {
+  margin: 2px 0 0;
+  color: var(--pencil);
+  font-size: 12.5px;
+  line-height: 1.4;
   overflow-wrap: anywhere;
 }
 

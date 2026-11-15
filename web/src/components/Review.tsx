@@ -20,7 +20,6 @@ import {
   type Reviewer,
   type ReviewView,
   type Stack,
-  type Standing,
   type StackMember,
 } from "../../../src/types.ts";
 import { andMore } from "../../../src/stage.ts";
@@ -803,7 +802,7 @@ export function Review({
       {toggle}
       <div className="rv-main">
         <div className="rv-top">
-          <Head card={card} me={me} now={now} size={size} resolved={resolved?.line ?? null} row={row} reviewers={view.reviewers.list} />
+          <Head card={card} me={me} now={now} size={size} resolved={resolved?.line ?? null} row={row} />
           {/* Yours gets no AI summary unless asked for, so its description's first paragraph says what it's about. */}
           {isMine && !view.ai && item.body && <p className="rv-summary rv-desc">{item.body.split("\n")[0]}</p>}
           {/* Your own PR gets no AI review unless one was asked for; More still asks. */}
@@ -1100,8 +1099,9 @@ export function Review({
         />
       )}
       {showSide && (
-        <aside id="rv-side" className="rv-side" aria-label="Stack, checks, reviewers and files">
+        <aside id="rv-side" className="rv-side" aria-label="Risk, stack, checks, reviewers and files">
           <div className="rv-side-top" aria-hidden="true" />
+          {view.ai && <RiskPart ai={view.ai} tone={calm(card)} />}
           {view.stack && <StackList stack={view.stack} />}
           {view.checks_error && (
             <section className="rv-part" data-part="checks" aria-label="Checks">
@@ -1253,39 +1253,8 @@ function StepList({
   );
 }
 
-const MARK: Partial<Record<Standing["state"], { mark: string; tone: string }>> = {
-  approved: { mark: "✓", tone: "t-good" },
-  "changes requested": { mark: "changes", tone: "t-warn" },
-};
-
-// Who's asked to review it, beside its author: a face and a name each, a mark for a verdict, the rest in the tooltip.
-// Someone who only commented isn't a reviewer here; the sidebar's Reviewers lists them.
-function HeadReviewers({ list, me }: { list: Standing[]; me: string }) {
-  const shown = list.filter((r) => r.state !== "commented");
-  if (!shown.length) return null;
-  return (
-    <span className="rv-by rv-revs" aria-label="Reviewers">
-      reviewers
-      {shown.map((r) => {
-        const m = MARK[r.state];
-        const login = r.who === "you" ? me : r.who.startsWith("@") ? "" : r.who;
-        return (
-          <span key={r.who} className="rv-rev" title={`${r.who}: ${r.state === "asked" ? "asked, hasn't reviewed yet" : r.state}`}>
-            {login && <Avatar login={login} />}
-            {r.who}
-            {m && (
-              <span className={cls("rv-rev-mark", m.tone)} aria-label={r.state}>
-                {m.mark}
-              </span>
-            )}
-          </span>
-        );
-      })}
-    </span>
-  );
-}
-
-// The header: the ref, the title, then how big it is and who reviews it; what stands in its way is the sidebar's. A resolved
+// The header: the ref, who it's by and how big it is, then the title; who reviews it and what stands in its way are the
+// sidebar's. A resolved
 // PR's line, and Merging's for your PR there.
 function Head({
   card,
@@ -1294,7 +1263,6 @@ function Head({
   size,
   resolved,
   row,
-  reviewers,
 }: {
   card: Card;
   me: string;
@@ -1302,7 +1270,6 @@ function Head({
   size: { add: number; del: number } | null;
   resolved: string | null;
   row: InflightRow | null;
-  reviewers: Standing[];
 }) {
   const isMine = card.by === "you"; // yours, or a bot's opened for you
   // What it waits on and the coordinator's latest note, as Merging says it.
@@ -1325,18 +1292,14 @@ function Head({
           {isMine ? "you" : card.author}
           {card.author_bot ? (isMine ? `, through ${card.author}` : " (bot)") : ""}
         </span>
+        {/* How big it is, at the line's far end; who's reviewing it is the sidebar's. */}
+        {size && (
+          <span className="rv-size" title={`${size.add} lines added, ${size.del} removed`}>
+            <span className="add">+{size.add}</span> <span className="del">−{size.del}</span>
+          </span>
+        )}
       </p>
       <h1 className="rv-title">{card.title}</h1>
-      {(!!size || reviewers.some((r) => r.state !== "commented")) && (
-        <p className="rv-size-line">
-          {size && (
-            <span className="rv-size" title={`${size.add} lines added, ${size.del} removed`}>
-              <span className="add">+{size.add}</span> <span className="del">−{size.del}</span>
-            </span>
-          )}
-          <HeadReviewers list={reviewers} me={me} />
-        </p>
-      )}
       {card.handoff && (
         <p className="rv-meta rv-handoff">
           <span>
@@ -1423,7 +1386,6 @@ function Shell({
               now={now}
               size={rowSize(card)}
               resolved={card.resolved ? resolvedHead([], card.resolved, me).line : null}
-              reviewers={[]}
               row={row}
             />
           ) : (
@@ -1487,6 +1449,7 @@ function Shell({
       {side && (
         <aside id="rv-side" className="rv-side" aria-hidden="true">
           <div className="rv-side-top" />
+          {ai && <RiskPart ai={ai} tone={card ? calm(card) : ""} />}
           {/* Its checks, where any ran, and its reviewers: a line each. */}
           <SkLines count={card && card.ci !== "none" ? 2 : 1} className="sk-files" />
           <nav className="rv-files">
@@ -1496,6 +1459,29 @@ function Shell({
         </aside>
       )}
     </div>
+  );
+}
+
+// The AI review's risk, at the top of the sidebar: its meter and word, then its first reason where it isn't low.
+function RiskPart({ ai, tone }: { ai: AiShown; tone: string }) {
+  const why = ai.risk !== "low" ? ai.risk_reasons?.[0]?.why : undefined;
+  return (
+    <section className={cls("rv-part", tone)} data-part="risk" aria-label="Risk">
+      <h2 className="rv-side-head">
+        <span>Risk</span>
+      </h2>
+      <p className="rv-part-line">
+        <span className={`risk r-${ai.risk}`}>
+          <span className="meter" aria-hidden="true">
+            <span />
+            <span />
+            <span />
+          </span>
+          {ai.risk} risk
+        </span>
+      </p>
+      {why && <p className="rv-part-why">{why}</p>}
+    </section>
   );
 }
 
@@ -1776,20 +1762,24 @@ function AiSection({
   // A diagram no step draws sits in the fold, at most one.
   const loose = ai?.diagrams?.find((d) => !ai.guide?.steps.some((st) => st.diagram === d.id));
   const folds = first.length > 0 && (rest.length > 0 || later.length > 0 || ifaces.length > 0 || better.length > 0 || !!loose);
+  // Its risk, and the reason for it, are the sidebar's (RiskPart).
   const verdict = ai && (
     <>
       <span className={`verdict v-${ai.verdict}`}>{VERDICT[ai.verdict]}</span>
-      <span className={`risk r-${ai.risk}`}>
-        <span className="meter" aria-hidden="true">
-          <span />
-          <span />
-          <span />
-        </span>
-        {ai.risk} risk
-      </span>
-      {lead1 && <span className="quiet rv-reason">{lead1.why}</span>}
       {stale && <span className="quiet">on an earlier commit</span>}
     </>
+  );
+  const toggle = (label: string) => (
+    <button
+      type="button"
+      className="link-btn rv-show"
+      aria-expanded={more}
+      onClick={() => {
+        setMore(!more);
+      }}
+    >
+      {label}
+    </button>
   );
   const minutes = (at: string) => Math.max(1, Math.round(Math.abs(Date.parse(at) - now) / 60_000));
   const plural = (n: number) => `${n} minute${n === 1 ? "" : "s"}`;
@@ -1842,23 +1832,7 @@ function AiSection({
         <>
           {first.length > 0 && <p className="rv-gist">{spans(unlinked(first))}</p>}
           <p className="rv-verdict" title={ai.model && ai.at ? `AI review by ${modelName(ai.model)}, ${when(ai.at)}` : undefined}>
-            {folds ? (
-              <button
-                type="button"
-                className={cls("rv-ai-lead", !more && "shut")}
-                aria-expanded={more}
-                onClick={() => {
-                  setMore(!more);
-                }}
-              >
-                <span className="rv-chev" aria-hidden="true">
-                  {"\u203a"}
-                </span>
-                {verdict}
-              </button>
-            ) : (
-              verdict
-            )}
+            {verdict}
           </p>
           {ai.intent?.stack && (
             <p className="rv-since">
@@ -1923,8 +1897,10 @@ function AiSection({
                 </div>
               )}
               {loose && <Diagram graph={loose.graph} title={loose.title} caption={loose.caption} />}
+              {folds && toggle("Show less")}
             </>
           )}
+          {folds && !more && toggle("Show more")}
           {ai.since && (
             <p className="rv-since">
               <b>Since your review:</b> {spans(unlinked(inline(ai.since)))}

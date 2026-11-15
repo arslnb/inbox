@@ -1937,7 +1937,7 @@ const SHOTS: Shot[] = [
     go: async (page) => {
       await review("nadia/sentry-javascript-integrations#14402")(page);
       const ai = page.locator(".rv-ai");
-      if (!(await ai.locator('.rv-ai-lead[aria-expanded="false"]').count()))
+      if (!(await ai.locator('.rv-show[aria-expanded="false"]').count()))
         failures.push("review-ai-skim: the AI review doesn't open folded");
       if (await ai.locator(".prose").count()) failures.push("review-ai-skim: the rest of the summary shows while folded");
       if ((await ai.locator(".rv-gist code").count()) < 2) failures.push("review-ai-skim: the first sentence's code names aren't code");
@@ -1948,15 +1948,15 @@ const SHOTS: Shot[] = [
     },
   },
   {
-    // A click on the verdict opens the rest under the first sentence; a URL in it stays text.
+    // Show more opens the rest under the first sentence; a URL in it stays text.
     name: "review-ai-open",
     go: async (page) => {
       await review("nadia/sentry-javascript-integrations#14402")(page);
-      const lead = page.locator(".rv-ai-lead");
+      const lead = page.locator(".rv-show");
       if (await lead.count()) await lead.click();
       await page.waitForTimeout(200);
       const ai = page.locator(".rv-ai");
-      if (!(await ai.locator('.rv-ai-lead[aria-expanded="true"]').count())) failures.push("review-ai-open: a click doesn't open it");
+      if (!(await ai.locator('.rv-show[aria-expanded="true"]').count())) failures.push("review-ai-open: a click doesn't open it");
       if (!(await ai.locator(".prose").allInnerTexts()).join(" ").includes("Tests cover"))
         failures.push("review-ai-open: the rest of the summary is missing");
       if (!(await ai.locator(".prose code").count())) failures.push("review-ai-open: the rest's code names aren't code");
@@ -1965,7 +1965,7 @@ const SHOTS: Shot[] = [
     },
   },
   {
-    // The next review's parts: the goal leads, the first risk reason after the meter, the gap unfolded; the fold holds the
+    // The next review's parts: the goal leads, the first risk reason in the sidebar's Risk, the gap unfolded; the fold holds the
     // summary, the other reasons, Interfaces and Could be better; Look here sits on its line and the first step has a note.
     name: "review-ai-parts",
     go: async (page) => {
@@ -1975,9 +1975,9 @@ const SHOTS: Shot[] = [
       const bad = (m: string) => failures.push(`review-ai-parts: ${m}`);
       if (!(await ai.locator(".rv-gist").innerText()).startsWith("Splits the scheduler into Lease and Dispatch"))
         bad("the goal doesn't lead");
-      if (!(await ai.locator(".rv-reason").count())) bad("no risk reason after the meter");
+      if (!(await page.locator('.rv-side [data-part="risk"] .rv-part-why').count())) bad("no risk reason under the sidebar's meter");
       if (!(await ai.innerText()).includes("Not quite what the description says:")) bad("no gap line");
-      await page.locator(".rv-ai-lead").click();
+      await page.locator(".rv-show").click();
       await page.waitForTimeout(200);
       const text = await ai.innerText();
       for (const want of ["Interfaces", "Lease.renew()", "Could be better", "Also risky:"])
@@ -2025,7 +2025,7 @@ const SHOTS: Shot[] = [
     go: async (page) => {
       await review("acme/api#4099")(page);
       const ai = page.locator(".rv-ai");
-      if (!(await ai.locator('.rv-ai-lead[aria-expanded="false"]').count()))
+      if (!(await ai.locator('.rv-show[aria-expanded="false"]').count()))
         failures.push("review-ai-since: the AI review doesn't open folded");
       if (!(await ai.locator(".rv-verdict").allInnerTexts()).join("").includes("on an earlier commit"))
         failures.push("review-ai-since: the verdict isn't marked on an earlier commit");
@@ -2057,7 +2057,7 @@ const SHOTS: Shot[] = [
       await page.locator(READY).first().waitFor({ timeout: 15_000 });
       await at(`#/review/${encodeURIComponent("acme/api#4127")}`)(page);
       await page.waitForTimeout(300);
-      if (!(await page.locator('.review[aria-busy="true"] .rv-ai-lead').count()))
+      if (!(await page.locator('.review[aria-busy="true"] .rv-show').count()))
         failures.push("review-loading: the row's AI read isn't folded");
       if ((await page.locator(".rv-convo.sk-short").count()) && !inOrder(await tops(page, [".rv-ai", ".rv-convo.sk-short"])))
         failures.push("review-loading: the AI read isn't above the conversation's placeholder");

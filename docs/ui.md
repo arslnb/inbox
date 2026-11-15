@@ -220,12 +220,12 @@ Under your answer: **Not picked up yet**, then **Picked up 2m ago** once the ask
 `#/review/<id>`: a PR read and acted on in the desk, in the Inbox's place. The sidebar stays, and in a wide window so does the list it came from. The diff takes the page's width; a foldable sidebar on the right holds the PR's state and files.
 
 ```
-  api#4154  3/6  by priya                                                                      [▯▮]
+  api#4154  3/6  by priya                            +172 −32          [▯▮]
   Planner: hash join stage                                        Stack on main
   asked you directly · CI passing · changes requested             ○ #4153 Planner: run the table…  ✗
-  +172 −32 in 3 files                                             ┃○ #4154 Planner: hash join st… ±┃
+                                                                  ┃○ #4154 Planner: hash join st… ±┃
                                                                   ○ #4155 Planner: stream partia…
-› Look closely  ▮▮▯ medium risk                                     3 more
+  Look closely                                                      3 more
   Adds a streaming scan (streamRows) and uses it in runPlan, ...  CI passing · 14 checks         ›
                                                                   Changes requested by sam       ›
   (threads waiting on you)                                        Merge conflict with main
@@ -256,7 +256,7 @@ Esc or the back link goes back to the page it was opened from.
 ### Header
 
 - The ref, a stack's place ("3/6"), the author with their picture ("by you" on yours), the title.
-- Under the title, one line: its size, + in green and − in red, then who reviews it, each with their picture (a team "@") and a verdict's mark (✓ approved in green, "changes" in amber). Someone who only commented is in the sidebar's Reviewers.
+- Its size, + in green and − in red, at the far end of the ref's line. Who reviews it is the sidebar's (Reviewers).
 - Nothing else: why it's on the desk is the row's; CI, the review state, a conflict and what it blocks are the sidebar's.
 - A resolved PR says so under the title: "Resolved: merged by li-wei · 2h".
 - Your PR in Merging says "Merging", with what it waits on and your agent's latest note.
@@ -266,6 +266,8 @@ Esc or the back link goes back to the page it was opened from.
 ### The review's sidebar
 
 Sections, each open: its name, where it stands in one line that reads first (red when a required check fails, amber for changes requested), then its rows.
+
+- **Risk** first, when there's an AI review: its risk in colour with a three-step meter, then its first reason under it (not for a low risk).
 
 - **Checks**: a row each, with a dot: red failing, red hollow failing but not required, yellow running, green passing, grey skipped. Shards of one check (`backend test (0)`, `(1)`, `[2/3]`, `#4`) are one row with a count and their worst dot; a click lists them. What's wrong comes first; past six rows the green and grey ones wait behind "N more passing". `checkGroups()` in `web/src/view.ts`.
 - **Reviewers**: everyone, with their picture and where they stand; no line over them ("Nobody's asked" when there's no one). On your open PR, **+ Add reviewers** (also in More) opens a box right there, under who's asked: a pick is the ask (GitHub asks them at once, `keep` on `POST /api/review/:id/reviewers`, so the PR stays on your desk), and **Done** closes it.
@@ -278,8 +280,8 @@ No heading; right under the header.
 
 - **Goal** first: what the PR sets out to do, in ink, a step larger. A review written before goals leads with its summary's first sentence.
 - **Verdict** under it, at the section's size: "Look closely" (semibold), "Skim it" or "Skip it". The model and time are in its tooltip.
-- **Risk** after the verdict: in colour with a three-step meter, then its first reason. "on an earlier commit" in pencil when it is.
-- **The rest of the summary**: a chevron (or a click on the verdict) opens it. Every PR opens folded.
+- "on an earlier commit" after the verdict, in pencil, when it is. Its risk is the sidebar's (Risk).
+- **The rest of the summary**: **Show more** under it opens it, and **Show less** at its end folds it again. Every PR opens folded.
 - **Since your review**: on a re-review, under the summary, never folded.
 - **Concerns**: each is also a note in the code. They're listed only when no note can sit there (none, or an earlier commit's review).
 - All of it is drawn as plain prose (`code`, **bold**, lists), never HTML. URLs stay text: the PR's author can steer what Claude writes.
