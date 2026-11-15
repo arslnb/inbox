@@ -339,13 +339,14 @@ Set `DESK_HOME` and `DESK_PORT` to work on a scratch desk, and `DESK_SENTRY=0` t
 Releases are built and published from a Mac:
 
 ```bash
-npm run release 0.2.4             # on a clean main: sets the version, commits and tags v0.2.4; pushes nothing
-npm run release:publish v0.2.4    # builds every platform from the tag, pushes main and the tag, publishes the Release
+npm run release 0.2.4             # on a clean main that has GitHub's: sets the version, commits and tags v0.2.4; pushes nothing
+npm run release:publish v0.2.4    # checks, pushes main and the tag, builds every platform from the tag, publishes the Release
 ```
 
-[scripts/release-publish.sh](scripts/release-publish.sh) checks out the tag in a worktree under `.claude/worktrees/`, runs `npm run check`, and builds macOS (arm64 and Intel), Windows (installer and zip) and Linux (AppImage and tar.gz) with electron-builder, which cross-builds from macOS with no Docker or Wine. Then it pushes main up to the tag, and `gh release create` publishes one GitHub Release with every build, the `latest*.yml` files the updater reads, and notes generated from the commits since the last release. It needs `gh` logged in with write access to `gricha/inbox`, and refuses a tag that's already released. It's the only publisher: CI on a tag push would race it to create the same Release.
+[scripts/release-publish.sh](scripts/release-publish.sh) checks out the tag in a worktree under `.claude/worktrees/` and runs `npm run check`. Then it pushes main up to the tag and the tag, together, before building: if main moved on GitHub since the tag, it stops there in seconds. It builds macOS (arm64 and Intel), Windows (installer and zip) and Linux (AppImage and tar.gz) at once with electron-builder, which cross-builds from macOS with no Docker or Wine, in about 2 minutes. The builds are kept in `release/`, and `gh release create` publishes one GitHub Release with every build, the `latest*.yml` files the updater reads, and notes generated from the commits since the last release. It needs `gh` logged in with write access to `gricha/inbox`, and refuses a tag that's already released. It's the only publisher: CI on a tag push would race it to create the same Release.
 
 - `npm run release:publish v0.2.4 -- --build-only` builds into `release/` and stops: nothing is pushed or published.
+- `npm run release:publish v0.2.4 -- --upload-only` publishes what's in `release/` with no rebuild: a failed upload's retry. On a Release that exists it adds the files that are missing.
 - Nothing is signed: macOS is ad-hoc signed and not notarized, and Windows shows a SmartScreen warning on first run.
 - The Windows and Linux builds are made on the Mac and not run there: try one on a real machine when their packaging changes.
 

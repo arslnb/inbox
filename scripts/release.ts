@@ -39,6 +39,11 @@ const release = Effect.gen(function* () {
   const tag = `v${version}`;
   if ((yield* git("rev-parse", "--abbrev-ref", "HEAD")) !== "main") return yield* new Refused({ message: "release from main" });
   if (yield* git("status", "--porcelain")) return yield* new Refused({ message: "commit or stash your changes first" });
+  // Tagged on what GitHub's main has, so publishing's push of main up to the tag is a fast-forward.
+  yield* git("fetch", "--quiet", "origin", "main");
+  yield* git("merge-base", "--is-ancestor", "origin/main", "HEAD").pipe(
+    Effect.mapError(() => new Refused({ message: "main is behind GitHub's: git pull first" })),
+  );
   if (yield* git("tag", "--list", tag)) return yield* new Refused({ message: `${tag} is already a tag` });
   const lock = yield* readJson("package-lock.json");
   pkg.version = version;
