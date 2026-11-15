@@ -283,7 +283,7 @@ No heading; right under the header.
 
 - **Goal** first: what the PR sets out to do, in ink, larger than the rest (16 to 17.5px). A review written before goals leads with its summary's first sentence.
 - Its verdict is the header's tag, and its risk the sidebar's (Status).
-- **The rest of the summary**: **Show more** under it opens it, and **Show less** at its end folds it again. Every PR opens folded.
+- **The rest of the summary**: folded, its first lines show and fade out into **Show more** (in the accent), which opens it; then **Show less** under it folds it again. Every PR opens folded. Folded, the preview takes no clicks or focus (`inert`) and draws no diagram.
 - **Since your review**: on a re-review, under the summary, never folded.
 - **Concerns**: each is also a note in the code. They're listed only when no note can sit there (none, or an earlier commit's review).
 - All of it is drawn as plain prose (`code`, **bold**, lists), never HTML. URLs stay text: the PR's author can steer what Claude writes.
@@ -320,7 +320,7 @@ The desk's reading order (`ReviewView.order`), which the guide's steps are built
 
 Neighbouring hunks of a file at one level read as one. Without a ranking (none yet, or an earlier commit's) it keeps file order. A PR with no changes says "No files changed."
 
-**Guided Review and Traditional.** Two tabs above the diff, the choice kept per device (`desk.review.view`), Guided Review first. A review without steps (`order.steps`: none yet, or an earlier commit's) shows Traditional alone, with no tabs.
+**Guided Review and Traditional.** Two tabs above the diff, over a hairline barely there, their words and the steps' words on the header's edge, the choice kept per device (`desk.review.view`), Guided Review first. A review without steps (`order.steps`: none yet, or an earlier commit's) shows Traditional alone, with no tabs.
 
 - **Guided Review** is only the guide, as Linear's guided reviews: each step is a heading ("1 of 4", its title), a sentence or two, and "**Check:** …" when there's something to verify, then only the hunks it covers. A quiet "Next: <title>" at its foot. In the sidebar the steps are a timeline on a pale line: a pale node each and its title dimmed, the step you're on a flat node in a fluorescent purple (no glow) and its title in ink, each title on one line (the whole of it in its tooltip). The model is asked for titles of at most four words, under 28 characters. The last reads "End of the guide.", and when files changed outside it, "3 more files change outside it: read every file in Traditional", a link to that tab. Nothing the steps leave out is drawn, so the guide holds your attention. A test file in a step is folded until you open it (`isTestPath()` in `src/sections.ts`).
 - **Diagrams** in a step are drawn by Excalidraw (`web/src/components/Sketch.tsx`), hand-drawn in the theme's own colours: new parts green, changed amber, removed dashed, a store in the accent. The desk's layout (ELK, measured in Excalifont) places them; a left-to-right flowchart stays left to right while it fits the column at 85% or more, and redraws when the theme changes. Excalifont comes from the desk (`web/public/excalidraw`), never a CDN. If Excalidraw fails, or `desk.sketch` is `"0"` in localStorage, the plain drawing shows instead; a rendered review page always has the plain one.

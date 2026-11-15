@@ -2039,8 +2039,9 @@ function AiSection({
               <b>{FIT[ai.intent.fit]}:</b> {spans(unlinked(inline(ai.intent.gap)))}
             </p>
           )}
-          {(more || !folds) && (
-            <>
+          {/* Folded, its first lines show, fading out into Show more; inert until it's opened. */}
+          {(rest.length > 0 || later.length > 0 || ifaces.length > 0 || better.length > 0 || !!loose) && (
+            <div className={cls("rv-fold-body", folds && !more && "shut")} inert={folds && !more}>
               {rest.length > 0 && <ProseBlocks bs={rest} links={false} />}
               {later.length > 0 && (
                 <p className="rv-more-line">
@@ -2091,11 +2092,10 @@ function AiSection({
                   </ul>
                 </div>
               )}
-              {loose && <Diagram graph={loose.graph} title={loose.title} caption={loose.caption} />}
-              {folds && toggle("Show less")}
-            </>
+              {loose && (more || !folds) && <Diagram graph={loose.graph} title={loose.title} caption={loose.caption} />}
+            </div>
           )}
-          {folds && !more && toggle("Show more")}
+          {folds && toggle(more ? "Show less" : "Show more")}
           {ai.since && (
             <p className="rv-since">
               <b>Since your review:</b> {spans(unlinked(inline(ai.since)))}

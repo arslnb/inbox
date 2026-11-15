@@ -5861,9 +5861,30 @@ a.rv-part-row:hover {
   font-weight: 600;
 }
 
-/* Show more and Show less: a link under what it opens or closes. */
+/* Show more and Show less: a link in the accent under what it opens or closes. */
 .rv-show {
   justify-self: start;
+  color: var(--accent-ink);
+  font-weight: 550;
+  text-decoration: none;
+}
+
+.rv-show:hover {
+  color: var(--accent-ink);
+  text-decoration: underline;
+}
+
+/* Folded, the rest of the AI review shows its first lines, fading out into Show more. */
+.rv-fold-body {
+  display: grid;
+  gap: inherit;
+}
+
+.rv-fold-body.shut {
+  max-height: 5.5em;
+  margin-bottom: -10px;
+  overflow: hidden;
+  mask-image: linear-gradient(to bottom, #000 0%, rgb(0 0 0 / 45%) 45%, transparent 100%);
 }
 
 /* Status: a row each for the risk, the checks and the size, its word and a mark in its colour on the right; a click opens
@@ -6408,11 +6429,19 @@ ul.rv-status-why {
   min-width: 0;
 }
 
-/* The diff's two orders: the first word on the diff's edge. */
+/* The two orders' tabs on the header's edge, over a hairline barely there; the tab you're on marks it. */
 .rv-views {
   display: flex;
   height: 34px;
-  margin: 0 0 4px -12px;
+  margin: 0 0 4px;
+  border-bottom: 1px solid color-mix(in oklab, var(--rule) 55%, transparent);
+}
+
+/* A step's words and a file's header row on the header's edge too (the AI review and the header are inset 12px); the
+   code under them keeps the column's full width. */
+.rv-step-head,
+.rv-step-body {
+  padding: 0 12px;
 }
 
 .rv-views .head-tab {
@@ -6488,7 +6517,7 @@ p.rv-next {
   align-items: baseline;
   gap: 10px;
   margin: 0;
-  padding: 10px 2px 6px;
+  padding: 10px 2px 6px 12px;
   background: var(--paper);
   color: var(--ink);
   font-size: 13px;

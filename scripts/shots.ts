@@ -1571,7 +1571,7 @@ const SHOTS: Shot[] = [
       if (back !== "Inbox") failures.push(`review: the back link reads ${JSON.stringify(back)}`);
       const on = await sideOn(page);
       if (on !== "Inbox") failures.push(`review: the sidebar marks ${JSON.stringify(on)}`);
-      if (await page.locator(".rv-ai .prose").count()) failures.push("review: the AI review doesn't open folded");
+      if (!(await page.locator(".rv-ai .rv-fold-body.shut").count())) failures.push("review: the AI review doesn't open folded");
       if (!inOrder(await tops(page, [".rv-ai", ".rv-convo", ".rv-comment"])))
         failures.push("review: the AI review isn't above the conversation and your comment");
       // The title, then its metadata with the verdict's tag, then the goal.
@@ -1941,7 +1941,9 @@ const SHOTS: Shot[] = [
       const ai = page.locator(".rv-ai");
       if (!(await ai.locator('.rv-show[aria-expanded="false"]').count()))
         failures.push("review-ai-skim: the AI review doesn't open folded");
-      if (await ai.locator(".prose").count()) failures.push("review-ai-skim: the rest of the summary shows while folded");
+      // Folded, the rest shows its first lines fading out into Show more, and takes no clicks or focus.
+      if (!(await ai.locator(".rv-fold-body.shut[inert] .prose").count()))
+        failures.push("review-ai-skim: folded, the rest of the summary doesn't show its first lines, inert");
       if ((await ai.locator(".rv-gist code").count()) < 2) failures.push("review-ai-skim: the first sentence's code names aren't code");
       if ((await ai.allInnerTexts()).join("").includes("`")) failures.push("review-ai-skim: a backtick shows");
       const h = await page.evaluate<number>(`document.querySelector(".rv-ai")?.getBoundingClientRect().height ?? 0`);
