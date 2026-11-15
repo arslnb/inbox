@@ -53,20 +53,9 @@ html {
   /* Diagram boxes are sized from Instrument Sans's widths (src/metrics.ts), so their text stays in it. */
   --diagram: "Instrument Sans", var(--sans);
 
-  /* The chrome (the sidebar and the heads across the top): near black in every theme, tinted by its accent, its text light. */
-  --chrome: color-mix(in oklab, #000 88%, var(--accent));
-  --chrome-ink: color-mix(in oklab, #fff 92%, var(--paper));
-  --chrome-ink-2: color-mix(in oklab, var(--chrome-ink) 80%, var(--chrome));
-  --chrome-pencil: color-mix(in oklab, var(--chrome-ink) 60%, var(--chrome));
-  --chrome-faint: color-mix(in oklab, var(--chrome-ink) 40%, var(--chrome));
-  --chrome-control: color-mix(in oklab, var(--chrome-ink) 45%, var(--chrome));
-  --chrome-rule: color-mix(in oklab, var(--chrome-ink) 14%, var(--chrome));
-  --chrome-rule-strong: color-mix(in oklab, var(--chrome-ink) 22%, var(--chrome));
-  --chrome-sheet: color-mix(in oklab, var(--chrome-ink) 6%, var(--chrome));
-  --chrome-wash: color-mix(in oklab, var(--chrome-ink) 13%, var(--chrome));
-  --chrome-hover: color-mix(in oklab, var(--chrome-ink) 9%, var(--chrome));
-  --chrome-on: color-mix(in oklab, var(--chrome-ink) 16%, var(--chrome));
-  --chrome-accent: oklch(from var(--accent) 74% 0.15 h);
+  /* The chrome (the sidebar and the heads across the top): the theme's sidebar colour in a light theme, near black tinted by
+     the accent in a dark one (light-dark() reads the theme's color-scheme); its words are the theme's own. */
+  --chrome: light-dark(var(--side), color-mix(in oklab, #000 88%, var(--accent)));
   --chrome-pill: oklch(from var(--accent) 55% 0.2 h); /* deep enough for white words on it */
 }
 
@@ -718,27 +707,6 @@ html::-webkit-scrollbar-corner,
 
 /* Sidebar ------------------------------------------------------------------ */
 
-/* The chrome's own tokens, so everything drawn in it (words, the pill, a head's filter and buttons) reads on the dark. */
-.side,
-.page-head,
-.beside-head {
-  --ink: var(--chrome-ink);
-  --ink-2: var(--chrome-ink-2);
-  --pencil: var(--chrome-pencil);
-  --faint: var(--chrome-faint);
-  --control: var(--chrome-control);
-  --rule: var(--chrome-rule);
-  --rule-strong: var(--chrome-rule-strong);
-  --sheet: var(--chrome-sheet);
-  --wash: var(--chrome-wash);
-  --sel: var(--chrome-wash);
-  --side-hover: var(--chrome-hover);
-  --side-on: var(--chrome-on);
-  --accent-ink: var(--chrome-accent);
-
-  color-scheme: dark;
-}
-
 .side {
   position: sticky;
   top: 0;
@@ -951,7 +919,7 @@ html::-webkit-scrollbar-corner,
   min-width: 0;
 }
 
-/* The sidebar's icons are white, whatever the theme: the chrome is always dark. */
+/* The sidebar's icons in the theme's ink, as its words are. */
 .si {
   flex: none;
   width: 15px;
@@ -960,7 +928,7 @@ html::-webkit-scrollbar-corner,
 
 .side .si,
 .side .i {
-  color: #fff;
+  color: var(--ink);
 }
 
 /* In Settings, the way back to the Inbox above its parts: quieter than they are, its chevron by its word. */
@@ -6260,7 +6228,7 @@ ul.rv-status-why {
 /* The guided review's steps as a timeline: a line down the dots, each step's name on one line (all of it in its tooltip),
    the step you're on a node in a fluorescent purple, flat, and its name in ink. */
 .rv-steps {
-  --orb: #b44dff;
+  --orb: var(--accent);
 }
 
 .rv-steps ol {

@@ -116,9 +116,7 @@ Tokens live in `web/src/styles.css`:
 
 No top bar: the sidebar is the window's only global chrome, and each page has its own head.
 
-The chrome (the sidebar, a page's head and the list's head beside it) is near black in every theme: `--chrome`, the
-theme's paper mixed into black, with light text from the `--chrome-*` tokens, which `.side`, `.page-head` and
-`.beside-head` put in place of `--ink`, `--pencil`, `--rule` and the rest, so what's drawn in them reads on the dark.
+The chrome (the sidebar, a page's head and the list's head beside it) follows the theme: its sidebar colour (`--side`) in a light theme, near black tinted by the theme's accent in a dark one (`--chrome`, `light-dark()` on the theme's `color-scheme`). Its words and icons are the theme's own ink. The guided review's marker and the files' are the theme's accent (`--orb`).
 
 ```
 ┌──────────┬──────────────┬────────────────────────────────┬────────────┐

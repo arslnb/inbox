@@ -5443,7 +5443,7 @@ async function iconSheets(browser: Browser, url: string): Promise<string[]> {
       const s = await page.evaluate<{ side: string; pencil: string; color: string; w: number; h: number }>(`(() => {
         const css = getComputedStyle(document.documentElement);
         const r = document.querySelector(".side-brand").getBoundingClientRect();
-        return { side: css.getPropertyValue("--chrome"), pencil: css.getPropertyValue("--chrome-pencil"), color: css.getPropertyValue("--chrome-accent"), w: r.width, h: r.height };
+        return { side: css.getPropertyValue("--chrome"), pencil: css.getPropertyValue("--pencil"), color: css.getPropertyValue("--accent-ink"), w: r.width, h: r.height };
       })()`);
       const mark = fs.readFileSync(path.join(root, "assets/brand/mark.svg"), "utf8");
       const row = (label: string, cells: string[]) =>
