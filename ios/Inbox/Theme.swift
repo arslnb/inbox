@@ -20,6 +20,7 @@ enum Theme {
   static let delWash = Color(light: 0xfbeeed, dark: 0x33242a)
   static let amber = Color(light: 0x8a4b08, dark: 0xebc076)
   static let green = Color(light: 0x176847, dark: 0x8dceaf)
+  static let onGo = Color(light: 0xffffff, dark: 0x0e2419)  // on a button filled green (--go): Approve, Hand off for merge
   static let accent = Color(light: 0x365d60, dark: 0xa8cacb)
   static let onAccent = Color(light: 0xffffff, dark: 0x162b2d)
   static let accentInk = Color(light: 0x365d60, dark: 0xa3c5c7)

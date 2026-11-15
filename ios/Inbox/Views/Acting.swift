@@ -25,8 +25,10 @@ extension View {
   }
 }
 
-// The call to action: the one filled button on a page.
+// The call to action: the one filled button on a page. `go`: the button that says yes (Approve, Hand off for merge),
+// filled green as the window's `.act.primary.go`.
 struct AccentAct: ButtonStyle {
+  var go = false
   @Environment(\.isEnabled) private var enabled
 
   func makeBody(configuration: Configuration) -> some View {
@@ -35,10 +37,10 @@ struct AccentAct: ButtonStyle {
       .lineLimit(1)
       // Its words are never cut: where nothing more can fold away (the largest text), they draw a little smaller.
       .minimumScaleFactor(0.7)
-      .foregroundStyle(Theme.onAccent)
+      .foregroundStyle(go ? Theme.onGo : Theme.onAccent)
       .padding(.horizontal, 12)
       .frame(minHeight: 36)
-      .background(Theme.accent.opacity(configuration.isPressed ? 0.8 : 1), in: RoundedRectangle(cornerRadius: 9))
+      .background((go ? Theme.green : Theme.accent).opacity(configuration.isPressed ? 0.8 : 1), in: RoundedRectangle(cornerRadius: 9))
       .opacity(enabled ? 1 : 0.45)
       .contentShape(Rectangle().inset(by: -4))
   }
@@ -58,6 +60,7 @@ struct Quiet: Identifiable {
 struct BottomBar<More: View>: View {
   @Environment(Store.self) private var store
   var cta: String?
+  var go = false  // the call to action says yes: green
   var off = false
   var press: () -> Void = {}
   var quiet: [Quiet] = []
@@ -106,7 +109,7 @@ struct BottomBar<More: View>: View {
         .buttonStyle(PlainAct())
       }
       ForEach(quiet.dropLast(folded).reversed()) { q in item(q).buttonStyle(PlainAct()) }
-      if let cta { Button(cta, action: press).buttonStyle(AccentAct()).disabled(off) }
+      if let cta { Button(cta, action: press).buttonStyle(AccentAct(go: go)).disabled(off) }
     }
   }
 
@@ -130,7 +133,7 @@ struct BottomBar<More: View>: View {
 
 extension BottomBar where More == EmptyView {
   init(cta: String? = nil, off: Bool = false, press: @escaping () -> Void = {}, quiet: [Quiet] = []) {
-    self.init(cta: cta, off: off, press: press, quiet: quiet, hasMore: false) { EmptyView() }
+    self.init(cta: cta, go: false, off: off, press: press, quiet: quiet, hasMore: false) { EmptyView() }
   }
 }
 
@@ -144,6 +147,7 @@ struct WriteSheet<Above: View>: View {
   var prompt = ""
   let button: String
   var optional = false  // may be sent with nothing typed
+  var go = false  // its button says yes: green
   var limit: Int?  // the most characters the desk takes: typing stops there, as the window's box
   var aside: (label: String, press: () -> Void)?  // a quiet way out beside the button: the box's Ask your agent
   @Binding var draft: String
@@ -192,7 +196,7 @@ struct WriteSheet<Above: View>: View {
               }
             }
           }
-          .buttonStyle(AccentAct())
+          .buttonStyle(AccentAct(go: go))
           .disabled(sending || (empty && !optional))
         }
       }
@@ -213,10 +217,10 @@ struct WriteSheet<Above: View>: View {
 
 extension WriteSheet where Above == EmptyView {
   init(
-    title: String, prompt: String = "", button: String, optional: Bool = false, limit: Int? = nil, draft: Binding<String>,
+    title: String, prompt: String = "", button: String, optional: Bool = false, go: Bool = false, limit: Int? = nil, draft: Binding<String>,
     send: @escaping (String) async -> Bool
   ) {
-    self.init(title: title, prompt: prompt, button: button, optional: optional, limit: limit, aside: nil, draft: draft, send: send) { EmptyView() }
+    self.init(title: title, prompt: prompt, button: button, optional: optional, go: go, limit: limit, aside: nil, draft: draft, send: send) { EmptyView() }
   }
 }
 

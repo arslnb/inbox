@@ -195,7 +195,7 @@ struct ItemPage: View {
       let notYet =
         (main == "approve" && (read == nil || review?.cantApprove != nil)) || (main == "merge" && read == nil) || (main == "reply" && waiting.isEmpty)
       BottomBar(
-        cta: name, off: store.busy(c.id) || notYet, press: { if let main { press(main, c) } }, quiet: quiet(c),
+        cta: name, go: main == "approve" || main == "handoff", off: store.busy(c.id) || notYet, press: { if let main { press(main, c) } }, quiet: quiet(c),
         hasMore: true
       ) { more(c, main) }
     } else {
@@ -310,7 +310,7 @@ struct ItemPage: View {
       let draft = Binding { drafts[box.id] ?? "" } set: { drafts[box.id] = $0 }
       switch box {
       case .approve:
-        WriteSheet(title: "Approve \(c.shortRef)", prompt: "A comment, if you like", button: "Approve", optional: true, draft: draft) { words in
+        WriteSheet(title: "Approve \(c.shortRef)", prompt: "A comment, if you like", button: "Approve", optional: true, go: true, draft: draft) { words in
           leave(await store.approve(c, head: boxHead ?? "", body: words.isEmpty ? nil : words))
         }
       case .comment:
