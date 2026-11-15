@@ -231,7 +231,9 @@ struct ItemPage: View {
     }
     if open, c.handsOff, c.mine || c.review == "approved", main != "handoff" { Button("Hand off for merge") { press("handoff", c) } }
     // Your chat with your agent, about this PR or issue. Nothing is sent until you send it there.
-    if store.asksAgent { Button("Ask your agent") { store.openChat(ChatAbout(item: c.id)) } }
+    if store.asksAgent, Asking.offered(c, blockedAuthor: detail?.blockedAuthor, landed: landed) {
+      Button("Ask your agent") { store.openChat(ChatAbout(item: c.id)) }
+    }
     // On GitHub, as the window's More: what the desk allows now, less what has its own button here or on the list.
     let writes = (c.actions ?? []).filter { $0 != main && !["draft", "ready", "reopen"].contains($0) && Words.more[$0] != nil }
     if !writes.isEmpty {

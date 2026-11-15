@@ -396,6 +396,21 @@ final class FormatTests: XCTestCase {
     XCTAssertEqual(InquiryPage.place("https://www.github.com/me/notes-app/pull/12#discussion_r1"), "github.com/me/notes-app/pull/12#discussion_r1")
   }
 
+  // Ask your agent in an item's More: never on a blocked author's issue (no agent reads their items) or a resolved one.
+  func testAskYourAgentIsNotOfferedOnABlockedAuthorsIssue() throws {
+    let queue: QueueView = try Fixture.decode("queue")
+    let cards = (queue.inbox?.urgent ?? []) + (queue.inbox?.standard ?? []) + (queue.inbox?.fyi ?? [])
+    let issue = try XCTUnwrap(cards.first { !$0.isPR })
+    XCTAssertTrue(Asking.offered(issue, blockedAuthor: nil, landed: true))
+    XCTAssertTrue(Asking.offered(issue, blockedAuthor: false, landed: true))
+    XCTAssertFalse(Asking.offered(issue, blockedAuthor: true, landed: true))
+    XCTAssertFalse(Asking.offered(issue, blockedAuthor: nil, landed: false), "not before the desk has said whose it is")
+    var done = issue
+    done.resolved = "closed"
+    XCTAssertFalse(Asking.offered(done, blockedAuthor: false, landed: true))
+    XCTAssertTrue(Asking.offered(try XCTUnwrap(cards.first { $0.isPR }), blockedAuthor: nil, landed: false), "a PR's review has it")
+  }
+
   // An opened page's one call to action: the row's own first, then what the item is there for.
   func testAPagesCallToAction() throws {
     let queue: QueueView = try Fixture.decode("queue")

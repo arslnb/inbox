@@ -99,6 +99,12 @@ enum Wait: Equatable, Sendable {
 }
 
 enum Asking {
+  // Whether an item's More offers Ask your agent. A PR's does. An issue's only once it's known to be unresolved and from
+  // an author who isn't blocked, as Detail.tsx: no agent reads a blocked author's items, and the desk's ask doesn't check.
+  static func offered(_ card: Card, blockedAuthor: Bool?, landed: Bool) -> Bool {
+    card.isPR || (landed && card.resolved == nil && blockedAuthor != true)
+  }
+
   static let off = "Your agent is off in Settings → Local Agent Integration, so nothing is sent."
 
   // "api#4127": an id without its owner (format.ts's shortId).
