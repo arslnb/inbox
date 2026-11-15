@@ -608,7 +608,8 @@ struct ItemPage: View {
       .accessibilityHint(diff.guiding ? "Lists the guide's steps to go to" : "Lists the files to go to")
       .accessibilityAddTraits(stopsOpen ? .isSelected : [])
       if stopsOpen {
-        ForEach(Array(stops.enumerated()), id: \.element.id) { i, stop in
+        // By its place in the list: a stop's own id is the place in the diff the page scrolls to.
+        ForEach(Array(stops.enumerated()), id: \.offset) { i, stop in
           Button {
             reach(stop.id, .top, proxy)
           } label: {
