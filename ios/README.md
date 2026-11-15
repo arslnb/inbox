@@ -89,7 +89,7 @@ end), `item-pr-ai-stale` (on an earlier commit, a new one being written), `item-
 `item-pr-ai-running`, `item-pr-ai-none` (Ask Claude for one), `item-pr-guided-large` (a step at an accessibility text
 size), `item-pr-checks` (a failing
 run, its checks opened), `item-pr-own` (your PR: who reviews it, + Add reviewers), `item-pr-diff` (its diff in Traditional, from the first file),
-`item-pr-diff-thread` (a thread under its line), `item-pr-line-comment` (the box for a comment on a line), `item-issue` (Comment), `item-reply` (what
+`item-pr-diff-thread` (a thread under its line), `item-pr-line-comment` (the box for a comment on a line), `item-issue` (its pre-review; Make PR with fix), `item-issue-step` (a walk at its second step; Comment), `item-issue-injection` (a flagged one: Block), `item-issue-none` (Analyze it), `item-issue-blocked` (Unblock), `item-issue-large` (the walk at an accessibility text size), `item-reply` (what
 waits on your reply, each with your agent's read), `item-pr-said` (what one of them wrote, unfolded), `item-pr-more-conversations` (the ones not waiting on you, the first opened), `item-draft` (Ready for review; its description's first paragraph where a review would be), `item-mine` (Hand off for merge), `item-merging` (Back to desk),
 the boxes `approve`, `reply`, `reviewers` and `answer`, `question`, `session`, `session-kick`, `item-large` and `item-largest` (accessibility
 text sizes, where the bar's quiet buttons fold into More and the longest call to action keeps its words), `settings` and `offline` (a desk that isn't
@@ -210,6 +210,16 @@ default size all four fit beside the longest name, Hand off for merge).
   thread from here: "resolved" is only said. After a reply the page stays and reads the review again; until then your
   words show as "You · sent". The bar's Reply answers the first one waiting; a draft is kept per conversation. A
   comment is text: `code` in the mono face, links as their URL, GitHub's tags and headings' hashes taken off.
+- **An issue's pre-review**, as the window's (`IssuePre` in `Detail.tsx`), under why it's here: "A bug." (a feature
+  request, a question, an issue) and its summary; whether it was read from the code in your clone or the issue's text
+  alone; What's wrong, Cause, where in the code (`path:line` and why), The fix (or What we'd do); then its walk, one
+  step at a time with Back and Next. Above it, where it stands: your agent is reading it (again), it failed (Try
+  again), it was written before the issue's latest activity (Read it again), None yet (Analyze it); nothing when AI
+  reviews are off and none is written. A fix your agent can make on an open issue puts Make PR with fix on the bar
+  (Comment moves to More); once taken, the bar is Comment again, so a second press can't ask twice. A possible prompt
+  injection shows the flag in red and nothing else of the review: the bar's call to action is Block @who (their items
+  are muted on your desk; nothing on GitHub), and "Not an injection: analyze it" reads it anyway. A blocked author's
+  issue says so, with Unblock. The facts line adds how you were asked (unless the why says it) and who placed it.
 - **A question.** Its answers come straight under it, each a button that answers with it; Answer takes your own words;
   Dismiss lets the agent decide.
 - **A session.** Kick or Resume (off until a rate limit resets), Done and Snooze.
@@ -230,7 +240,8 @@ command for your agent, Ask your agent, and everything in Settings.
 What it calls: reads (`/api/overview`, `/api/queue`, `/api/inflight`, `/api/item`, `/api/inquiries/:id`,
 `/api/reviewers/:id`, `/api/events`, `/health`), `POST /api/act` (done, snooze, mute, unmute, restore, seen, inflight,
 takeback), `/api/undo`, `/api/sync`, the writes above (`/api/review/:id/approve|comment|inline|reply|ready|reviewers|ai`,
-`/api/github`, `/api/inquiries/:id/answer`, `/api/sessions/:id/kick`) and, once, `/api/pair`.
+`/api/issue/:id/analyze|fix|block|unblock`, `/api/github`, `/api/inquiries/:id/answer`, `/api/sessions/:id/kick`) and,
+once, `/api/pair`.
 
 What opening a PR costs: one `GET /api/review/:id` without `ahead`, exactly the window's open, so the desk may start
 its AI review (`review.auto_ai`) and your agent's read of the conversations waiting on you. Every redraw after it (the
@@ -239,6 +250,13 @@ job (`Store.readReview()`). A PR's page no longer asks `/api/item`: that is for 
 review, and nothing is prefetched. Nothing but a press on Ask Claude for one or Try again posts `/api/review/:id/ai`. The answer is the whole review (`ReviewView` in `Models.swift`: the order to read
 its hunks in, the AI review's parts, checks, reviewers, conversations); each file's own `patch` is never kept, since
 the same lines are in the order's hunks.
+
+What opening an issue costs: one `GET /api/item`, as the window's open, so the desk may start its pre-review when AI
+reviews are on and none is written for this version; a redraw asks again a second after the desk's last event. Nothing
+but a press posts `/api/issue/:id/analyze` (Analyze it, Try again, Read it again; `{ trust: true }` only from "Not an
+injection: analyze it"), `/fix` (Make PR with fix: a turn of your agent), `/block` or `/unblock`. The window opens Ask
+your agent on the issue after Make PR with fix; the phone stays on the page with the toast (`Store.askedAbout()` is
+where a chat would open).
 
 Not in v0: the filter, notes (shown, not written or finished), Claude's work on
 Merging, people's pictures, notifications, themes other than the default light and dark, iPad.
@@ -258,6 +276,7 @@ Merging, people's pictures, notifications, themes other than the default light a
 | A PR's State (checks, reviewers, merge)     | `Inbox/Views/ReviewState.swift`; `CheckGroup.of()` in `Format.swift` (view.ts's `checkGroups()`) |
 | What reviewers said, a comment's drawing, Reply | `Inbox/Views/Said.swift` (`WhatWasSaid`; `SaidComments` and `SaidActions`, shared with the diff's threads); words in `Format.swift` (`Words.place()`, `gist()`, `takeSplit()`, `saidText()`, `replyTo()`); `Store.reply()`, `left()` |
 | The AI review's block, a diagram as text    | `Inbox/Views/AiBlock.swift` (`AiSection`, `DiagramLines`); words in `Format.swift` (`Words.lead()`, `reviewing()`, `reviewFailed()`, `listsConcerns()`, `fit`); `diagramText()` in `Inbox/Guide.swift` |
+| An issue's pre-review, its bar              | `Inbox/Views/IssuePre.swift`; `ItemDetail.preStanding`, `preStale`, `fixable` and `IssueReview` in `Models.swift`; words in `Format.swift` (`Words.issueKind()`, `asked()`, `placedBy()`); `Store.analyzeIssue()`, `fixIssue()`, `blockAuthor()`; the bar's choice in `ItemPage.bar` |
 | Asking for an AI review                     | `Store.askReview()`, `asking`; `APIClient.askReview()` (the one request that waits minutes) |
 | The guided review, notes on lines           | `Inbox/Guide.swift` (`Diff.walk()`, `guided()`, `isTestPath()`, `placed()`, `on()`: the twins of `src/sections.ts`); `DiffModel(guided:bugs:)`; steps, `AiNote` and Look here in `Inbox/Views/DiffView.swift`; the two tabs and `reach()` in `ItemPage.swift` |
 | A PR's diff: lines, order, threads, the fold | `Inbox/PatchLines.swift` (`patchLines()`, `Diff.traditional()`, `threadsOn()`, `spot()`, `DiffModel`: the twins of `src/review.ts`, `src/sections.ts` and `web/src/view.ts`); drawn by `Inbox/Views/DiffView.swift` |

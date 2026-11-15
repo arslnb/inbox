@@ -110,7 +110,13 @@ if wanted item-pr-ai-none; then
   shot item-pr-ai-none -deskURL "$DESK" -open "acme/ml-pipeline#307"
   curl -fs -X PUT -H "Content-Type: application/json" -d '{"set":{"review.auto_ai":true}}' "$DESK/api/settings" >/dev/null
 fi
+# An issue: its pre-review with Make PR with fix, a walk at its second step, and what the mock never sends (-issue cuts
+# it from what it does): a flagged one with Block, none yet with Analyze it, a blocked author with Unblock.
 wanted item-issue && shot item-issue -deskURL "$DESK" -open "acme/worker#860"
+wanted item-issue-step && shot item-issue-step -deskURL "$DESK" -open "acme/api#4071" -step 2
+wanted item-issue-injection && shot item-issue-injection -deskURL "$DESK" -open "acme/worker#860" -issue injection
+wanted item-issue-none && shot item-issue-none -deskURL "$DESK" -open "acme/worker#860" -issue none
+wanted item-issue-blocked && shot item-issue-blocked -deskURL "$DESK" -open "acme/worker#860" -issue blocked
 # Yours: one that owes a reply (what was said, and Reply), a draft, one through review, one in Merging.
 wanted item-reply && shot item-reply -deskURL "$DESK" -open "me/notes-app#12"
 # What reviewers said: the first waiting one's own words unfolded, and the ones not waiting on you opened in place.
@@ -139,6 +145,9 @@ if wanted item-pr-guided-large; then
   shot item-pr-guided-large -deskURL "$DESK" -open "acme/worker#879" -scroll guide
   xcrun simctl ui "$UDID" content_size large
 fi
+# The size as a launch argument: it holds on a simulator that doesn't take `simctl ui content_size`.
+wanted item-issue-large && shot item-issue-large -deskURL "$DESK" -open "acme/api#4071" -step 2 \
+  -UIPreferredContentSizeCategoryName UICTContentSizeCategoryAccessibilityL
 if wanted item-largest; then
   xcrun simctl ui "$UDID" content_size accessibility-extra-extra-extra-large
   shot item-largest -deskURL "$DESK" -open "acme/worker#875"
