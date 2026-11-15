@@ -55,8 +55,8 @@ struct Quiet: Identifiable {
 }
 
 // The foot of an opened page, in the thumb's reach: Back, then More, the quiet buttons and the call to action. When
-// they don't fit on one line (a long name, large text) More becomes its three dots, then the quiet ones fold into it,
-// the last of `quiet` first.
+// they don't fit on one line (a long name, large text) the quiet ones fold into More, the last of `quiet` first; only
+// when More alone still doesn't fit beside the call to action is it its three dots. Every button keeps its word while it can.
 struct BottomBar<More: View>: View {
   @Environment(Store.self) private var store
   var cta: String?
@@ -71,10 +71,8 @@ struct BottomBar<More: View>: View {
     VStack(spacing: 0) {
       NoticeStack()
       ViewThatFits(in: .horizontal) {
-        ForEach(0...quiet.count, id: \.self) { folded in
-          line(folded, dots: false)
-          line(folded, dots: true)
-        }
+        ForEach(0...quiet.count, id: \.self) { folded in line(folded, dots: false) }
+        line(quiet.count, dots: true)
       }
       .dynamicTypeSize(...DynamicTypeSize.accessibility2)
       .padding(.horizontal, Theme.pad)

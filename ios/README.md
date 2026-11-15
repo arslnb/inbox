@@ -107,7 +107,7 @@ run, its checks opened), `item-pr-own` (your PR: who reviews it, + Add reviewers
 `item-pr-diff-thread` (a thread under its line), `item-pr-line-comment` (the box for a comment on a line), `item-issue` (its pre-review; Make PR with fix), `item-issue-step` (a walk at its second step; Comment), `item-issue-injection` (a flagged one: Block), `item-issue-none` (Analyze it), `item-issue-blocked` (Unblock), `item-issue-large` (the walk at an accessibility text size), `item-reply` (what
 waits on your reply, each with your agent's read), `item-pr-said` (what one of them wrote, unfolded), `item-pr-more-conversations` (the ones not waiting on you, the first opened), `item-draft` (Ready for review; its description's first paragraph where a review would be), `item-mine` (Hand off for merge), `item-merging` (Back to desk),
 the boxes `approve`, `reply`, `reviewers` and `answer`, `question`, `session`, `session-kick`, `item-large` and `item-largest` (accessibility
-text sizes, where the bar's quiet buttons fold into More and the longest call to action keeps its words), `settings` and `offline` (a desk that isn't
+text sizes, AccessibilityL and XXXL, where the bar's quiet buttons fold into More and the longest call to action keeps its words), `settings` and `offline` (a desk that isn't
 there). People's pictures are asked of GitHub by login, and the mock's logins (dana, marco, priya) are real accounts'
 names: a shot shows whoever owns them, or nothing when GitHub can't be reached. It won't shoot while something already answers on that port (a mock you started by
 hand has whatever you did to it since): stop that first, or set `SHOTS_PORT`.
@@ -164,8 +164,9 @@ app forgets it and asks to pair again (revoke the old pairing in Settings → Ne
 
 A paired phone is your hands like the window (`fromDesk()` in `src/server.ts`; README → Safety). An opened page has one
 bar at its foot: Back, More, Snooze, Done, and the one call to action the item is there for, in the window's words.
-When they don't fit on one line More becomes its three dots, then Snooze and Done fold into it (large text only: at the
-default size all four fit beside the longest name, Hand off for merge).
+Approve and Hand off for merge are filled green, as the window's; every other call to action is the accent. When they
+don't fit on one line Snooze, then Done, fold into More (at the default size only beside the longest name, Hand off for
+merge, where Snooze does); More is its three dots only where it doesn't fit even alone beside the call to action.
 
 - **A PR or an issue.** The row's own call to action (Ready for review, Add reviewers, Reply, Merge); else Approve on
   someone else's PR, Comment on an issue, Hand off for merge on yours once it's through review (`Card.act(open:)`). In
