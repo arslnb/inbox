@@ -540,6 +540,17 @@ final class StoreTests: XCTestCase {
     XCTAssertEqual(StubProtocol.requests().map(\.url?.query), [nil])
   }
 
+  // Opening an issue is one GET, as the window's; nothing is posted, so nothing asks your agent or touches the blocklist.
+  func testOpeningAnIssuePostsNothing() async throws {
+    let id = "acme/worker#860"
+    let store = try await local()
+    StubProtocol.reset(["/api/item": StubProtocol.Answer(body: String(decoding: try Fixture.data("item-issue"), as: UTF8.self))])
+    guard case .success(let d)? = await store.fetchItem(id) else { return XCTFail("no issue") }
+    XCTAssertNotNil(d.issueAi)
+    XCTAssertEqual(StubProtocol.requests().map(\.httpMethod), ["GET"])
+    XCTAssertEqual(StubProtocol.requests().map(\.url?.absoluteString), ["http://localhost:47841/api/item?id=acme%2Fworker%23860"])
+  }
+
   // An open that never reached the desk is tried as an open again; one the desk refused was seen by it.
   func testAnOpenTheDeskNeverSawIsAnOpenAgain() async throws {
     let id = "acme/api#4127"

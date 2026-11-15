@@ -96,7 +96,7 @@ enum Words {
   ]
 
   // An opened page's call to action: the row's own, then what the window's review offers where a row has none.
-  static let act: [String: String] = cta.merging(["approve": "Approve", "comment": "Comment", "handoff": "Hand off for merge"]) { a, _ in a }
+  static let act: [String: String] = cta.merging(["approve": "Approve", "comment": "Comment", "handoff": "Hand off for merge", "fix": "Make PR with fix"]) { a, _ in a }
 
   // The More menu's GitHub writes (Card.actions), by label, as More.tsx's MORE; an issue's close is "Close issue".
   static let more: [String: String] = [
@@ -167,6 +167,37 @@ enum Words {
   ]
 
   static let verdict: [String: String] = ["look": "Look closely", "skim": "Skim it", "skip": "Skip it"]
+
+  // MARK: An issue's page (web/src/components/Detail.tsx)
+
+  // What kind of issue its pre-review says it is: "A bug", without its full stop.
+  static func issueKind(_ kind: String?) -> String {
+    ["bug": "A bug", "feature": "A feature request", "question": "A question"][kind ?? ""] ?? "An issue"
+  }
+
+  // Who placed it (view.ts's PLACED_BY).
+  static func placedBy(_ by: String?, agent: String) -> String? {
+    switch by {
+    case "hard": "placed by a hard rule"
+    case "pin": "kept up by its pin"
+    case "claude": "sorted by \(agent)"
+    case "automation": "sorted by an automation"
+    default: nil
+    }
+  }
+
+  // How you were asked (Detail.tsx's request()).
+  static func asked(_ m: ItemDetail.Signals.Me) -> String {
+    if m.author == true { return "your PR" }
+    if m.requested != true { return m.assignee == true ? "assigned to you" : "not requested" }
+    var parts = [m.requestedDirect == true ? "you, by name" : "your team @\(m.requestedTeam ?? "")"]
+    if let by = m.requestedBy, !by.isEmpty { parts.append("by \(by)\(m.requestedByBot == true ? " (bot)" : "")") }
+    if m.requestedCodeowner == true { parts.append("CODEOWNERS") }
+    if let h = m.requestedHours, h >= 0 {
+      parts.append((h < 1 ? "\(Int((h * 60).rounded()))m" : h < 48 ? "\(Int(h.rounded()))h" : "\(Int((h / 24).rounded()))d") + " ago")
+    }
+    return parts.joined(separator: ", ")
+  }
 
   // MARK: The AI review's words (src/sections.ts, AiSection in web/src/components/Review.tsx)
 

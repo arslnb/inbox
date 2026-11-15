@@ -540,6 +540,39 @@ final class Store {
     }
   }
 
+  // An issue's pre-review, now: Analyze it, Try again, Read it again; `trust` after a flag ("Not an injection: analyze
+  // it"). It spends your agent, so only a press calls it; opening an issue is what the window's open is, one GET.
+  @discardableResult
+  func analyzeIssue(_ c: Card, trust: Bool = false) async -> Bool {
+    await write(c.id) { client in
+      try await client.analyzeIssue(c.id, trust: trust)
+      return Toast(text: "Analyzing \(c.shortRef)")
+    }
+  }
+
+  // Make PR with fix: your agent opens a draft PR with the pre-review's fix (a coordinator turn). Only on a press.
+  @discardableResult
+  func fixIssue(_ c: Card) async -> Bool {
+    let took = await write(c.id) { client in
+      try await client.fixIssue(c.id)
+      return Toast(text: "Asked your agent for a PR with the fix: \(c.shortRef)")
+    }
+    if took { askedAbout(c.id) }
+    return took
+  }
+
+  // Where the window opens Ask your agent on the item just asked about. The phone's page stays; its toast says it.
+  func askedAbout(_ id: String) {}
+
+  // Block or Unblock its author on the desk: their items are muted and no agent reads them. Nothing on GitHub.
+  @discardableResult
+  func blockAuthor(_ c: Card, _ on: Bool) async -> Bool {
+    await write(c.id) { client in
+      let r = try await client.blockAuthor(c.id, on)
+      return Toast(text: "\(on ? "Blocked" : "Unblocked") @\(r.author ?? c.author ?? "") on your desk")
+    }
+  }
+
   // Your answer to an agent's question: one of its options' words or your own; nil dismisses it (the agent decides itself).
   // Its row leaves the Inbox at once (`leaving` has its id). Answering the coordinator wakes it, as in the window.
   @discardableResult
@@ -687,6 +720,8 @@ final class Store {
     //   -ai open   with -open: the AI review's fold, opened
     //   -review.view guided|traditional   the diff's order where a review has steps (the saved choice, for this launch)
     //   -scroll guide|step-<n>|note|bugs   with -open: the guided review's first step, a later one, the first note on a line
+    //   -issue running|again|failed|stale|none|off|injection|blocked   with -open: an issue's pre-review in that state
+    //   -step <n>   with -open: an issue's walk at its nth step
     func applyLaunchArguments(_ args: UserDefaults = .standard, flags: [String] = ProcessInfo.processInfo.arguments) {
       guard flags.contains(where: { ["-deskURL", "-connect"].contains($0) }) else { return }
       stopLive()
@@ -715,6 +750,8 @@ final class Store {
       debugComment = args.string(forKey: "comment")
       debugSaid = args.string(forKey: "said")
       debugAi = args.string(forKey: "ai")
+      debugIssue = args.string(forKey: "issue")
+      debugStep = args.object(forKey: "step") == nil ? nil : args.integer(forKey: "step")
     }
 
     var scrollTo: String?
@@ -724,6 +761,8 @@ final class Store {
     var debugComment: String?
     var debugSaid: String?
     var debugAi: String?
+    var debugIssue: String?  // an issue's pre-review as the mock never sends it: see ItemDetail.debugging()
+    var debugStep: Int?
     var debugScan: String?  // what the camera would have read: the connect screen takes it once
   #endif
 }

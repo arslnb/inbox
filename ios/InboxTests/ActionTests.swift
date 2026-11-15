@@ -73,6 +73,40 @@ final class WriteTests: XCTestCase {
     XCTAssertEqual(e, .refused(status: 400, message: "the comment is empty"))
   }
 
+  // An issue's pre-review: analyze it (with trust only after a flag), Make PR with fix, and the desk's blocklist.
+  func testAnIssuesPreReviewRoutes() async throws {
+    let id = "acme/worker#860"
+    let at = "/api/issue/acme/worker#860"
+    let to = "/api/issue/acme%2Fworker%23860"
+    StubProtocol.reset(["\(at)/analyze": Answer(body: #"{"ok":true}"#)])
+    try await client().analyzeIssue(id)
+    try sent("\(to)/analyze", [:])
+    StubProtocol.reset(["\(at)/analyze": Answer(body: #"{"ok":true}"#)])
+    try await client().analyzeIssue(id, trust: true)
+    try sent("\(to)/analyze", ["trust": true])
+
+    StubProtocol.reset(["\(at)/fix": Answer(body: #"{"ok":true,"ask":{"id":"a1","text":"Make a PR with a fix for acme/worker#860.","item_id":"acme/worker#860"}}"#)])
+    try await client().fixIssue(id)
+    try sent("\(to)/fix", [:])
+
+    StubProtocol.reset(["\(at)/block": Answer(body: #"{"ok":true,"author":"nina"}"#)])
+    var r = try await client().blockAuthor(id, true)
+    XCTAssertEqual(r.author, "nina")
+    try sent("\(to)/block", [:])
+    StubProtocol.reset(["\(at)/unblock": Answer(body: #"{"ok":true,"author":"nina"}"#)])
+    r = try await client().blockAuthor(id, false)
+    XCTAssertEqual(r.author, "nina")
+    try sent("\(to)/unblock", [:])
+
+    var e = await refusal("\(at)/fix", 409, "your agent is off: Settings → Local Agent Integration") { try await self.client().fixIssue(id) }
+    XCTAssertEqual(e, .refused(status: 409, message: "your agent is off: Settings → Local Agent Integration"))
+    // Paired as a machine (an older pairing): the desk keeps these for its window.
+    e = await refusal("\(at)/block", 403, "block an author from the desk's window", tag: "Forbidden") { try await self.client().blockAuthor(id, true) }
+    XCTAssertEqual(e, .refused(status: 403, message: "block an author from the desk's window"))
+    e = await refusal("\(at)/analyze", 409, "@nina is blocked: no agent reads their issues") { try await self.client().analyzeIssue(id) }
+    XCTAssertEqual(e?.words, "@nina is blocked: no agent reads their issues")
+  }
+
   func testReply() async throws {
     let path = "/api/review/me/notes-app#12/reply"
     StubProtocol.reset([path: Answer(body: #"{"ok":true,"url":"https://github.com/me/notes-app/pull/12#discussion-mock"}"#)])
@@ -703,6 +737,87 @@ final class StoreWriteTests: XCTestCase {
     guard case .failure(let e) = await store.readReview("acme/worker#860") else { return XCTFail("an issue has no review") }
     XCTAssertEqual(e.words, "acme/worker#860 is an issue; reviews are for pull requests")
     XCTAssertTrue(store.notices.isEmpty, "the page says a failed read; no bubble")
+  }
+
+  // MARK: An issue's pre-review (analyze and fix spend your agent: only on a press)
+
+  private func posts() -> [String] { paths().filter { $0.hasPrefix("POST") } }
+
+  func testAnIssuesPreReviewPressesPostOnceAndSaySo() async throws {
+    let c = try card("acme/worker#860")
+    let at = "/api/issue/acme/worker#860"
+    try desk(["\(at)/analyze": Answer(body: #"{"ok":true}"#)])
+    var took = await store.analyzeIssue(c)
+    XCTAssertTrue(took)
+    XCTAssertEqual(store.toast?.text, "Analyzing worker#860")
+    XCTAssertEqual(posts(), ["POST \(at)/analyze"])
+    XCTAssertEqual(StubProtocol.requests().first?.sentBody, Data("{}".utf8))
+    XCTAssertTrue(paths().contains("GET /api/queue"), "read again")
+
+    try desk(["\(at)/analyze": Answer(body: #"{"ok":true}"#)])
+    took = await store.analyzeIssue(c, trust: true)
+    XCTAssertTrue(took)
+    XCTAssertEqual(posts(), ["POST \(at)/analyze"])
+    XCTAssertEqual(StubProtocol.requests().first?.sentBody, Data(#"{"trust":true}"#.utf8))
+
+    try desk(["\(at)/fix": Answer(body: #"{"ok":true,"ask":{"id":"a1"}}"#)])
+    took = await store.fixIssue(c)
+    XCTAssertTrue(took)
+    XCTAssertEqual(store.toast?.text, "Asked your agent for a PR with the fix: worker#860")
+    XCTAssertEqual(posts(), ["POST \(at)/fix"])
+
+    try desk(["\(at)/block": Answer(body: #"{"ok":true,"author":"nina"}"#)])
+    took = await store.blockAuthor(c, true)
+    XCTAssertTrue(took)
+    XCTAssertEqual(store.toast?.text, "Blocked @nina on your desk")
+    XCTAssertEqual(posts(), ["POST \(at)/block"])
+    XCTAssertFalse(store.left(c), "still on the queue the desk answered with: its page stays")
+
+    try desk(["\(at)/unblock": Answer(body: #"{"ok":true,"author":"nina"}"#)])
+    took = await store.blockAuthor(c, false)
+    XCTAssertTrue(took)
+    XCTAssertEqual(store.toast?.text, "Unblocked @nina on your desk")
+    XCTAssertEqual(posts(), ["POST \(at)/unblock"])
+    XCTAssertEqual(store.toast?.undoable, false)
+    XCTAssertFalse(store.busy(c.id))
+  }
+
+  // The desk's own words, in a bubble; the issue stays on its list and nothing claims it worked.
+  func testARefusedPreReviewPressKeepsThePage() async throws {
+    let c = try card("acme/worker#860")
+    let at = "/api/issue/acme/worker#860"
+    try desk(["\(at)/fix": no(409, "your agent is off: Settings → Local Agent Integration")])
+    var took = await store.fixIssue(c)
+    XCTAssertFalse(took)
+    XCTAssertNil(store.toast)
+    XCTAssertEqual(store.notices.last?.title, "your agent is off: Settings → Local Agent Integration")
+    XCTAssertTrue(store.leaving.isEmpty)
+    XCTAssertNotNil(store.card(c.id))
+
+    try desk(["\(at)/block": no(403, "block an author from the desk's window")])
+    took = await store.blockAuthor(c, true)
+    XCTAssertFalse(took)
+    XCTAssertEqual(store.notices.last?.title, "block an author from the desk's window")
+    try desk(["\(at)/analyze": no(409, "issue pre-reviews aren't available in this desk")])
+    took = await store.analyzeIssue(c)
+    XCTAssertFalse(took)
+    XCTAssertEqual(store.notices.last?.title, "issue pre-reviews aren't available in this desk")
+    XCTAssertNotNil(store.address, "a refused write is no revoke")
+  }
+
+  // While one is on its way a second press sends nothing: your agent is asked once.
+  func testASecondPreReviewPressWhileSendingIsRefused() async throws {
+    let c = try card("acme/worker#860")
+    try desk(["/api/issue/acme/worker#860/fix": Answer(hangs: true)])
+    let first = Task { await self.store.fixIssue(c) }
+    for _ in 0..<150 where StubProtocol.requests().isEmpty { try await Task.sleep(for: .milliseconds(20)) }
+    XCTAssertTrue(store.busy(c.id))
+    let again = await store.fixIssue(c)
+    XCTAssertFalse(again)
+    let other = await store.analyzeIssue(c)
+    XCTAssertFalse(other)
+    XCTAssertEqual(paths(), ["POST /api/issue/acme/worker#860/fix"])
+    first.cancel()
   }
 
   // MARK: Asking for the AI review (it spends your agent: only on a press)

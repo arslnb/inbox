@@ -165,6 +165,7 @@ struct Card: Decodable, Identifiable, Sendable {
   var depth: Int?
   var reason: String?
   var quick: String?
+  var placedBy: String?  // "hard" | "pin" | "claude" | "automation": whose its place is (Words.placedBy)
 
   struct Handoff: Decodable, Sendable {
     var why: String?
@@ -328,8 +329,58 @@ struct ItemDetail: Decodable, Sendable {
   var generating: Bool?
   @Lossy var activity: [ActivityEvent]
   var stack: Stack?
+  var signals: Signals?
+  // An issue's: its pre-review (the latest, even if the issue has moved on since), its run, and whether its author is
+  // on the desk's blocklist.
+  var issueAi: IssueReview?
+  var issueAiState: String?  // "running" | "failed" | "off"
+  var issueAiError: String?
+  var blockedAuthor: Bool?
+
+  // Written before the issue's latest activity.
+  var preStale: Bool { issueAi != nil && issueAi?.updatedAt != item?.updatedAt }
+
+  // Make PR with fix is offered: a fix your agent can make, on an open issue nobody flagged or blocked (Detail.tsx's fixable).
+  var fixable: Bool { issueAi?.fixable == true && issueAi?.injection == nil && item?.state == "open" && blockedAuthor != true }
+
+  // Where the pre-review stands, said above it or in its place (IssuePre's status in Detail.tsx); nil: only the review, or
+  // nothing at all when AI reviews are off.
+  enum PreStanding: Equatable {
+    case running(again: Bool)
+    case failed(String)
+    case stale
+    case none
+  }
+
+  var preStanding: PreStanding? {
+    switch issueAiState {
+    case "running": .running(again: issueAi != nil)
+    case "failed": .failed(issueAiError ?? "")
+    case "off": nil
+    default: preStale ? .stale : issueAi == nil ? PreStanding.none : nil
+    }
+  }
+
+  struct Signals: Decodable, Sendable {
+    var me: Me?
+
+    // How you were asked (Words.asked).
+    struct Me: Decodable, Sendable {
+      var author: Bool?
+      var assignee: Bool?
+      var requested: Bool?
+      var requestedDirect: Bool?
+      var requestedTeam: String?
+      var requestedCodeowner: Bool?
+      var requestedBy: String?
+      var requestedByBot: Bool?
+      var requestedHours: Double?
+    }
+  }
 
   struct Item: Decodable, Sendable {
+    var author: String?
+    var updatedAt: String?
     var state: String?  // "open" | "closed" | "merged"
     var draft: Bool?
     var headOid: String?  // the commit this was read at: what Approve, Merge and Request changes are pinned to
@@ -352,6 +403,40 @@ struct ItemDetail: Decodable, Sendable {
       var state: String?
       var commit: String?
     }
+  }
+}
+
+// An issue's pre-review: what's wrong and what we'd do, a walk through it when it isn't simple, or the screen's flag with
+// nothing else read. Every word of it is the model's.
+struct IssueReview: Decodable, Sendable {
+  var updatedAt: String?  // the issue's updated_at when it was read
+  var at: String?
+  var model: String?
+  var injection: Injection?
+  var kind: String?  // "bug" | "feature" | "question" | "other"
+  var summary: String?
+  var problem: String?
+  var cause: String?
+  @Lossy var evidence: [Evidence]
+  var fix: String?
+  var fixable: Bool?
+  @Lossy var steps: [Step]
+  var code: Bool?  // read from the code in your clone, not the issue's text alone
+
+  struct Injection: Decodable, Sendable {
+    var who: String?
+    var why: String?
+  }
+
+  struct Evidence: Decodable, Sendable {
+    var path: String?
+    var line: Int?
+    var why: String?
+  }
+
+  struct Step: Decodable, Sendable {
+    var title: String?
+    var body: String?
   }
 }
 
@@ -764,6 +849,10 @@ struct UndoAnswer: Decodable, Sendable {
 
 struct Ok: Decodable, Sendable {
   var ok: Bool?
+}
+
+struct BlockAnswer: Decodable, Sendable {
+  var author: String?
 }
 
 struct Wrote: Decodable, Sendable {

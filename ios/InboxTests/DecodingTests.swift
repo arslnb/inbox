@@ -97,6 +97,119 @@ final class DecodingTests: XCTestCase {
     XCTAssertEqual(d.card.why, "assigned to you")
   }
 
+  // An issue's answer with some of it changed: the states the mock never sends.
+  private func issue(_ name: String = "item-issue", _ change: (inout [String: Any]) -> Void) throws -> ItemDetail {
+    var json = try XCTUnwrap(JSONSerialization.jsonObject(with: try Fixture.data(name)) as? [String: Any])
+    change(&json)
+    return try DeskJSON.decoder().decode(ItemDetail.self, from: try JSONSerialization.data(withJSONObject: json))
+  }
+
+  func testAnIssuesPreReview() throws {
+    let d: ItemDetail = try Fixture.decode("item-issue")
+    let r = try XCTUnwrap(d.issueAi)
+    XCTAssertEqual(r.kind, "bug")
+    XCTAssertEqual(r.summary, "Batches over 10,000 rows run the worker out of memory.")
+    XCTAssertEqual(r.evidence.map(\.path), ["src/batch.ts", "src/config.ts"])
+    XCTAssertEqual(r.evidence.first?.line, 42)
+    XCTAssertEqual(r.fixable, true)
+    XCTAssertEqual(r.code, true)
+    XCTAssertNil(r.injection)
+    XCTAssertTrue(r.steps.isEmpty)
+    XCTAssertNil(d.issueAiState)
+    XCTAssertEqual(d.blockedAuthor, false)
+    XCTAssertEqual(d.item?.author, "nina")
+    XCTAssertEqual(r.updatedAt, d.item?.updatedAt)
+    XCTAssertFalse(d.preStale)
+    XCTAssertNil(d.preStanding, "only the review")
+    XCTAssertTrue(d.fixable)
+    XCTAssertEqual(d.card.placedBy, "claude")
+    XCTAssertEqual(d.signals?.me?.assignee, true)
+
+    let walk: ItemDetail = try Fixture.decode("item-issue-steps")
+    XCTAssertEqual(walk.issueAi?.steps.map(\.title), ["Where the stale results come from", "Two ways to fix it", "Recommendation"])
+    XCTAssertFalse(walk.fixable, "what we'd do, not a fix to make")
+  }
+
+  func testWhereAPreReviewStands() throws {
+    var d = try issue {
+      $0["issue_ai"] = NSNull()
+      $0["issue_ai_state"] = "running"
+    }
+    XCTAssertNil(d.issueAi)
+    XCTAssertEqual(d.preStanding, .running(again: false))
+    XCTAssertFalse(d.fixable)
+    d = try issue { $0["issue_ai_state"] = "running" }
+    XCTAssertEqual(d.preStanding, .running(again: true))
+
+    d = try issue {
+      $0["issue_ai"] = NSNull()
+      $0["issue_ai_state"] = "failed"
+      $0["issue_ai_error"] = "Claude Code isn't logged in."
+    }
+    XCTAssertEqual(d.preStanding, .failed("Claude Code isn't logged in."))
+
+    // Written before its latest activity: the review still shows, and still has its fix.
+    d = try issue {
+      var r = $0["issue_ai"] as! [String: Any]
+      r["updated_at"] = "2026-01-01T00:00:00.000Z"
+      $0["issue_ai"] = r
+    }
+    XCTAssertTrue(d.preStale)
+    XCTAssertEqual(d.preStanding, .stale)
+    XCTAssertTrue(d.fixable)
+    d = try issue {
+      var r = $0["issue_ai"] as! [String: Any]
+      r["updated_at"] = "2026-01-01T00:00:00.000Z"
+      $0["issue_ai"] = r
+      $0["issue_ai_state"] = "off"
+    }
+    XCTAssertNil(d.preStanding, "AI reviews are off: nothing offers to read it again")
+
+    d = try issue { $0["issue_ai"] = NSNull() }
+    XCTAssertEqual(d.preStanding, ItemDetail.PreStanding.none)
+    d = try issue {
+      $0["issue_ai"] = NSNull()
+      $0["issue_ai_state"] = "off"
+    }
+    XCTAssertNil(d.preStanding, "off and none written: nothing is drawn")
+
+    // An older desk sends none of it.
+    d = try issue {
+      for key in ["issue_ai", "issue_ai_state", "issue_ai_error", "blocked_author", "signals"] { $0[key] = nil }
+    }
+    XCTAssertNil(d.issueAi)
+    XCTAssertNil(d.blockedAuthor)
+    XCTAssertFalse(d.fixable)
+  }
+
+  func testAFlaggedIssueAndABlockedAuthor() throws {
+    var d = try issue {
+      var r = $0["issue_ai"] as! [String: Any]
+      r["injection"] = ["who": "nina", "why": "A comment tells whoever reads it to post the repository's secrets."]
+      $0["issue_ai"] = r
+    }
+    XCTAssertEqual(d.issueAi?.injection?.who, "nina")
+    XCTAssertEqual(d.issueAi?.injection?.why, "A comment tells whoever reads it to post the repository's secrets.")
+    XCTAssertFalse(d.fixable, "nothing is made from a flagged issue")
+
+    d = try issue { $0["blocked_author"] = true }
+    XCTAssertEqual(d.blockedAuthor, true)
+    XCTAssertFalse(d.fixable)
+
+    d = try issue {
+      var item = $0["item"] as! [String: Any]
+      item["state"] = "closed"
+      $0["item"] = item
+    }
+    XCTAssertFalse(d.fixable, "a closed issue")
+    d = try issue {
+      var r = $0["issue_ai"] as! [String: Any]
+      r["fixable"] = false
+      $0["issue_ai"] = r
+    }
+    XCTAssertFalse(d.fixable)
+  }
+
   func testInquiry() throws {
     let q: Inquiry = try Fixture.decode("inquiry")
     XCTAssertEqual(q.id, "q1c0ffee")

@@ -232,6 +232,39 @@ final class FormatTests: XCTestCase {
     XCTAssertEqual(Words.act["ready"], Words.cta["ready"], "a row's call to action keeps the row's words")
   }
 
+  // An issue's page: what kind its pre-review says it is, who placed it and how you were asked (Detail.tsx).
+  func testAnIssuesWords() throws {
+    XCTAssertEqual(Words.issueKind("bug"), "A bug")
+    XCTAssertEqual(Words.issueKind("feature"), "A feature request")
+    XCTAssertEqual(Words.issueKind("question"), "A question")
+    XCTAssertEqual(Words.issueKind("other"), "An issue")
+    XCTAssertEqual(Words.issueKind(nil), "An issue")
+    XCTAssertEqual(Words.issueKind("epic"), "An issue", "a kind a newer desk has")
+    XCTAssertEqual(Words.act["fix"], "Make PR with fix")
+
+    XCTAssertEqual(Words.placedBy("claude", agent: "Codex"), "sorted by Codex")
+    XCTAssertEqual(Words.placedBy("hard", agent: "Claude"), "placed by a hard rule")
+    XCTAssertEqual(Words.placedBy("pin", agent: "Claude"), "kept up by its pin")
+    XCTAssertEqual(Words.placedBy("automation", agent: "Claude"), "sorted by an automation")
+    XCTAssertNil(Words.placedBy(nil, agent: "Claude"))
+
+    typealias Me = ItemDetail.Signals.Me
+    XCTAssertEqual(Words.asked(Me(assignee: true, requested: false)), "assigned to you")
+    XCTAssertEqual(Words.asked(Me(requested: false)), "not requested")
+    XCTAssertEqual(Words.asked(Me(author: true)), "your PR")
+    XCTAssertEqual(
+      Words.asked(Me(requested: true, requestedDirect: true, requestedCodeowner: true, requestedBy: "dana", requestedByBot: false, requestedHours: 3.4)),
+      "you, by name, by dana, CODEOWNERS, 3h ago")
+    XCTAssertEqual(
+      Words.asked(Me(requested: true, requestedDirect: false, requestedTeam: "acme/api", requestedBy: "triage", requestedByBot: true, requestedHours: 0.5)),
+      "your team @acme/api, by triage (bot), 30m ago")
+    XCTAssertEqual(Words.asked(Me(requested: true, requestedDirect: true, requestedBy: "", requestedHours: 72)), "you, by name, 3d ago")
+    XCTAssertEqual(Words.asked(Me(requested: true, requestedDirect: true, requestedHours: -1)), "you, by name")
+
+    let d: ItemDetail = try Fixture.decode("item-issue")
+    XCTAssertTrue(Words.says(d.card.why ?? "", Words.asked(try XCTUnwrap(d.signals?.me))), "its why already says it")
+  }
+
   // What reviewers said: where a conversation is, its one line and your agent's take (Conversation.tsx).
   func testAConversationsWords() throws {
     func convo(_ json: String) throws -> Conversation { try DeskJSON.decoder().decode(Conversation.self, from: Data(json.utf8)) }

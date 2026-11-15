@@ -232,6 +232,26 @@ struct APIClient: Sendable {
     let _: Ok = try await send(req)
   }
 
+  private struct Trust: Encodable {
+    var trust: Bool?
+  }
+
+  // An issue's pre-review, now: your agent reads it (again). `trust` skips the screen after it flagged a prompt
+  // injection. It spends your agent, so only ever on a press.
+  func analyzeIssue(_ id: String, trust: Bool = false) async throws {
+    let _: Ok = try await post("/api/issue/\(APIClient.segment(id))/analyze", json: Trust(trust: trust ? true : nil))
+  }
+
+  // Make PR with fix: asks your agent (a coordinator turn) for a draft PR with the pre-review's fix. Only on a press.
+  func fixIssue(_ id: String) async throws {
+    let _: Ok = try await post("/api/issue/\(APIClient.segment(id))/fix")
+  }
+
+  // The desk's own blocklist: a blocked author's items are muted and no agent reads them. Nothing on GitHub.
+  func blockAuthor(_ id: String, _ on: Bool) async throws -> BlockAnswer {
+    try await post("/api/issue/\(APIClient.segment(id))/\(on ? "block" : "unblock")")
+  }
+
   private struct Dismiss: Encodable {
     var dismiss = true
   }
