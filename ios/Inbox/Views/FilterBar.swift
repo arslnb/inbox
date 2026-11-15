@@ -27,7 +27,8 @@ struct FilterBar: View {
     VStack(alignment: .leading, spacing: 0) {
       HStack(spacing: 8) {
         Image(systemName: "magnifyingglass").font(.system(size: 13, weight: .medium)).foregroundStyle(Theme.pencil).accessibilityHidden(true)
-        ForEach(Array(pills.enumerated()), id: \.offset) { i, t in pill(t) { store.filter = Filter.dropped(i, from: store.filter) } }
+        // A pill keeps its words before the box takes the rest of the line.
+        ForEach(Array(pills.enumerated()), id: \.offset) { i, t in pill(t) { store.filter = Filter.dropped(i, from: store.filter) }.layoutPriority(1) }
         FilterField(
           text: Binding(
             get: { rest },
@@ -76,7 +77,7 @@ struct FilterBar: View {
       HStack(alignment: .firstTextBaseline, spacing: 0) {
         Text((Filter.label[t.key] ?? t.key) + " ").foregroundStyle(Theme.pencil).fixedSize()
         if !you { Avatar(login: t.who) }
-        Text(you ? "you" : t.who).sans(14, 550).foregroundStyle(Theme.ink).lineLimit(1)
+        Text(you ? "you" : t.who).sans(14, 550).foregroundStyle(Theme.ink).lineLimit(1).layoutPriority(1)
         Text(" ×").foregroundStyle(Theme.pencil).fixedSize()
       }
       .sans(14)
@@ -93,9 +94,9 @@ struct FilterBar: View {
       open = p.login.isEmpty
     } label: {
       HStack(alignment: .firstTextBaseline, spacing: 0) {
-        Text(Filter.label[p.key] ?? p.key).sans(14).foregroundStyle(Theme.pencil).fixedSize().frame(width: keyWidth, alignment: .leading)
+        Text(Filter.label[p.key] ?? p.key).sans(14).foregroundStyle(Theme.pencil).fixedSize().frame(width: min(keyWidth, 100), alignment: .leading)
         if p.login.isEmpty {
-          Text(Filter.help[p.key] ?? "").sans(14).foregroundStyle(Theme.ink2).lineLimit(1).minimumScaleFactor(0.85)
+          Text(Filter.help[p.key] ?? "").sans(14).foregroundStyle(Theme.ink2).lineLimit(2).multilineTextAlignment(.leading)
         } else {
           if p.login != store.me { Avatar(login: p.login, size: 16) }
           Text(p.login).sans(14, 500).foregroundStyle(Theme.ink).lineLimit(1)
