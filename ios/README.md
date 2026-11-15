@@ -62,7 +62,8 @@ xcrun simctl launch booted dev.inbox.ios -deskURL http://localhost:47841 -page m
 | `-scrollTo standard`                           | the Inbox scrolled to a section (`urgent`, `standard`, `fyi`)           |
 | `-box approve\|comment\|changes\|reviewers\|reply\|answer` | with `-open`: that page's box, opened once the page has loaded |
 | `-part checks\|reviewers`                      | with `-open`: that line of a PR's State, opened                         |
-| `-scroll diff\|thread`                         | with `-open`: a PR's page scrolled to its diff, or to the first thread on a line of it |
+| `-scroll diff\|thread\|said`                   | with `-open`: a PR's page scrolled to its diff, the first thread on a line of it, or what reviewers said |
+| `-said waiting\|more`                          | with `-open`: the first waiting conversation's own words unfolded, or the ones not waiting on you opened |
 | `-comment <path>:<line>`                       | with `-open`: the box for a comment on that line of the new file        |
 | `-settings`                                    | the settings sheet                                                      |
 | `-empty`                                       | the desk as if nothing were on it                                       |
@@ -81,7 +82,7 @@ It builds, installs on the booted simulator, starts the mock on port 47841 (and 
 `blocked`, `merging`, `archive`, `item-pr` (with an AI review and its State; Approve), `item-pr-checks` (a failing
 run, its checks opened), `item-pr-own` (your PR: who reviews it, + Add reviewers), `item-pr-diff` (its diff, from the first file),
 `item-pr-diff-thread` (a thread under its line), `item-pr-line-comment` (the box for a comment on a line), `item-issue` (Comment), `item-reply` (what
-waits on your reply), `item-draft` (Ready for review; its description's first paragraph where a review would be), `item-mine` (Hand off for merge), `item-merging` (Back to desk),
+waits on your reply, each with your agent's read), `item-pr-said` (what one of them wrote, unfolded), `item-pr-more-conversations` (the ones not waiting on you, the first opened), `item-draft` (Ready for review; its description's first paragraph where a review would be), `item-mine` (Hand off for merge), `item-merging` (Back to desk),
 the boxes `approve`, `reply`, `reviewers` and `answer`, `question`, `session`, `session-kick`, `item-large` and `item-largest` (accessibility
 text sizes, where the bar's quiet buttons fold into More and the longest call to action keeps its words), `settings` and `offline` (a desk that isn't
 there). It won't shoot while something already answers on that port (a mock you started by
@@ -159,15 +160,23 @@ default size all four fit beside the longest name, Hand off for merge).
   sign, the text, a faint green or red behind what was added or removed. Then the files the desk folded away, under
   "Not worth reviewing · N files", each with why (a lockfile; no text diff). A file's first 400 lines are drawn, the
   rest are on GitHub; past about 3,000 lines in all, every file starts folded. A review thread sits under its line
-  (not an outdated one), with Reply and On GitHub; a resolved one is one line until pressed. On an open PR, press a
+  (not an outdated one), drawn as under "What was said", with Reply and Open on GitHub; a resolved one is one line until pressed. On an open PR, press a
   line to comment on it: a removed line's comment goes on the old file's side, any other on the new one's. One line
   only, pinned to the commit the diff is at. Your words show under the line as "You · sent" until the conversation
   read again has them. Code stops growing at the first accessibility text size; what people said grows on.
 - **After a write** that takes it off your desk (Approve, Comment on the PR, Request changes, Close, Merge) the phone
   goes back to the list, where its toast is; the window stays on the review. Deliberate: only a comment on a line and
-  a reply from a line of the diff stay on the page (a reply from "Waiting on your reply" stays until it was the last).
-- **A row that owes a reply** lists each conversation waiting on you (where, your agent's read, its last words, Reply);
-  a press opens its reply box. The bar's Reply answers the first.
+  a reply stay on the page. A reply leaves it only when the desk took the PR off (`Store.left()`): a reply was all it
+  asked of you and this was the last one waiting.
+- **What reviewers said.** Under the AI review, as the window's Conversation: "Waiting on your reply N", each with who,
+  where ("src/auth.ts:42", ", outdated", or "on the PR") and when; what it comes to (your agent's gist, else the last
+  comment's first line); your agent's take with its call in bold, "<agent> is reading it." or why it couldn't; "What
+  azulus wrote" (or "What was said") unfolding every comment in place; then Reply and Open on GitHub. Then "N more
+  conversations not waiting on you", opening to a line each, and a press on one opens its comments and a Reply. A
+  thread gets a thread reply, a comment or a review a comment on the PR; a closed PR takes none. Nothing resolves a
+  thread from here: "resolved" is only said. After a reply the page stays and reads the review again; until then your
+  words show as "You · sent". The bar's Reply answers the first one waiting; a draft is kept per conversation. A
+  comment is text: `code` in the mono face, links as their URL, GitHub's tags and headings' hashes taken off.
 - **A question.** Its answers come straight under it, each a button that answers with it; Answer takes your own words;
   Dismiss lets the agent decide.
 - **A session.** Kick or Resume (off until a rate limit resets), Done and Snooze.
@@ -213,6 +222,7 @@ Merging, people's pictures, notifications, themes other than the default light a
 | The pages and their lists, a row's menu     | `Inbox/Views/DeskView.swift`                                                           |
 | An item's page                              | `Inbox/Views/ItemPage.swift`                                                           |
 | A PR's State (checks, reviewers, merge)     | `Inbox/Views/ReviewState.swift`; `CheckGroup.of()` in `Format.swift` (view.ts's `checkGroups()`) |
+| What reviewers said, a comment's drawing, Reply | `Inbox/Views/Said.swift` (`WhatWasSaid`; `SaidComments` and `SaidActions`, shared with the diff's threads); words in `Format.swift` (`Words.place()`, `gist()`, `takeSplit()`, `saidText()`, `replyTo()`); `Store.reply()`, `left()` |
 | A PR's diff: lines, order, threads, the fold | `Inbox/PatchLines.swift` (`patchLines()`, `Diff.traditional()`, `threadsOn()`, `spot()`, `DiffModel`: the twins of `src/review.ts`, `src/sections.ts` and `web/src/view.ts`); drawn by `Inbox/Views/DiffView.swift` |
 | A comment on a line                         | `Store.inline()`, `APIClient.inline()`; the box is `ItemPage`'s `.line`               |
 | When a PR's review is read, and the pin     | `Store.readReview()`, `closeReview()`, `pins` in `Inbox/Store.swift`                   |

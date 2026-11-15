@@ -96,6 +96,9 @@ wanted item-pr-line-comment && shot item-pr-line-comment -deskURL "$DESK" -open 
 wanted item-issue && shot item-issue -deskURL "$DESK" -open "acme/worker#860"
 # Yours: one that owes a reply (what was said, and Reply), a draft, one through review, one in Merging.
 wanted item-reply && shot item-reply -deskURL "$DESK" -open "me/notes-app#12"
+# What reviewers said: the first waiting one's own words unfolded, and the ones not waiting on you opened in place.
+wanted item-pr-said && shot item-pr-said -deskURL "$DESK" -open "me/notes-app#12" -said waiting
+wanted item-pr-more-conversations && shot item-pr-more-conversations -deskURL "$DESK" -open "me/notes-app#12" -said more -scroll said
 wanted item-draft && shot item-draft -deskURL "$DESK" -open "acme/web#2303"
 wanted item-mine && shot item-mine -deskURL "$DESK" -open "acme/worker#875"
 wanted item-merging && shot item-merging -deskURL "$DESK" -page merging -open "acme/api#4122"
