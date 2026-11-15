@@ -803,7 +803,15 @@ export function Review({
       {toggle}
       <div className="rv-main">
         <div className="rv-top">
-          <Head card={card} me={me} now={now} resolved={resolved?.line ?? null} row={row} />
+          <Head
+            card={card}
+            me={me}
+            now={now}
+            resolved={resolved?.line ?? null}
+            row={row}
+            ai={aiShown ? view.ai : null}
+            stale={view.ai_stale}
+          />
           {/* Yours gets no AI summary unless asked for, so its description's first paragraph says what it's about. */}
           {isMine && !view.ai && item.body && <p className="rv-summary rv-desc">{item.body.split("\n")[0]}</p>}
           {/* Your own PR gets no AI review unless one was asked for; More still asks. */}
@@ -1279,12 +1287,30 @@ function StepList({
 // The header: the ref and who it's by, then the title; how big it is, who reviews it and what stands in its way are the
 // sidebar's. A resolved
 // PR's line, and Merging's for your PR there.
-function Head({ card, me, now, resolved, row }: { card: Card; me: string; now: number; resolved: string | null; row: InflightRow | null }) {
+function Head({
+  card,
+  me,
+  now,
+  resolved,
+  row,
+  ai = null,
+  stale = false,
+}: {
+  card: Card;
+  me: string;
+  now: number;
+  resolved: string | null;
+  row: InflightRow | null;
+  ai?: AiShown | null; // its verdict, a tag at the metadata's end
+  stale?: boolean; // that review is of an earlier commit
+}) {
   const isMine = card.by === "you"; // yours, or a bot's opened for you
   // What it waits on and the coordinator's latest note, as Merging says it.
   const lane = row?.state === "open" && (row.waits_on || row.note) ? row : null;
   return (
     <header className={cls("rv-head", calm(card))}>
+      <h1 className="rv-title">{card.title}</h1>
+      {/* Its metadata, under the title: the ref, its place in a stack, who it's by, and the AI review's verdict as a tag. */}
       <p className="rv-ref">
         <a className="ref" href={card.url} target="_blank" rel="noreferrer" title={`${card.repo}#${card.number} on GitHub`}>
           <span className="ref-ink">
@@ -1301,8 +1327,16 @@ function Head({ card, me, now, resolved, row }: { card: Card; me: string; now: n
           {isMine ? "you" : card.author}
           {card.author_bot ? (isMine ? `, through ${card.author}` : " (bot)") : ""}
         </span>
+        {ai && (
+          <span
+            className={`rv-tag verdict v-${ai.verdict}`}
+            title={ai.model && ai.at ? `AI review by ${modelName(ai.model)}, ${when(ai.at)}` : "The AI review's verdict"}
+          >
+            {VERDICT[ai.verdict]}
+          </span>
+        )}
+        {ai && stale && <span className="quiet">on an earlier commit</span>}
       </p>
-      <h1 className="rv-title">{card.title}</h1>
       {card.handoff && (
         <p className="rv-meta rv-handoff">
           <span>
@@ -1385,15 +1419,23 @@ function Shell({
       <div className="rv-main">
         <div className="rv-top">
           {card ? (
-            <Head card={card} me={me} now={now} resolved={card.resolved ? resolvedHead([], card.resolved, me).line : null} row={row} />
+            <Head
+              card={card}
+              me={me}
+              now={now}
+              resolved={card.resolved ? resolvedHead([], card.resolved, me).line : null}
+              row={row}
+              ai={ai}
+              stale={pf?.state !== "ready"}
+            />
           ) : (
             <header className="rv-head" aria-hidden="true">
-              <p className="rv-ref">
-                <span className="sk sk-ref" />
-              </p>
               <h1 className="rv-title">
                 <span className="sk sk-title" />
               </h1>
+              <p className="rv-ref">
+                <span className="sk sk-ref" />
+              </p>
               <p className="rv-meta">
                 <span className="sk sk-meta" />
               </p>
@@ -1856,13 +1898,6 @@ function AiSection({
   // A diagram no step draws sits in the fold, at most one.
   const loose = ai?.diagrams?.find((d) => !ai.guide?.steps.some((st) => st.diagram === d.id));
   const folds = first.length > 0 && (rest.length > 0 || later.length > 0 || ifaces.length > 0 || better.length > 0 || !!loose);
-  // Its risk, and the reason for it, are the sidebar's (RiskPart).
-  const verdict = ai && (
-    <>
-      <span className={`verdict v-${ai.verdict}`}>{VERDICT[ai.verdict]}</span>
-      {stale && <span className="quiet">on an earlier commit</span>}
-    </>
-  );
   const toggle = (label: string) => (
     <button
       type="button"
@@ -1925,9 +1960,6 @@ function AiSection({
       {ai && (
         <>
           {first.length > 0 && <p className="rv-gist">{spans(unlinked(first))}</p>}
-          <p className="rv-verdict" title={ai.model && ai.at ? `AI review by ${modelName(ai.model)}, ${when(ai.at)}` : undefined}>
-            {verdict}
-          </p>
           {ai.intent?.stack && (
             <p className="rv-since">
               <b>In the stack:</b> {spans(unlinked(inline(ai.intent.stack)))}

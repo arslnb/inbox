@@ -1574,8 +1574,10 @@ const SHOTS: Shot[] = [
       if (await page.locator(".rv-ai .prose").count()) failures.push("review: the AI review doesn't open folded");
       if (!inOrder(await tops(page, [".rv-ai", ".rv-convo", ".rv-comment"])))
         failures.push("review: the AI review isn't above the conversation and your comment");
-      if (!inOrder(await tops(page, [".rv-gist", ".rv-verdict"]))) failures.push("review: the goal doesn't lead the verdict");
-      await faces(page, "review", ".rv-ref .rv-by:last-child, .cv-author");
+      // The title, then its metadata with the verdict's tag, then the goal.
+      if (!inOrder(await tops(page, [".rv-title", ".rv-ref .rv-tag", ".rv-gist"])))
+        failures.push("review: the head isn't title, metadata with the verdict, then the goal");
+      await faces(page, "review", ".rv-ref .rv-by:has(.avatar), .cv-author");
     },
   },
   // The top of a review stays short, so the diff starts high: your comment's box is one line on the actions' row, with no
@@ -2027,8 +2029,8 @@ const SHOTS: Shot[] = [
       const ai = page.locator(".rv-ai");
       if (!(await ai.locator('.rv-show[aria-expanded="false"]').count()))
         failures.push("review-ai-since: the AI review doesn't open folded");
-      if (!(await ai.locator(".rv-verdict").allInnerTexts()).join("").includes("on an earlier commit"))
-        failures.push("review-ai-since: the verdict isn't marked on an earlier commit");
+      if (!(await page.locator(".rv-ref").innerText()).includes("on an earlier commit"))
+        failures.push("review-ai-since: the verdict's tag isn't marked on an earlier commit");
       if (!(await ai.allInnerTexts()).join("").includes("Since your review:")) failures.push("review-ai-since: no since line while folded");
       if ((await ai.locator(".rv-since code, .rv-concerns code").count()) < 2)
         failures.push("review-ai-since: since or a concern shows code raw");

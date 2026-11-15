@@ -220,12 +220,12 @@ Under your answer: **Not picked up yet**, then **Picked up 2m ago** once the ask
 `#/review/<id>`: a PR read and acted on in the desk, in the Inbox's place. The sidebar stays, and in a wide window so does the list it came from. The diff takes the page's width; a foldable sidebar on the right holds the PR's state and files.
 
 ```
-  api#4154  3/6  by priya                                                                      [▯▮]
-  Planner: hash join stage                                        Stack on main
+  Planner: hash join stage                                        Status
+  api#4154  3/6  by priya  (Look closely)                         Stack on main
   asked you directly · CI passing · changes requested             ○ #4153 Planner: run the table…  ✗
                                                                   ┃○ #4154 Planner: hash join st… ±┃
                                                                   ○ #4155 Planner: stream partia…
-  Look closely                                                      3 more
+                                                                    3 more
   Adds a streaming scan (streamRows) and uses it in runPlan, ...  CI passing · 14 checks         ›
                                                                   Changes requested by sam       ›
   (threads waiting on you)                                        Merge conflict with main
@@ -255,7 +255,7 @@ Esc or the back link goes back to the page it was opened from.
 
 ### Header
 
-- The ref, a stack's place ("3/6"), the author with their picture ("by you" on yours), the title.
+- The title first; under it its metadata on one line: the ref, a stack's place ("3/6"), the author with their picture ("by you" on yours), then the AI review's verdict as a tag ("Look closely" in the accent, "Skim it", "Skip it" quieter; the model and time in its tooltip), "on an earlier commit" after it when it is.
 - How big it is and who reviews it are the sidebar's (Status, Reviewers).
 - Nothing else: why it's on the desk is the row's; CI, the review state, a conflict and what it blocks are the sidebar's.
 - A resolved PR says so under the title: "Resolved: merged by li-wei · 2h".
@@ -281,9 +281,8 @@ Sections, each open: its name, where it stands in one line that reads first (red
 
 No heading; right under the header.
 
-- **Goal** first: what the PR sets out to do, in ink, a step larger. A review written before goals leads with its summary's first sentence.
-- **Verdict** under it, at the section's size: "Look closely" (semibold), "Skim it" or "Skip it". The model and time are in its tooltip.
-- "on an earlier commit" after the verdict, in pencil, when it is. Its risk is the sidebar's (Status).
+- **Goal** first: what the PR sets out to do, in ink, larger than the rest (16 to 17.5px). A review written before goals leads with its summary's first sentence.
+- Its verdict is the header's tag, and its risk the sidebar's (Status).
 - **The rest of the summary**: **Show more** under it opens it, and **Show less** at its end folds it again. Every PR opens folded.
 - **Since your review**: on a re-review, under the summary, never folded.
 - **Concerns**: each is also a note in the code. They're listed only when no note can sit there (none, or an earlier commit's review).
