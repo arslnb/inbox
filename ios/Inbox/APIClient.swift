@@ -140,6 +140,7 @@ struct APIClient: Sendable {
 
   func health() async throws -> Health { try await get("/health") }
   func overview() async throws -> Overview { try await get("/api/overview") }
+  func setup() async throws -> SetupView { try await get("/api/setup") }
   func queue() async throws -> QueueView { try await get("/api/queue") }
   func inflight() async throws -> InflightView { try await get("/api/inflight") }
   func item(_ id: String) async throws -> ItemDetail { try await get("/api/item", query: ["id": id]) }

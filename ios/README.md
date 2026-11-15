@@ -327,7 +327,7 @@ meanwhile), says what the window says when it lands, and reads the desk again. T
 and makes a converted draft ready again.
 
 What it calls: reads (`/api/overview`, `/api/queue`, `/api/inflight`, `/api/item`, `/api/inquiries/:id`,
-`/api/reviewers/:id`, `/api/asks`, `/api/events`, `/health`), `POST /api/act` (done, snooze, mute, unmute, restore, seen, inflight,
+`/api/reviewers/:id`, `/api/asks`, `/api/setup`, `/api/events`, `/health`), `POST /api/act` (done, snooze, mute, unmute, restore, seen, inflight,
 takeback, and urgent, standard, fyi), `/api/undo`, `/api/sync`, `/api/notes`, `/api/notes/:id`, `/api/notes/:id/done`,
 `/api/coordinator/wake` and `/api/ask` (each a turn of your agent: only on a press), the writes above (`/api/review/:id/approve|comment|inline|reply|ready|reviewers|ai`,
 `/api/issue/:id/analyze|fix|block|unblock`, `/api/github`, `/api/inquiries/:id/answer`, `/api/sessions/:id/kick`) and,
@@ -357,6 +357,9 @@ Left out on purpose, each said here once.
 - **Settings' editors** (rules, automations, urgency criteria, themes, network, agents): configuration is done at the
   desk's computer; the phone only renders the desk's state, in the default light and dark.
 - **The first run** (connecting GitHub, picking your agent): it sets up the desk's own machine, so it happens there.
+  A phone paired before it was finished (`desk pair` doesn't check) shows the lists with a bubble, "The desk isn't
+  set up yet", saying to finish it on the computer (`GET /api/setup`, asked once per connection and then on each read
+  while it's unfinished); with GitHub not connected every read is refused in the desk's words instead.
 - **The update line and installing an update**: that's the desktop app updating itself.
 - **A session's Open**: the desk refuses it to a phone (403), since it opens a terminal on the desk's computer. The
   session's page says so where its button would be.

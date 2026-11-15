@@ -48,6 +48,11 @@ struct Health: Decodable, Sendable {
   var version: String?
 }
 
+// GET /api/setup, of which the phone reads one thing: whether the desk's first run is still unfinished.
+struct SetupView: Decodable, Sendable {
+  var needed: Bool?
+}
+
 struct ErrorBody: Decodable, Sendable {
   var error: String?
   var tag: String?

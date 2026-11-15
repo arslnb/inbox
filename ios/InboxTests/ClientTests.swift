@@ -573,6 +573,29 @@ final class StoreTests: XCTestCase {
     XCTAssertEqual(StubProtocol.requests().filter { $0.httpMethod != "GET" }.count, 0)
   }
 
+  // A desk paired before its first run was finished (desk pair doesn't check): the window shows the first-run page in
+  // every page's place, so the phone says where to finish it. Asked once per connection, then while it's unfinished.
+  func testADeskNotSetUpYetSaysSo() async throws {
+    let store = Store(defaults: defaults, session: StubProtocol.session())
+    let ok = { (name: String) in StubProtocol.Answer(body: String(decoding: try Fixture.data(name), as: UTF8.self)) }
+    var answers = ["/health": StubProtocol.Answer(body: #"{"ok":true,"version":"1.0.0"}"#), "/api/overview": try ok("overview"), "/api/queue": try ok("queue")]
+    answers["/api/setup"] = StubProtocol.Answer(body: #"{"needed":true,"github":{"login":"me"},"agent":null,"agents":[]}"#)
+    StubProtocol.reset(answers)
+    _ = await store.connect(typed: "http://localhost:47841", code: "")
+    store.stopLive()
+    await store.load()
+    XCTAssertEqual(store.notices.map(\.title), ["The desk isn't set up yet"])
+    // Finished at the computer: the next read says so and the bubble goes.
+    answers["/api/setup"] = StubProtocol.Answer(body: #"{"needed":false}"#)
+    StubProtocol.reset(answers)
+    await store.load()
+    XCTAssertTrue(store.notices.isEmpty)
+    // Done: not asked again on every read.
+    StubProtocol.reset(answers)
+    await store.load()
+    XCTAssertEqual(StubProtocol.requests().filter { $0.url?.path == "/api/setup" }.count, 0)
+  }
+
   // An open that never reached the desk, or a desk still starting, is tried as an open again; one the desk refused was seen by it.
   func testAnOpenTheDeskNeverSawIsAnOpenAgain() async throws {
     let id = "acme/api#4127"

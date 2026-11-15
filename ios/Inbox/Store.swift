@@ -72,6 +72,8 @@ final class Store {
   private(set) var starting: String?
   private(set) var broken: String?
   private(set) var refused: String?  // the desk's words for a read it wouldn't give (another Tailscale login, a desk this app can't read)
+  private(set) var setupNeeded = false  // the desk's first run isn't finished (it's done on its computer): a bubble says so
+  @ObservationIgnored private var askedSetup = false
   private(set) var leaving: Set<String> = []
   private(set) var sending: Set<String> = []  // what has a write on its way: an item's, question's or session's id
   private(set) var asking: Set<String> = []  // the PRs whose AI review was asked for from here and hasn't answered yet
@@ -182,6 +184,8 @@ final class Store {
     asks = nil
     askDrafts = [:]
     askFailed = [:]
+    setupNeeded = false
+    askedSetup = false
     offline = false
     starting = nil
     broken = nil
@@ -234,6 +238,11 @@ final class Store {
       broken = nil
       refused = nil
       loads += 1
+      // The first run is the window's page (Setup.tsx). Asked once per connection, then on each read while it's unfinished.
+      if !askedSetup || setupNeeded {
+        askedSetup = true
+        setupNeeded = (try? await client.setup())?.needed == true
+      }
     } catch let e as APIError {
       took(e)
     } catch {}
@@ -766,7 +775,10 @@ final class Store {
       Conditions(
         offline: offline, local: address?.isLocal ?? false, starting: starting, refused: refused, broken: broken, overview: overview,
         paused: queue?.paused, agent: agent), now: now)
-    return all.filter { dismissed[$0.id] != $0.sig } + failures
+    let setup = Notice(
+      id: "setup", sig: "needed", tone: .amber, title: "The desk isn't set up yet",
+      text: "Finish its first run on the desk's computer: its window asks which agent to use. Until then nothing is reviewed or sorted for you.")
+    return (all + (setupNeeded && !offline ? [setup] : [])).filter { dismissed[$0.id] != $0.sig } + failures
   }
 
   // MARK: Finding what's on screen
