@@ -697,7 +697,7 @@ struct Dotted: View {
 
 // Dotted's line: parts and the dots between them (every second subview is a dot), each part whole on its line.
 struct DotFlow: Layout {
-  var gap: CGFloat = 7  // either side of a dot
+  var gap: CGFloat = 6  // either side of a dot
   var leading: CGFloat = 3  // between lines
 
   // Where each subview goes; nil for a dot at a line's break.

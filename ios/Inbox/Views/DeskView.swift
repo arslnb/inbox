@@ -625,20 +625,21 @@ struct MergingList: View {
           }
         }
       } else {
-        HStack(spacing: 0) {
-          Text("Your agent").foregroundStyle(Theme.pencil)
+        // One line; where it doesn't fit (large text) each goes whole to the next, with no dot at the break.
+        DotFlow {
+          Text("Your agent").foregroundStyle(Theme.pencil).fixedSize()
           if let url = c.url.flatMap(URL.init(string:)) {
-            Text("·").foregroundStyle(Theme.faint).padding(.horizontal, 6)
+            Text("·").foregroundStyle(Theme.faint)
             Button {
               openURL(url)
             } label: {
               // One line of small text: its touch reaches into the room around it.
-              Text("Watch on claude.ai").underline(color: Theme.ruleStrong).foregroundStyle(Theme.ink2)
+              Text("Watch on claude.ai").underline(color: Theme.ruleStrong).foregroundStyle(Theme.ink2).fixedSize()
                 .contentShape(Rectangle().inset(by: -13))
             }
             .buttonStyle(.plain)
           }
-          Text("·").foregroundStyle(Theme.faint).padding(.horizontal, 6)
+          Text("·").foregroundStyle(Theme.faint)
           wake("Wake it")
         }
       }
