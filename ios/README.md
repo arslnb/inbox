@@ -313,9 +313,12 @@ takeback, and urgent, standard, fyi), `/api/undo`, `/api/sync`, `/api/notes`, `/
 once, `/api/pair`. And, not the desk: `https://avatars.githubusercontent.com/<login>?s=40` for a person's picture.
 
 What opening a PR costs: one `GET /api/review/:id` without `ahead`, exactly the window's open, so the desk may start
-its AI review (`review.auto_ai`) and your agent's read of the conversations waiting on you. Every redraw after it (the
-desk's events, after a write) asks with `?ahead=1`, a second after the last event, so an event never restarts a failed
-job (`Store.readReview()`). A PR's page no longer asks `/api/item`: that is for issues. Rows and lists never ask for a
+its AI review (`review.auto_ai`) and your agent's read of the conversations waiting on you. Every redraw after it asks with
+`?ahead=1`, a second after the desk's last event, so an event never restarts a failed job (`Store.readReview()`). Not
+every event is a redraw, since each is the whole review again and the desk sends one every couple of seconds while your
+agent works: the page reads again when the lists say something new about the PR, a sync ended or a write from this
+phone did (`Store.mark()`), on every event while its AI review is being written, your agent is reading its
+conversations or your words aren't in them yet, and otherwise at most every half minute (`Store.redraws()`). A PR's page no longer asks `/api/item`: that is for issues. Rows and lists never ask for a
 review, and nothing is prefetched. Nothing but a press on Ask Claude for one or Try again posts `/api/review/:id/ai`. The answer is the whole review (`ReviewView` in `Models.swift`: the order to read
 its hunks in, the AI review's parts, checks, reviewers, conversations); each file's own `patch` is never kept, since
 the same lines are in the order's hunks.

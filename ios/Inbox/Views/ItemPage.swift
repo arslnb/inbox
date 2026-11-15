@@ -17,6 +17,7 @@ struct ItemPage: View {
   @State private var boxHead: String?
   @State private var drafts: [String: String] = [:]
   @State private var diff: DiffModel?  // the review's diff, as it last landed
+  @State private var drawn: (mark: String, at: Date)?  // what Store.mark() said when the review on screen was asked for
   @State private var fixAsked = false  // Make PR with fix was taken from this page: a second press would ask your agent twice
   @State private var sent: [SentWords] = []  // yours on the diff's lines, until the conversation has them
   // This phone's choice where a review has steps: the guided review, or every file ("traditional"). The window's own.
@@ -97,19 +98,27 @@ struct ItemPage: View {
       let kind = card?.kind
       if kind == nil, store.loads == 0 { return }
       if kind != "issue" {
-        // A redraw waits for the desk's events to settle; another one meanwhile starts the wait again.
-        if review != nil {
+        // A redraw waits for the desk's events to settle; another one meanwhile starts the wait again. Not every
+        // update is one: the whole review, its diff too, comes again only when something about it may have changed.
+        if let review {
+          let job = review.aiJob?.state
+          let busy = review.generating == true || review.reading == true || job == "queued" || job == "running" || store.asking.contains(id) || !Diff.pending(sent, in: review.conversation, me: store.me).isEmpty
+          guard Store.redraws(mark: store.mark(id), drawn: drawn?.mark, busy: busy, since: Date().timeIntervalSince(drawn?.at ?? .distantPast)) else { return }
           try? await Task.sleep(for: .seconds(1))
           if Task.isCancelled { return }
         }
+        let mark = store.mark(id)
         switch await store.readReview(id) {
         case .success(let r):
           review = r
           diff = model(r)
+          drawn = (mark, Date())
           failed = nil
           if let c = r.card { saw(c) }
         case .failure(.refused(400, _)) where kind == nil: await readItem()
-        case .failure(let e): fail(e)
+        case .failure(let e):
+          drawn = nil
+          fail(e)
         case nil: break
         }
       } else {

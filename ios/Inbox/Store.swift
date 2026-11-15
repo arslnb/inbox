@@ -66,7 +66,8 @@ final class Store {
   private(set) var asks: AsksView?  // your chat with your agent, as last read: the chat's page and the page menu's "waiting"
   var askDrafts: [String: String] = [:]  // what you'd typed to your agent and not sent, per item ("" for none)
   private(set) var askFailed: [String: String] = [:]  // why the last send about it wasn't taken, in the desk's words
-  private(set) var loads = 0  // bumped on every answer from the desk: an opened item refetches
+  private(set) var loads = 0  // bumped on every answer from the desk: an opened item looks whether to read again
+  private(set) var wrote = 0  // bumped when a write from here ends, taken or not: what it was about reads again
   private(set) var offline = false
   private(set) var starting: String?
   private(set) var broken: String?
@@ -394,6 +395,7 @@ final class Store {
     defer {
       sending.remove(id)
       leaving.remove(id)
+      wrote += 1
     }
     do {
       if let said = try await run(client) { flash(said.text, revert: said.revert) }
@@ -808,6 +810,22 @@ final class Store {
       if case .unpaired = e { took(e) }
       return .failure(e)
     } catch { return nil }
+  }
+
+  // What the lists last said about a PR, the desk's last sync and this phone's last write: while none of it moves, a
+  // redraw would bring the same review (its whole diff with it). The desk's updates come every couple of seconds while
+  // your agent works on anything at all.
+  func mark(_ id: String) -> String {
+    let c = card(id)
+    let flags = c.map { "\($0.draft == true) \($0.inflight == true)" }
+    let said = [overview?.syncedAt, c?.status, c?.stage, c?.ci, c?.review, c?.cta, c?.resolved, c?.activityAt, flags, c?.actions?.joined(separator: ",")]
+    return "\(wrote)|" + said.map { $0 ?? "" }.joined(separator: "|")
+  }
+
+  // Whether an opened PR reads its review again on an update: when what's known about it moved, while something of
+  // its own is on its way (a review being written, your agent reading, words just sent), and otherwise every half minute.
+  nonisolated static func redraws(mark: String, drawn: String?, busy: Bool, since: TimeInterval) -> Bool {
+    mark != drawn || busy || since >= 30
   }
 
   // Its page was left: the next time it's opened is an open again.

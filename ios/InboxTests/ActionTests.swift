@@ -404,6 +404,34 @@ final class StoreWriteTests: XCTestCase {
     XCTAssertEqual(sent, ["a1", "a1", "a1"], "never the commit nobody saw")
   }
 
+  // An opened PR reads its whole review again only when something about it may have changed: the desk's updates come
+  // every couple of seconds while your agent works, and each redraw is the diff again.
+  func testAnUpdateThatChangesNothingAboutAPRIsNoRedraw() async throws {
+    let id = "acme/api#4127"
+    let drawn = store.mark(id)
+    try desk([:])
+    await store.load()
+    await store.load()
+    XCTAssertEqual(store.mark(id), drawn, "the same lists, the same sync")
+    XCTAssertFalse(Store.redraws(mark: store.mark(id), drawn: drawn, busy: false, since: 3))
+    XCTAssertTrue(Store.redraws(mark: store.mark(id), drawn: drawn, busy: true, since: 3), "a review being written, your agent reading it")
+    XCTAssertTrue(Store.redraws(mark: store.mark(id), drawn: drawn, busy: false, since: 31), "and now and then anyway")
+    XCTAssertTrue(Store.redraws(mark: store.mark(id), drawn: nil, busy: false, since: 0), "the last read failed")
+
+    // A write from here, taken or refused: what it was about reads again.
+    try desk(["/api/review/\(id)/reply": no(409, "can't reply")])
+    _ = await store.reply(try card(id), to: try XCTUnwrap((try Fixture.decode("review-steps") as ReviewView).conversation.first), body: "Done")
+    XCTAssertNotEqual(store.mark(id), drawn)
+
+    // A sync that ended, or its row saying something else.
+    let now = store.mark(id)
+    var overview = try XCTUnwrap(JSONSerialization.jsonObject(with: try Fixture.data("overview")) as? [String: Any])
+    overview["synced_at"] = "2031-01-01T00:00:00.000Z"
+    try desk(["/api/overview": Answer(body: String(decoding: try JSONSerialization.data(withJSONObject: overview), as: UTF8.self))])
+    await store.load()
+    XCTAssertNotEqual(store.mark(id), now)
+  }
+
   // The desk says whether you may approve, and why not: the page's Approve is off with its reason.
   func testApproveIsOffWithTheDesksReason() async throws {
     try desk(["/api/review/acme/api#4127": Answer(body: String(decoding: try Fixture.data("review-lean"), as: UTF8.self))])
