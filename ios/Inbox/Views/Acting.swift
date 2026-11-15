@@ -203,6 +203,8 @@ struct WriteSheet<Above: View>: View {
       .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { tall = $0 }
     }
     .scrollBounceBehavior(.basedOnSize)
+    // Taller than the room above the keyboard (large text): its foot shows, the field and the button that sends.
+    .defaultScrollAnchor(.bottom)
     .presentationDetents([.height(tall)])
     .presentationBackground(Theme.paper)
     .task {
@@ -236,7 +238,8 @@ struct SheetHead: View {
 
   var body: some View {
     HStack(alignment: .firstTextBaseline) {
-      Text(title).sans(16, 650, tracking: -0.01).foregroundStyle(Theme.ink).lineLimit(1)
+      // Whole, on as many lines as it needs: its end says where the words go ("…stream.ts:12").
+      Text(title).sans(16, 650, tracking: -0.01).foregroundStyle(Theme.ink).fixedSize(horizontal: false, vertical: true)
       Spacer(minLength: 8)
       Button(close) { dismiss() }.sans(15, 500).tint(Theme.ink2)
     }
