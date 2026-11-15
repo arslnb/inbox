@@ -121,11 +121,13 @@ struct APIClient: Sendable {
     try await send(request("POST", path, body: body))
   }
 
-  // A body that isn't all strings: lists of ids, a flag.
-  func post<T: Decodable>(_ path: String, json: some Encodable) async throws -> T {
+  // A body that isn't all strings: lists of ids, a flag. `wait`: longer than the session's 20 seconds, where the desk
+  // holds its answer.
+  func post<T: Decodable>(_ path: String, json: some Encodable, wait: TimeInterval? = nil) async throws -> T {
     var req = request("POST", path)
     req.setValue("application/json", forHTTPHeaderField: "Content-Type")
     req.httpBody = try? JSONEncoder().encode(json)
+    if let wait { req.timeoutInterval = wait }
     return try await send(req)
   }
 
@@ -278,10 +280,14 @@ struct APIClient: Sendable {
     let _: Ok = try await post("/api/notes/\(APIClient.segment(id))/done")
   }
 
+  // The desk answers a wake, and the first ask of an agent not yet started, once your agent has launched: it stops
+  // the old process (10 s) and starts one (60 s at most). An answer given up on sooner would read as the desk being away.
+  static let agentWait: TimeInterval = 120
+
   // Wake it, Start it now, Try again: starts your agent, or has it look at Merging now; with `ask`, hands it that ask of
   // yours again. A turn of your agent, so only on a press.
   func wake(ask: String? = nil) async throws {
-    let _: Ok = try await post("/api/coordinator/wake", ask.map { ["ask": $0] } ?? [:])
+    let _: Ok = try await post("/api/coordinator/wake", json: ask.map { ["ask": $0] } ?? [:], wait: APIClient.agentWait)
   }
 
   // Your chat with your agent: every ask oldest first, and what it's doing about the one it hasn't answered. Free: it
@@ -315,7 +321,7 @@ struct APIClient: Sendable {
         b.lines = .init(path: l.path, line: l.line, side: l.side, head: l.head)
       }
     }
-    return try await post("/api/ask", json: b)
+    return try await post("/api/ask", json: b, wait: APIClient.agentWait)
   }
 
   // done, snooze (with `until`), mute, unmute, restore, seen; and inflight (Hand off for merge) and takeback (Back to desk).

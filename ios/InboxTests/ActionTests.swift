@@ -1278,6 +1278,18 @@ final class StoreWriteTests: XCTestCase {
     first.cancel()
   }
 
+  // The desk holds a wake, and the first ask of an agent not yet started, until your agent has launched (over a minute
+  // on a slow start): given up on at the usual 20 seconds, it would read as the desk being away and invite a second press.
+  func testAWakeAndAnAskWaitAsLongAsYourAgentTakesToStart() async throws {
+    try desk(["/api/coordinator/wake": Answer(body: #"{"ok":true}"#), "/api/ask": Answer(body: #"{"ok":true}"#)])
+    _ = await store.wake()
+    _ = await store.wake(ask: "b7d3e410", toast: false)
+    _ = await store.ask("Words", about: ChatAbout())
+    let posts = StubProtocol.requests().filter { $0.httpMethod == "POST" }
+    XCTAssertEqual(posts.map { $0.url?.path }, ["/api/coordinator/wake", "/api/coordinator/wake", "/api/ask"])
+    for r in posts { XCTAssertGreaterThanOrEqual(r.timeoutInterval, 100) }
+  }
+
   // Wake it, under an ask your agent stopped on: it's handed that ask again. The chat says how it went, so no toast.
   func testWakeItHandsTheAskOverAgain() async throws {
     try desk(["/api/coordinator/wake": Answer(body: #"{"ok":true}"#)])
