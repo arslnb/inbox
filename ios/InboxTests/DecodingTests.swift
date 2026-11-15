@@ -412,4 +412,32 @@ final class DecodingTests: XCTestCase {
     let issue = try DeskJSON.decoder().decode(Card.self, from: Data(#"{"id":"a/b#2","kind":"issue","repo":"a/b","number":2,"title":"t"}"#.utf8))
     XCTAssertFalse(issue.handsOff)
   }
+
+  // What reviewers said, as the mock's reply-only PR has it: read and unread, on a line and on the PR, outdated, resolved.
+  func testConversations() throws {
+    let review: ReviewView = try Fixture.decode("review-own")
+    let all = Dictionary(uniqueKeysWithValues: review.conversation.map { ($0.id, $0) })
+    XCTAssertEqual(review.conversation.filter { $0.waitingOnYou == true }.map(\.id), ["PRRT_tomb", "IC_freeze"])
+    XCTAssertEqual(all["PRRT_tomb"]?.take?.gist, "Tombstones are never compacted, so every sync ships all of them")
+    let name = try XCTUnwrap(all["PRRT_name"])
+    XCTAssertNil(name.take, "nobody waits on it, so your agent didn't read it")
+    XCTAssertEqual(name.resolved, true)
+    XCTAssertEqual(name.comments.map(\.author), ["kai", "me"])
+    let bot = try XCTUnwrap(all["PRRT_bot"])
+    XCTAssertEqual(bot.outdated, true)
+    XCTAssertNil(bot.line)
+    XCTAssertEqual(bot.comments.first?.bot, true)
+    XCTAssertEqual(Words.place(bot), "src/sync/merge.ts, outdated")
+    XCTAssertEqual(all["PRR_kai"]?.kind, "review")
+    XCTAssertEqual(review.reading, false)
+    XCTAssertNil(review.readingError)
+
+    // A desk that says less: a conversation is its id, and what it couldn't read is said.
+    let lean = try DeskJSON.decoder().decode(
+      ReviewView.self, from: Data(#"{"conversation":[{"id":"x"},{"comments":[]}],"conversation_error":"rate limited","reading":true,"reading_error":"timed out"}"#.utf8))
+    XCTAssertEqual(lean.conversation.map(\.id), ["x"])
+    XCTAssertTrue(lean.conversation[0].comments.isEmpty)
+    XCTAssertEqual([lean.conversationError, lean.readingError], ["rate limited", "timed out"])
+    XCTAssertEqual(lean.reading, true)
+  }
 }

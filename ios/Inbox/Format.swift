@@ -117,6 +117,50 @@ enum Words {
     return names.count > 2 ? "\(shown.joined(separator: ", ")) and \(names.count - 2) more" : shown.joined(separator: " and ")
   }
 
+  // Where a conversation is: "src/auth.ts:42", "src/auth.ts, outdated", or "on the PR" (Conversation.tsx's where()).
+  static func place(_ c: Conversation) -> String {
+    guard let path = c.path, !path.isEmpty else { return "on the PR" }
+    return path + (c.line.map { $0 > 0 ? ":\($0)" : "" } ?? "") + (c.outdated == true ? ", outdated" : "")
+  }
+
+  // A comment as text: GitHub's own markup taken off (HTML comments and tags, a heading's hashes), since none is drawn.
+  static func saidText(_ said: String?) -> String {
+    var s = said ?? ""
+    for (pattern, with) in [(#"<!--[\s\S]*?-->"#, ""), (#"</?[a-zA-Z][^>\n]*>"#, ""), (#"(?m)^[ \t]*#{1,6}[ \t]+"#, ""), (#"\n{3,}"#, "\n\n")] {
+      s = s.replacingOccurrences(of: pattern, with: with, options: .regularExpression)
+    }
+    return s.trimmingCharacters(in: .whitespacesAndNewlines)
+  }
+
+  // What someone said, in one line: its first line with words in it, cut at 160.
+  static func firstLine(_ said: String?) -> String {
+    let line = saidText(said).split(whereSeparator: \.isNewline).map { $0.trimmingCharacters(in: .whitespaces) }.first { !$0.isEmpty } ?? ""
+    return line.count > 160 ? String(line.prefix(159)) + "…" : line
+  }
+
+  // A conversation in one line: your agent's gist of it, else the first line of its last comment.
+  static func gist(_ c: Conversation) -> String {
+    if let gist = c.take?.gist, !gist.isEmpty { return gist }
+    return firstLine(c.comments.last?.body)
+  }
+
+  // Your agent's take, split at its first ": " into the call (drawn bold) and why; without one it's all plain.
+  static func takeSplit(_ take: String) -> (call: String?, rest: String) {
+    guard let at = take.range(of: ": ") else { return (nil, take) }
+    return (String(take[..<at.lowerBound]), String(take[at.upperBound...]))
+  }
+
+  // "Reply to kai", "Sent your reply to kai": to whoever spoke last, other than you; where only you have, no name.
+  static func replyTo(_ lead: String, _ c: Conversation, me: String) -> String {
+    let who = c.comments.last { !($0.author ?? "").isEmpty && $0.author?.lowercased() != me.lowercased() }?.author
+    return who.map { "\(lead) to \($0)" } ?? lead
+  }
+
+  // The fold over a conversation's own words: "What azulus wrote", or "What was said" once there are several comments.
+  static func saidLabel(_ c: Conversation) -> String {
+    c.comments.count > 1 ? "What was said" : "What \(c.comments.last?.author ?? "they") wrote"
+  }
+
   static let sessionKind: [String: String] = ["cli": "CLI", "background": "Background", "desktop": "Desktop", "codex": "Codex"]
   static let sessionAction: [String: String] = [
     "kick": "Kick", "resume": "Resume in background", "attach": "Copy attach command", "open": "Open",

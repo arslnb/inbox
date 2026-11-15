@@ -231,4 +231,45 @@ final class FormatTests: XCTestCase {
     for key in ["ready", "reviewers", "reply", "merge", "approve", "comment", "handoff"] { XCTAssertNotNil(Words.act[key], key) }
     XCTAssertEqual(Words.act["ready"], Words.cta["ready"], "a row's call to action keeps the row's words")
   }
+
+  // What reviewers said: where a conversation is, its one line and your agent's take (Conversation.tsx).
+  func testAConversationsWords() throws {
+    func convo(_ json: String) throws -> Conversation { try DeskJSON.decoder().decode(Conversation.self, from: Data(json.utf8)) }
+    XCTAssertEqual(Words.place(try convo(#"{"id":"a","path":"src/auth.ts","line":42}"#)), "src/auth.ts:42")
+    XCTAssertEqual(Words.place(try convo(#"{"id":"a","path":"src/auth.ts","line":42,"outdated":true}"#)), "src/auth.ts:42, outdated")
+    XCTAssertEqual(Words.place(try convo(#"{"id":"a","path":"src/auth.ts","line":null,"outdated":true}"#)), "src/auth.ts, outdated")
+    XCTAssertEqual(Words.place(try convo(#"{"id":"a","kind":"comment","path":null}"#)), "on the PR")
+
+    XCTAssertEqual(Words.firstLine("\n  Can this ship?  \n\nThe release wants it."), "Can this ship?")
+    XCTAssertEqual(Words.firstLine(String(repeating: "a", count: 160)), String(repeating: "a", count: 160), "160 is whole")
+    let cut = Words.firstLine(String(repeating: "a", count: 161) + "\nmore")
+    XCTAssertEqual(cut, String(repeating: "a", count: 159) + "…")
+    XCTAssertEqual(cut.count, 160)
+    XCTAssertEqual(Words.firstLine(nil), "")
+    let bot = "### Possible null dereference\n\n`local` may be undefined.\n\n<details><summary>Evidence</summary>\n\n- `merge()` reads it\n\n</details>\n\n<sub>Found by bugbot</sub>\n<!-- finding:v1 -->"
+    XCTAssertEqual(Words.firstLine(bot), "Possible null dereference", "a heading's hashes aren't words")
+    XCTAssertEqual(
+      Words.saidText(bot), "Possible null dereference\n\n`local` may be undefined.\n\nEvidence\n\n- `merge()` reads it\n\nFound by bugbot",
+      "no tags, no comments, code kept")
+    XCTAssertEqual(Words.saidText("if a < b && c > d then #1"), "if a < b && c > d then #1", "not every angle is a tag")
+
+    let read = try convo(#"{"id":"a","comments":[{"id":"1","author":"dana","body":"Long.\nMore."}],"take":{"gist":"The gist","take":"x"}}"#)
+    XCTAssertEqual(Words.gist(read), "The gist", "your agent's, when it has read it")
+    let unread = try convo(#"{"id":"a","comments":[{"id":"1","author":"dana","body":"First."},{"id":"2","author":"kai","body":"Last line.\nMore."}]}"#)
+    XCTAssertEqual(Words.gist(unread), "Last line.", "else the last comment's first line")
+    XCTAssertEqual(Words.saidLabel(read), "What dana wrote")
+    XCTAssertEqual(Words.saidLabel(unread), "What was said")
+    XCTAssertEqual(Words.replyTo("Reply", unread, me: "me"), "Reply to kai")
+    XCTAssertEqual(Words.replyTo("Reply", unread, me: "Kai"), "Reply to dana", "not to yourself, when you spoke last")
+    XCTAssertEqual(Words.replyTo("Sent your reply", read, me: "dana"), "Sent your reply", "your own thread: nobody to name")
+
+    var take = Words.takeSplit("Valid concern: nothing prunes it: see `merge()`")
+    XCTAssertEqual(take.call, "Valid concern")
+    XCTAssertEqual(take.rest, "nothing prunes it: see `merge()`", "only the first one splits")
+    take = Words.takeSplit("Nothing to do here")
+    XCTAssertNil(take.call, "no call: all plain")
+    XCTAssertEqual(take.rest, "Nothing to do here")
+    take = Words.takeSplit("At 10:30 it ran")
+    XCTAssertNil(take.call, "a colon inside a word isn't one")
+  }
 }
