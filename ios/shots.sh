@@ -86,6 +86,9 @@ wanted blocked && shot blocked -deskURL "$DESK" -page blocked
 wanted merging && shot merging -deskURL "$DESK" -page merging
 wanted archive && shot archive -deskURL "$DESK" -page archive
 wanted item-pr && shot item-pr -deskURL "$DESK" -open "acme/api#4127"
+# A PR's State: its checks opened to each by name (a failing run), and your own PR's reviewers with + Add reviewers.
+wanted item-pr-checks && shot item-pr-checks -deskURL "$DESK" -open "oss/tinyhttp#205" -part checks
+wanted item-pr-own && shot item-pr-own -deskURL "$DESK" -open "acme/worker#875" -part reviewers
 wanted item-issue && shot item-issue -deskURL "$DESK" -open "acme/worker#860"
 # Yours: one that owes a reply (what was said, and Reply), a draft, one through review, one in Merging.
 wanted item-reply && shot item-reply -deskURL "$DESK" -open "me/notes-app#12"

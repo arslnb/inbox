@@ -61,6 +61,7 @@ xcrun simctl launch booted dev.inbox.ios -deskURL http://localhost:47841 -page m
 | `-open <owner/repo#n>`                         | an item's page; `-open inquiry:<id>` a question, `-open session:<id>` a session |
 | `-scrollTo standard`                           | the Inbox scrolled to a section (`urgent`, `standard`, `fyi`)           |
 | `-box approve\|comment\|changes\|reviewers\|reply\|answer` | with `-open`: that page's box, opened once the page has loaded |
+| `-part checks\|reviewers`                      | with `-open`: that line of a PR's State, opened                         |
 | `-settings`                                    | the settings sheet                                                      |
 | `-empty`                                       | the desk as if nothing were on it                                       |
 | `-connect [-connectAddress <text>] [-connectError "<words>"]` | the connect screen, with that address and those words in red |
@@ -75,8 +76,9 @@ ios/shots.sh inbox item-pr   # only these
 
 It builds, installs on the booted simulator, starts the mock on port 47841 (and stops it), and writes
 `ios/.shots/<state>-<light|dark>.png` for: `connect` (in the Simulator, Scan the code is off and says why), `connect-error`, `connect-scan-wrong` (a QR that isn't a desk's), `inbox`, `inbox-scrolled`, `inbox-empty`,
-`blocked`, `merging`, `archive`, `item-pr` (with an AI review; Approve), `item-issue` (Comment), `item-reply` (what
-waits on your reply), `item-draft` (Ready for review), `item-mine` (Hand off for merge), `item-merging` (Back to desk),
+`blocked`, `merging`, `archive`, `item-pr` (with an AI review and its State; Approve), `item-pr-checks` (a failing
+run, its checks opened), `item-pr-own` (your PR: who reviews it, + Add reviewers), `item-issue` (Comment), `item-reply` (what
+waits on your reply), `item-draft` (Ready for review; its description's first paragraph where a review would be), `item-mine` (Hand off for merge), `item-merging` (Back to desk),
 the boxes `approve`, `reply`, `reviewers` and `answer`, `question`, `session`, `session-kick`, `item-large` and `item-largest` (accessibility
 text sizes, where the bar's quiet buttons fold into More and the longest call to action keeps its words), `settings` and `offline` (a desk that isn't
 there). It won't shoot while something already answers on that port (a mock you started by
@@ -135,10 +137,20 @@ default size all four fit beside the longest name, Hand off for merge).
   someone else's PR, Comment on an issue, Hand off for merge on yours once it's through review (`Card.act(open:)`). In
   Merging the bar has Back to desk. More has Mute, Comment, Add reviewers (on your draft: Ready for review, asking
   reviewers, which marks it ready and asks them in one go), Hand off for merge, exactly the GitHub writes
-  the desk allows now (`Card.actions`: close, convert to draft, reopen, re-request review, remove me as a reviewer,
-  merge now, request changes), Open on GitHub and Copy GitHub link. Approve, Merge and Request changes are pinned to the
-  commit the page first showed: after a push the desk refuses them and the page says to open it again. Approve isn't
-  offered on a commit you approved.
+  under On GitHub the writes the desk allows now, as the window's More (`Card.actions` less convert to draft, ready and
+  reopen: Close, Merge now, Request changes, Re-request review, Remove me as a reviewer), Open on GitHub and Copy GitHub
+  link. Approve, Merge and Request changes are pinned to the commit the page last drew (`Store.pins`, moved by every
+  review that lands, as the window since 9f5819a): a push the page redrew is yours to approve, one it hasn't drawn yet
+  the desk refuses, its words kept in the sheet. Whether you may approve is the desk's say (`approve.ok`): where it
+  says no on an open PR, Approve is off and the page says why ("Can't approve: you approved this commit.").
+- **A PR's State.** Under the AI review, a table of one line each: Checks (red when one that counts fails), Reviewers
+  (amber on changes requested), Merge (what stands in its way) and, with no stack, Depends. Checks opens to each by
+  name, shards of one check folded into one row, the passing ones behind "N more passing" past six rows; a check opens
+  its page. Reviewers opens to who and where each stands, with + Add reviewers on your open PR that's ready. Under the
+  title, the reviewers with a verdict: a green tick, or "changes" in amber. Your own PR with no AI review shows its
+  description's first paragraph there instead. A diff or a conversation that couldn't load says so in its place.
+- **After a write** that takes it off your desk (Approve, Comment on the PR, Request changes, Close, Merge) the phone
+  goes back to the list, where its toast is; the window stays on the review. Deliberate: only a reply stays on the page.
 - **A row that owes a reply** lists each conversation waiting on you (where, your agent's read, its last words, Reply);
   a press opens its reply box. The bar's Reply answers the first.
 - **A question.** Its answers come straight under it, each a button that answers with it; Answer takes your own words;
@@ -159,9 +171,15 @@ command for your agent, Ask your agent, and everything in Settings.
 What it calls: reads (`/api/overview`, `/api/queue`, `/api/inflight`, `/api/item`, `/api/inquiries/:id`,
 `/api/reviewers/:id`, `/api/events`, `/health`), `POST /api/act` (done, snooze, mute, unmute, restore, seen, inflight,
 takeback), `/api/undo`, `/api/sync`, the writes above (`/api/review/:id/approve|comment|reply|ready|reviewers`,
-`/api/github`, `/api/inquiries/:id/answer`, `/api/sessions/:id/kick`) and, once, `/api/pair`. For what reviewers said it
-reads `/api/review/:id?ahead=1`, always with `ahead`: without it the desk would start your AI review and your agent's
-read. The whole diff rides along in that answer and is skipped.
+`/api/github`, `/api/inquiries/:id/answer`, `/api/sessions/:id/kick`) and, once, `/api/pair`.
+
+What opening a PR costs: one `GET /api/review/:id` without `ahead`, exactly the window's open, so the desk may start
+its AI review (`review.auto_ai`) and your agent's read of the conversations waiting on you. Every redraw after it (the
+desk's events, after a write) asks with `?ahead=1`, a second after the last event, so an event never restarts a failed
+job (`Store.readReview()`). A PR's page no longer asks `/api/item`: that is for issues. Rows and lists never ask for a
+review, and nothing is prefetched. The answer is the whole review (`ReviewView` in `Models.swift`: the order to read
+its hunks in, the AI review's parts, checks, reviewers, conversations); each file's own `patch` is never kept, since
+the same lines are in the order's hunks.
 
 Not in v0: the diff, the filter, notes (shown, not written or finished), Claude's work on
 Merging, people's pictures, notifications, themes other than the default light and dark, iPad.
@@ -178,6 +196,8 @@ Merging, people's pictures, notifications, themes other than the default light a
 | A row                                       | `Inbox/Views/Rows.swift` (the window's two-line row, `.c-row`)                         |
 | The pages and their lists, a row's menu     | `Inbox/Views/DeskView.swift`                                                           |
 | An item's page                              | `Inbox/Views/ItemPage.swift`                                                           |
+| A PR's State (checks, reviewers, merge)     | `Inbox/Views/ReviewState.swift`; `CheckGroup.of()` in `Format.swift` (view.ts's `checkGroups()`) |
+| When a PR's review is read, and the pin     | `Store.readReview()`, `closeReview()`, `pins` in `Inbox/Store.swift`                   |
 | A question, a session, Settings, bubbles    | `Inbox/Views/Pages.swift`                                                              |
 | An opened page's bar, the boxes that write  | `Inbox/Views/Acting.swift` (`BottomBar`, `WriteSheet`, `ReviewersSheet`, the swipe back) |
 | The connect screen                          | `Inbox/Views/ConnectView.swift`                                                        |
