@@ -573,7 +573,7 @@ final class StoreTests: XCTestCase {
     XCTAssertEqual(StubProtocol.requests().filter { $0.httpMethod != "GET" }.count, 0)
   }
 
-  // An open that never reached the desk is tried as an open again; one the desk refused was seen by it.
+  // An open that never reached the desk, or a desk still starting, is tried as an open again; one the desk refused was seen by it.
   func testAnOpenTheDeskNeverSawIsAnOpenAgain() async throws {
     let id = "acme/api#4127"
     let store = try await local()
@@ -586,6 +586,12 @@ final class StoreTests: XCTestCase {
     _ = await store.readReview(id)
     XCTAssertEqual(StubProtocol.requests().map(\.url?.query), [nil, "ahead=1"])
     XCTAssertNil(store.pins[id])
+    // A desk still starting answers 503 before it opens anything: neither its AI review nor your agent's read began.
+    store.closeReview(id)
+    StubProtocol.reset(["/api/review/\(id)": StubProtocol.Answer(status: 503, body: #"{"error":"the desk is starting","reason":"starting"}"#)])
+    _ = await store.readReview(id)
+    _ = await store.readReview(id)
+    XCTAssertEqual(StubProtocol.requests().map(\.url?.query), [nil, nil])
   }
 
   func testDisconnectForgetsTheTokenAndTheAddress() async {

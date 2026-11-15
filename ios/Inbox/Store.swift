@@ -806,7 +806,11 @@ final class Store {
       if reviewsOpen.contains(id), let head = r.item?.headOid { pins[id] = head }
       return .success(r)
     } catch let e as APIError {
-      if !ahead, e == .unreachable || e == .notDesk { reviewsOpen.remove(id) }  // it never reached the desk
+      // It never reached the desk, or reached one still starting (503), which answers before it opens anything.
+      switch e {
+      case .unreachable, .notDesk, .starting, .rules: if !ahead { reviewsOpen.remove(id) }
+      case .unpaired, .refused: break
+      }
       if case .unpaired = e { took(e) }
       return .failure(e)
     } catch { return nil }
