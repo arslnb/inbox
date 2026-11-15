@@ -180,7 +180,7 @@ Right-click any row (Inbox, Blocked, Merging, Archive) for a menu at the pointer
 - **Close on GitHub**, where it can be closed.
 - **Copy link**, **Copy GitHub link** (the PR or issue on GitHub).
 
-On Merging the menu is **Back to the desk**, **Copy link** and **Copy GitHub link**. A question's is **Answer**, **Copy link**, **Dismiss**. A session's is **Done**, **Snooze** and its call to action. Arrows move, → opens Snooze, Enter picks, Esc closes.
+On Merging the menu is **Back to the desk**, **Copy link** and **Copy GitHub link**. A question's is **Answer**, **Copy link**, **Dismiss**. A session's is **Done**, **Snooze** and its call to action. A note's is **Done**, **Snooze** (a time, which becomes its reminder), **Change note** and **Copy text**. Every kind of row starts with Done and Snooze, from one place in `RowMenu.tsx`. Arrows move, → opens Snooze, Enter picks, Esc closes.
 
 ### Agents' questions
 

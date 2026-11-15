@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import type { Action, Card, GitHubAction, InboxSection, Inquiry, SessionAction, SessionCard } from "../../../src/types.ts";
+import type { Action, Card, GitHubAction, InboxSection, Inquiry, Note, SessionAction, SessionCard } from "../../../src/types.ts";
 import { cls, fromName, SNOOZE, snoozeOptions } from "../format.ts";
 import { useKeyedLayout } from "../keyed.ts";
 import { MORE, rowActions } from "./More.tsx";
@@ -17,6 +17,11 @@ interface Entry {
   label: string;
   do: Do;
 }
+
+// What every row on the Inbox shares, whatever it is: Done first, Snooze beside it (Menu puts its times to the side).
+const DONE: Entry = { label: "Done", do: { act: "done" } };
+// The times alone, for what has no activity to wait on.
+const TIMES = SNOOZE.filter((o) => o.until !== "activity");
 
 export interface RowMenuProps {
   card: Card;
@@ -41,11 +46,7 @@ export function RowMenu({ card, x, y, snooze, run, act, github, reopen, onClose 
   const groups: Entry[][] = [
     card.inflight
       ? [go("Back to the desk", "b")]
-      : [
-          card.status === "active"
-            ? { label: "Done", do: { act: "done" as const } }
-            : { label: "Back on the desk", do: { act: "restore" as const } },
-        ],
+      : [card.status === "active" ? DONE : { label: "Back on the desk", do: { act: "restore" as const } }],
     card.section && card.status === "active" && !card.inflight
       ? MOVES[card.section].map((to) => ({ label: `Move to ${SECTION_NAME[to]}`, do: { act: to } }))
       : [],
@@ -130,14 +131,58 @@ export function SessionMenu({
   return (
     <Menu
       label={`Session ${s.name}`}
-      groups={[[{ label: "Done", do: { act: "done" } }], first ? [{ label: SESSION_ACTION[first].label, do: { key: first } }] : []]}
-      snoozes={SNOOZE.filter((o) => o.until !== "activity")}
+      groups={[[DONE], first ? [{ label: SESSION_ACTION[first].label, do: { key: first } }] : []]}
+      snoozes={TIMES}
       x={x}
       y={y}
       pick={(d) => {
         if ("snooze" in d) act(s, "snooze", d.snooze);
         else if ("act" in d) act(s, "done");
         else if ("key" in d && isKeyOf(SESSION_ACTION, d.key)) start(s, d.key);
+      }}
+      reopen={reopen}
+      onClose={onClose}
+    />
+  );
+}
+
+// A note's menu: Done and Snooze like any row (a snooze is its reminder), then changing it and copying its words.
+export function NoteMenu({
+  n,
+  x,
+  y,
+  done,
+  snooze,
+  run,
+  reopen,
+  onClose,
+}: {
+  n: Note;
+  x: number;
+  y: number;
+  done: (n: Note) => void;
+  snooze: (n: Note, until: string) => void;
+  run: (n: Note, key: "open" | "copy") => void;
+  reopen: (x: number, y: number) => void;
+  onClose: () => void;
+}) {
+  return (
+    <Menu
+      label="Note"
+      groups={[
+        [DONE],
+        [
+          { label: "Change note", do: { key: "open" } },
+          { label: "Copy text", do: { key: "copy" } },
+        ],
+      ]}
+      snoozes={TIMES}
+      x={x}
+      y={y}
+      pick={(d) => {
+        if ("snooze" in d) snooze(n, d.snooze);
+        else if ("act" in d) done(n);
+        else if ("key" in d && (d.key === "open" || d.key === "copy")) run(n, d.key);
       }}
       reopen={reopen}
       onClose={onClose}

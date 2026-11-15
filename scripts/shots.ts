@@ -4991,6 +4991,44 @@ const SHOTS: Shot[] = [
     },
   },
   {
+    // Right-click a note: what every row shares, Done and Snooze, then Change note and Copy text. Snooze's time is the
+    // note's reminder (the save is held, so the mock keeps the note for the next size).
+    name: "row-menu-note",
+    go: async (page) => {
+      await at("#/")(page);
+      await page.locator(".line.memo", { hasText: "tombstone compaction" }).locator(".row-main").click({ button: "right" });
+      await page.locator(".ctx-has-sub").hover();
+      await page.locator(".ctx-sub").waitFor();
+      await page.waitForTimeout(200);
+      const items = await page.evaluate<string[][]>(
+        `[...document.querySelectorAll(".ctx > .ctx-group")].map((g) => [...g.querySelectorAll(".ctx-item")].filter((b) => !b.closest(".ctx-sub")).map((b) => b.textContent.trim()))`,
+      );
+      if (
+        JSON.stringify(items) !==
+        JSON.stringify([
+          ["Done", "Snooze›"],
+          ["Change note", "Copy text"],
+        ])
+      )
+        failures.push(`row-menu-note: a note's menu reads ${JSON.stringify(items)}`);
+    },
+    after: async (page) => {
+      let sent: unknown = null;
+      await page.route("**/api/notes/n2", async (r) => {
+        sent = r.request().postDataJSON();
+        await r.fulfill({
+          json: { ok: true, note: { id: "n2", at: new Date().toISOString(), text: "x", remind_at: null, reminded_at: null } },
+        });
+      });
+      await page.locator(".ctx-sub .ctx-item", { hasText: "3 hours" }).click();
+      await page.waitForTimeout(300);
+      await page.unroute("**/api/notes/n2");
+      if (JSON.stringify(sent) !== JSON.stringify({ text: "Write up the tombstone compaction idea for the sync design doc", remind: "3h" }))
+        failures.push(`row-menu-note: Snooze 3 hours sent ${JSON.stringify(sent)}`);
+      await page.keyboard.press("Escape");
+    },
+  },
+  {
     // Copy link in a row's menu: the item's inbox:// link on the clipboard (stubbed), and a quiet toast.
     name: "row-menu-copy-link",
     go: async (page) => {

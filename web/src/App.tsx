@@ -54,12 +54,12 @@ import {
 import type { RowCtx } from "./components/CardRow.tsx";
 import { startSentry } from "./sentry.ts";
 import { CommentBar } from "./components/CommentBar.tsx";
-import { NoteBar, type NoteCtx } from "./components/Note.tsx";
+import { NoteBar, noteOf, type NoteCtx } from "./components/Note.tsx";
 import { Beside } from "./components/Beside.tsx";
 import { Chat, type About, type Spot } from "./components/Chat.tsx";
 import { Inflight } from "./components/Inflight.tsx";
 import { InquiryPage } from "./components/Inquiry.tsx";
-import { QuestionMenu, RowMenu, SessionMenu } from "./components/RowMenu.tsx";
+import { NoteMenu, QuestionMenu, RowMenu, SessionMenu } from "./components/RowMenu.tsx";
 import { Later, Queue } from "./components/Queue.tsx";
 import type { SessionCtx } from "./components/Session.tsx";
 import { Review } from "./components/Review.tsx";
@@ -525,6 +525,8 @@ export function App() {
       (s) => s.status === "active" && !leaving.has(s.id) && (!f || [s.name, s.reason, s.cwd].some((x) => x.toLowerCase().includes(f))),
     );
   }, [view, leaving, filter, listPage]);
+  // Your notes, wherever their rows are (the Inbox, or the Archive while a reminder waits): each has a right-click menu.
+  const notes = useMemo(() => (view ? [...view.notes.due, ...view.notes.open, ...view.notes.later] : []), [view]);
   const cursor = useMemo(() => [...inquiries.map((q) => inquiryOf(q.id)), ...stops(page, leaving)], [inquiries, page, leaving]);
   const current = flat.find((c) => c.id === selected) ?? null;
   // The queue's view holds open questions only; an answered one's page still says whose it is and what it's about.
@@ -573,7 +575,15 @@ export function App() {
   // the one you left it with.
   function rowMenu(x: number, y: number, target: Element | null): boolean {
     const id = target?.closest<HTMLElement>(".line[data-id]")?.dataset.id;
-    if (!id || !(onScreen.some((c) => c.id === id) || inquiries.some((q) => inquiryOf(q.id) === id) || sessions.some((s) => s.id === id))) {
+    if (
+      !id ||
+      !(
+        onScreen.some((c) => c.id === id) ||
+        inquiries.some((q) => inquiryOf(q.id) === id) ||
+        sessions.some((s) => s.id === id) ||
+        notes.some((n) => noteOf(n.id) === id)
+      )
+    ) {
       stay.current = null;
       setMenuAt(null);
       return false;
@@ -607,14 +617,15 @@ export function App() {
   const menuCard = menuAt ? onScreen.find((c) => c.id === menuAt.id) : undefined;
   const menuQuestion = menuAt ? inquiries.find((q) => inquiryOf(q.id) === menuAt.id) : undefined;
   const menuSession = menuAt ? sessions.find((x) => x.id === menuAt.id) : undefined;
+  const menuNote = menuAt ? notes.find((n) => noteOf(n.id) === menuAt.id) : undefined;
   const closeMenu = useCallback(() => {
     stay.current = null;
     setMenuAt(null);
   }, []);
   // Its row left the page (sorted away, resolved, acted on elsewhere): the menu goes with it, for good.
   useEffect(() => {
-    if (menuAt && !menuCard && !menuQuestion && !menuSession) closeMenu();
-  }, [menuAt, menuCard, menuQuestion, menuSession, closeMenu]);
+    if (menuAt && !menuCard && !menuQuestion && !menuSession && !menuNote) closeMenu();
+  }, [menuAt, menuCard, menuQuestion, menuSession, menuNote, closeMenu]);
 
   // The PR row you rest on, by Tab or the pointer, has its review fetched ahead, so opening it doesn't wait on GitHub.
   const onRow =
@@ -1922,6 +1933,36 @@ export function App() {
           y={menuAt.y}
           act={sessionAct}
           start={sessionStart}
+          reopen={reopenMenu}
+          onClose={closeMenu}
+        />
+      )}
+      {menuAt && menuNote && (
+        <NoteMenu
+          key={`${menuAt.id} ${menuAt.x} ${menuAt.y}`}
+          n={menuNote}
+          x={menuAt.x}
+          y={menuAt.y}
+          done={doneNote}
+          snooze={(n, until) => {
+            runUi(saveNote(n, n.text, until));
+          }}
+          run={(n, k) => {
+            if (k === "open") setNoting(n);
+            else
+              runUi(
+                copyText(n.text).pipe(
+                  Effect.match({
+                    onSuccess: () => {
+                      flash("Copied the note");
+                    },
+                    onFailure: (e) => {
+                      flash(e.message, true);
+                    },
+                  }),
+                ),
+              );
+          }}
           reopen={reopenMenu}
           onClose={closeMenu}
         />

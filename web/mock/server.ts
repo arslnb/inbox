@@ -2459,7 +2459,15 @@ function saveNote(id: string | null, b: Record<string, unknown>): Note {
   if (!text) throw new HttpError(400, "the note is empty");
   const r = typeof b.remind === "string" ? b.remind : "";
   const rel = /^(\d+)h$/.exec(r);
-  const t = !r ? null : rel ? Date.now() + Number(rel[1]) * HOUR : r === "tomorrow" ? Date.now() + 18 * HOUR : Date.parse(r);
+  const t = !r
+    ? null
+    : rel
+      ? Date.now() + Number(rel[1]) * HOUR
+      : r === "tomorrow"
+        ? Date.now() + 18 * HOUR
+        : r === "monday"
+          ? Date.now() + 90 * HOUR
+          : Date.parse(r);
   if (t !== null && (Number.isNaN(t) || t <= Date.now())) throw new HttpError(400, `can't read the reminder "${r}": pick a time to come`);
   const remind_at = t === null ? null : new Date(t).toISOString();
   const old = id ? NOTES.find((n) => n.id === id) : undefined;

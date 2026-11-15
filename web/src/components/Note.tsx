@@ -4,7 +4,7 @@ import type { Note } from "../../../src/types.ts";
 import { runUi } from "../api.ts";
 import { age, cls, MOD, when } from "../format.ts";
 
-const noteOf = (id: string) => `note:${id}`;
+export const noteOf = (id: string) => `note:${id}`; // its row's id, as the right-click and the cursor read it
 
 export interface NoteCtx {
   now: number;
