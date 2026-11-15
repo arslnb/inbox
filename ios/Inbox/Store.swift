@@ -620,6 +620,7 @@ final class Store {
       client = nil
       connectNote = args.string(forKey: "connectError")
       lastAddress = args.string(forKey: "connectAddress") ?? ""
+      debugScan = args.string(forKey: "scan")
       guard !flags.contains("-connect"), let typed = args.string(forKey: "deskURL"), case .success(let parsed) = DeskAddress.parse(typed),
         parsed.address.isLocal
       else { return }
@@ -639,5 +640,6 @@ final class Store {
 
     var scrollTo: String?
     var debugBox: String?
+    var debugScan: String?  // what the camera would have read: the connect screen takes it once
   #endif
 }

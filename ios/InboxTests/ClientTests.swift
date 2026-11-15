@@ -303,6 +303,57 @@ final class StoreTests: XCTestCase {
     XCTAssertEqual(StubProtocol.requests().count, 1)
   }
 
+  // As the connect screen takes what the camera read (ConnectView.scanned): only a desk's link is traded, at once, and
+  // the field keeps the address alone. Returns the field and the words in red.
+  private func scan(_ text: String, into store: Store) async -> (field: String, said: String?) {
+    guard case .success(let link) = DeskAddress.scanned(text), case .success(let read) = DeskAddress.parse(link) else {
+      return ("", DeskAddress.Unreadable.notAPairingLink.words)
+    }
+    return (read.address.text, await store.connect(typed: link, code: ""))
+  }
+
+  func testAScannedLinkTradesItsCodeOnceAsAPhone() async throws {
+    StubProtocol.reset(["/api/pair": pair])
+    let store = Store(defaults: defaults, session: StubProtocol.session())
+    let (field, said) = await scan("https://desk.tail1234.ts.net/pair#abcd-2345", into: store)
+    store.stopLive()
+    XCTAssertNil(said)
+    XCTAssertEqual(field, address)
+    XCTAssertEqual(store.address?.text, address)
+    XCTAssertEqual(Keychain.read(for: address), "inbox_abc")
+    let sent = StubProtocol.requests().filter { $0.url?.path == "/api/pair" }
+    XCTAssertEqual(sent.count, 1, "one trade: any try burns the code")
+    XCTAssertEqual(sent[0].url?.absoluteString, "https://desk.tail1234.ts.net/api/pair")
+    let body = try XCTUnwrap(JSONSerialization.jsonObject(with: try XCTUnwrap(sent[0].sentBody)) as? [String: String])
+    XCTAssertEqual(body["code"], "ABCD2345")
+    XCTAssertEqual(body["kind"], "phone")
+  }
+
+  func testAScannedCodeThatIsNotADesksAsksNothing() async {
+    StubProtocol.reset(["/api/pair": pair])
+    let store = Store(defaults: defaults, session: StubProtocol.session())
+    for other in ["https://example.com", "WIFI:T:WPA;S:home;P:secret;;", address, "https://desk.tail1234.ts.net/pair#nope"] {
+      let (_, said) = await scan(other, into: store)
+      XCTAssertEqual(said, "That isn't a desk's pairing code. Scan the one Pair a device shows, in Settings → Network on the desk's computer.")
+    }
+    XCTAssertTrue(StubProtocol.requests().isEmpty, "nothing was asked, so no try was spent")
+    XCTAssertNil(store.address)
+  }
+
+  // The field holds the address without the burnt code, so the code field shows for a new one.
+  func testARefusalAfterAScanKeepsTheAddressAndAsksForACode() async {
+    StubProtocol.reset(["/api/pair": .init(status: 403, body: #"{"error":"that pairing code isn't valid: run desk pair again for a new one","tag":"Forbidden"}"#)])
+    let store = Store(defaults: defaults, session: StubProtocol.session())
+    let (field, said) = await scan("https://desk.tail1234.ts.net/pair#ABCD-2345", into: store)
+    XCTAssertEqual(said, "That pairing code isn't valid: run desk pair again for a new one.")
+    XCTAssertEqual(field, address)
+    guard case .success(let typed) = DeskAddress.parse(field) else { return XCTFail("the field is an address") }
+    XCTAssertNil(typed.code, "no code in the field: Connect again can't re-send the burnt one")
+    XCTAssertFalse(typed.address.isLocal, "so the code field shows")
+    XCTAssertNil(store.address)
+    XCTAssertEqual(StubProtocol.requests().count, 1)
+  }
+
   func testLocalhostConnectsWithNoCodeAndNoToken() async {
     StubProtocol.reset(["/health": .init(body: #"{"ok":true,"version":"0.2.7"}"#)])
     let store = Store(defaults: defaults, session: StubProtocol.session())

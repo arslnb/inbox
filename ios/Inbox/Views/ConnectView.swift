@@ -1,12 +1,15 @@
+import AVFoundation
 import SwiftUI
 
-// The first screen while no desk is saved: the desk's address and, over Tailscale, the pairing code from `desk pair`.
+// The first screen while no desk is saved: scan the QR that Pair a device shows, or type the desk's address and, over
+// Tailscale, its pairing code.
 struct ConnectView: View {
   @Environment(Store.self) private var store
   @State private var typed = ""
   @State private var code = ""
   @State private var error: String?
   @State private var busy = false
+  @State private var scanning = false
   @FocusState private var focus: Field?
 
   private enum Field { case address, code }
@@ -15,6 +18,7 @@ struct ConnectView: View {
   private var parsed: (address: DeskAddress, code: String?)? {
     if case .success(let p) = DeskAddress.parse(typed) { p } else { nil }
   }
+  private let hasCamera = AVCaptureDevice.default(for: .video) != nil  // the Simulator has none
   private var asksCode: Bool { !(parsed?.address.isLocal ?? false) && parsed?.code == nil }
 
   var body: some View {
@@ -35,7 +39,18 @@ struct ConnectView: View {
           Text(note).sans(14).foregroundStyle(Theme.red).lineSpacing(2).padding(.bottom, 16)
         }
 
-        label("Desk address")
+        Button("Scan the code") {
+          focus = nil
+          scanning = true
+        }
+        .buttonStyle(PlainAct())
+        .disabled(!hasCamera || busy)
+        .opacity(hasCamera ? 1 : 0.5)
+        if !hasCamera {
+          Text(ScanView.noCamera).sans(13).foregroundStyle(Theme.pencil).lineSpacing(2).padding(.top, 8)
+        }
+
+        label("Desk address").padding(.top, 20)
         field("https://machine.tailnet.ts.net", text: $typed, mono: false)
           .textContentType(.URL).keyboardType(.URL)
           .focused($focus, equals: .address)
@@ -49,7 +64,7 @@ struct ConnectView: View {
             .focused($focus, equals: .code)
             .submitLabel(.go)
             .onSubmit(connect)
-          Prose(text: "On the desk's computer, Settings → Network → Pair a device shows the address and a code (so does `desk pair`). A code works once, for 10 minutes.")
+          Prose(text: "On the desk's computer, Settings → Network → Pair a device shows a QR to scan, and the address and a code to type (so does `desk pair`). A code works once, for 10 minutes.")
             .foregroundStyle(Theme.pencil).lineSpacing(2).padding(.top, 8)
         } else if parsed?.address.isLocal == true {
           Text("A desk on this computer needs no code.").sans(13).foregroundStyle(Theme.pencil).padding(.top, 8)
@@ -79,7 +94,16 @@ struct ConnectView: View {
     }
     .scrollDismissesKeyboard(.interactively)
     .background(Theme.paper.ignoresSafeArea())
-    .onAppear { if typed.isEmpty { typed = store.lastAddress } }
+    .sheet(isPresented: $scanning) { ScanView(found: scanned) }
+    .onAppear {
+      if typed.isEmpty { typed = store.lastAddress }
+      #if DEBUG
+        if let text = store.debugScan {
+          store.debugScan = nil
+          scanned(text)
+        }
+      #endif
+    }
   }
 
   private func label(_ words: String) -> some View {
@@ -98,14 +122,28 @@ struct ConnectView: View {
       .overlay(RoundedRectangle(cornerRadius: 8).strokeBorder(Theme.ruleStrong, lineWidth: 1))
   }
 
-  private func connect() {
+  // What the camera read. The field keeps the address only, never the link: its code is traded here, once, so a second
+  // Connect can't send a burnt one.
+  private func scanned(_ text: String) {
+    guard case .success(let link) = DeskAddress.scanned(text), case .success(let read) = DeskAddress.parse(link) else {
+      error = DeskAddress.Unreadable.notAPairingLink.words
+      return
+    }
+    typed = read.address.text
+    code = ""
+    connect(link: link)
+  }
+
+  private func connect() { connect(link: nil) }
+
+  private func connect(link: String?) {
     guard !busy else { return }
     busy = true
     error = nil
     focus = nil
     Task {
-      // Only a code field that's on screen is sent.
-      error = await store.connect(typed: typed, code: asksCode ? code : "")
+      // Only a code field that's on screen is sent; a scanned link carries its own.
+      error = await store.connect(typed: link ?? typed, code: link == nil && asksCode ? code : "")
       busy = false
     }
   }
