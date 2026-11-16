@@ -181,7 +181,7 @@ Each job has a state (queued, running, done, failed), tries, timestamps, and the
 
 **AI reviews**
 
-- A run past 15 minutes is stopped. A failed try is retried after 2, then 10 minutes, ahead of new reviews. After three it's failed, with Try again.
+- A run past 25 minutes is stopped (each agent call in it at 10). A failed try is retried after 2, then 10 minutes, ahead of new reviews. After three it's failed, with Try again.
 - With AI reviews off, a failed try fails at once.
 - A desk restart re-queues reviews that were running, without counting the try.
 - When the agent itself is down (login, usage limit, not installed: `agentDown` in `src/review.ts`), reviews pause and no tries are spent. The job is owed again when the pause ends.

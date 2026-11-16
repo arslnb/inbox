@@ -143,9 +143,9 @@ test("a review past its time is stopped and tried again after its backoff; after
     await flush();
   };
   const job = () => pick(t.desk.jobs.get("ai_review", ID), ["state", "attempts", "error"]);
-  const late = "no answer in 15 minutes, so it was stopped";
+  const late = "no answer in 25 minutes, so it was stopped";
 
-  await later(14);
+  await later(24);
   assert.deepEqual(job(), { state: "running", attempts: 1, error: null }, "within its time");
   await later(1);
   assert.deepEqual(job(), { state: "queued", attempts: 1, error: late });
@@ -157,12 +157,12 @@ test("a review past its time is stopped and tried again after its backoff; after
   assert.equal(t.f.started.length, 2, "then tries again");
   assert.deepEqual(job(), { state: "running", attempts: 2, error: late });
   await same(t.desk);
-  await later(15);
+  await later(25);
   assert.deepEqual(job(), { state: "queued", attempts: 2, error: late });
   assert.equal(t.desk.aiPausedNow(), false, "one PR timing out again doesn't pause the others");
   await later(10);
   assert.deepEqual(job(), { state: "running", attempts: 3, error: late });
-  await later(15);
+  await later(25);
   assert.deepEqual(job(), { state: "failed", attempts: 3, error: late });
   await same(t.desk);
   await later(60);

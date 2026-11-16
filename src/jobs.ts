@@ -9,7 +9,7 @@ import { JOB_ATTEMPTS as ATTEMPTS, type Ask, type Job } from "./types.ts";
 
 const MINUTE = 60_000;
 const BACKOFF = [2 * MINUTE, 10 * MINUTE]; // after a review's first and second failed try
-const REVIEW_TIMEOUT = 15 * MINUTE; // its two claude calls stop at 5 minutes each, its diff's three reads at 30 s
+const REVIEW_TIMEOUT = 25 * MINUTE; // its two agent calls stop at 10 minutes each, its diff's three reads at 30 s
 const ASK_WAIT = [5 * MINUTE, 15 * MINUTE, 30 * MINUTE]; // unanswered this long after it went to your agent, which is idle
 const ANSWER_WAIT = 30 * MINUTE; // your answer unread this long: the session that asked has probably ended
 const KEPT = 24 * 60 * MINUTE; // a done job, a failed ask, and an answer you were told is unread
