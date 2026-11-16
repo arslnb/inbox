@@ -232,6 +232,9 @@ export const api = {
   // keep: added from the review's sidebar, so it stays on your desk.
   askReviewers: (id: string, ask: { users: string[]; teams: string[] }, keep = false) =>
     call<{ ok: true }>("POST", `/api/review/${encodeURIComponent(id)}/reviewers`, { ...ask, keep }),
+  // One reviewer of your open PR, from its review's sidebar: off it (asked, not reviewed yet), or asked again (reviewed).
+  reviewer: (id: string, login: string, act: "remove" | "rerequest") =>
+    call<{ ok: true }>("POST", `/api/review/${encodeURIComponent(id)}/reviewer`, { login, act }),
   inquiry: (id: string) => call<InquiryView>("GET", `/api/inquiries/${encodeURIComponent(id)}`),
   // A session that needs you: Kick or Resume starts it again where it left off, Open follows its own link.
   kickSession: (id: string) => call<{ ok: true; args: string[] }>("POST", `/api/sessions/${encodeURIComponent(id)}/kick`),

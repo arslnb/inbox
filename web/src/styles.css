@@ -53,20 +53,9 @@ html {
   /* Diagram boxes are sized from Instrument Sans's widths (src/metrics.ts), so their text stays in it. */
   --diagram: "Instrument Sans", var(--sans);
 
-  /* The chrome (the sidebar and the heads across the top): near black in every theme, tinted by its accent, its text light. */
-  --chrome: color-mix(in oklab, #000 88%, var(--accent));
-  --chrome-ink: color-mix(in oklab, #fff 92%, var(--paper));
-  --chrome-ink-2: color-mix(in oklab, var(--chrome-ink) 80%, var(--chrome));
-  --chrome-pencil: color-mix(in oklab, var(--chrome-ink) 60%, var(--chrome));
-  --chrome-faint: color-mix(in oklab, var(--chrome-ink) 40%, var(--chrome));
-  --chrome-control: color-mix(in oklab, var(--chrome-ink) 45%, var(--chrome));
-  --chrome-rule: color-mix(in oklab, var(--chrome-ink) 14%, var(--chrome));
-  --chrome-rule-strong: color-mix(in oklab, var(--chrome-ink) 22%, var(--chrome));
-  --chrome-sheet: color-mix(in oklab, var(--chrome-ink) 6%, var(--chrome));
-  --chrome-wash: color-mix(in oklab, var(--chrome-ink) 13%, var(--chrome));
-  --chrome-hover: color-mix(in oklab, var(--chrome-ink) 9%, var(--chrome));
-  --chrome-on: color-mix(in oklab, var(--chrome-ink) 16%, var(--chrome));
-  --chrome-accent: oklch(from var(--accent) 74% 0.15 h);
+  /* The chrome (the sidebar and the heads across the top): the theme's sidebar colour in a light theme, near black tinted by
+     the accent in a dark one (light-dark() reads the theme's color-scheme); its words are the theme's own. */
+  --chrome: light-dark(var(--side), color-mix(in oklab, #000 88%, var(--accent)));
   --chrome-pill: oklch(from var(--accent) 55% 0.2 h); /* deep enough for white words on it */
 }
 
@@ -674,28 +663,49 @@ p {
   min-width: 0;
 }
 
-/* Sidebar ------------------------------------------------------------------ */
+/* Scrollbars ---------------------------------------------------------------- */
 
-/* The chrome's own tokens, so everything drawn in it (words, the pill, a head's filter and buttons) reads on the dark. */
-.side,
-.page-head,
-.beside-head {
-  --ink: var(--chrome-ink);
-  --ink-2: var(--chrome-ink-2);
-  --pencil: var(--chrome-pencil);
-  --faint: var(--chrome-faint);
-  --control: var(--chrome-control);
-  --rule: var(--chrome-rule);
-  --rule-strong: var(--chrome-rule-strong);
-  --sheet: var(--chrome-sheet);
-  --wash: var(--chrome-wash);
-  --sel: var(--chrome-wash);
-  --side-hover: var(--chrome-hover);
-  --side-on: var(--chrome-on);
-  --accent-ink: var(--chrome-accent);
-
-  color-scheme: dark;
+/* The window's: thin and quiet, a faint thumb on no track, starting under the page's head (52px) rather than beside it.
+   The review's sidebar scrolls with the same. */
+html::-webkit-scrollbar,
+.rv-side::-webkit-scrollbar,
+.rv-steps::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+  background: transparent;
 }
+
+html::-webkit-scrollbar-track,
+.rv-side::-webkit-scrollbar-track,
+.rv-steps::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+html::-webkit-scrollbar-track {
+  margin-top: 52px;
+}
+
+html::-webkit-scrollbar-thumb,
+.rv-side::-webkit-scrollbar-thumb,
+.rv-steps::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
+  border-radius: 5px;
+  background: color-mix(in oklab, var(--ink) 20%, transparent) padding-box;
+}
+
+html::-webkit-scrollbar-thumb:hover,
+.rv-side::-webkit-scrollbar-thumb:hover,
+.rv-steps::-webkit-scrollbar-thumb:hover {
+  background-color: color-mix(in oklab, var(--ink) 38%, transparent);
+}
+
+html::-webkit-scrollbar-corner,
+.rv-side::-webkit-scrollbar-corner,
+.rv-steps::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* Sidebar ------------------------------------------------------------------ */
 
 .side {
   position: sticky;
@@ -909,7 +919,7 @@ p {
   min-width: 0;
 }
 
-/* The sidebar's icons are white, whatever the theme: the chrome is always dark. */
+/* The sidebar's icons in the theme's ink, as its words are. */
 .si {
   flex: none;
   width: 15px;
@@ -918,7 +928,7 @@ p {
 
 .side .si,
 .side .i {
-  color: #fff;
+  color: var(--ink);
 }
 
 /* In Settings, the way back to the Inbox above its parts: quieter than they are, its chevron by its word. */
@@ -1786,8 +1796,7 @@ p {
   vertical-align: calc(0.3em - var(--face) / 2);
 }
 
-.rv-by .avatar,
-.rv-revs .avatar {
+.rv-by .avatar {
   --face: 1.4em;
 }
 
@@ -5020,30 +5029,57 @@ fieldset.au-field > legend {
   margin-left: -23px;
 }
 
+/* Beside the diff, as tall as the review: its parts scroll away with the page, and the guided review's steps stay
+   (.rv-steps). */
 .rv-side {
-  position: sticky;
-  top: 60px;
   display: grid;
   grid-template-columns: minmax(0, 1fr);
   grid-row: 1;
   grid-column: 2;
+  align-self: stretch;
   gap: 18px;
   align-content: start;
-  max-height: calc(100vh - 80px);
-
-  /* Into the page's room under the review's last row, so it isn't pushed up under the head at the review's very end. */
-  margin-bottom: -64px;
-  overflow: auto;
+  min-width: 0;
   font-size: 12.5px;
 }
 
-/* The toggle's row, kept at the sidebar's top while its parts scroll under it. */
-.rv-side-top {
+/* The guided review's steps stick under the page's head as the rest of the sidebar scrolls away; a long guide scrolls in
+   itself. */
+.rv-side > .rv-steps {
   position: sticky;
-  top: 0;
+  top: 60px;
   z-index: 1;
-  height: 28px;
+  max-height: calc(100vh - 80px);
+  overflow: hidden auto;
   background: var(--paper);
+  container-type: scroll-state;
+}
+
+/* Its hairline is its own to draw, so it can fade once the list is stuck under the head, where it divides nothing. */
+.rv-side > .rv-steps:not(:first-child) {
+  border-top-color: transparent;
+}
+
+.rv-side > .rv-steps:not(:first-child)::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  height: 1px;
+  background: var(--rule);
+  transition: opacity 0.15s;
+}
+
+@container scroll-state(stuck: top) {
+  .rv-steps::before {
+    opacity: 0;
+  }
+}
+
+/* The toggle's row, only over the diff, where the toggle is. */
+.rv-side-top {
+  display: none;
 }
 
 /* Narrower, it opens over the diff's right edge rather than squeezing it. */
@@ -5055,16 +5091,26 @@ fieldset.au-field > legend {
     bottom: 0;
     z-index: 5;
     width: min(300px, 85vw);
-    max-height: none;
-    margin-bottom: 0;
     padding: 0 14px 20px 16px;
+    overflow: hidden auto;
     border-left: 1px solid var(--rule);
     background: var(--paper);
     box-shadow: var(--shadow);
   }
 
   .rv-side-top {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    display: block;
     height: 46px;
+    background: var(--paper);
+  }
+
+  .rv-side > .rv-steps {
+    top: 46px;
+    max-height: none;
+    overflow: visible;
   }
 }
 
@@ -5086,7 +5132,7 @@ fieldset.au-field > legend {
   justify-content: space-between;
   margin: 0 0 6px;
   padding: 0 8px;
-  color: var(--pencil);
+  color: var(--ink-2);
   font-size: 12.5px;
   font-weight: 550;
 }
@@ -5165,7 +5211,7 @@ fieldset.au-field > legend {
   padding: 4px 8px;
   border-radius: 7px;
   color: var(--ink-2);
-  font-size: 13px;
+  font-size: 12.5px;
 }
 
 a.rv-part-row:hover {
@@ -5185,15 +5231,43 @@ a.rv-part-row:hover {
   flex: none;
 }
 
+/* A reviewer's one icon on your PR, after their state: remove (asked, not reviewed yet) or ask again (reviewed). */
+.rv-rev-tool {
+  display: grid;
+  flex: none;
+  place-items: center;
+  align-self: center;
+  width: 20px;
+  height: 20px;
+  margin: -2px -4px -2px 0;
+  padding: 0;
+  border: 0;
+  border-radius: 5px;
+  background: none;
+  color: var(--pencil);
+  cursor: pointer;
+}
+
+.rv-rev-tool:hover {
+  background: var(--side-hover);
+  color: var(--ink);
+}
+
+.rv-rev-tool .i {
+  width: 13px;
+  height: 13px;
+}
+
 .rv-part-state:not(.t-bad, .t-warn) {
   color: var(--pencil);
 }
 
+/* Under a part's name, a step quieter than it: regular weight, no larger. */
 .rv-part-line {
   margin: 0 0 4px;
   padding: 0 8px;
-  font-size: 14px;
-  font-weight: 550;
+  font-size: 12.5px;
+  font-weight: 450;
   line-height: 1.35;
 }
 
@@ -5527,6 +5601,7 @@ a.rv-part-row:hover {
 
 .rv-ref {
   display: flex;
+  flex-wrap: wrap;
   align-items: baseline;
   gap: 10px;
   font-size: clamp(13px, 11.5px + 0.2vw, 14.5px);
@@ -5550,20 +5625,38 @@ a.rv-part-row:hover {
   color: var(--pencil);
 }
 
-/* Under the title: its size, + green and − red, then who reviews it. */
-.rv-size-line {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 18px;
+/* The AI review's verdict at the metadata's end: a soft tag at the line's size; Look closely in the accent, as it asks
+   for you, the others neutral and Skip it quieter. */
+.rv-tag {
+  display: inline-flex;
   align-items: center;
-  margin: 0;
+  align-self: center;
+  height: 22px;
+  padding: 0 9px;
+  border: 1px solid var(--rule-strong);
+  border-radius: 11px;
   color: var(--ink-2);
-  font-size: clamp(13px, 11.5px + 0.2vw, 14.5px);
+  font-size: 0.92em;
+  font-weight: 550;
+  white-space: nowrap;
 }
 
+.rv-tag.v-look {
+  border-color: transparent;
+  background: var(--accent-wash);
+  color: var(--accent-ink);
+}
+
+.rv-tag.v-skip {
+  color: var(--pencil);
+}
+
+/* Its size, + green and − red, at the far end of the ref's line. */
 .rv-size {
+  margin-left: auto;
   font-variant-numeric: tabular-nums;
   font-weight: 550;
+  white-space: nowrap;
 }
 
 .rv-size .add {
@@ -5572,23 +5665,6 @@ a.rv-part-row:hover {
 
 .rv-size .del {
   color: var(--red);
-}
-
-/* Who reviews it: faces and names, a verdict's mark in its colour. */
-.rv-revs {
-  display: inline-flex;
-  flex-wrap: wrap;
-  gap: 2px 12px;
-  min-width: 0;
-}
-
-.rv-rev {
-  white-space: nowrap;
-}
-
-.rv-rev-mark {
-  margin-left: 4px;
-  font-weight: 500;
 }
 
 .rv-title {
@@ -5734,34 +5810,10 @@ a.rv-part-row:hover {
   max-width: 780px;
 }
 
-/* The verdict folds the rest of the summary; its chevron hangs in the gutter, as a file header's does, so the verdict keeps the title's edge. */
-.rv-ai-lead {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 2px 16px;
-  padding: 0;
-  border: 0;
-  background: none;
-  text-align: left;
-  cursor: pointer;
-}
-
-.rv-ai-lead .rv-chev {
-  margin: 0 -14px 0 -12px;
-  font-size: 1.2em;
-  font-weight: 600;
-  line-height: 1;
-}
-
-.rv-ai-lead:hover .rv-chev {
-  color: var(--ink);
-}
-
 /* The goal leads, in ink and a step larger; the rest a step quieter, at the section's size. */
 .rv-gist {
   color: var(--ink);
-  font-size: clamp(14px, 12.5px + 0.2vw, 15.5px);
+  font-size: clamp(16px, 14.5px + 0.25vw, 17.5px);
   line-height: 1.45;
   overflow-wrap: anywhere;
 }
@@ -5777,9 +5829,144 @@ a.rv-part-row:hover {
   font-weight: 600;
 }
 
-/* The first risk reason sits after the meter, in pencil. */
-.rv-verdict .rv-reason {
+/* Show more and Show less: a link in the accent under what it opens or closes. */
+.rv-show {
+  justify-self: start;
+  color: var(--accent-ink);
+  font-weight: 550;
+  text-decoration: none;
+}
+
+.rv-show:hover {
+  color: var(--accent-ink);
+  text-decoration: underline;
+}
+
+/* Folded, the rest of the AI review shows its first lines, fading out into Show more. */
+.rv-fold-body {
+  display: grid;
+  gap: inherit;
+}
+
+.rv-fold-body.shut {
+  max-height: 5.5em;
+  margin-bottom: -10px;
+  overflow: hidden;
+  mask-image: linear-gradient(to bottom, #000 0%, rgb(0 0 0 / 45%) 45%, transparent 100%);
+}
+
+/* Status: a row each for the risk, the checks and the size, its word and a mark in its colour on the right; a click opens
+   what's behind it under it. */
+.rv-status-list {
+  display: grid;
+  gap: 1px;
+}
+
+.rv-status-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 4px 8px;
+  border: 0;
+  border-radius: 7px;
+  background: none;
+  color: var(--ink-2);
+  font: 12.5px var(--sans);
+  text-align: left;
+  cursor: pointer;
+}
+
+.rv-status-row:hover {
+  background: var(--side-hover);
+}
+
+.rv-status-said {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* The checks passing of all of them, the first number in the checks' colour. */
+.rv-status-count {
+  color: var(--pencil);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.rv-status-count .c-good {
+  color: var(--green);
+}
+
+.rv-status-count .c-warn {
+  color: var(--amber);
+}
+
+.rv-status-count .c-bad {
+  color: var(--red);
+}
+
+.rv-status-row .rv-size {
+  white-space: nowrap;
+}
+
+/* Risk's signal: three rising bars, as a phone shows its signal; one red for high, two yellow for medium, all three green
+   for low, the rest faint. */
+.rv-signal {
+  display: inline-flex;
+  flex: none;
+  align-items: flex-end;
+  gap: 2px;
+  height: 12px;
+}
+
+.rv-signal span {
+  width: 3px;
+  border-radius: 1px;
+  background: var(--rule-strong);
+}
+
+.rv-signal span:nth-child(1) {
+  height: 5px;
+}
+
+.rv-signal span:nth-child(2) {
+  height: 8px;
+}
+
+.rv-signal span:nth-child(3) {
+  height: 12px;
+}
+
+.rv-signal.s-high span:nth-child(1) {
+  background: var(--red);
+}
+
+.rv-signal.s-medium span:nth-child(-n + 2) {
+  background: var(--amber);
+}
+
+.rv-signal.s-low span {
+  background: var(--green);
+}
+
+.rv-status-more {
+  padding: 2px 0 6px;
+}
+
+.rv-status-why {
+  margin: 0;
+  padding: 0 8px 4px;
+  color: var(--pencil);
+  font-size: 12px;
+  line-height: 1.45;
   overflow-wrap: anywhere;
+}
+
+ul.rv-status-why {
+  padding-left: 22px;
 }
 
 /* The folded part's lists: one line each, a click to its line. */
@@ -6014,32 +6201,6 @@ a.rv-part-row:hover {
   border-left: 2px solid var(--rule);
 }
 
-.rv-file {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-  padding: 4px 8px;
-  border: 0;
-  border-radius: 7px;
-  background: none;
-  color: var(--ink-2);
-  font: inherit;
-  text-align: left;
-  cursor: pointer;
-}
-
-.rv-file:hover {
-  background: var(--side-hover);
-}
-
-/* The file you're in: the same neutral fill and pencil ring as the queue's cursor. */
-.rv-file.on {
-  background: var(--sel);
-  box-shadow: inset 0 0 0 1.5px var(--pencil);
-  color: var(--ink);
-}
-
 .rv-fname {
   display: flex;
   flex: 1;
@@ -6064,15 +6225,153 @@ a.rv-part-row:hover {
   text-overflow: ellipsis;
 }
 
-/* In the file list a long name wraps instead of losing its end; its folder gives way from its start, as in a file's header. */
-.rv-file .rv-fname {
-  align-items: baseline;
+/* The guided review's steps as a timeline: a line down the dots, each step's name on one line (all of it in its tooltip),
+   the step you're on a node in a fluorescent purple, flat, and its name in ink. */
+.rv-steps {
+  --orb: var(--accent);
 }
 
-.rv-file .rv-base {
-  max-width: calc(100% - 1.8em);
-  white-space: normal;
-  overflow-wrap: break-word;
+.rv-steps ol {
+  position: relative;
+}
+
+.rv-steps ol::before {
+  content: "";
+  position: absolute;
+  top: 11px;
+  bottom: 11px;
+  left: 12px;
+  width: 1.5px;
+  border-radius: 1px;
+  background: var(--rule);
+}
+
+.rv-step-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 22px;
+  padding: 0 8px 0 10px;
+  border: 0;
+  border-radius: 6px;
+  background: none;
+  color: var(--ink-2);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.rv-step-row:hover {
+  background: var(--side-hover);
+}
+
+.rv-step-row.on {
+  color: var(--ink);
+}
+
+/* A pale node a step, its name dimmer. */
+.rv-step-dot {
+  flex: none;
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--rule-strong);
+}
+
+.rv-step-row:not(.on) .rv-step-name {
+  opacity: 0.6;
+}
+
+.rv-step-row:hover .rv-step-name {
+  opacity: 1;
+}
+
+.rv-step-row.on .rv-step-dot {
+  width: 7px;
+  height: 7px;
+  margin: 0 -1px;
+  background: var(--orb);
+}
+
+.rv-step-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  font-weight: 550;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Traditional's files, the same timeline nested: a folder is a ring on its level's line with its files hanging a step
+   in on a line of their own, each li drawing its stretch so a line ends at its last row. */
+.rv-tree ol::before {
+  content: none;
+}
+
+.rv-tree ol ol {
+  margin-left: 14px;
+}
+
+.rv-tree li {
+  position: relative;
+}
+
+.rv-tree li::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 12px;
+  width: 1.5px;
+  background: var(--rule);
+}
+
+.rv-tree li:last-child::before {
+  bottom: auto;
+  height: 11px;
+}
+
+.rv-tree > ol > li:first-child::before {
+  top: 11px;
+}
+
+.rv-tree > ol > li:first-child:last-child::before {
+  content: none;
+}
+
+/* A folder: a ring on the line and its name, quieter than a file's; a click folds it. */
+.rv-step-row.rv-tree-dir {
+  padding-left: 9px;
+  color: var(--pencil);
+}
+
+.rv-tree-dir .rv-step-dot {
+  width: 7px;
+  height: 7px;
+  border: 1.5px solid var(--rule-strong);
+  background: var(--paper);
+}
+
+.rv-step-row.rv-tree-dir .rv-step-name {
+  font-weight: 450;
+  opacity: 1;
+}
+
+/* The folders of the file you're in: a ring in the node's purple, quieter than the file's own. */
+.rv-tree-dir.near {
+  color: var(--ink-2);
+}
+
+.rv-tree-dir.near .rv-step-dot {
+  border-color: var(--orb);
+}
+
+/* Folded with that file inside, it's the node in the file's place. */
+.rv-step-row.rv-tree-dir.on .rv-step-dot {
+  margin: 0;
+  border-color: var(--orb);
 }
 
 .rv-nn {
@@ -6098,11 +6397,19 @@ a.rv-part-row:hover {
   min-width: 0;
 }
 
-/* The diff's two orders: the first word on the diff's edge. */
+/* The two orders' tabs on the header's edge, over a hairline barely there; the tab you're on marks it. */
 .rv-views {
   display: flex;
   height: 34px;
-  margin: 0 0 4px -12px;
+  margin: 0 0 4px;
+  border-bottom: 1px solid color-mix(in oklab, var(--rule) 55%, transparent);
+}
+
+/* A step's words and a file's header row on the header's edge too (the AI review and the header are inset 12px); the
+   code under them keeps the column's full width. */
+.rv-step-head,
+.rv-step-body {
+  padding: 0 12px;
 }
 
 .rv-views .head-tab {
@@ -6178,7 +6485,7 @@ p.rv-next {
   align-items: baseline;
   gap: 10px;
   margin: 0;
-  padding: 10px 2px 6px;
+  padding: 10px 2px 6px 12px;
   background: var(--paper);
   color: var(--ink);
   font-size: 13px;

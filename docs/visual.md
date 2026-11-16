@@ -116,9 +116,7 @@ Tokens live in `web/src/styles.css`:
 
 No top bar: the sidebar is the window's only global chrome, and each page has its own head.
 
-The chrome (the sidebar, a page's head and the list's head beside it) is near black in every theme: `--chrome`, the
-theme's paper mixed into black, with light text from the `--chrome-*` tokens, which `.side`, `.page-head` and
-`.beside-head` put in place of `--ink`, `--pencil`, `--rule` and the rest, so what's drawn in them reads on the dark.
+The chrome (the sidebar, a page's head and the list's head beside it) follows the theme: its sidebar colour (`--side`) in a light theme, near black tinted by the theme's accent in a dark one (`--chrome`, `light-dark()` on the theme's `color-scheme`). Its words and icons are the theme's own ink. The guided review's marker and the files' are the theme's accent (`--orb`).
 
 ```
 ┌──────────┬──────────────┬────────────────────────────────┬────────────┐
@@ -137,13 +135,17 @@ theme's paper mixed into black, with light text from the `--chrome-*` tokens, wh
              a review
 ```
 
-| Region                                            | Width                                                                                                                                                                               | Scrolls                            |
-| ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- |
-| The sidebar (`Sidebar.tsx`)                       | 230px, or as wide as you drag its edge (160px to 30% of the window, kept per device); 148px at 641–1000px; one row across the top at 640px and below                                | inside itself; sideways in its row |
-| The list beside a review (`Beside.tsx`)           | 320–360px (28vw), or as wide as you drag its edge (260px to half the window, kept per device); folded, nothing but its button; only for a review or a question, at 1160px and wider | inside itself                      |
-| The page's column (`.col`, `PageHead.tsx` on top) | the rest: a list edge to edge, a review up to 1280px with its sidebar and the page's padding, centred, Settings 760px, Searches and rules 1180px, a question 880px                  | the window                         |
-| The chat (`Chat.tsx`)                             | 320–420px (25vw): a third column above 1100px, over the page's right edge at 1100px and below                                                                                       | inside itself                      |
-| A review's sidebar (`.rv-side`)                   | 280px beside the diff while the page's column is 1000px or wider (container query `pane`), else over the diff's edge; its toggle is pinned                                          | inside itself                      |
+| Region                                            | Width                                                                                                                                                                               | Scrolls                                                             |
+| ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| The sidebar (`Sidebar.tsx`)                       | 230px, or as wide as you drag its edge (160px to 30% of the window, kept per device); 148px at 641–1000px; one row across the top at 640px and below                                | inside itself; sideways in its row                                  |
+| The list beside a review (`Beside.tsx`)           | 320–360px (28vw), or as wide as you drag its edge (260px to half the window, kept per device); folded, nothing but its button; only for a review or a question, at 1160px and wider | inside itself                                                       |
+| The page's column (`.col`, `PageHead.tsx` on top) | the rest: a list edge to edge, a review up to 1280px with its sidebar and the page's padding, centred, Settings 760px, Searches and rules 1180px, a question 880px                  | the window                                                          |
+| The chat (`Chat.tsx`)                             | 320–420px (25vw): a third column above 1100px, over the page's right edge at 1100px and below                                                                                       | inside itself                                                       |
+| A review's sidebar (`.rv-side`)                   | 280px beside the diff while the page's column is 1000px or wider (container query `pane`), no toggle; else over the diff's edge, with its toggle pinned                             | with the page, Guided Review sticking; over the diff, inside itself |
+
+### Scrollbars
+
+The window's scrollbar is thin (10px), a faint rounded thumb on no track, and starts under the page's head (52px). The review's sidebar scrolls with the same. `html::-webkit-scrollbar` in `styles.css`.
 
 ### The sidebar
 

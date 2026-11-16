@@ -20,7 +20,6 @@ import {
   type Reviewer,
   type ReviewView,
   type Stack,
-  type Standing,
   type StackMember,
 } from "../../../src/types.ts";
 import { andMore } from "../../../src/stage.ts";
@@ -50,6 +49,7 @@ import {
   checkGroups,
   currentFile,
   oldFromNew,
+  pathTree,
   wholeFor,
   diffRows,
   drawUpTo,
@@ -63,8 +63,8 @@ import {
   splitPath,
   threadsOn,
   type Acted,
-  type CheckGroup,
   type Dot,
+  type PathNode,
 } from "../view.ts";
 import { FIT, isTestPath, LEVEL, onLines, STATUS, traditional, VERDICT, walk, type Section } from "../../../src/sections.ts";
 import "../diffThemes.ts";
@@ -115,7 +115,6 @@ interface Fact {
 // Sorted away, resolved or calm in Merging, a PR's problems go grey: its header's facts, and its checks in the sidebar.
 const calm = (c: Card) => cls(`b-${c.bucket}`, (c.status !== "active" || c.resolved !== null || c.bucket === "hide") && "dim");
 
-const SIDE_ROWS = 6; // a sidebar part longer than this folds its quiet rows
 const LINE = 96; // px below the window's top where "the section you're in" is read off
 const REST = "Not worth reviewing"; // the fold's line
 const STACK_SHOWN = 4; // the PR below this one, this one and two above; the rest of a long stack is a click away
@@ -173,6 +172,7 @@ export function Review({
   onReady,
   onAskReviewers,
   onAddReviewer,
+  onReviewer,
   onComment,
   onBack,
   chat,
@@ -197,6 +197,7 @@ export function Review({
   onReady: (c: Card, picked: Reviewer[]) => void;
   onAskReviewers: (c: Card, picked: Reviewer[]) => void; // your ready PR nobody's asked to review: ask who you picked
   onAddReviewer: (c: Card, r: Reviewer) => Effect.Effect<boolean>; // one picked in the sidebar: asked at once
+  onReviewer: (c: Card, login: string, act: "remove" | "rerequest") => void; // a reviewer's icon in the sidebar
   onComment: (c: Card, body: string) => Effect.Effect<boolean>; // your comment on the PR; true once GitHub has it
   onBack: () => void;
   chat: boolean; // your chat with your agent is open: it takes the sidebar's place
@@ -214,7 +215,7 @@ export function Review({
   const [side, setSide] = useState(true); // every review opens with it; a fold lasts for this review
   const [room, setRoom] = useState(roomy); // the page's column has room for the sidebar beside the diff
   const [over, setOver] = useState(false); // without room, Files opened it over the diff
-  const showSide = (room ? side : over) && !chat;
+  const showSide = (room ? side : over) && !chat; // with room it's always there: no toggle hides it
   const [busy, setBusy] = useState<"ai" | null>(null);
   const [drawn, setDrawn] = useState(0); // sections drawn past the first screenful
   const [picked, setPicked] = useState<Reviewer[]>([]); // who Ready for review asks
@@ -222,7 +223,6 @@ export function Review({
   const wholes = useRef(new Map<string, Promise<FileDiffLoadedFiles>>());
   const [more, setMore] = useState(false); // the More menu
   // The sidebar's checks and reviewers, listed: every PR opens with each in one line.
-  const [checksOpen, setChecksOpen] = useState(false);
   const [writing, setWriting] = useState(false); // Request changes, being written
   // Your comment on the PR, unsent: kept here, not in its box, so a refusal, acting on the PR or its closing never loses it,
   // and per PR for this window, as a line's is, so leaving the review and coming back finds it; sent, it's cleared.
@@ -232,6 +232,7 @@ export function Review({
     keepComment(id, text);
   };
   const [shut, setShut] = useState<ReadonlySet<string>>(new Set()); // files whose diff you folded, by path
+  const [shutDirs, setShutDirs] = useState<ReadonlySet<string>>(new Set()); // folders you folded in the sidebar's files
   const [draft, setDraft] = useState<Draft | null>(() => restored(id, 1));
   const [sent, setSent] = useState<Sent[]>([]);
   const draftText = useRef(keptDraft(id)?.text ?? ""); // here, so a box Pierre redraws keeps your words without a render per keystroke
@@ -395,15 +396,24 @@ export function Review({
     };
   }, []);
 
-  // The sidebar scrolls on its own to keep the current file in sight; the page doesn't move.
+  // The sidebar's list scrolls on its own to keep the file or step you're in in sight; the page doesn't move.
   useKeyed(secIdx, () => {
-    const box = document.querySelector<HTMLElement>(".rv-side");
-    const on = box?.querySelector<HTMLElement>(".rv-file.on");
-    if (!box || !on || box.scrollHeight <= box.clientHeight) return;
-    const strip = box.querySelector<HTMLElement>(".rv-side-top")?.offsetHeight ?? 0; // pinned at its top, under the toggle
-    if (on.offsetTop < box.scrollTop + strip) box.scrollTop = on.offsetTop - strip - 8;
-    else if (on.offsetTop + on.offsetHeight > box.scrollTop + box.clientHeight)
-      box.scrollTop = on.offsetTop + on.offsetHeight - box.clientHeight + 8;
+    const on = document.querySelector<HTMLElement>(".rv-side .rv-step-row.on");
+    if (!on) return;
+    for (const box of [on.closest<HTMLElement>("nav"), on.closest<HTMLElement>(".rv-side")]) {
+      if (!box || box.scrollHeight <= box.clientHeight) continue;
+      const strip = box.querySelector<HTMLElement>(":scope > .rv-side-top")?.offsetHeight ?? 0; // pinned at its top, under the toggle
+      const b = box.getBoundingClientRect();
+      const r = on.getBoundingClientRect();
+      if (r.top < b.top + strip) box.scrollTop -= b.top + strip - r.top + 8;
+      else if (r.bottom > b.bottom) box.scrollTop += r.bottom - b.bottom + 8;
+    }
+  });
+
+  // Scrolling into a file opens the folders it sits in; one you fold while in it stays folded until you move on.
+  const onPath = folded && secIdx >= rest ? null : (list[secIdx]?.path ?? null);
+  useKeyed(onPath, () => {
+    if (onPath) setShutDirs((ds) => (hasInside(ds, onPath) ? new Set([...ds].filter((d) => !onPath.startsWith(`${d}/`))) : ds));
   });
 
   // A comment on this PR that GitHub refused after you'd left the review it was sent from comes back here.
@@ -656,23 +666,25 @@ export function Review({
     };
   }, []);
 
-  // The sidebar's one toggle, pinned at the review's top right however far it's scrolled: it shows the sidebar and hides it.
+  // The sidebar's toggle, only where it can't sit beside the diff (a narrow column, where it opens over it) or the chat holds
+  // its place: pinned at the review's top right however far it's scrolled.
   const holds = `${(v?.stack ?? known?.stack) ? "the stack, " : ""}checks and files`;
-  const toggle = (
-    <button
-      type="button"
-      className={cls("act", "rv-side-toggle", !showSide && "rv-side-show")}
-      aria-expanded={showSide}
-      aria-controls="rv-side"
-      aria-label={`${showSide ? "Hide" : "Show"} ${holds}`}
-      title={`${showSide ? "Hide" : "Show"} ${holds}`}
-      onClick={toggleSide}
-    >
-      <svg className="i" viewBox="0 0 16 16" aria-hidden="true">
-        <path d="M2.5 3.5h11v9h-11zM10 3.5v9" />
-      </svg>
-    </button>
-  );
+  const toggle =
+    room && !chat ? null : (
+      <button
+        type="button"
+        className={cls("act", "rv-side-toggle", !showSide && "rv-side-show")}
+        aria-expanded={showSide}
+        aria-controls="rv-side"
+        aria-label={`${showSide ? "Hide" : "Show"} ${holds}`}
+        title={`${showSide ? "Hide" : "Show"} ${holds}`}
+        onClick={toggleSide}
+      >
+        <svg className="i" viewBox="0 0 16 16" aria-hidden="true">
+          <path d="M2.5 3.5h11v9h-11zM10 3.5v9" />
+        </svg>
+      </button>
+    );
 
   if (view === null) return <Shell card={known} me={me} now={now} row={row} side={showSide} toggle={toggle} />;
   if (typeof view === "string")
@@ -803,7 +815,15 @@ export function Review({
       {toggle}
       <div className="rv-main">
         <div className="rv-top">
-          <Head card={card} me={me} now={now} size={size} resolved={resolved?.line ?? null} row={row} reviewers={view.reviewers.list} />
+          <Head
+            card={card}
+            me={me}
+            now={now}
+            resolved={resolved?.line ?? null}
+            row={row}
+            ai={aiShown ? view.ai : null}
+            stale={view.ai_stale}
+          />
           {/* Yours gets no AI summary unless asked for, so its description's first paragraph says what it's about. */}
           {isMine && !view.ai && item.body && <p className="rv-summary rv-desc">{item.body.split("\n")[0]}</p>}
           {/* Your own PR gets no AI review unless one was asked for; More still asks. */}
@@ -1100,22 +1120,18 @@ export function Review({
         />
       )}
       {showSide && (
-        <aside id="rv-side" className="rv-side" aria-label="Stack, checks, reviewers and files">
+        <aside id="rv-side" className="rv-side" aria-label="Status, stack, reviewers and files">
           <div className="rv-side-top" aria-hidden="true" />
-          {view.stack && <StackList stack={view.stack} />}
-          {view.checks_error && (
-            <section className="rv-part" data-part="checks" aria-label="Checks">
-              <p className="rv-part-err t-bad">Couldn't load the checks: {view.checks_error}</p>
-            </section>
-          )}
-          {view.checks && (
-            <ChecksPart
-              checks={view.checks}
-              bad={view.checks.failing ? "t-bad" : ""}
-              tone={calm(card)}
-              open={checksOpen}
-              setOpen={setChecksOpen}
-            />
+          <StatusPart
+            ai={view.ai}
+            checks={view.checks}
+            checksError={view.checks_error}
+            size={size && { ...size, files: item.changed_files }}
+            tone={calm(card)}
+          />
+          {/* Only while it's stacked: another open PR in its stack (the list shows the open ones and this one). */}
+          {view.stack && [...view.stack.line, ...view.stack.forks].some((m) => m.state === "open" && !m.current) && (
+            <StackList stack={view.stack} />
           )}
           <SidePart
             id="reviewers"
@@ -1123,12 +1139,35 @@ export function Review({
             line={view.reviewers.list.length ? "" : view.reviewers.line}
             bad={view.reviewers.changes ? "t-warn" : ""}
             tone={calm(card)}
-            rows={view.reviewers.list.map((r) => ({
-              name: r.who,
-              ...(r.who !== "you" && !r.who.startsWith("@") && { login: r.who }),
-              state: r.state,
-              bad: r.state === "changes requested" ? "t-warn" : "",
-            }))}
+            rows={view.reviewers.list.map((r) => {
+              const person = r.who !== "you" && !r.who.startsWith("@"); // a team's ask is the team's
+              const yours = card.by === "you" && item.state === "open" && !acted;
+              const remove = yours && person && r.state === "asked";
+              const again = yours && person && !item.draft && r.state !== "asked";
+              return {
+                name: r.who,
+                ...(r.who === "you" ? me && { login: me } : person && { login: r.who }),
+                state: r.state,
+                bad: r.state === "changes requested" ? "t-warn" : "",
+                ...((remove || again) && {
+                  tools: (
+                    <button
+                      type="button"
+                      className="rv-rev-tool"
+                      title={remove ? `Remove ${r.who} as a reviewer` : `Ask ${r.who} to review again`}
+                      aria-label={remove ? `Remove ${r.who} as a reviewer` : `Ask ${r.who} to review again`}
+                      onClick={() => {
+                        onReviewer(card, r.who, remove ? "remove" : "rerequest");
+                      }}
+                    >
+                      <svg className="i" viewBox="0 0 16 16" aria-hidden="true">
+                        {remove ? <path d="m4.5 4.5 7 7m0-7-7 7" /> : <path d="M12.5 8a4.5 4.5 0 1 1-1.3-3.2M12.5 3v2.5H10" />}
+                      </svg>
+                    </button>
+                  ),
+                }),
+              };
+            })}
             add={yoursOpen && !asking && !acted && !sideAdding ? addReviewers : undefined}
           >
             {sideAdding && !acted && (
@@ -1175,38 +1214,23 @@ export function Review({
           )}
           {steps.length > 0 && <StepList stops={stops} on={secIdx} onGo={goTo} />}
           {list.length > 0 && !steps.length && (
-            <nav className="rv-files" aria-label="Files">
+            <nav className="rv-files rv-steps rv-tree" aria-label="Files">
               <h2 className="rv-side-head">
                 <span>
                   {files.length} {files.length === 1 ? "file" : "files"}
                 </span>
               </h2>
-              <ol>
-                {list.map((x, i) => {
-                  if (list.findIndex((y) => y.path === x.path) !== i) return null; // each file once, where reading reaches it
-                  const [dir, name] = splitPath(x.path);
-                  const on = list[secIdx]?.path === x.path && !(folded && secIdx >= rest);
-                  return (
-                    <li key={x.path}>
-                      <button
-                        type="button"
-                        className={cls("rv-file", on && "on")}
-                        title={x.path}
-                        onClick={() => {
-                          goTo(i);
-                        }}
-                      >
-                        <span className="rv-fname">
-                          {dir && <Dir path={dir} />}
-                          <span className="rv-base">{breakable(name)}</span>
-                        </span>
-                        {list.some((y) => y.path === x.path && y.notes.length > 0) && <span className="rv-nn" title="AI notes" />}
-                        {x.level && <span className="rv-lvl">{LEVEL[x.level]}</span>}
-                      </button>
-                    </li>
-                  );
-                })}
-              </ol>
+              {/* The guide's timeline, nested: a folder's files hang under it, the file you're in marked as you scroll. */}
+              <FileTree
+                nodes={pathTree(list.map((x) => x.path))}
+                list={list}
+                on={onPath}
+                shut={shutDirs}
+                onFold={(d) => {
+                  setShutDirs((ds) => new Set(ds.has(d) ? [...ds].filter((x) => x !== d) : [...ds, d]));
+                }}
+                onGo={goTo}
+              />
             </nav>
           )}
         </aside>
@@ -1214,6 +1238,78 @@ export function Review({
     </div>
   );
 }
+
+// Whether any of these folders holds the file.
+const hasInside = (dirs: ReadonlySet<string>, path: string) => [...dirs].some((d) => path.startsWith(`${d}/`));
+
+// Traditional's files in the sidebar, as folders: each file once, where reading reaches it. A click folds a folder or opens
+// it; the folders of the file you're in are ringed, and a folded one is marked in its place.
+function FileTree({
+  nodes,
+  list,
+  on,
+  shut,
+  onFold,
+  onGo,
+}: {
+  nodes: PathNode[];
+  list: Section[];
+  on: string | null; // the file you're in
+  shut: ReadonlySet<string>; // folded folders, by path
+  onFold: (dir: string) => void;
+  onGo: (i: number) => void;
+}) {
+  return (
+    <ol>
+      {nodes.map((n) => {
+        if (n.kids) {
+          const open = !shut.has(n.path);
+          const holds = !!on?.startsWith(`${n.path}/`);
+          return (
+            <li key={`${n.path}/`}>
+              <button
+                type="button"
+                className={cls("rv-step-row", "rv-tree-dir", holds && (open ? "near" : "on"))}
+                aria-expanded={open}
+                title={`${open ? "Fold" : "Open"} ${n.path}`}
+                onClick={() => {
+                  onFold(n.path);
+                }}
+              >
+                <span className="rv-step-dot" aria-hidden="true" />
+                <span className="rv-step-name">{n.name}</span>
+                {!open && <span className="rv-lvl">{countFiles(n)}</span>}
+              </button>
+              {open && <FileTree nodes={n.kids} list={list} on={on} shut={shut} onFold={onFold} onGo={onGo} />}
+            </li>
+          );
+        }
+        const i = list.findIndex((y) => y.path === n.path);
+        const level = list[i]?.level;
+        return (
+          <li key={n.path}>
+            <button
+              type="button"
+              className={cls("rv-step-row", on === n.path && "on")}
+              aria-current={on === n.path ? "location" : undefined}
+              title={n.path}
+              onClick={() => {
+                onGo(i);
+              }}
+            >
+              <span className="rv-step-dot" aria-hidden="true" />
+              <span className="rv-step-name">{n.name}</span>
+              {list.some((y) => y.path === n.path && y.notes.length > 0) && <span className="rv-nn" title="AI notes" />}
+              {level && <span className="rv-lvl">{LEVEL[level]}</span>}
+            </button>
+          </li>
+        );
+      })}
+    </ol>
+  );
+}
+
+const countFiles = (n: PathNode): number => (n.kids ? n.kids.reduce((sum, k) => sum + countFiles(k), 0) : 1);
 
 // The guided review's steps in the sidebar, where Traditional lists the files; the one you're in follows the scroll.
 function StepList({
@@ -1226,89 +1322,64 @@ function StepList({
   onGo: (i: number, el: string) => void;
 }) {
   return (
-    <nav className="rv-files" aria-label="Steps of the guided review">
+    <nav className="rv-files rv-steps" aria-label="Steps of the guided review">
       <h2 className="rv-side-head">
         <span>Guided Review</span>
       </h2>
+      {/* A timeline: a dot a step on one line down the list, the step you're on in a fluorescent purple. */}
       <ol>
-        {stops.map((r) => (
-          <li key={r.at}>
-            <button
-              type="button"
-              className={cls("rv-file", on >= r.at && on < r.end && "on")}
-              onClick={() => {
-                onGo(r.at, r.el);
-              }}
-            >
-              <span className="rv-lvl">{r.n}</span>
-              <span className="rv-fname">
-                <span className="rv-base">{r.name}</span>
-              </span>
-              {r.notes && <span className="rv-nn" title="AI notes" />}
-            </button>
-          </li>
-        ))}
+        {stops.map((r) => {
+          const here = on >= r.at && on < r.end;
+          return (
+            <li key={r.at} className={cls(here && "on")}>
+              <button
+                type="button"
+                className={cls("rv-step-row", here && "on")}
+                aria-current={here ? "step" : undefined}
+                title={`${r.n}. ${r.name}`}
+                onClick={() => {
+                  onGo(r.at, r.el);
+                }}
+              >
+                <span className="rv-step-dot" aria-hidden="true" />
+                <span className="rv-step-name">{r.name}</span>
+                {r.notes && <span className="rv-nn" title="AI notes" />}
+              </button>
+            </li>
+          );
+        })}
       </ol>
     </nav>
   );
 }
 
-const MARK: Partial<Record<Standing["state"], { mark: string; tone: string }>> = {
-  approved: { mark: "✓", tone: "t-good" },
-  "changes requested": { mark: "changes", tone: "t-warn" },
-};
-
-// Who's asked to review it, beside its author: a face and a name each, a mark for a verdict, the rest in the tooltip.
-// Someone who only commented isn't a reviewer here; the sidebar's Reviewers lists them.
-function HeadReviewers({ list, me }: { list: Standing[]; me: string }) {
-  const shown = list.filter((r) => r.state !== "commented");
-  if (!shown.length) return null;
-  return (
-    <span className="rv-by rv-revs" aria-label="Reviewers">
-      reviewers
-      {shown.map((r) => {
-        const m = MARK[r.state];
-        const login = r.who === "you" ? me : r.who.startsWith("@") ? "" : r.who;
-        return (
-          <span key={r.who} className="rv-rev" title={`${r.who}: ${r.state === "asked" ? "asked, hasn't reviewed yet" : r.state}`}>
-            {login && <Avatar login={login} />}
-            {r.who}
-            {m && (
-              <span className={cls("rv-rev-mark", m.tone)} aria-label={r.state}>
-                {m.mark}
-              </span>
-            )}
-          </span>
-        );
-      })}
-    </span>
-  );
-}
-
-// The header: the ref, the title, then how big it is and who reviews it; what stands in its way is the sidebar's. A resolved
+// The header: the ref and who it's by, then the title; how big it is, who reviews it and what stands in its way are the
+// sidebar's. A resolved
 // PR's line, and Merging's for your PR there.
 function Head({
   card,
   me,
   now,
-  size,
   resolved,
   row,
-  reviewers,
+  ai = null,
+  stale = false,
 }: {
   card: Card;
   me: string;
   now: number;
-  size: { add: number; del: number } | null;
   resolved: string | null;
   row: InflightRow | null;
-  reviewers: Standing[];
+  ai?: AiShown | null; // its verdict, a tag at the metadata's end
+  stale?: boolean; // that review is of an earlier commit
 }) {
   const isMine = card.by === "you"; // yours, or a bot's opened for you
   // What it waits on and the coordinator's latest note, as Merging says it.
   const lane = row?.state === "open" && (row.waits_on || row.note) ? row : null;
   return (
     <header className={cls("rv-head", calm(card))}>
+      <h1 className="rv-title">{card.title}</h1>
+      {/* Its metadata, under the title: the ref, its place in a stack, who it's by, and the AI review's verdict as a tag. */}
       <p className="rv-ref">
         <a className="ref" href={card.url} target="_blank" rel="noreferrer" title={`${card.repo}#${card.number} on GitHub`}>
           <span className="ref-ink">
@@ -1325,18 +1396,16 @@ function Head({
           {isMine ? "you" : card.author}
           {card.author_bot ? (isMine ? `, through ${card.author}` : " (bot)") : ""}
         </span>
+        {ai && (
+          <span
+            className={`rv-tag verdict v-${ai.verdict}`}
+            title={ai.model && ai.at ? `AI review by ${modelName(ai.model)}, ${when(ai.at)}` : "The AI review's verdict"}
+          >
+            {VERDICT[ai.verdict]}
+          </span>
+        )}
+        {ai && stale && <span className="quiet">on an earlier commit</span>}
       </p>
-      <h1 className="rv-title">{card.title}</h1>
-      {(!!size || reviewers.some((r) => r.state !== "commented")) && (
-        <p className="rv-size-line">
-          {size && (
-            <span className="rv-size" title={`${size.add} lines added, ${size.del} removed`}>
-              <span className="add">+{size.add}</span> <span className="del">−{size.del}</span>
-            </span>
-          )}
-          <HeadReviewers list={reviewers} me={me} />
-        </p>
-      )}
       {card.handoff && (
         <p className="rv-meta rv-handoff">
           <span>
@@ -1398,6 +1467,8 @@ function Shell({
 }) {
   const isMine = card?.by === "you";
   const pf = card?.preflight;
+  const rough = card ? rowSize(card) : null;
+  const shellSize = rough && { ...rough, files: null }; // the row says its lines, not its files
   const ai =
     pf?.verdict && pf.risk && pf.summary
       ? {
@@ -1421,19 +1492,19 @@ function Shell({
               card={card}
               me={me}
               now={now}
-              size={rowSize(card)}
               resolved={card.resolved ? resolvedHead([], card.resolved, me).line : null}
-              reviewers={[]}
               row={row}
+              ai={ai}
+              stale={pf?.state !== "ready"}
             />
           ) : (
             <header className="rv-head" aria-hidden="true">
-              <p className="rv-ref">
-                <span className="sk sk-ref" />
-              </p>
               <h1 className="rv-title">
                 <span className="sk sk-title" />
               </h1>
+              <p className="rv-ref">
+                <span className="sk sk-ref" />
+              </p>
               <p className="rv-meta">
                 <span className="sk sk-meta" />
               </p>
@@ -1487,6 +1558,7 @@ function Shell({
       {side && (
         <aside id="rv-side" className="rv-side" aria-hidden="true">
           <div className="rv-side-top" />
+          <StatusPart ai={ai} checks={null} checksError={null} size={shellSize} tone={card ? calm(card) : ""} />
           {/* Its checks, where any ran, and its reviewers: a line each. */}
           <SkLines count={card && card.ci !== "none" ? 2 : 1} className="sk-files" />
           <nav className="rv-files">
@@ -1496,6 +1568,160 @@ function Shell({
         </aside>
       )}
     </div>
+  );
+}
+
+type Tone = "good" | "warn" | "bad";
+
+// How the checks stand, in words and a colour: a required one failing is red; an optional one failing, one cancelled or
+// one still running is yellow.
+function checksState(checks: Checks): { said: string; tone: Tone } {
+  if (checks.failing) return { said: "Checks failing", tone: "bad" };
+  if (checks.list.some((c) => c.state === "failing" || c.state === "cancelled")) return { said: "Some checks failing", tone: "warn" };
+  if (checks.list.some((c) => c.state === "running")) return { said: "Checks running", tone: "warn" };
+  return { said: "Checks passing", tone: "good" };
+}
+
+// How big it is, in a word: by its lines changed and its files.
+function changesWord(add: number, del: number, files: number | null): string {
+  const lines = add + del;
+  const n = files ?? 0; // unknown while it loads: its lines alone
+  if (lines <= 100 && n <= 5) return "Small changes";
+  if (lines <= 600 && n <= 20) return "Moderate changes";
+  return "Lots of changes";
+}
+
+// One row of Status: what it says on the left, on the right a mark in its colour or what stands in for one (the checks'
+// count, the diff); a click shows or hides what's behind it.
+function StatusRow({
+  id,
+  said,
+  end,
+  children,
+  open,
+  setOpen,
+}: {
+  id: string;
+  said: string; // "High risk", "Some checks failing", "Lots of changes"
+  end: ReactNode;
+  children: ReactNode;
+  open: boolean;
+  setOpen: (open: boolean) => void;
+}) {
+  return (
+    <li className="rv-status" data-status={id}>
+      <button
+        type="button"
+        className="rv-status-row"
+        aria-expanded={open}
+        onClick={() => {
+          setOpen(!open);
+        }}
+      >
+        <span className="rv-status-said">{said}</span>
+        {end}
+      </button>
+      {open && <div className="rv-status-more">{children}</div>}
+    </li>
+  );
+}
+
+// Status, at the top of the sidebar: the AI review's risk, the checks and how big the change is, a row each; a click on one
+// shows its reasons, its list of checks or its counts.
+function StatusPart({
+  ai,
+  checks,
+  checksError,
+  size,
+  tone,
+}: {
+  ai: AiShown | null;
+  checks: Checks | null;
+  checksError: string | null;
+  size: { add: number; del: number; files: number | null } | null;
+  tone: string;
+}) {
+  const [open, setOpen] = useState<Record<string, boolean>>({});
+  const toggle = (id: string) => (on: boolean) => {
+    setOpen((o) => ({ ...o, [id]: on }));
+  };
+  if (!ai && !checks && !checksError && !size) return null;
+  const reasons = ai?.risk_reasons ?? [];
+  const cs = checks && checksState(checks);
+  const passing = checks?.list.filter((c) => c.state === "passing").length ?? 0;
+  return (
+    <section className={cls("rv-part", tone)} data-part="status" aria-label="Status">
+      <h2 className="rv-side-head">
+        <span>Status</span>
+      </h2>
+      <ol className="rv-status-list">
+        {ai && (
+          <StatusRow
+            id="risk"
+            said={`${ai.risk[0]!.toUpperCase()}${ai.risk.slice(1)} risk`}
+            end={
+              // Like a phone's signal: one red bar for high, two yellow for medium, all three green for low.
+              <span className={cls("rv-signal", `s-${ai.risk}`)} title={`${ai.risk} risk`} aria-hidden="true">
+                <span />
+                <span />
+                <span />
+              </span>
+            }
+            open={!!open.risk}
+            setOpen={toggle("risk")}
+          >
+            {reasons.length ? (
+              <ul className="rv-status-why">
+                {reasons.map((x) => (
+                  <li key={x.why}>{x.why}</li>
+                ))}
+              </ul>
+            ) : (
+              <p className="rv-status-why">No reason given.</p>
+            )}
+          </StatusRow>
+        )}
+        {checks && cs && (
+          <StatusRow
+            id="checks"
+            said={cs.said}
+            end={
+              <span className="rv-status-count" title={`${passing} of ${checks.list.length} passing`}>
+                <span className={`c-${cs.tone}`}>{passing}</span>/{checks.list.length}
+              </span>
+            }
+            open={!!open.checks}
+            setOpen={toggle("checks")}
+          >
+            <CheckRows checks={checks} />
+          </StatusRow>
+        )}
+        {!checks && checksError && (
+          <StatusRow id="checks" said="Checks couldn't load" end={null} open={!!open.checks} setOpen={toggle("checks")}>
+            <p className="rv-status-why t-bad">{checksError}</p>
+          </StatusRow>
+        )}
+        {size && (
+          <StatusRow
+            id="changes"
+            said={changesWord(size.add, size.del, size.files)}
+            end={
+              <span className="rv-size" title={`${size.add} lines added, ${size.del} removed`}>
+                <span className="add">+{size.add}</span> <span className="del">−{size.del}</span>
+              </span>
+            }
+            open={!!open.changes}
+            setOpen={toggle("changes")}
+          >
+            <ul className="rv-status-why">
+              {size.files !== null && <li>{`${size.files} ${size.files === 1 ? "file" : "files"} changed`}</li>}
+              <li>{`${size.add} ${size.add === 1 ? "line" : "lines"} added`}</li>
+              <li>{`${size.del} ${size.del === 1 ? "line" : "lines"} removed`}</li>
+            </ul>
+          </StatusRow>
+        )}
+      </ol>
+    </section>
   );
 }
 
@@ -1517,7 +1743,7 @@ function SidePart({
   line: string; // "" when its rows say it all
   bad: string; // t-bad, t-warn, or "" for ink
   tone?: string; // calm(): on a sorted-away PR its problems are grey
-  rows?: { name: string; login?: string; state: string; bad: string }[];
+  rows?: { name: string; login?: string; state: string; bad: string; tools?: ReactNode }[];
   add?: (() => void) | undefined; // the reviewers' Add reviewers, on your open PR
 }) {
   return (
@@ -1540,6 +1766,7 @@ function SidePart({
                   {r.name}
                 </span>
                 <span className={cls("rv-part-state", "fact-word", r.bad)}>{r.state}</span>
+                {r.tools}
               </span>
             </li>
           ))}
@@ -1563,27 +1790,11 @@ const DOT_WORDS: Record<Dot, string> = {
   grey: "skipped",
 };
 
-// The checks: where they stand, then a row each, shards of one check folded into one; a dot says how each is doing. Over
-// SIDE_ROWS rows, the green and grey ones wait behind one line.
-function ChecksPart({
-  checks,
-  bad,
-  tone,
-  open,
-  setOpen,
-}: {
-  checks: Checks;
-  bad: string;
-  tone: string;
-  open: boolean; // the green ones shown too
-  setOpen: (open: boolean) => void;
-}) {
+// Every check, one row each (shards of one check under one row, a click opens them), what's wrong first; a dot says how
+// each is doing. Status's Checks row opens it.
+function CheckRows({ checks }: { checks: Checks }) {
   const [nested, setNested] = useState<Set<string>>(new Set());
-  const groups = checkGroups(checks.list);
-  const folds = groups.length > SIDE_ROWS;
-  const quiet = (g: CheckGroup) => g.dot === "green" || g.dot === "grey";
-  const shown = folds && !open ? groups.filter((g) => !quiet(g)) : groups;
-  const hidden = groups.length - shown.length;
+  const shown = checkGroups(checks.list);
   const dot = (d: Dot) => <span className={cls("rv-dot", `d-${d}`)} aria-label={DOT_WORDS[d]} title={DOT_WORDS[d]} />;
   const link = (c: Check, label: string, cls_ = "rv-part-row") =>
     c.url ? (
@@ -1604,62 +1815,42 @@ function ChecksPart({
       </span>
     );
   return (
-    <section className={cls("rv-part", tone)} data-part="checks" aria-label="Checks">
-      <h2 className="rv-side-head">
-        <span>Checks</span>
-      </h2>
-      <p className={cls("rv-part-line", "fact-word", bad)} title={checks.line}>
-        {checks.line}
-      </p>
-      <ol>
-        {shown.map((g) => {
-          if (g.checks.length === 1) return <li key={g.name}>{link(g.checks[0]!, g.name)}</li>;
-          const isOpen = nested.has(g.name);
-          return (
-            <li key={g.name}>
-              <button
-                type="button"
-                className="rv-part-row rv-check-group"
-                aria-expanded={isOpen}
-                onClick={() => {
-                  const next = new Set(nested);
-                  if (isOpen) next.delete(g.name);
-                  else next.add(g.name);
-                  setNested(next);
-                }}
-              >
-                {dot(g.dot)}
-                <span className="rv-part-name">{g.name}</span>
-                <span className="rv-part-state">{g.checks.length}</span>
-                <span className="rv-chev" aria-hidden="true">
-                  ›
-                </span>
-              </button>
-              {isOpen && (
-                <ol className="rv-check-shards">
-                  {g.checks.map((c, i) => (
-                    // oxlint-disable-next-line react/no-array-index-key -- two shards can share a name, and the list never reorders in place
-                    <li key={i}>{link(c, c.name.slice(g.name.length).trim() || c.name)}</li>
-                  ))}
-                </ol>
-              )}
-            </li>
-          );
-        })}
-      </ol>
-      {folds && (hidden > 0 || open) && (
-        <button
-          type="button"
-          className="rv-part-more"
-          aria-expanded={open}
-          onClick={() => {
-            setOpen(!open);
-          }}
-        >
-          {open ? "Show less" : `${hidden} more passing`}
-        </button>
-      )}
-    </section>
+    <ol>
+      {shown.map((g) => {
+        if (g.checks.length === 1) return <li key={g.name}>{link(g.checks[0]!, g.name)}</li>;
+        const isOpen = nested.has(g.name);
+        return (
+          <li key={g.name}>
+            <button
+              type="button"
+              className="rv-part-row rv-check-group"
+              aria-expanded={isOpen}
+              onClick={() => {
+                const next = new Set(nested);
+                if (isOpen) next.delete(g.name);
+                else next.add(g.name);
+                setNested(next);
+              }}
+            >
+              {dot(g.dot)}
+              <span className="rv-part-name">{g.name}</span>
+              <span className="rv-part-state">{g.checks.length}</span>
+              <span className="rv-chev" aria-hidden="true">
+                ›
+              </span>
+            </button>
+            {isOpen && (
+              <ol className="rv-check-shards">
+                {g.checks.map((c, i) => (
+                  // oxlint-disable-next-line react/no-array-index-key -- two shards can share a name, and the list never reorders in place
+                  <li key={i}>{link(c, c.name.slice(g.name.length).trim() || c.name)}</li>
+                ))}
+              </ol>
+            )}
+          </li>
+        );
+      })}
+    </ol>
   );
 }
 
@@ -1776,20 +1967,17 @@ function AiSection({
   // A diagram no step draws sits in the fold, at most one.
   const loose = ai?.diagrams?.find((d) => !ai.guide?.steps.some((st) => st.diagram === d.id));
   const folds = first.length > 0 && (rest.length > 0 || later.length > 0 || ifaces.length > 0 || better.length > 0 || !!loose);
-  const verdict = ai && (
-    <>
-      <span className={`verdict v-${ai.verdict}`}>{VERDICT[ai.verdict]}</span>
-      <span className={`risk r-${ai.risk}`}>
-        <span className="meter" aria-hidden="true">
-          <span />
-          <span />
-          <span />
-        </span>
-        {ai.risk} risk
-      </span>
-      {lead1 && <span className="quiet rv-reason">{lead1.why}</span>}
-      {stale && <span className="quiet">on an earlier commit</span>}
-    </>
+  const toggle = (label: string) => (
+    <button
+      type="button"
+      className="link-btn rv-show"
+      aria-expanded={more}
+      onClick={() => {
+        setMore(!more);
+      }}
+    >
+      {label}
+    </button>
   );
   const minutes = (at: string) => Math.max(1, Math.round(Math.abs(Date.parse(at) - now) / 60_000));
   const plural = (n: number) => `${n} minute${n === 1 ? "" : "s"}`;
@@ -1841,25 +2029,6 @@ function AiSection({
       {ai && (
         <>
           {first.length > 0 && <p className="rv-gist">{spans(unlinked(first))}</p>}
-          <p className="rv-verdict" title={ai.model && ai.at ? `AI review by ${modelName(ai.model)}, ${when(ai.at)}` : undefined}>
-            {folds ? (
-              <button
-                type="button"
-                className={cls("rv-ai-lead", !more && "shut")}
-                aria-expanded={more}
-                onClick={() => {
-                  setMore(!more);
-                }}
-              >
-                <span className="rv-chev" aria-hidden="true">
-                  {"\u203a"}
-                </span>
-                {verdict}
-              </button>
-            ) : (
-              verdict
-            )}
-          </p>
           {ai.intent?.stack && (
             <p className="rv-since">
               <b>In the stack:</b> {spans(unlinked(inline(ai.intent.stack)))}
@@ -1870,8 +2039,9 @@ function AiSection({
               <b>{FIT[ai.intent.fit]}:</b> {spans(unlinked(inline(ai.intent.gap)))}
             </p>
           )}
-          {(more || !folds) && (
-            <>
+          {/* Folded, its first lines show, fading out into Show more; inert until it's opened. */}
+          {(rest.length > 0 || later.length > 0 || ifaces.length > 0 || better.length > 0 || !!loose) && (
+            <div className={cls("rv-fold-body", folds && !more && "shut")} inert={folds && !more}>
               {rest.length > 0 && <ProseBlocks bs={rest} links={false} />}
               {later.length > 0 && (
                 <p className="rv-more-line">
@@ -1922,9 +2092,10 @@ function AiSection({
                   </ul>
                 </div>
               )}
-              {loose && <Diagram graph={loose.graph} title={loose.title} caption={loose.caption} />}
-            </>
+              {loose && (more || !folds) && <Diagram graph={loose.graph} title={loose.title} caption={loose.caption} />}
+            </div>
           )}
+          {folds && toggle(more ? "Show less" : "Show more")}
           {ai.since && (
             <p className="rv-since">
               <b>Since your review:</b> {spans(unlinked(inline(ai.since)))}
@@ -1952,16 +2123,6 @@ export function withCode(text: string) {
   // oxlint-disable-next-line react/no-array-index-key -- a fixed split never reorders, and the same command can appear twice
   return text.split("`").map((part, i) => (i % 2 ? <code key={i}>{part}</code> : part));
 }
-
-// A long file name wraps after a "_", "-" or ".", never mid-word.
-const breakable = (name: string) =>
-  name.split(/(?<=[_.-])/).map((part, i) => (
-    // oxlint-disable-next-line react/no-array-index-key -- parts are positional and never reorder
-    <span key={i}>
-      {i > 0 && <wbr />}
-      {part}
-    </span>
-  ));
 
 // A long directory gives way from its start, so the file's own name stays whole and every name sits right after its folder.
 function Dir({ path }: { path: string }) {

@@ -443,6 +443,43 @@ test("Re-request review asks again whoever reviewed your PR and isn't asked now:
   assert.deepEqual(writes(t, "acme/web#3"), ["rerequest"]);
 });
 
+test("a reviewer of your open PR, from its sidebar: remove one asked who hasn't reviewed, ask one who reviewed again; nothing else", async (c) => {
+  const said = (author: string, state: "commented" | "changes_requested") => ({
+    author,
+    state,
+    author_bot: false,
+    at: hoursAgo(5),
+    commit: "h1",
+  });
+  const { t, w } = await withWriter(c, [
+    myPr(3, {
+      ci: "green",
+      reviews: [said("sam", "changes_requested")],
+      review_requests: [
+        { reviewer: "Dana", type: "user", codeowner: false },
+        { reviewer: "backend", type: "team", codeowner: false },
+      ],
+    }),
+    myPr(4, { ci: "green", draft: true, reviews: [said("sam", "commented")] }),
+    reviewAsk(1, { review_requests: [{ reviewer: "dana", type: "user", codeowner: false }] }),
+  ]);
+  const refused = (ref: string, login: string, act: "remove" | "rerequest", why: RegExp) =>
+    assert.rejects(run(t.desk.reviewerAct(ref, login, act)), (e: Error & { status: number }) => e.status === 409 && why.test(e.message));
+  await refused("web#3", "sam", "remove", /isn't asked/); // reviewed, not asked now
+  await refused("web#3", "backend", "remove", /isn't asked/); // a team's ask stays the team's
+  await refused("web#3", "kofi", "rerequest", /can't be asked again/);
+  await refused("web#4", "sam", "rerequest", /can't be asked again/); // a draft
+  await refused("api#1", "dana", "remove", /isn't your PR/);
+  assert.deepEqual(w.calls, [], "nothing was sent");
+  await run(t.desk.reviewerAct("web#3", "dana", "remove"));
+  await run(t.desk.reviewerAct("web#3", "sam", "rerequest"));
+  assert.deepEqual(w.calls, [
+    ["unrequest", "acme/web#3", "Dana"],
+    ["rerequest", "PR_acme/web_3", "sam"],
+  ]);
+  assert.deepEqual(writes(t, "acme/web#3"), ["unrequest", "rerequest"]);
+});
+
 test("Remove me as a reviewer takes your by-name request off someone else's PR, and it leaves your desk; a team's ask offers none", async (c) => {
   const team = { review_requests: [{ reviewer: "backend", type: "team" as const, codeowner: false }] };
   const { t, w } = await withWriter(c, [reviewAsk(1), reviewAsk(2, team)]);

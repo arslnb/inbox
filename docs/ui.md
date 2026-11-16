@@ -220,12 +220,12 @@ Under your answer: **Not picked up yet**, then **Picked up 2m ago** once the ask
 `#/review/<id>`: a PR read and acted on in the desk, in the Inbox's place. The sidebar stays, and in a wide window so does the list it came from. The diff takes the page's width; a foldable sidebar on the right holds the PR's state and files.
 
 ```
-  api#4154  3/6  by priya                                                                      [▯▮]
-  Planner: hash join stage                                        Stack on main
+  Planner: hash join stage                                        Status
+  api#4154  3/6  by priya  (Look closely)                         Stack on main
   asked you directly · CI passing · changes requested             ○ #4153 Planner: run the table…  ✗
-  +172 −32 in 3 files                                             ┃○ #4154 Planner: hash join st… ±┃
+                                                                  ┃○ #4154 Planner: hash join st… ±┃
                                                                   ○ #4155 Planner: stream partia…
-› Look closely  ▮▮▯ medium risk                                     3 more
+                                                                    3 more
   Adds a streaming scan (streamRows) and uses it in runPlan, ...  CI passing · 14 checks         ›
                                                                   Changes requested by sam       ›
   (threads waiting on you)                                        Merge conflict with main
@@ -255,8 +255,8 @@ Esc or the back link goes back to the page it was opened from.
 
 ### Header
 
-- The ref, a stack's place ("3/6"), the author with their picture ("by you" on yours), the title.
-- Under the title, one line: its size, + in green and − in red, then who reviews it, each with their picture (a team "@") and a verdict's mark (✓ approved in green, "changes" in amber). Someone who only commented is in the sidebar's Reviewers.
+- The title first; under it its metadata on one line: the ref, a stack's place ("3/6"), the author with their picture ("by you" on yours), then the AI review's verdict as a tag ("Look closely" in the accent, "Skim it", "Skip it" quieter; the model and time in its tooltip), "on an earlier commit" after it when it is.
+- How big it is and who reviews it are the sidebar's (Status, Reviewers).
 - Nothing else: why it's on the desk is the row's; CI, the review state, a conflict and what it blocks are the sidebar's.
 - A resolved PR says so under the title: "Resolved: merged by li-wei · 2h".
 - Your PR in Merging says "Merging", with what it waits on and your agent's latest note.
@@ -267,8 +267,13 @@ Esc or the back link goes back to the page it was opened from.
 
 Sections, each open: its name, where it stands in one line that reads first (red when a required check fails, amber for changes requested), then its rows.
 
-- **Checks**: a row each, with a dot: red failing, red hollow failing but not required, yellow running, green passing, grey skipped. Shards of one check (`backend test (0)`, `(1)`, `[2/3]`, `#4`) are one row with a count and their worst dot; a click lists them. What's wrong comes first; past six rows the green and grey ones wait behind "N more passing". `checkGroups()` in `web/src/view.ts`.
-- **Reviewers**: everyone, with their picture and where they stand; no line over them ("Nobody's asked" when there's no one). On your open PR, **+ Add reviewers** (also in More) opens a box right there, under who's asked: a pick is the ask (GitHub asks them at once, `keep` on `POST /api/review/:id/reviewers`, so the PR stays on your desk), and **Done** closes it.
+- **Status** first: a row each, what it says on the left and its measure on the right; a click shows what's behind it.
+  - **Risk**, when there's an AI review: "Low risk", "Medium risk" or "High risk", and three rising bars as a phone shows its signal: one red for high, two yellow for medium, all three green for low. It opens to its reasons.
+  - **Checks**: "Checks passing", "Checks running", "Some checks failing" (an optional one failing or one cancelled) or "Checks failing" (a required one), and on the right how many pass of all of them ("19/22"), the first number in its colour. It opens straight to every check, with no line over them, a row each with a dot: red failing, red hollow failing but not required, yellow running, green passing, grey skipped. Shards of one check (`backend test (0)`, `(1)`, `[2/3]`, `#4`) are one row with a count and their worst dot; a click lists them. What's wrong comes first. `checkGroups()` in `web/src/view.ts`.
+  - **Changes**: "Small changes" (up to 100 lines in up to 5 files), "Moderate changes" (up to 600 in up to 20) or "Lots of changes", with its + and − on the right; it opens to bullets: its files, lines added and lines removed.
+
+- **Stack** only while the PR is stacked: another open PR in its stack.
+- **Reviewers**: everyone, with their picture and where they stand; no line over them ("Nobody's asked" when there's no one). On your open PR each person has one icon after their state: × removes one asked who hasn't reviewed yet, ↻ asks one who reviewed to review again (`POST /api/review/:id/reviewer`, the REST unrequest or rerequest for that login alone). A team's ask has none: it's the team's. On your open PR, **+ Add reviewers** (also in More) opens a box right there, under who's asked: a pick is the ask (GitHub asks them at once, `keep` on `POST /api/review/:id/reviewers`, so the PR stays on your desk), and **Done** closes it.
 - Sections are parted by a hairline.
 - **Merge**: a conflict. **Depends**: what it's blocked by or blocks, when it isn't in a stack (a stack has its own section).
 
@@ -276,10 +281,9 @@ Sections, each open: its name, where it stands in one line that reads first (red
 
 No heading; right under the header.
 
-- **Goal** first: what the PR sets out to do, in ink, a step larger. A review written before goals leads with its summary's first sentence.
-- **Verdict** under it, at the section's size: "Look closely" (semibold), "Skim it" or "Skip it". The model and time are in its tooltip.
-- **Risk** after the verdict: in colour with a three-step meter, then its first reason. "on an earlier commit" in pencil when it is.
-- **The rest of the summary**: a chevron (or a click on the verdict) opens it. Every PR opens folded.
+- **Goal** first: what the PR sets out to do, in ink, larger than the rest (16 to 17.5px). A review written before goals leads with its summary's first sentence.
+- Its verdict is the header's tag, and its risk the sidebar's (Status).
+- **The rest of the summary**: folded, its first lines show and fade out into **Show more** (in the accent), which opens it; then **Show less** under it folds it again. Every PR opens folded. Folded, the preview takes no clicks or focus (`inert`) and draws no diagram.
 - **Since your review**: on a re-review, under the summary, never folded.
 - **Concerns**: each is also a note in the code. They're listed only when no note can sit there (none, or an earlier commit's review).
 - All of it is drawn as plain prose (`code`, **bold**, lists), never HTML. URLs stay text: the PR's author can steer what Claude writes.
@@ -316,13 +320,13 @@ The desk's reading order (`ReviewView.order`), which the guide's steps are built
 
 Neighbouring hunks of a file at one level read as one. Without a ranking (none yet, or an earlier commit's) it keeps file order. A PR with no changes says "No files changed."
 
-**Guided Review and Traditional.** Two tabs above the diff, the choice kept per device (`desk.review.view`), Guided Review first. A review without steps (`order.steps`: none yet, or an earlier commit's) shows Traditional alone, with no tabs.
+**Guided Review and Traditional.** Two tabs above the diff, over a hairline barely there, their words and the steps' words on the header's edge, the choice kept per device (`desk.review.view`), Guided Review first. A review without steps (`order.steps`: none yet, or an earlier commit's) shows Traditional alone, with no tabs.
 
-- **Guided Review** is only the guide, as Linear's guided reviews: each step is a heading ("1 of 4", its title), a sentence or two, and "**Check:** …" when there's something to verify, then only the hunks it covers. A quiet "Next: <title>" at its foot. The last reads "End of the guide.", and when files changed outside it, "3 more files change outside it: read every file in Traditional", a link to that tab. Nothing the steps leave out is drawn, so the guide holds your attention. A test file in a step is folded until you open it (`isTestPath()` in `src/sections.ts`).
+- **Guided Review** is only the guide, as Linear's guided reviews: each step is a heading ("1 of 4", its title), a sentence or two, and "**Check:** …" when there's something to verify, then only the hunks it covers. A quiet "Next: <title>" at its foot. In the sidebar the steps are a timeline on a pale line: a pale node each and its title dimmed, the step you're on a flat node in a fluorescent purple (no glow) and its title in ink, each title on one line (the whole of it in its tooltip). The model is asked for titles of at most four words, under 28 characters. The last reads "End of the guide.", and when files changed outside it, "3 more files change outside it: read every file in Traditional", a link to that tab. Nothing the steps leave out is drawn, so the guide holds your attention. A test file in a step is folded until you open it (`isTestPath()` in `src/sections.ts`).
 - **Diagrams** in a step are drawn by Excalidraw (`web/src/components/Sketch.tsx`), hand-drawn in the theme's own colours: new parts green, changed amber, removed dashed, a store in the accent. The desk's layout (ELK, measured in Excalifont) places them; a left-to-right flowchart stays left to right while it fits the column at 85% or more, and redraws when the theme changes. Excalifont comes from the desk (`web/public/excalidraw`), never a CDN. If Excalidraw fails, or `desk.sketch` is `"0"` in localStorage, the plain drawing shows instead; a rendered review page always has the plain one.
 - **Potential bugs**: each of the AI review's concerns is marked **Potential bug** on its line, edged in amber: what goes wrong, when, the fix, then "Evidence:" what in the diff shows it and how to confirm it (a suspicion with no evidence in the diff is only a note saying what to check). In Guided Review a concern's hunk shows even when no step covers it, under "Potential bugs outside the guide" after the steps.
 - **Traditional** is the plain diff: every file in the PR's order, all its hunks in diff order, Claude's notes inline on their lines (`traditional()` in `src/sections.ts`), then the desk's "Not worth reviewing" fold.
-- In the review's sidebar the steps take the files' place.
+- In the review's sidebar the steps take the files' place. Traditional's files are the same timeline nested in their folders (`pathTree()` in `web/src/view.ts`; a folder holding only a folder reads as one, "web/src"), stuck under the page's head like the steps (the hairline above either fades once it's stuck): the file you're in is the purple node and follows the scroll, its folders are ringed in the same purple, a click folds a folder or opens it, a folded one holding that file is the node in its place, and scrolling into a folded folder's file opens it.
 
 **Drawing.** `@pierre/diffs`: unified, word-level changes, wrapped lines, Shiki highlighting in the theme's syntax colours (`diff` in `src/themes.ts`, `web/src/diffThemes.ts`). Unchanged lines fold into a band ("14 unmodified lines"); its arrows open ten more at a time, in either review. A drawn file is read whole ahead (`GET /api/file/:id?path=`: the file at the PR's head; before it is the same run back through its patch, `oldFromNew()` in `web/src/view.ts`), so the first click opens lines. A file GitHub won't give whole (binary, too big) says so in a bubble. Each file's name sticks under the head while you read it.
 
@@ -372,7 +376,7 @@ On your ready PR nobody's asked to review, the same line opens with the box focu
 
 ### The review's sidebar
 
-One icon button at the review's top right shows and hides it ("Show checks and files", "Hide the stack, checks and files"). Every review opens with it shown beside the diff (240px wide in a column under 880px); a fold lasts for that review. It stays in view as you scroll. In a page column under 680px it lies over the diff and starts folded. While the chat is open the chat takes its place; the toggle brings the sidebar back and closes the chat.
+Beside the diff it's always there (240px wide in a column under 880px), with no toggle, and it scrolls with the page: its parts go by, and **Guided Review** sticks under the page's head (scrolling in itself when the guide is longer than the window). In a page column under 680px it lies over the diff and starts folded; there one icon button at the review's top right shows and hides it ("Show checks and files", "Hide the stack, checks and files"), and it scrolls in itself. While the chat is open the chat takes its place; the same button brings the sidebar back and closes the chat.
 
 Top to bottom:
 

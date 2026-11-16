@@ -1571,11 +1571,13 @@ const SHOTS: Shot[] = [
       if (back !== "Inbox") failures.push(`review: the back link reads ${JSON.stringify(back)}`);
       const on = await sideOn(page);
       if (on !== "Inbox") failures.push(`review: the sidebar marks ${JSON.stringify(on)}`);
-      if (await page.locator(".rv-ai .prose").count()) failures.push("review: the AI review doesn't open folded");
+      if (!(await page.locator(".rv-ai .rv-fold-body.shut").count())) failures.push("review: the AI review doesn't open folded");
       if (!inOrder(await tops(page, [".rv-ai", ".rv-convo", ".rv-comment"])))
         failures.push("review: the AI review isn't above the conversation and your comment");
-      if (!inOrder(await tops(page, [".rv-gist", ".rv-verdict"]))) failures.push("review: the goal doesn't lead the verdict");
-      await faces(page, "review", ".rv-ref .rv-by:last-child, .cv-author");
+      // The title, then its metadata with the verdict's tag, then the goal.
+      if (!inOrder(await tops(page, [".rv-title", ".rv-ref .rv-tag", ".rv-gist"])))
+        failures.push("review: the head isn't title, metadata with the verdict, then the goal");
+      await faces(page, "review", ".rv-ref .rv-by:has(.avatar), .cv-author");
     },
   },
   // The top of a review stays short, so the diff starts high: your comment's box is one line on the actions' row, with no
@@ -1937,9 +1939,11 @@ const SHOTS: Shot[] = [
     go: async (page) => {
       await review("nadia/sentry-javascript-integrations#14402")(page);
       const ai = page.locator(".rv-ai");
-      if (!(await ai.locator('.rv-ai-lead[aria-expanded="false"]').count()))
+      if (!(await ai.locator('.rv-show[aria-expanded="false"]').count()))
         failures.push("review-ai-skim: the AI review doesn't open folded");
-      if (await ai.locator(".prose").count()) failures.push("review-ai-skim: the rest of the summary shows while folded");
+      // Folded, the rest shows its first lines fading out into Show more, and takes no clicks or focus.
+      if (!(await ai.locator(".rv-fold-body.shut[inert] .prose").count()))
+        failures.push("review-ai-skim: folded, the rest of the summary doesn't show its first lines, inert");
       if ((await ai.locator(".rv-gist code").count()) < 2) failures.push("review-ai-skim: the first sentence's code names aren't code");
       if ((await ai.allInnerTexts()).join("").includes("`")) failures.push("review-ai-skim: a backtick shows");
       const h = await page.evaluate<number>(`document.querySelector(".rv-ai")?.getBoundingClientRect().height ?? 0`);
@@ -1948,15 +1952,15 @@ const SHOTS: Shot[] = [
     },
   },
   {
-    // A click on the verdict opens the rest under the first sentence; a URL in it stays text.
+    // Show more opens the rest under the first sentence; a URL in it stays text.
     name: "review-ai-open",
     go: async (page) => {
       await review("nadia/sentry-javascript-integrations#14402")(page);
-      const lead = page.locator(".rv-ai-lead");
+      const lead = page.locator(".rv-show");
       if (await lead.count()) await lead.click();
       await page.waitForTimeout(200);
       const ai = page.locator(".rv-ai");
-      if (!(await ai.locator('.rv-ai-lead[aria-expanded="true"]').count())) failures.push("review-ai-open: a click doesn't open it");
+      if (!(await ai.locator('.rv-show[aria-expanded="true"]').count())) failures.push("review-ai-open: a click doesn't open it");
       if (!(await ai.locator(".prose").allInnerTexts()).join(" ").includes("Tests cover"))
         failures.push("review-ai-open: the rest of the summary is missing");
       if (!(await ai.locator(".prose code").count())) failures.push("review-ai-open: the rest's code names aren't code");
@@ -1965,7 +1969,7 @@ const SHOTS: Shot[] = [
     },
   },
   {
-    // The next review's parts: the goal leads, the first risk reason after the meter, the gap unfolded; the fold holds the
+    // The next review's parts: the goal leads, its risk in the sidebar's Status, the gap unfolded; the fold holds the
     // summary, the other reasons, Interfaces and Could be better; Look here sits on its line and the first step has a note.
     name: "review-ai-parts",
     go: async (page) => {
@@ -1975,9 +1979,9 @@ const SHOTS: Shot[] = [
       const bad = (m: string) => failures.push(`review-ai-parts: ${m}`);
       if (!(await ai.locator(".rv-gist").innerText()).startsWith("Splits the scheduler into Lease and Dispatch"))
         bad("the goal doesn't lead");
-      if (!(await ai.locator(".rv-reason").count())) bad("no risk reason after the meter");
+      if ((await page.locator("[data-status=risk] .rv-status-said").innerText()) !== "Medium risk") bad("Status's risk isn't Medium risk");
       if (!(await ai.innerText()).includes("Not quite what the description says:")) bad("no gap line");
-      await page.locator(".rv-ai-lead").click();
+      await page.locator(".rv-show").click();
       await page.waitForTimeout(200);
       const text = await ai.innerText();
       for (const want of ["Interfaces", "Lease.renew()", "Could be better", "Also risky:"])
@@ -2025,10 +2029,10 @@ const SHOTS: Shot[] = [
     go: async (page) => {
       await review("acme/api#4099")(page);
       const ai = page.locator(".rv-ai");
-      if (!(await ai.locator('.rv-ai-lead[aria-expanded="false"]').count()))
+      if (!(await ai.locator('.rv-show[aria-expanded="false"]').count()))
         failures.push("review-ai-since: the AI review doesn't open folded");
-      if (!(await ai.locator(".rv-verdict").allInnerTexts()).join("").includes("on an earlier commit"))
-        failures.push("review-ai-since: the verdict isn't marked on an earlier commit");
+      if (!(await page.locator(".rv-ref").innerText()).includes("on an earlier commit"))
+        failures.push("review-ai-since: the verdict's tag isn't marked on an earlier commit");
       if (!(await ai.allInnerTexts()).join("").includes("Since your review:")) failures.push("review-ai-since: no since line while folded");
       if ((await ai.locator(".rv-since code, .rv-concerns code").count()) < 2)
         failures.push("review-ai-since: since or a concern shows code raw");
@@ -2057,17 +2061,18 @@ const SHOTS: Shot[] = [
       await page.locator(READY).first().waitFor({ timeout: 15_000 });
       await at(`#/review/${encodeURIComponent("acme/api#4127")}`)(page);
       await page.waitForTimeout(300);
-      if (!(await page.locator('.review[aria-busy="true"] .rv-ai-lead').count()))
+      if (!(await page.locator('.review[aria-busy="true"] .rv-show').count()))
         failures.push("review-loading: the row's AI read isn't folded");
       if ((await page.locator(".rv-convo.sk-short").count()) && !inOrder(await tops(page, [".rv-ai", ".rv-convo.sk-short"])))
         failures.push("review-loading: the AI read isn't above the conversation's placeholder");
-      // The sidebar's toggle is the loaded review's: the icon button, not words.
+      // The sidebar's toggle is the loaded review's: the icon button, not words, only where the sidebar can't sit beside the diff.
       const toggle = await page.evaluate<{ tag: string; text: string; icon: boolean; label: string | null } | null>(`(() => {
         const b = document.querySelector('.review[aria-busy="true"] .rv-side-toggle');
         return b && { tag: b.tagName, text: b.textContent.trim(), icon: !!b.querySelector("svg"), label: b.getAttribute("aria-label") };
       })()`);
-      if (toggle?.tag !== "BUTTON" || toggle.text || !toggle.icon || !toggle.label?.endsWith("checks and files"))
-        failures.push(`review-loading: the sidebar's toggle is ${JSON.stringify(toggle)}`);
+      const roomy = await page.evaluate<boolean>(`document.querySelector(".col").getBoundingClientRect().width >= 680`);
+      if (roomy ? toggle !== null : toggle?.tag !== "BUTTON" || toggle.text || !toggle.icon || !toggle.label?.endsWith("checks and files"))
+        failures.push(`review-loading: ${roomy ? "with room, " : ""}the sidebar's toggle is ${JSON.stringify(toggle)}`);
     },
     // Then the rest lands: the comment box stays where it was drawn, its conversation's line kept for it.
     after: async (page) => {
@@ -2432,48 +2437,53 @@ const SHOTS: Shot[] = [
   },
   // In a stack: its place after the ref, and the chain in the sidebar, this PR marked.
   { name: "review-stack", go: review("acme/api#4154") },
-  // A PR's checks, in the sidebar with its files: one line that says where CI stands, red while one that counts is failing;
-  // open, each check by name with its state in words and a link to its page, what's wrong first. A click on the facts' "CI
-  // failing" opens the sidebar at them.
+  // A PR's checks, Status's second row: "Checks failing", its passing count red, while one that counts fails; a click opens every check by
+  // name with its state in words and a link to its page, what's wrong first, shards under one row.
   {
     name: "review-checks",
     go: async (page) => {
       await review("oss/tinyhttp#205")(page);
       const side = page.locator(".rv-side");
       if (!(await side.isVisible())) await page.locator(".rv-side-show").click(); // folded where the column is narrow
-      const part = page.locator("[data-part=checks]");
-      if (!(await part.count())) {
-        failures.push("review-checks: the sidebar has no checks");
+      const row = page.locator("[data-status=checks] .rv-status-row");
+      if (!(await row.count())) {
+        failures.push("review-checks: Status has no checks");
         return;
       }
-      const read = () =>
-        page.evaluate<{ line: string; red: boolean; rows: string[]; more: string; above: boolean }>(`(() => {
+      const said = await page.evaluate<{ said: string; red: boolean }>(`(() => {
         const probe = document.createElement("span");
         probe.style.color = "var(--red)";
         document.body.append(probe);
         const red = getComputedStyle(probe).color;
         probe.remove();
-        const part = document.querySelector("[data-part=checks]"), line = part.querySelector(".rv-part-line");
-        const box = part.getBoundingClientRect();
+        const n = document.querySelector("[data-status=checks] .rv-status-count > span");
+        return { said: document.querySelector("[data-status=checks] .rv-status-said").textContent, red: !!n && getComputedStyle(n).color === red };
+      })()`);
+      if (said.said !== "Checks failing" || !said.red) failures.push(`review-checks: Status's checks read ${JSON.stringify(said)}`);
+      await row.click();
+      const part = page.locator("[data-status=checks] .rv-status-more");
+      const read = () =>
+        page.evaluate<{ line: string; rows: string[]; more: number }>(`(() => {
+        const part = document.querySelector("[data-status=checks] .rv-status-more");
         return {
-          line: line.textContent,
-          red: getComputedStyle(line).color === red,
+          line: part.querySelector(".rv-status-why")?.textContent ?? "",
           rows: [...part.querySelectorAll(".rv-part-row")].map((el) => {
             const dot = [...el.querySelector(".rv-dot").classList].find((c) => c.startsWith("d-")).slice(2);
             const n = el.querySelector(".rv-part-state")?.textContent;
             return dot + " " + el.querySelector(".rv-part-name").textContent + (n ? " ×" + n : "") + (el.getAttribute("href")?.startsWith("https://") ? " ↗" : "");
           }),
-          more: part.querySelector(".rv-part-more")?.textContent ?? "",
-          above: box.bottom <= document.querySelector(".rv-files").getBoundingClientRect().top,
+          more: part.querySelectorAll(".rv-part-more").length,
         };
       })()`);
-      const shut = await read();
-      if (shut.line !== "3 failing, 1 running of 11 checks" || !shut.red)
-        failures.push(`review-checks: its line reads ${JSON.stringify(shut)}`);
-      if (!shut.above) failures.push("review-checks: the checks aren't in the sidebar above its files");
-      // Shards fold into one row with a count; what's wrong first; the passing ones behind one line.
-      if (shut.rows.join(" | ") !== "red e2e ×2 | red unit tests ×3 | amber visual diff ↗" || shut.more !== "5 more passing")
-        failures.push(`review-checks: the rows read ${JSON.stringify(shut)}`);
+      const opened = await read();
+      if (opened.line) failures.push(`review-checks: opened, it still says ${JSON.stringify(opened.line)} over the rows`);
+      // Shards fold into one row with a count; what's wrong first; every check shown, the passing ones too.
+      if (
+        opened.rows.slice(0, 3).join(" | ") !== "red e2e ×2 | red unit tests ×3 | amber visual diff ↗" ||
+        opened.rows.length !== 8 ||
+        opened.more
+      )
+        failures.push(`review-checks: the rows read ${JSON.stringify(opened)}`);
       await part.locator(".rv-check-group").first().click();
       const nested = await read();
       if (nested.rows.slice(1, 3).join(" | ") !== "red (chromium) ↗ | yellow (firefox) ↗")
@@ -2579,7 +2589,7 @@ const SHOTS: Shot[] = [
       if (outside > 0 !== last.includes("Traditional"))
         bad(`with ${outside} files outside the guide, its end reads ${JSON.stringify(last)}`);
       if (await page.locator(".rv-side").isVisible()) {
-        const rows = await page.locator(".rv-files .rv-file").allTextContents();
+        const rows = await page.locator(".rv-files .rv-step-row").allTextContents();
         if (rows.length !== steps.length) bad(`the sidebar lists ${JSON.stringify(rows)}`);
       }
       if (name === "review-guided") await page.locator(".rv-views").scrollIntoViewIfNeeded();
@@ -2591,7 +2601,7 @@ const SHOTS: Shot[] = [
         // Where the sidebar is folded, opened to show the step you're in.
         if (!(await page.locator(".rv-side").isVisible())) await page.locator(".rv-side-toggle").click();
         await page.waitForTimeout(300);
-        const marked = await page.locator(".rv-files .rv-file.on").allTextContents();
+        const marked = await page.locator(".rv-files .rv-step-row.on").allTextContents();
         if (marked.length !== 1 || !marked[0]!.includes(steps[1]!.title)) bad(`the sidebar marks ${JSON.stringify(marked)}, not step 2`);
       }
       if (name === "review-guided-end") {
@@ -2617,6 +2627,33 @@ const SHOTS: Shot[] = [
         if (await page.locator(".rv-next, .rv-files[aria-label='Steps of the guided review']").count())
           bad("Traditional still shows the steps");
         await page.locator(".rv-views").scrollIntoViewIfNeeded();
+        // The sidebar's files, as folders: the file you're in is marked, its folders ringed; a folded one is marked in its place,
+        // and scrolling into a folded folder's file opens it.
+        if (await page.locator(".rv-side").isVisible()) {
+          await page.waitForTimeout(300);
+          const tree = page.locator(".rv-tree");
+          const lit = () => tree.locator(".rv-step-row.on").allTextContents();
+          const near = tree.locator(".rv-tree-dir.near");
+          if ((await lit()).join() !== "stream.ts" || (await near.allTextContents()).join() !== "src,planner")
+            bad(`the files mark ${JSON.stringify(await lit())} in ${JSON.stringify(await near.allTextContents())}`);
+          await near.last().click();
+          if (!(await lit()).join().startsWith("planner")) bad(`folded, the files mark ${JSON.stringify(await lit())}, not planner`);
+          await tree.locator(".rv-tree-dir.on").click();
+          if ((await lit()).join() !== "stream.ts") bad("a second click doesn't open the folder");
+          const routes = tree.locator(".rv-tree-dir", { hasText: "routes" });
+          await routes.click();
+          await page.evaluate(
+            `document.querySelector('.rv-file-sec[aria-label="src/routes/query.ts"]').scrollIntoView({ block: "start" })`,
+          );
+          await page.waitForTimeout(400);
+          if ((await routes.getAttribute("aria-expanded")) !== "true" || !(await lit()).join().startsWith("query.ts"))
+            bad(`scrolled into a folded folder, the files mark ${JSON.stringify(await lit())}`);
+          // Stuck under the head, the hairline above the list has faded.
+          const line = `getComputedStyle(document.querySelector(".rv-tree"), "::before").opacity`;
+          if ((await page.evaluate<string>(line)) !== "0") bad("stuck, the files' hairline still shows");
+          await page.locator(".rv-views").scrollIntoViewIfNeeded();
+          await page.waitForTimeout(300);
+        }
       }
     },
     after: async (page) => {
@@ -2647,9 +2684,14 @@ const SHOTS: Shot[] = [
     },
   },
   {
-    // Hide or Files: folded where it was open (wide), open over the diff where it starts folded (narrow).
+    // The toggle, only where the sidebar can't sit beside the diff: open over the diff where it starts folded (narrow).
     name: "review-side-toggled",
-    go: review("acme/api#4154", [".rv-side-toggle"]),
+    go: async (page) => {
+      await review("acme/api#4154")(page);
+      const toggle = page.locator(".rv-side-toggle");
+      if (await toggle.count()) await toggle.click();
+      await page.waitForTimeout(200);
+    },
     after: fresh,
   },
   {
@@ -2754,16 +2796,20 @@ const SHOTS: Shot[] = [
         await page.evaluate("scrollTo(0, 0)");
       };
       await review("acme/api#4099")(page);
-      const first = await says();
-      if (first.tag !== "BUTTON" || first.text || !first.icon || first.title !== first.label)
-        failures.push(`review-panel: the sidebar's toggle isn't one icon button named in its tooltip: ${JSON.stringify(first)}`);
-      await atBottom("");
-      // With the list folded there's room for the sidebar beside the diff: the same button, in its column.
+      // With room the sidebar is always beside the diff, and there's no toggle; without, the toggle opens it over the diff.
+      if (await toggle.count()) {
+        const first = await says();
+        if (first.tag !== "BUTTON" || first.text || !first.icon || first.title !== first.label)
+          failures.push(`review-panel: the sidebar's toggle isn't one icon button named in its tooltip: ${JSON.stringify(first)}`);
+        await atBottom("");
+      } else if (!(await side.isVisible())) failures.push("review-panel: with room and no toggle, the sidebar isn't there");
+      // With the list folded there's room for the sidebar beside the diff: no toggle, the sidebar there.
       const fold = page.locator(".beside-fold");
       if (await fold.count()) {
         await fold.click();
         await page.waitForTimeout(300);
-        await atBottom(", the sidebar beside the diff");
+        if ((await toggle.count()) || !(await side.isVisible()))
+          failures.push("review-panel: beside the diff, the sidebar has a toggle or isn't there");
         await fold.click();
         await page.waitForTimeout(300);
       }
@@ -2771,9 +2817,8 @@ const SHOTS: Shot[] = [
       // Open as it opens, beside the diff; folded only where it would lie over it.
       await review("acme/api#4154")(page);
       const wide = await page.evaluate<boolean>(`document.querySelector(".col").getBoundingClientRect().width >= 680`);
-      const opened = await says();
-      if (opened.label !== `${wide ? "Hide" : "Show"} the stack, checks and files`)
-        failures.push(`review-panel: in a stack, ${wide ? "with room" : "without room"} the toggle reads ${JSON.stringify(opened.label)}`);
+      if (wide ? await toggle.count() : (await says()).label !== "Show the stack, checks and files")
+        failures.push(`review-panel: in a stack, ${wide ? "with room there's a toggle" : "without room the toggle reads otherwise"}`);
       if (!wide) await toggle.click();
       await side.waitFor();
       const parts = await page.evaluate<{
@@ -2793,11 +2838,11 @@ const SHOTS: Shot[] = [
         }
         return { names: [...side.querySelectorAll("section, nav")].map((el) => el.getAttribute("aria-label")), text: side.textContent, lines };
       })()`);
-      if (parts.names.join(" | ") !== "Stack | Checks | Reviewers | Merge | Files")
+      if (parts.names.join(" | ") !== "Status | Stack | Reviewers | Merge | Files")
         failures.push(`review-panel: the sidebar's parts are ${parts.names.join(" | ")}`);
       if (/recent activity/i.test(parts.text)) failures.push("review-panel: the sidebar still lists recent activity");
       const want = {
-        Checks: { text: "CI passing · 11 checks", amber: false },
+        Status: { text: "", amber: false }, // its rows say it
         Reviewers: { text: "", amber: false }, // its rows say it
         Merge: { text: "Merge conflict with main", amber: true },
       };
@@ -2808,6 +2853,9 @@ const SHOTS: Shot[] = [
         `[...document.querySelectorAll("[data-part=reviewers] .rv-part-row")].map((el) => el.querySelector(".rv-part-name").textContent + ": " + el.querySelector(".rv-part-state").textContent)`,
       );
       if (rows.join(" | ") !== "sam: changes requested") failures.push(`review-panel: the reviewers read ${rows.join(" | ")}`);
+      const checks = await page.locator("[data-status=checks] .rv-status-row").innerText();
+      if (!/^Checks passing \d+\/11$/.test(checks.replaceAll(/\s+/g, " ").trim()))
+        failures.push(`review-panel: Status's checks read ${JSON.stringify(checks)}`);
       await faces(page, "review-panel", "[data-part=reviewers] .rv-part-name");
     },
     after: async (page) => {
@@ -5395,7 +5443,7 @@ async function iconSheets(browser: Browser, url: string): Promise<string[]> {
       const s = await page.evaluate<{ side: string; pencil: string; color: string; w: number; h: number }>(`(() => {
         const css = getComputedStyle(document.documentElement);
         const r = document.querySelector(".side-brand").getBoundingClientRect();
-        return { side: css.getPropertyValue("--chrome"), pencil: css.getPropertyValue("--chrome-pencil"), color: css.getPropertyValue("--chrome-accent"), w: r.width, h: r.height };
+        return { side: css.getPropertyValue("--chrome"), pencil: css.getPropertyValue("--pencil"), color: css.getPropertyValue("--accent-ink"), w: r.width, h: r.height };
       })()`);
       const mark = fs.readFileSync(path.join(root, "assets/brand/mark.svg"), "utf8");
       const row = (label: string, cells: string[]) =>
