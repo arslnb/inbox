@@ -1,10 +1,10 @@
 name: release
 
 # A release by hand: Actions → release → Run workflow, or `gh workflow run release.yml` (with `-f version=0.3.0`, or
-# none for the next patch). Everything runs at once on main's commit: the checks, and a build per platform on its own
-# runner, each stamped with the version. Only when all of them pass does publish commit the version, push main and the
-# tag together (refused if main moved since), and create the Release from the builds. A Mac does the same by hand with
-# npm run release and npm run release:publish.
+# none for the next patch). Everything runs at once on main's commit: the checks, and one build per installer, each on
+# its own runner and stamped with the version (scripts/release-version.sh, the same answer in every job). Only when all
+# of them pass does publish commit the version, push main and the tag together (refused if main moved since), and
+# create the Release from the builds. A Mac does the same by hand with npm run release and npm run release:publish.
 on:
   workflow_dispatch:
     inputs:
@@ -22,28 +22,6 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  version:
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    outputs:
-      version: ${{ steps.v.outputs.version }}
-    steps:
-      - uses: actions/checkout@v5
-      - id: v
-        env:
-          ASKED: ${{ inputs.version }}
-        run: |
-          current=$(node -p 'require("./package.json").version')
-          version=${ASKED#v}
-          if [ -z "$version" ]; then
-            version=$(node -p '"'"$current"'".split(".").map(Number).map((n, i) => (i === 2 ? n + 1 : n)).join(".")')
-          fi
-          echo "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$' || { echo "::error::$version isn't x.y.z"; exit 1; }
-          newest=$(printf '%s\n%s\n' "$current" "$version" | sort -V | tail -1)
-          [ "$newest" = "$version" ] && [ "$version" != "$current" ] || { echo "::error::$version isn't past $current"; exit 1; }
-          git ls-remote --exit-code --tags origin "refs/tags/v$version" >/dev/null && { echo "::error::v$version is already a tag"; exit 1; }
-          echo "version=$version" >> "$GITHUB_OUTPUT"
-
   check:
     runs-on: ubuntu-latest
     timeout-minutes: 20
@@ -53,23 +31,45 @@ jobs:
         with:
           node-version: 22
           cache: npm
+      - run: bash scripts/release-version.sh "${{ inputs.version }}"
       - run: npm ci
         env:
           ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
       - run: npm run check
 
   build:
-    needs: version
     strategy:
       fail-fast: true
       matrix:
         include:
-          # Both Mac architectures in one job: the updater's latest-mac.yml has to list them together.
-          - { name: mac, os: macos-latest, target: --mac --arm64 --x64 }
-          - { name: win, os: windows-latest, target: --win }
-          - { name: linux, os: ubuntu-latest, target: --linux }
+          # One installer each, so their compression runs side by side, and exactly its files. The Mac zip builds both
+          # architectures at once: its latest-mac.yml, which the updater reads, has to list them together.
+          - {
+              name: mac-zip,
+              os: macos-latest,
+              target: --mac zip --arm64 --x64,
+              files: "Inbox-$VERSION-arm64-mac.zip Inbox-$VERSION-arm64-mac.zip.blockmap Inbox-$VERSION-mac.zip Inbox-$VERSION-mac.zip.blockmap latest-mac.yml",
+            }
+          - {
+              name: mac-dmg,
+              os: macos-latest,
+              target: --mac dmg --arm64 --x64,
+              files: "Inbox-$VERSION-arm64.dmg Inbox-$VERSION-arm64.dmg.blockmap Inbox-$VERSION.dmg Inbox-$VERSION.dmg.blockmap",
+            }
+          - {
+              name: win-nsis,
+              os: windows-latest,
+              target: --win nsis,
+              files: "Inbox-Setup-$VERSION.exe Inbox-Setup-$VERSION.exe.blockmap latest.yml",
+            }
+          - { name: win-zip, os: windows-latest, target: --win zip, files: "Inbox-$VERSION-win.zip" }
+          - { name: linux-appimage, os: ubuntu-latest, target: --linux AppImage, files: "Inbox-$VERSION.AppImage latest-linux.yml" }
+          - { name: linux-tar, os: ubuntu-latest, target: --linux tar.gz, files: "Inbox-$VERSION.tar.gz" }
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
@@ -88,29 +88,32 @@ jobs:
             ~/AppData/Local/electron-builder/Cache
           key: electron-${{ matrix.name }}-${{ hashFiles('package-lock.json') }}
           restore-keys: electron-${{ matrix.name }}-
+      - run: echo "VERSION=$(bash scripts/release-version.sh '${{ inputs.version }}')" >> "$GITHUB_ENV"
       - run: npm ci
         env:
           ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
-      - run: npm version ${{ needs.version.outputs.version }} --no-git-tag-version
+      - run: npm version "$VERSION" --no-git-tag-version
       - run: npm run build
       - run: npx electron-builder ${{ matrix.target }} --publish never
+      - name: This installer's files
+        run: |
+          mkdir out
+          cd release
+          for f in ${{ matrix.files }}; do [ -e "$f" ] || { echo "::error::no $f"; exit 1; }; cp "$f" ../out/; done
       - uses: actions/upload-artifact@v4
         with:
           name: inbox-${{ matrix.name }}
           if-no-files-found: error
           retention-days: 7
-          path: |
-            release/*-${{ needs.version.outputs.version }}*
-            release/latest*.yml
+          path: out/*
 
   publish:
-    needs: [version, check, build]
+    needs: [check, build]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
       contents: write
     env:
-      VERSION: ${{ needs.version.outputs.version }}
       GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v5
@@ -119,6 +122,8 @@ jobs:
           node-version: 22
       # The version on the commit everything was built from; main must still be there, or the push is refused.
       - run: |
+          VERSION=$(bash scripts/release-version.sh "${{ inputs.version }}")
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           npm version "$VERSION" --no-git-tag-version
