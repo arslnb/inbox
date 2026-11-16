@@ -104,7 +104,7 @@ import type {
   Work,
 } from "./types.ts";
 import { AGENT_NAME, BUCKETS, byPart, isCoordinator, isSessionRef, RANK, SECRET_SET, UNTIL } from "./types.ts";
-import { decodeEach, isKeyOf, keysOf, oneOf, schemaOf, strings } from "./narrow.ts";
+import { decodeEach, field, isKeyOf, isRecord, keysOf, oneOf, schemaOf, str, strings } from "./narrow.ts";
 import { detached, report, webSentry } from "./sentry.ts";
 import { Runner } from "./runner.ts";
 import { AGENTS, agentView, githubView } from "./setup.ts";
@@ -156,6 +156,7 @@ import { fixAskText, readOwnIssueSkill, type FetchIssueError, type IssueRun, typ
 import { Conversations, talked } from "./conversation.ts";
 import { checksView } from "./checks.ts";
 import { AGENT, askLine, Coordinator, MERGING, REBASE, wakeFor } from "./coordinator.ts";
+import { modelsOf, type AgentModels } from "./models.ts";
 import {
   checkSetting,
   effective,
@@ -626,6 +627,8 @@ export interface IssueDeps {
 type PrTextError = Conflict | FetchPrError;
 type AiError = PrTextError | CommandError | ClaudeError;
 type IssueError = Conflict | FetchIssueError | ClaudeError;
+
+const PER_AGENT = ["agent.coordinator_model", "agent.coordinator_effort", "agent.rules_model"] as const;
 
 export class Desk {
   store: Store;
@@ -1198,13 +1201,33 @@ export class Desk {
     });
   }
 
+  // Your agent's models and efforts for Settings' dropdowns, read in the background and again after a few minutes
+  // (an agent's update brings new ones); until the first read, none.
+  models = new Map<string, { at: number; reading: boolean; got?: AgentModels }>();
+  agentModels(): AgentModels | undefined {
+    const harness = this.settings["agent.harness"];
+    const had = this.models.get(harness);
+    const now = this.now().getTime();
+    if (!this.stopped && !had?.reading && (!had || now - had.at > 5 * 60_000)) {
+      this.models.set(harness, { at: now, reading: true, ...(had?.got && { got: had.got }) });
+      this.runner.fork(
+        "models",
+        Effect.map(modelsOf(harness), (m) => {
+          this.models.set(harness, { at: this.now().getTime(), reading: false, got: m });
+          if (JSON.stringify(m) !== JSON.stringify(had?.got)) this.changed();
+        }),
+      );
+    }
+    return had?.got;
+  }
+
   getSettings(): SettingsView {
     const ctx = this.ctx;
     const spaces = this.loaded?.config.spaces ?? [];
     return {
       path: this.settingsPath,
       sections: SECTIONS,
-      defs: agentDefs(this.settings["agent.harness"]),
+      defs: agentDefs(this.settings["agent.harness"], this.agentModels()),
       values: masked(this.settings),
       overridden: Object.keys(this.settingsOverrides),
       errors: this.settingsErrors,
@@ -1252,6 +1275,22 @@ export class Desk {
         else next[k] = v;
       }
       for (const k of patch.reset ?? []) delete next[k];
+      // Each agent keeps its own model and effort: a switch puts the outgoing one's away and brings the incoming one's back.
+      const from = this.settings["agent.harness"];
+      const to = patch.set?.["agent.harness"];
+      if (typeof to === "string" && to !== from) {
+        const kept = this.store.get("agent_models");
+        this.store.set("agent_models", {
+          ...(isRecord(kept) ? kept : {}),
+          [from]: Object.fromEntries(PER_AGENT.map((k) => [k, this.settings[k]])),
+        });
+        for (const k of PER_AGENT) {
+          if (patch.set && k in patch.set) continue;
+          const back = str(field(field(kept, to), k)) ?? "";
+          if (back && !checkSetting(k, back)) next[k] = back;
+          else delete next[k];
+        }
+      }
       const problems = yield* this.saveSettings(next);
       if (problems.length) return { ok: false, errors: problems, settings: this.getSettings() };
       yield* this.reloadSettings();
