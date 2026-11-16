@@ -4130,6 +4130,8 @@ html::-webkit-scrollbar-corner,
 
 /* The calendar: a month to click a day in, and the half hours beside it in a list that scrolls. */
 .nt-cal {
+  right: 0;
+  left: auto; /* from its button's right edge, so it stays in a narrow window */
   display: flex;
   gap: 8px;
   width: auto;

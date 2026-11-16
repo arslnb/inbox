@@ -2453,9 +2453,13 @@ const NOTES: Note[] = [
 const notesView = (): NotesView => {
   const now = new Date().toISOString();
   const soonest = (a: Note, b: Note) => a.remind_at!.localeCompare(b.remind_at!);
+  const waiting = (s: Note["section"]) =>
+    NOTES.filter((n) => !n.remind_at && (n.section ?? "standard") === s).sort((a, b) => b.at.localeCompare(a.at));
   return {
     due: NOTES.filter((n) => n.remind_at && n.remind_at <= now).sort(soonest),
-    open: NOTES.filter((n) => !n.remind_at).sort((a, b) => b.at.localeCompare(a.at)),
+    urgent: waiting("urgent"),
+    open: waiting("standard"),
+    fyi: waiting("fyi"),
     later: NOTES.filter((n) => n.remind_at && n.remind_at > now).sort(soonest),
   };
 };
@@ -2477,9 +2481,19 @@ function saveNote(id: string | null, b: Record<string, unknown>): Note {
   const remind_at = t === null ? null : new Date(t).toISOString();
   const old = id ? NOTES.find((n) => n.id === id) : undefined;
   if (id && !old) throw new HttpError(404, `no note "${id}"`);
+  const put = INBOX_SECTIONS.find((x) => x === b.section);
+  if (b.section !== undefined && !put) throw new HttpError(400, `${JSON.stringify(b.section)} isn't a section: urgent, standard or fyi`);
+  const section = put ?? old?.section;
   const note: Note = old
-    ? { ...old, text, remind_at, reminded_at: remind_at === old.remind_at ? old.reminded_at : null }
-    : { id: `n${NOTES.length + 1}${Date.now() % 1000}`, at: new Date().toISOString(), text, remind_at, reminded_at: null };
+    ? { ...old, text, remind_at, reminded_at: remind_at === old.remind_at ? old.reminded_at : null, ...(section && { section }) }
+    : {
+        id: `n${NOTES.length + 1}${Date.now() % 1000}`,
+        at: new Date().toISOString(),
+        text,
+        remind_at,
+        reminded_at: null,
+        ...(section && { section }),
+      };
   if (old) NOTES.splice(NOTES.indexOf(old), 1, note);
   else NOTES.push(note);
   bump();

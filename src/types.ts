@@ -1252,12 +1252,16 @@ export interface Note {
   text: string;
   remind_at: string | null;
   reminded_at: string | null; // when its reminder notified
+  section?: InboxSection; // where you put it on the Inbox; none, Standard
 }
 
-// QueueView.notes, placed by the desk: due reminders lead Urgent, notes without one lead Standard, the rest wait in the Archive.
+// QueueView.notes, placed by the desk: due reminders lead Urgent, notes without one lead the section you put them in, the
+// rest wait in the Archive.
 export interface NotesView {
   due: Note[]; // soonest reminder first
-  open: Note[]; // newest first
+  urgent: Note[]; // newest first
+  open: Note[]; // Standard's, newest first
+  fyi: Note[]; // newest first
   later: Note[]; // soonest first
 }
 

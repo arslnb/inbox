@@ -103,7 +103,7 @@ import type {
   UpdateView,
   Work,
 } from "./types.ts";
-import { AGENT_NAME, BUCKETS, byPart, isCoordinator, isSessionRef, RANK, SECRET_SET, UNTIL } from "./types.ts";
+import { AGENT_NAME, BUCKETS, byPart, INBOX_SECTIONS, isCoordinator, isSessionRef, RANK, SECRET_SET, UNTIL } from "./types.ts";
 import { decodeEach, field, isKeyOf, isRecord, keysOf, oneOf, schemaOf, str, strings } from "./narrow.ts";
 import { detached, report, webSentry } from "./sentry.ts";
 import { Runner } from "./runner.ts";
@@ -561,6 +561,7 @@ const NoteSchema = schemaOf<Note>()(
     text: Schema.String,
     remind_at: Schema.NullOr(Schema.String),
     reminded_at: Schema.NullOr(Schema.String),
+    section: opt(Schema.Literals(["urgent", "standard", "fyi"])),
   }),
 );
 const UNTILS = keysOf(UNTIL);
@@ -4249,16 +4250,21 @@ export class Desk {
     const now = this.now().toISOString();
     const all = this.notes();
     const soonest = (a: Note, b: Note) => a.remind_at!.localeCompare(b.remind_at!);
+    const waiting = (s: Note["section"]) =>
+      all.filter((n) => !n.remind_at && (n.section ?? "standard") === s).sort((a, b) => b.at.localeCompare(a.at));
     return {
       due: all.filter((n) => n.remind_at && n.remind_at <= now).sort(soonest),
-      open: all.filter((n) => !n.remind_at).sort((a, b) => b.at.localeCompare(a.at)),
+      urgent: waiting("urgent"),
+      open: waiting("standard"),
+      fyi: waiting("fyi"),
       later: all.filter((n) => n.remind_at && n.remind_at > now).sort(soonest),
     };
   }
 
   // POST /api/notes and /api/notes/:id: a note to yourself, written or changed. Its reminder is a time ("1h", "tomorrow",
-  // "monday", a date or an ISO time, as a snooze reads it) or "" for none; a changed time notifies again when it comes.
-  saveNote(id: string | null, b: { text: string; remind: string }): Effect.Effect<Note, NotFound | BadRequest> {
+  // "monday", a date or an ISO time, as a snooze reads it) or "" for none; a changed time notifies again when it comes. Its
+  // section is where you put it on the Inbox; left out, a new one goes to Standard and a changed one stays where it was.
+  saveNote(id: string | null, b: { text: string; remind: string; section?: string }): Effect.Effect<Note, NotFound | BadRequest> {
     return Effect.gen({ self: this }, function* () {
       const text = b.text.trim();
       if (!text) return yield* new BadRequest({ message: "the note is empty" });
@@ -4269,11 +4275,15 @@ export class Desk {
             Effect.mapError(() => new BadRequest({ message: `can't read the reminder "${b.remind}": pick a time to come` })),
           )).toISOString()
         : null;
+      const put = INBOX_SECTIONS.find((x) => x === b.section);
+      if (b.section !== undefined && !put)
+        return yield* new BadRequest({ message: `"${b.section}" isn't a section: urgent, standard or fyi` });
       const old = id ? this.notes().find((n) => n.id === id) : undefined;
       if (id && !old) return yield* new NotFound({ message: `no note "${id}"` });
+      const section = put ?? old?.section;
       const note: Note = old
-        ? { ...old, text, remind_at, reminded_at: remind_at === old.remind_at ? old.reminded_at : null }
-        : { id: randomBytes(4).toString("hex"), at: now.toISOString(), text, remind_at, reminded_at: null };
+        ? { ...old, text, remind_at, reminded_at: remind_at === old.remind_at ? old.reminded_at : null, ...(section && { section }) }
+        : { id: randomBytes(4).toString("hex"), at: now.toISOString(), text, remind_at, reminded_at: null, ...(section && { section }) };
       this.store.set("notes", old ? this.notes().map((n) => (n.id === note.id ? note : n)) : [...this.notes(), note]);
       this.changed();
       return note;

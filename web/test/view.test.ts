@@ -129,7 +129,7 @@ const card = (id: string, extra: Partial<Card> = {}): Card => {
 
 const queue = (): QueueView => ({
   inquiries: [],
-  notes: { due: [], open: [], later: [] },
+  notes: { due: [], urgent: [], open: [], fyi: [], later: [] },
   sessions: [],
   sections: {
     now: [card("acme/api#1")],

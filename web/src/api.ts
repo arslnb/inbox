@@ -4,6 +4,7 @@
 import { Cause, Data, Effect, Exit } from "effect";
 import type { ErrorBody } from "../../src/errors.ts";
 import type {
+  InboxSection,
   Action,
   AgentStatus,
   SetupView,
@@ -256,7 +257,7 @@ export const api = {
   deleteAutomation: (id: string) => call<{ ok: true }>("DELETE", `/api/automations/${encodeURIComponent(id)}`),
   runAutomation: (id: string) => call<{ ok: true; running: string }>("POST", `/api/automations/${encodeURIComponent(id)}/run`),
   // A note to yourself, new or changed; remind: "" for none, else a time ("1h", "tomorrow", an ISO time).
-  saveNote: (id: string | null, b: { text: string; remind: string }) =>
+  saveNote: (id: string | null, b: { text: string; remind: string; section?: InboxSection }) =>
     call<{ ok: true; note: Note }>("POST", id ? `/api/notes/${encodeURIComponent(id)}` : "/api/notes", b),
   doneNote: (id: string) => call<{ ok: true }>("POST", `/api/notes/${encodeURIComponent(id)}/done`),
   // Your answer to an agent's question, or leaving it unanswered.

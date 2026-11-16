@@ -1,6 +1,6 @@
 import { Effect } from "effect";
 import { useEffect, useRef, useState } from "react";
-import type { Note } from "../../../src/types.ts";
+import type { InboxSection, Note } from "../../../src/types.ts";
 import { runUi } from "../api.ts";
 import { age, cls, when } from "../format.ts";
 import { ClockIcon, KindIcon, RowFacts } from "./RowIcons.tsx";
@@ -93,6 +93,13 @@ export function NoteRow({ n, ctx }: { n: Note; ctx: NoteCtx }) {
     </div>
   );
 }
+
+// Where the note goes on the Inbox, your call: a reminder that's due leads Urgent whatever you picked.
+const SECTIONS: readonly { value: InboxSection; label: string }[] = [
+  { value: "urgent", label: "Urgent" },
+  { value: "standard", label: "Standard" },
+  { value: "fyi", label: "FYI" },
+];
 
 // The reminder's choices: none, a time from now as a snooze reads it, or one you pick.
 const WHEN = [
@@ -355,12 +362,13 @@ export function NoteBar({
   closer,
 }: {
   note: Note | null;
-  onSave: (text: string, remind: string) => Effect.Effect<boolean>;
+  onSave: (text: string, remind: string, section: InboxSection) => Effect.Effect<boolean>;
   onDone: (n: Note) => void;
   onClose: () => void; // once it has slid away
   closer: (leave: (() => void) | null) => void; // hands the window its way out, so Esc slides it away as its buttons do
 }) {
   const [text, setText] = useState(note?.text ?? "");
+  const [section, setSection] = useState<InboxSection>(note?.section ?? "standard");
   const [pick, setPick] = useState(note?.remind_at ? "pick" : "");
   const [at, setAt] = useState(note?.remind_at ? local(note.remind_at) : "");
   const [busy, setBusy] = useState(false);
@@ -392,7 +400,7 @@ export function NoteBar({
     if (!ready) return;
     setBusy(true);
     runUi(
-      onSave(text, remind).pipe(
+      onSave(text, remind, section).pipe(
         Effect.ensuring(
           Effect.sync(() => {
             setBusy(false);
@@ -407,7 +415,7 @@ export function NoteBar({
     );
   }
 
-  const changed = text !== (note?.text ?? "");
+  const changed = text !== (note?.text ?? "") || section !== (note?.section ?? "standard");
   return (
     // oxlint-disable-next-line jsx-a11y/no-static-element-interactions -- a click on the blurred page closes an untouched tray; Esc and Close are its keys and button
     <div
@@ -455,6 +463,18 @@ export function NoteBar({
           }}
         />
         <div className="note-when">
+          <span className="note-remind">
+            <span>In</span>
+            <Menu
+              label="Where it goes on your Inbox"
+              value={section}
+              options={SECTIONS}
+              onPick={(v) => {
+                const s = SECTIONS.find((x) => x.value === v);
+                if (s) setSection(s.value);
+              }}
+            />
+          </span>
           <span className="note-remind">
             <span>Remind me</span>
             <Menu

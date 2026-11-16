@@ -752,7 +752,7 @@ const firstPassShot = (name: string, pass: FirstPass, viewport?: { width: number
         q.sections.today = [];
         q.inbox = { urgent: [], standard: [], fyi: [] };
         q.inquiries = [];
-        q.notes = { due: [], open: [], later: [] };
+        q.notes = { due: [], urgent: [], open: [], fyi: [], later: [] };
         q.sessions = [];
       }
     })(page);
@@ -864,8 +864,17 @@ const SHOTS: Shot[] = [
       await page.keyboard.press(`${process.platform === "darwin" ? "Meta" : "Control"}+n`);
       await page.locator(".note-tray textarea").waitFor({ timeout: 3000 });
       await page.locator(".note-tray textarea").fill("Ping Sam about the holdout set once the reranker eval lands");
+      // Where it goes is yours: Standard unless you pick Urgent or FYI.
+      const sectionPick = page.locator(".note-tray .nt-pick").first();
+      if ((await sectionPick.textContent()) !== "Standard")
+        failures.push(`queue-notes: a new note goes in ${JSON.stringify(await sectionPick.textContent())}`);
+      await sectionPick.click();
+      const sections = await page.locator(".note-tray .nt-pop .pop-item").allTextContents();
+      if (sections.join("|") !== "Urgent|Standard|FYI") failures.push(`queue-notes: the section list reads ${JSON.stringify(sections)}`);
+      await page.locator(".note-tray .nt-pop .pop-item", { hasText: "Urgent" }).click();
+      if ((await sectionPick.textContent()) !== "Urgent") failures.push("queue-notes: picking Urgent doesn't show it");
       // The reminder is the tray's own list, and "Pick a time…" opens its calendar: a month of days and the half hours.
-      await page.locator(".note-tray .nt-pick").first().click();
+      await page.locator(".note-tray .nt-pick").nth(1).click();
       await page.locator(".note-tray .nt-pop .pop-item", { hasText: "Pick a time" }).click();
       await page.waitForTimeout(150);
       if (
@@ -1267,7 +1276,7 @@ const SHOTS: Shot[] = [
         q.sections.today = [];
         q.inbox = { urgent: [], standard: [], fyi: [] };
         q.inquiries = [];
-        q.notes = { due: [], open: [], later: [] };
+        q.notes = { due: [], urgent: [], open: [], fyi: [], later: [] };
         q.sessions = [];
       })(page);
       await top(page);
@@ -1308,7 +1317,7 @@ const SHOTS: Shot[] = [
         q.sections.today = [];
         q.inbox = { urgent: [], standard: [], fyi: [] };
         q.inquiries = [];
-        q.notes = { due: [], open: [], later: [] };
+        q.notes = { due: [], urgent: [], open: [], fyi: [], later: [] };
         q.sessions = [];
         q.reviewing = 1;
       })(page);
@@ -5231,7 +5240,7 @@ const SHOTS: Shot[] = [
     },
   },
   {
-    // Right-click a note: what every row shares, Done and Snooze, then Change note and Copy text. Snooze's time is the
+    // Right-click a note: what every row shares, Done, its moves and Snooze, then Change note and Copy text. Snooze's time is the
     // note's reminder (the save is held, so the mock keeps the note for the next size).
     name: "row-menu-note",
     go: async (page) => {
@@ -5246,7 +5255,7 @@ const SHOTS: Shot[] = [
       if (
         JSON.stringify(items) !==
         JSON.stringify([
-          ["Done", "Snooze›"],
+          ["Done", "Move to Urgent", "Move to FYI", "Snooze›"],
           ["Change note", "Copy text"],
         ])
       )

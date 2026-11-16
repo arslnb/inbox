@@ -2,6 +2,7 @@ import { Effect, Result, Schema } from "effect";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import type {
+  InboxSection,
   Action,
   Card,
   GitHubAction,
@@ -573,7 +574,10 @@ export function App() {
     );
   }, [view, leaving, filter, listPage]);
   // Your notes, wherever their rows are (the Inbox, or the Archive while a reminder waits): each has a right-click menu.
-  const notes = useMemo(() => (view ? [...view.notes.due, ...view.notes.open, ...view.notes.later] : []), [view]);
+  const notes = useMemo(
+    () => (view ? [...view.notes.due, ...view.notes.urgent, ...view.notes.open, ...view.notes.fyi, ...view.notes.later] : []),
+    [view],
+  );
   const cursor = useMemo(() => [...inquiries.map((q) => inquiryOf(q.id)), ...stops(page, leaving)], [inquiries, page, leaving]);
   const current = flat.find((c) => c.id === selected) ?? null;
   // The queue's view holds open questions only; an answered one's page still says whose it is and what it's about.
@@ -888,8 +892,8 @@ export function App() {
   }
 
   // A note to yourself, new or changed; true once the desk has it.
-  function saveNote(n: Note | null, text: string, remind: string): Effect.Effect<boolean> {
-    return api.saveNote(n?.id ?? null, { text, remind }).pipe(
+  function saveNote(n: Note | null, text: string, remind: string, put?: InboxSection): Effect.Effect<boolean> {
+    return api.saveNote(n?.id ?? null, { text, remind, ...(put && { section: put }) }).pipe(
       Effect.match({
         onSuccess: ({ note }) => {
           flash(note.remind_at ? `I'll remind you ${when(note.remind_at)}` : n ? "Note changed" : "Noted: it's on your Inbox");
@@ -1946,7 +1950,7 @@ export function App() {
         <NoteBar
           key={noting === "new" ? "new" : noting.id}
           note={noting === "new" ? null : noting}
-          onSave={(text, remind) => saveNote(noting === "new" ? null : noting, text, remind)}
+          onSave={(text, remind, put) => saveNote(noting === "new" ? null : noting, text, remind, put)}
           onDone={doneNote}
           onClose={() => {
             setNoting(null);
@@ -2025,6 +2029,10 @@ export function App() {
           done={doneNote}
           snooze={(n, until) => {
             runUi(saveNote(n, n.text, until));
+          }}
+          now={now}
+          move={(n, to) => {
+            runUi(saveNote(n, n.text, "", to));
           }}
           run={(n, k) => {
             if (k === "open") setNoting(n);

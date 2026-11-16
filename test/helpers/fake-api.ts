@@ -179,7 +179,7 @@ const BUILT_IN: AutomationView = {
 
 const queueView: QueueView = {
   inquiries: [],
-  notes: { due: [], open: [], later: [] },
+  notes: { due: [], urgent: [], open: [], fyi: [], later: [] },
   sessions: [],
   sections: { now: [CARDS.now], today: [CARDS.today], blocked: [], later: [CARDS.later], fyi: [CARDS.fyi] },
   reviewing: 0,

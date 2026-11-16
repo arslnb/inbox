@@ -33,7 +33,7 @@ export function Queue({
   inq: InquiryCtx;
   sessions?: SessionCard[]; // none beside a review: two lines a row has no room for one's detail
   ses?: SessionCtx;
-  note: NoteCtx; // your notes: due reminders lead Urgent, the rest lead Standard
+  note: NoteCtx; // your notes: due reminders lead Urgent, the rest lead the section you put them in
   filter: string;
   toggle: (k: GroupKey) => void;
 }) {
@@ -63,12 +63,21 @@ export function Queue({
   const words = filter.trim().toLowerCase();
   const mine = (ns: Note[]) => (words ? ns.filter((n) => n.text.toLowerCase().includes(words)) : ns);
   const due = mine(view.notes.due);
+  const urgent = mine(view.notes.urgent);
   const open = mine(view.notes.open);
+  const fyi = mine(view.notes.fyi);
   const parts = groups
     .filter((g) => PAGE_GROUPS.queue.includes(g.key))
     .map((g) => ({
       g,
-      lead: g.key === "urgent" ? inquiries.length + shown.length + due.length : g.key === "standard" ? open.length : 0,
+      lead:
+        g.key === "urgent"
+          ? inquiries.length + shown.length + due.length + urgent.length
+          : g.key === "standard"
+            ? open.length
+            : g.key === "fyi"
+              ? fyi.length
+              : 0,
     }))
     .filter(({ g, lead }) => lead > 0 || g.cards.length > 0);
   // A row you acted on is on its way off: it fades out where it is, and the last one to go leaves the empty line.
@@ -109,8 +118,9 @@ export function Queue({
                 <div className="lines">
                   {g.key === "urgent" && inquiries.map((q) => <InquiryRow key={q.id} q={q} ctx={inq} />)}
                   {g.key === "urgent" && ses && shown.map((s) => <SessionRow key={s.id} s={s} ctx={ses} />)}
-                  {g.key === "urgent" && due.map((n) => <NoteRow key={n.id} n={n} ctx={note} />)}
+                  {g.key === "urgent" && [...due, ...urgent].map((n) => <NoteRow key={n.id} n={n} ctx={note} />)}
                   {g.key === "standard" && open.map((n) => <NoteRow key={n.id} n={n} ctx={note} />)}
+                  {g.key === "fyi" && fyi.map((n) => <NoteRow key={n.id} n={n} ctx={note} />)}
                   {cards.map((c) => (
                     <CardRow key={c.id} card={c} variant="active" ctx={ctx} />
                   ))}

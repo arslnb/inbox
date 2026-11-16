@@ -43,3 +43,28 @@ test("a note needs words and a reminder in the future", async (c) => {
     runSync(t.desk.doneNote("nope"));
   }, /no note "nope"/);
 });
+
+test("a note goes in the section you pick and stays there when changed; a due reminder still leads Urgent", async (c) => {
+  const t = await setup([]);
+  c.after(t.cleanup);
+  const start = t.desk.now();
+  const hot = runSync(t.desk.saveNote(null, { text: "Page the on-call about the deploy", remind: "", section: "urgent" }));
+  const plain = runSync(t.desk.saveNote(null, { text: "Write up the compaction idea", remind: "" }));
+  const aside = runSync(t.desk.saveNote(null, { text: "Read the new style guide", remind: "", section: "fyi" }));
+  const where = () => {
+    const n = runSync(t.desk.queue()).notes;
+    return { due: n.due.map((x) => x.id), urgent: n.urgent.map((x) => x.id), open: n.open.map((x) => x.id), fyi: n.fyi.map((x) => x.id) };
+  };
+  assert.deepEqual(where(), { due: [], urgent: [hot.id], open: [plain.id], fyi: [aside.id] });
+
+  runSync(t.desk.saveNote(hot.id, { text: "Page the on-call about the deploy now", remind: "" }));
+  assert.deepEqual(where().urgent, [hot.id], "changing its words keeps its section");
+  runSync(t.desk.saveNote(aside.id, { text: aside.text, remind: "", section: "standard" }));
+  assert.deepEqual(where().open.toSorted(), [aside.id, plain.id].toSorted(), "moved to Standard");
+
+  runSync(t.desk.saveNote(plain.id, { text: plain.text, remind: "1h", section: "fyi" }));
+  t.setNow(new Date(start.getTime() + 3_600_000 + 1000));
+  assert.deepEqual(where().due, [plain.id], "its reminder came: it leads Urgent, whatever its section");
+
+  assert.throws(() => runSync(t.desk.saveNote(null, { text: "x", remind: "", section: "now" })), /"now" isn't a section/);
+});

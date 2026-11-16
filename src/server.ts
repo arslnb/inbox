@@ -699,6 +699,7 @@ export function createApp(desk: Desk, port: number, remote: Remote = new Remote(
     Effect.map(bodyOf(c), (b) => ({
       text: typeof b.text === "string" ? b.text : "",
       remind: typeof b.remind === "string" ? b.remind : "",
+      ...(typeof b.section === "string" && { section: b.section }),
     }));
   app.post("/api/notes", (c) =>
     respond(

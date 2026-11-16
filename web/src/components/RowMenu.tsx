@@ -146,31 +146,39 @@ export function SessionMenu({
   );
 }
 
-// A note's menu: Done and Snooze like any row (a snooze is its reminder), then changing it and copying its words.
+// A note's menu: Done, its moves and Snooze like any row (a snooze is its reminder), then changing it and copying its words.
 export function NoteMenu({
   n,
   x,
   y,
   done,
   snooze,
+  move,
   run,
+  now,
   reopen,
   onClose,
 }: {
   n: Note;
+  now: number;
   x: number;
   y: number;
   done: (n: Note) => void;
   snooze: (n: Note, until: string) => void;
+  move: (n: Note, to: InboxSection) => void; // there now: a reminder it had is dropped
   run: (n: Note, key: "open" | "copy") => void;
   reopen: (x: number, y: number) => void;
   onClose: () => void;
 }) {
+  const due = !!n.remind_at && Date.parse(n.remind_at) <= now; // its reminder came: it leads Urgent
   return (
     <Menu
       label="Note"
       groups={[
-        [DONE],
+        [
+          DONE,
+          ...MOVES[due ? "urgent" : (n.section ?? "standard")].map((to) => ({ label: `Move to ${SECTION_NAME[to]}`, do: { act: to } })),
+        ],
         [
           { label: "Change note", do: { key: "open" } },
           { label: "Copy text", do: { key: "copy" } },
@@ -181,6 +189,7 @@ export function NoteMenu({
       y={y}
       pick={(d) => {
         if ("snooze" in d) snooze(n, d.snooze);
+        else if ("act" in d && isKeyOf(MOVES, d.act)) move(n, d.act);
         else if ("act" in d) done(n);
         else if ("key" in d && (d.key === "open" || d.key === "copy")) run(n, d.key);
       }}
