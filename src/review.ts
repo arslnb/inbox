@@ -252,9 +252,10 @@ export function runCommand(s: Spawn, opts: RunOpts): Effect.Effect<string, RunEr
     }, opts.timeout);
     timer.unref(); // the running child keeps the process up; this alone mustn't (a test's mocked timers can't clear it)
     const outcome = (code: number | null, sig: NodeJS.Signals | null): Effect.Effect<string, RunError> => {
-      if (!failed && code === 0) return Effect.succeed(stdout);
+      // Before the exit code: codex exits 0 when it's stopped.
       if (why === "timeout") return Effect.fail(new CommandTimeout({ command, timeoutMs: opts.timeout }));
       if (why === "too much") return Effect.fail(new CommandOutputTooLarge({ command, limitBytes: MAX_OUTPUT }));
+      if (!failed && code === 0) return Effect.succeed(stdout);
       if (!failed && opts.stdoutOnError && stdout) return Effect.succeed(stdout);
       // cmd.exe exits 9009 (or 1 under /c) and says "is not recognized" when it can't find the command.
       const missing =

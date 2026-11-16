@@ -35,6 +35,7 @@ import {
   claudeEnvelope,
   claudeError,
   claudeSpawn,
+  codexRun,
   CLAUDE_PAUSED,
   CODEX_PAUSED,
   fetchPr,
@@ -454,6 +455,22 @@ test(
     fs.rmSync(dir, { recursive: true });
   },
 );
+
+// Codex exits 0 when it's stopped (SIGTERM), with no answer written.
+test("a Codex call past its time is a timeout, though codex exits 0 when it's stopped", posix, async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "desk-agent-"));
+  const f = fakeCodex(`trap 'exit 0' TERM
+echo '{"type":"thread.started","thread_id":"t1"}'; echo '{"type":"turn.started"}'
+while :; do sleep 0.1; done`);
+  process.env.DESK_CODEX = f.bin;
+  try {
+    const e = await failure(codexRun("hi", { dir, timeout: 1000 }));
+    assert.deepEqual([e._tag, e.message], ["CommandTimeout", "no answer in 0 minutes, so it was stopped"]);
+  } finally {
+    delete process.env.DESK_CODEX;
+  }
+  fs.rmSync(dir, { recursive: true });
+});
 
 test(
   "a Codex call never runs unless its MCP servers are listed: a list that fails or can't be read holds it, and a list is kept 5 minutes",
