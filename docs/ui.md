@@ -29,7 +29,7 @@ The pages:
 - **A review stays open after you act.** In place of the button it says what you did and where the item went ("✓ Approved · in Archive"), so you can read on or press Esc.
 - **One name for the coordinator.** The window calls it _your agent_. "Coordinator" stays in code, settings keys, the skill and technical docs. Merging is `inflight` in code.
 - **Send talks to your agent.** A box that posts on GitHub says what it does there (Reply, Comment). Only the chat and an answer to an agent say Send.
-- **Calm.** Colour only where it carries information: "CI failing" red, "changes requested" and "merge conflict" amber, an AI review's risk (low green, medium amber, high red). The one control to press in each place is filled with the accent; a row's call to action is tinted and fills under the pointer. Everything else on a row or an opened item is text. Sentence case, no all-caps, no monospace outside code. Details: [visual.md → The visual system](visual.md#the-visual-system).
+- **Calm.** Colour only where it carries information: "CI failing" red, "changes requested" and "merge conflict" amber, an AI review's risk (low green, medium amber, high red) and its verdict's tag in the same three. The one control to press in each place is filled with the accent; a row's call to action is tinted and fills under the pointer. Everything else on a row or an opened item is text. Sentence case, no all-caps, no monospace outside code. Details: [visual.md → The visual system](visual.md#the-visual-system).
 - **State lives on the desk.** Pages only render what the desk sends (`QueueView`, `Card`), so the tray, MCP and another client agree.
 
 ## Layout
@@ -255,7 +255,7 @@ Esc or the back link goes back to the page it was opened from.
 
 ### Header
 
-- The title first; under it its metadata on one line: the ref, a stack's place ("3/6"), the author with their picture ("by you" on yours), then the AI review's verdict as a tag ("Look closely" in the accent, "Skim it", "Skip it" quieter; the model and time in its tooltip), "on an earlier commit" after it when it is.
+- The title first; under it its metadata on one line: the ref, a stack's place ("3/6"), the author with their picture ("by you" on yours), then the AI review's verdict as a tag coloured by how much it asks of you, as risk is ("Look closely" red, "Skim it" amber, "Skip it" green and only outlined; the model and time in its tooltip), "on an earlier commit" after it when it is.
 - How big it is and who reviews it are the sidebar's (Status, Reviewers).
 - Nothing else: why it's on the desk is the row's; CI, the review state, a conflict and what it blocks are the sidebar's.
 - A resolved PR says so under the title: "Resolved: merged by li-wei · 2h".

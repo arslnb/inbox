@@ -67,6 +67,7 @@ const TARGETS: [string, string, number, number?][] = [
   ["--amber", "--paper", 4.5], // a review's "changes requested" and "merge conflict"
   ["--amber", "--amber-wash", 4.5],
   ["--green", "--sheet", 4.5],
+  ["--green", "--paper", 4.5], // a review's "Skip it", outlined on the paper
   ["--rule", "--sheet", 1.08, 1.6], // a hairline: visible, never loud
   ["--rule", "--side", 1.1], // the sidebar's, over Merging and the Archive
   ["--rule-strong", "--sheet", 1.2, 2.3],

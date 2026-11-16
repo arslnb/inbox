@@ -1580,6 +1580,45 @@ const SHOTS: Shot[] = [
       await faces(page, "review", ".rv-ref .rv-by:has(.avatar), .cv-author");
     },
   },
+  // The verdict's tag in its level's colour, in every theme: Look closely red, Skim it amber, Skip it green.
+  {
+    name: "review-verdict",
+    sizes: ["wide"],
+    go: async (page) => {
+      const want = [
+        ["look", "--red"],
+        ["skim", "--amber"],
+        ["skip", "--green"],
+      ] as const;
+      for (const id of THEMES.map((t) => t.id)) {
+        await pickTheme(id)(page);
+        const seen: Record<string, string> = {};
+        for (const [verdict, token] of want) {
+          await unroute(page);
+          await reviewAs((v) => {
+            if (v.ai) v.ai.verdict = verdict;
+          })(page);
+          await at(`#/review/${encodeURIComponent("acme/api#4127")}`)(page);
+          await page.locator(`.rv-ref .rv-tag.v-${verdict}`).waitFor({ timeout: 15_000 });
+          const tag = await page.evaluate<{ color: string; token: string }>(`(() => {
+            const probe = document.createElement("span");
+            probe.style.color = "var(${token})";
+            document.body.append(probe);
+            const token = getComputedStyle(probe).color;
+            probe.remove();
+            return { color: getComputedStyle(document.querySelector(".rv-ref .rv-tag")).color, token };
+          })()`);
+          if (tag.color !== tag.token) failures.push(`review-verdict: ${id}'s ${verdict} tag is ${tag.color}, not ${token}`);
+          seen[verdict] = tag.color;
+        }
+        if (new Set(Object.values(seen)).size !== 3) failures.push(`review-verdict: ${id}'s tags share a colour ${JSON.stringify(seen)}`);
+      }
+    },
+    after: async (page) => {
+      await unroute(page);
+      await systemTheme(page);
+    },
+  },
   // The top of a review stays short, so the diff starts high: your comment's box is one line on the actions' row, with no
   // row of its own, until it has words. On the three-line box over its own row of actions the first file started at 486px
   // in the mac window, 478 and 475 in the narrower ones; a box or a row creeping back would pass 386 again.

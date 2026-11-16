@@ -5625,8 +5625,8 @@ a.rv-part-row:hover {
   color: var(--pencil);
 }
 
-/* The AI review's verdict at the metadata's end: a soft tag at the line's size; Look closely in the accent, as it asks
-   for you, the others neutral and Skip it quieter. */
+/* The AI review's verdict at the metadata's end: a soft tag at the line's size, coloured by how much it asks of you as
+   risk is: Look closely red, Skim it amber, Skip it green and only outlined, the quietest. */
 .rv-tag {
   display: inline-flex;
   align-items: center;
@@ -5643,12 +5643,18 @@ a.rv-part-row:hover {
 
 .rv-tag.v-look {
   border-color: transparent;
-  background: var(--accent-wash);
-  color: var(--accent-ink);
+  background: var(--red-wash);
+  color: var(--red);
+}
+
+.rv-tag.v-skim {
+  border-color: transparent;
+  background: var(--amber-wash);
+  color: var(--amber);
 }
 
 .rv-tag.v-skip {
-  color: var(--pencil);
+  color: var(--green);
 }
 
 /* Its size, + green and − red, at the far end of the ref's line. */
