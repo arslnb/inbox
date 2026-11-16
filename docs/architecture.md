@@ -171,11 +171,11 @@ Main `kv` keys:
 
 What Claude owes you lives in one ledger, the `jobs` table, so a restart forgets none of it. Merging lists what's running, queued and failed ([ui.md → Merging](ui.md#merging)).
 
-| Job         | Key                              | Starts                    | Ends                                                |
-| ----------- | -------------------------------- | ------------------------- | --------------------------------------------------- |
-| `ai_review` | the PR, one head commit          | `startAi()`               | its run finishing                                   |
-| `ask`       | your ask to your agent           | the coordinator taking it | `desk_answer`                                       |
-| `answer`    | an agent's question you answered | `answerInquiry()`         | the asking session reading it (`Desk.answerRead()`) |
+| Job         | Key                              | Starts               | Ends                                                |
+| ----------- | -------------------------------- | -------------------- | --------------------------------------------------- |
+| `ai_review` | the PR, one head commit          | `startAi()`          | its run finishing                                   |
+| `ask`       | your ask to your agent           | your agent taking it | `desk_answer`                                       |
+| `answer`    | an agent's question you answered | `answerInquiry()`    | the asking session reading it (`Desk.answerRead()`) |
 
 Each job has a state (queued, running, done, failed), tries, timestamps, and the last error in your words. `Jobs.tick` runs every minute.
 
@@ -227,9 +227,9 @@ Your agent, run in the background to get PRs in Merging merged and to answer Ask
 - **Codex**: one `codex exec` session; each wake is a `codex exec resume` turn the desk runs and waits on, one at a time, stopped after an hour.
 - **OpenCode**: `opencode run`, then `opencode run --session`, the same way.
 
-The desk starts it on the first hand-off or ask, and checks every 5 minutes that it's still running (no turn). It wakes it with one line per minute's batch of news on PRs in Merging, and at once for an ask.
+The desk runs two seats of it: the coordinator, started on the first hand-off and woken with one line per minute's batch of news on PRs in Merging, and your agent, started on the first ask and woken at once with each. It checks every 5 minutes that each that's started is still running (no turn).
 
-On a wake it reads `desk_merging` and `desk_events`, writes `desk_note` and `desk_hand_back`, answers asks with `desk_answer`, and pushes and merges with your own `git` and `gh`. What it does is in the skill's "Coordinator" section. Product rules: [vision.md](vision.md), [api.md → The coordinator](api.md#the-coordinator).
+On a wake the coordinator reads `desk_merging` and `desk_events`, writes `desk_note` and `desk_hand_back`, and pushes and merges with your own `git` and `gh`; your agent answers asks with `desk_answer`. What each does is in the skill's "Coordinator" and "Your agent" sections. Product rules: [vision.md](vision.md), [api.md → The coordinator](api.md#the-coordinator).
 
 ### Sessions (`src/connectors/sessions.ts`)
 
