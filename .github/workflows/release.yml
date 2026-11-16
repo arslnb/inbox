@@ -110,7 +110,10 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
     steps:
+      # Pushed with the release deploy key: main's ruleset lets it (and the owner) push without a PR.
       - uses: actions/checkout@v5
+        with:
+          ssh-key: ${{ secrets.RELEASE_DEPLOY_KEY }}
       - uses: actions/setup-node@v5
         with:
           node-version: 22
