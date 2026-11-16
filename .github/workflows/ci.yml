@@ -12,7 +12,7 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 # Each check is a job of its own, so a red run names what failed. The static checks give the same answer on every OS, so
-# they run once, on Linux. The tests run in shards (node --test-shard) on Linux and macOS, and on Windows only on main:
+# they run once, on Linux. The tests run in shards (node --test-shard) on Linux, whole on macOS, and on Windows only on main:
 # Windows runs them several times slower, and what breaks only there is rare enough to catch after the merge.
 jobs:
   static:
@@ -40,13 +40,18 @@ jobs:
           ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
       - run: ${{ matrix.check.run }}
 
+  # Linux in three shards; macOS whole, in one job: GitHub runs only a few macOS jobs at once per account, and a release
+  # builds on two of them, so more shards there wait for a runner (one waited out its 15 minutes without starting).
   test:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, macos-latest]
-        shard: [1, 2, 3]
-    name: test (${{ matrix.os }}, ${{ matrix.shard }}/3)
+        include:
+          - { os: ubuntu-latest, shard: 1, of: 3 }
+          - { os: ubuntu-latest, shard: 2, of: 3 }
+          - { os: ubuntu-latest, shard: 3, of: 3 }
+          - { os: macos-latest, shard: 1, of: 1 }
+    name: test (${{ matrix.os }}, ${{ matrix.shard }}/${{ matrix.of }})
     runs-on: ${{ matrix.os }}
     timeout-minutes: 15
     steps:
@@ -62,7 +67,7 @@ jobs:
       - run: npm test
         timeout-minutes: 8
         env:
-          NODE_OPTIONS: --test-shard=${{ matrix.shard }}/3
+          NODE_OPTIONS: --test-shard=${{ matrix.shard }}/${{ matrix.of }}
 
   test-windows:
     if: github.event_name == 'push'
