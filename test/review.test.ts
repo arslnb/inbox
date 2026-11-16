@@ -2083,6 +2083,8 @@ test("a pause holds PRs off the desk until they're reviewed; once on it, a lost 
   t.f.setFail(null);
   assert.ok(t.desk.aiPausedNow());
   assert.deepEqual(ids(), [], "held while paused");
+  runSync(t.desk.act("api#1", "urgent"));
+  assert.deepEqual(ids(), ["acme/api#1"], "one you put in a section yourself shows, reviewed or not");
   // Each reviewed once the pause is over: on the desk, and it stays.
   t.desk.aiPaused = null;
   for (const j of t.desk.jobs.list()) t.desk.jobs.drop(j.kind, j.key); // their backoff over

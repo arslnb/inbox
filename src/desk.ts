@@ -3317,8 +3317,9 @@ export class Desk {
       const seq = action === "seen" ? 0 : this.store.logAction(id, action, before, now.toISOString(), auto);
       // An automation's sort was its opinion too, and its why for what it did: what you do with the item ends both.
       if (action !== "seen" && !auto) for (const k of [`sorted:${id}`, `acted:${id}`]) if (this.store.get(k)) this.store.set(k, null);
-      // What you bring onto your desk is there now, reviewed or not.
-      if (action === "pin" || action === "restore" || action === "unmute") this.store.set(`shown:${id}`, true);
+      // What you bring onto your desk, or put in a section of it yourself, is there now, reviewed or not.
+      if (["pin", "restore", "unmute"].includes(action) || (!auto && ["urgent", "standard", "fyi"].includes(action)))
+        this.store.set(`shown:${id}`, true);
       this.changed();
       if (action === "inflight") this.coordinator.wake(id, "handed off");
       const { snoozed_at: _, acked_at: __, ...state } = s;
