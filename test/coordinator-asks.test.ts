@@ -62,6 +62,7 @@ test(
     const asked = post("/api/ask", { text: "rebase it" }, OWNER);
     await until(() => t.fake.calls().length === 1);
     const woke = post("/api/coordinator/wake", {});
+    await until(() => t.fake.calls().length === 2); // the coordinator's look for Wake it, apart from your agent's
     const logs: string[] = [];
     t.desk.log = (m) => {
       logs.push(m);
