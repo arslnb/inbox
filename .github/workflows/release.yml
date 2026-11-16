@@ -22,49 +22,28 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  check:
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@v5
-      - uses: actions/setup-node@v5
-        with:
-          node-version: 22
-          cache: npm
-      - run: bash scripts/release-version.sh "${{ inputs.version }}"
-      - run: npm ci
-        env:
-          ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
-      - run: npm run check
-
+  # The builds first, so they take the runners before the checks: one installer each, side by side, and exactly its
+  # files. Only what's installed or updated from is built: the dmg (install.sh), the Windows installer and the AppImage
+  # (with the latest*.yml their updater reads). The Mac doesn't update itself (it's ad hoc signed), so no Mac zip.
   build:
     strategy:
       fail-fast: true
       matrix:
         include:
-          # One installer each, so their compression runs side by side, and exactly its files. The Mac zip builds both
-          # architectures at once: its latest-mac.yml, which the updater reads, has to list them together.
           - {
-              name: mac-zip,
+              name: mac-arm64,
               os: macos-latest,
-              target: --mac zip --arm64 --x64,
-              files: "Inbox-$VERSION-arm64-mac.zip Inbox-$VERSION-arm64-mac.zip.blockmap Inbox-$VERSION-mac.zip Inbox-$VERSION-mac.zip.blockmap latest-mac.yml",
+              target: --mac dmg --arm64,
+              files: "Inbox-$VERSION-arm64.dmg Inbox-$VERSION-arm64.dmg.blockmap",
             }
+          - { name: mac-x64, os: macos-latest, target: --mac dmg --x64, files: "Inbox-$VERSION.dmg Inbox-$VERSION.dmg.blockmap" }
           - {
-              name: mac-dmg,
-              os: macos-latest,
-              target: --mac dmg --arm64 --x64,
-              files: "Inbox-$VERSION-arm64.dmg Inbox-$VERSION-arm64.dmg.blockmap Inbox-$VERSION.dmg Inbox-$VERSION.dmg.blockmap",
-            }
-          - {
-              name: win-nsis,
+              name: win,
               os: windows-latest,
               target: --win nsis,
               files: "Inbox-Setup-$VERSION.exe Inbox-Setup-$VERSION.exe.blockmap latest.yml",
             }
-          - { name: win-zip, os: windows-latest, target: --win zip, files: "Inbox-$VERSION-win.zip" }
-          - { name: linux-appimage, os: ubuntu-latest, target: --linux AppImage, files: "Inbox-$VERSION.AppImage latest-linux.yml" }
-          - { name: linux-tar, os: ubuntu-latest, target: --linux tar.gz, files: "Inbox-$VERSION.tar.gz" }
+          - { name: linux, os: ubuntu-latest, target: --linux AppImage, files: "Inbox-$VERSION.AppImage latest-linux.yml" }
     runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     defaults:
@@ -106,6 +85,21 @@ jobs:
           if-no-files-found: error
           retention-days: 7
           path: out/*
+
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: bash scripts/release-version.sh "${{ inputs.version }}"
+      - run: npm ci
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+      - run: npm run check
 
   publish:
     needs: [check, build]

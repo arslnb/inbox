@@ -336,21 +336,21 @@ Set `DESK_HOME` and `DESK_PORT` to work on a scratch desk, and `DESK_SENTRY=0` t
 
 ## Release
 
-Releases are built and published on GitHub's Mac runner, by hand: Actions → release → Run workflow, or
+Releases are built and published on GitHub's runners, by hand: Actions → release → Run workflow, or
 
 ```bash
 gh workflow run release.yml                   # the next patch
 gh workflow run release.yml -f version=0.3.0  # a version you pick
 ```
 
-It runs the same two scripts as on a Mac ([.github/workflows/release.yml](.github/workflows/release.yml)), so a release doesn't need your machine awake. From a Mac, by hand:
+[.github/workflows/release.yml](.github/workflows/release.yml) runs the checks and one build per installer at once, each on its own runner: the Mac dmg for Apple silicon, the Mac dmg for Intel, the Windows installer and the AppImage (with the `latest*.yml` their updater reads). Those are what `install.sh` and the updater use: the Mac doesn't update itself (it's ad hoc signed), so there's no Mac zip, and no Windows zip or Linux tar.gz either. Once they all pass it commits the version, pushes main and the tag together (refused if main moved meanwhile) and publishes the Release. It takes a few minutes and doesn't need your machine. From a Mac, by hand:
 
 ```bash
 npm run release 0.2.4             # on a clean main that has GitHub's: sets the version, commits and tags v0.2.4; pushes nothing
 npm run release:publish v0.2.4    # checks, pushes main and the tag, builds every platform from the tag, publishes the Release
 ```
 
-[scripts/release-publish.sh](scripts/release-publish.sh) checks out the tag in a worktree under `.claude/worktrees/` and runs `npm run check`. Then it pushes main up to the tag and the tag, together, before building: if main moved on GitHub since the tag, it stops there in seconds. It builds macOS (arm64 and Intel), Windows (installer and zip) and Linux (AppImage and tar.gz) at once with electron-builder, which cross-builds from macOS with no Docker or Wine, in about 2 minutes. The builds are kept in `release/`, and `gh release create` publishes one GitHub Release with every build, the `latest*.yml` files the updater reads, and notes generated from the commits since the last release. It needs `gh` logged in with write access to `gricha/inbox`, and refuses a tag that's already released. Nothing publishes on a tag push: the workflow above and this script are the same path, so they never race to create the same Release.
+[scripts/release-publish.sh](scripts/release-publish.sh) checks out the tag in a worktree under `.claude/worktrees/` and runs `npm run check`. Then it pushes main up to the tag and the tag, together, before building: if main moved on GitHub since the tag, it stops there in seconds. It builds the same installers (the Mac dmgs, the Windows installer and the AppImage) at once with electron-builder, which cross-builds from macOS with no Docker or Wine, in about 2 minutes. The builds are kept in `release/`, and `gh release create` publishes one GitHub Release with every build, the `latest*.yml` files the updater reads, and notes generated from the commits since the last release. It needs `gh` logged in with write access to `gricha/inbox`, and refuses a tag that's already released. Nothing publishes on a tag push, so the workflow and this script never race to create the same Release.
 
 - `npm run release:publish v0.2.4 -- --build-only` builds into `release/` and stops: nothing is pushed or published.
 - `npm run release:publish v0.2.4 -- --upload-only` publishes what's in `release/` with no rebuild: a failed upload's retry. On a Release that exists it adds the files that are missing.
