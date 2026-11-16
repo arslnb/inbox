@@ -1,8 +1,10 @@
 name: release
 
-# A release from GitHub's Mac runner, by hand: Actions → release → Run workflow, or `gh workflow run release.yml` (with
-# `-f version=0.3.0`, or none for the next patch). The same two scripts as on a Mac: release.ts commits and tags the
-# version, release-publish.sh checks, pushes main and the tag, builds every platform and publishes the Release.
+# A release by hand: Actions → release → Run workflow, or `gh workflow run release.yml` (with `-f version=0.3.0`, or
+# none for the next patch). Everything runs at once on main's commit: the checks, and a build per platform on its own
+# runner, each stamped with the version. Only when all of them pass does publish commit the version, push main and the
+# tag together (refused if main moved since), and create the Release from the builds. A Mac does the same by hand with
+# npm run release and npm run release:publish.
 on:
   workflow_dispatch:
     inputs:
@@ -12,39 +14,122 @@ on:
         default: ""
 
 permissions:
-  contents: write
+  contents: read
 
-# One release at a time; never cancelled halfway, since it pushes main and the tag before it builds.
+# One release at a time; never cancelled halfway.
 concurrency:
   group: release
   cancel-in-progress: false
 
 jobs:
-  release:
-    runs-on: macos-latest
-    timeout-minutes: 45
+  version:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      version: ${{ steps.v.outputs.version }}
     steps:
       - uses: actions/checkout@v5
-        with:
-          ref: main
-          fetch-depth: 0
+      - id: v
+        env:
+          ASKED: ${{ inputs.version }}
+        run: |
+          current=$(node -p 'require("./package.json").version')
+          version=${ASKED#v}
+          if [ -z "$version" ]; then
+            version=$(node -p '"'"$current"'".split(".").map(Number).map((n, i) => (i === 2 ? n + 1 : n)).join(".")')
+          fi
+          echo "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$' || { echo "::error::$version isn't x.y.z"; exit 1; }
+          newest=$(printf '%s\n%s\n' "$current" "$version" | sort -V | tail -1)
+          [ "$newest" = "$version" ] && [ "$version" != "$current" ] || { echo "::error::$version isn't past $current"; exit 1; }
+          git ls-remote --exit-code --tags origin "refs/tags/v$version" >/dev/null && { echo "::error::v$version is already a tag"; exit 1; }
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
       - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
       - run: npm ci
-      - name: Commit and tag the version
         env:
-          VERSION: ${{ inputs.version }}
-        run: |
+          ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+      - run: npm run check
+
+  build:
+    needs: version
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          # Both Mac architectures in one job: the updater's latest-mac.yml has to list them together.
+          - { name: mac, os: macos-latest, target: --mac --arm64 --x64 }
+          - { name: win, os: windows-latest, target: --win }
+          - { name: linux, os: ubuntu-latest, target: --linux }
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      # electron-builder's downloads (Electron per platform, NSIS, AppImage tools), kept between releases.
+      - uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/electron
+            ~/.cache/electron-builder
+            ~/Library/Caches/electron
+            ~/Library/Caches/electron-builder
+            ~/AppData/Local/electron/Cache
+            ~/AppData/Local/electron-builder/Cache
+          key: electron-${{ matrix.name }}-${{ hashFiles('package-lock.json') }}
+          restore-keys: electron-${{ matrix.name }}-
+      - run: npm ci
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+      - run: npm version ${{ needs.version.outputs.version }} --no-git-tag-version
+      - run: npm run build
+      - run: npx electron-builder ${{ matrix.target }} --publish never
+      - uses: actions/upload-artifact@v4
+        with:
+          name: inbox-${{ matrix.name }}
+          if-no-files-found: error
+          retention-days: 7
+          path: |
+            release/*-${{ needs.version.outputs.version }}*
+            release/latest*.yml
+
+  publish:
+    needs: [version, check, build]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    env:
+      VERSION: ${{ needs.version.outputs.version }}
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+      # The version on the commit everything was built from; main must still be there, or the push is refused.
+      - run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          if [ -z "$VERSION" ]; then
-            VERSION=$(node -p 'const [a, b, c] = require("./package.json").version.split(".").map(Number); `${a}.${b}.${c + 1}`')
-          fi
-          npm run -s release "$VERSION"
-          echo "TAG=v${VERSION#v}" >> "$GITHUB_ENV"
-      - name: Check, push, build and publish
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: npm run -s release:publish "$TAG"
+          npm version "$VERSION" --no-git-tag-version
+          git commit -qm "Inbox $VERSION: package.json at $VERSION for the v$VERSION release" package.json package-lock.json
+          git tag -a "v$VERSION" -m "Inbox $VERSION"
+          git push --atomic origin "HEAD:refs/heads/main" "refs/tags/v$VERSION" || {
+            echo "::error::main moved since this release started: run it again"
+            exit 1
+          }
+      - uses: actions/download-artifact@v4
+        with:
+          path: dist
+          merge-multiple: true
+      - run: gh release create "v$VERSION" dist/* --repo "$GITHUB_REPOSITORY" --verify-tag --title "Inbox $VERSION" --generate-notes
