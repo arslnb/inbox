@@ -1030,7 +1030,8 @@ export class Desk {
       const agent = agentKey(this.settings);
       const searches = searchKey(this.settings);
       const coordinator = this.settings["agent.coordinator"];
-      const bypass = this.settings["agent.coordinator_bypass"];
+      const runs = (s: Settings) => [s["agent.coordinator_bypass"], s["agent.coordinator_model"], s["agent.coordinator_effort"]].join("|");
+      const ran = runs(this.settings);
       const decider = this.settings["agent.decision_key"] + this.settings["agent.decision_model"];
       const sessions = this.settings["sessions.enabled"];
       this.settings = this.readSettings(file);
@@ -1043,7 +1044,7 @@ export class Desk {
       for (const seat of [this.coordinator, this.yourAgent]) {
         if (coordinator && !this.settings["agent.coordinator"]) seat.stop();
         if (!coordinator && this.settings["agent.coordinator"]) seat.flush();
-        else if (bypass !== this.settings["agent.coordinator_bypass"] && this.settings["agent.coordinator"])
+        else if (ran !== runs(this.settings) && this.settings["agent.coordinator"])
           this.runner.fork(
             "coordinator",
             Effect.promise(() => seat.again()),
