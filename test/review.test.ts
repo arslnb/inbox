@@ -2330,7 +2330,7 @@ test("approve goes through the write client, lands in the action log, and undo s
   });
   await t.sync();
   assert.equal((await run(t.desk.reviewView("api#2"))).approve.reason, "it's closed");
-  assert.equal((await run(t.desk.reviewView("api#3"))).approve.reason, "you approved this commit");
+  assert.deepEqual((await run(t.desk.reviewView("api#3"))).approve, { ok: false, reason: "you approved this commit", approved: true });
   assert.equal(w.calls.length, 1);
 
   t.gh.items.set("acme/api#1", { ...ask(1), head_oid: "h1b", updated_at: hoursAgo(0) });

@@ -3043,7 +3043,7 @@ export class Desk {
     if (e.analysis.signals.me.author) return no("it's your PR");
     if (it.state !== "open") return no(`it's ${it.state}`);
     const mine = it.reviews.findLast((r) => r.author.toLowerCase() === me);
-    if (mine?.state === "approved" && mine.commit === it.head_oid) return no("you approved this commit");
+    if (mine?.state === "approved" && mine.commit === it.head_oid) return { ...no("you approved this commit"), approved: true as const };
     if (!this.writer) return no("approving isn't available in this desk");
     return { ok: true, reason: null };
   }

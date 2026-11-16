@@ -3487,7 +3487,7 @@ function reviewView(r: Rec, ahead = false): ReviewView {
       : ended
         ? { ok: false, reason: `it's ${r.seed.resolved}` }
         : approved.has(r.id)
-          ? { ok: false, reason: "you approved this commit" }
+          ? { ok: false, reason: "you approved this commit", approved: true as const }
           : { ok: true, reason: null },
     activity: d.activity,
     stack: d.stack,

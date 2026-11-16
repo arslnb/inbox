@@ -919,15 +919,19 @@ export function Review({
           className="primary"
         />
       )}
-      {/* Only someone else's open PR is yours to approve. */}
-      {open && !isMine && !acted && (
+      {/* Only someone else's open PR is yours to approve: done, it says so; refused, a press says why. */}
+      {open && !isMine && !acted && view.approve.approved && (
+        <p className="rv-acted">
+          <span className="rv-acted-what">✓ You approved</span>
+        </p>
+      )}
+      {open && !isMine && !acted && !view.approve.approved && (
         <ActButton
           k="a"
           label="Approve"
           run={run}
-          disabled={!canApprove}
           title={view.approve.reason ?? "Approve on GitHub"}
-          className={cls(!writing && "primary")}
+          className={cls(canApprove && !writing && "primary")}
         />
       )}
       {/* While you owe replies, Reply is the one filled button. */}

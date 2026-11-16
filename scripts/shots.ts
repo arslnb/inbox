@@ -5573,6 +5573,31 @@ const SHOTS: Shot[] = [
         failures.push(`no-keys: after the old shortcuts, ${JSON.stringify({ open, hash, focused, tabs })}`);
     },
   },
+  // Someone else's PR whose head you approved: no Approve to press, it says you approved.
+  {
+    name: "review-approved",
+    go: async (page) => {
+      await page.route("**/api/review/**", async (route) => {
+        if (route.request().method() !== "GET") return route.fallback();
+        const res = await route.fetch();
+        const v: unknown = await res.json();
+        if (isRecord(v)) Object.assign(v, { approve: { ok: false, reason: "you approved this commit", approved: true } });
+        await route.fulfill({ response: res, json: v });
+      });
+      await review("acme/api#4127")(page);
+      const said = await page
+        .locator(".rv-actions .rv-acted-what")
+        .textContent()
+        .catch(() => null);
+      const button = await page.locator('.rv-actions button:has-text("Approve")').count();
+      if (said !== "\u2713 You approved" || button)
+        failures.push(`review-approved: the bar reads ${JSON.stringify(said)} with ${button} Approve`);
+    },
+    after: async (page) => {
+      await unroute(page);
+      await fresh(page);
+    },
+  },
   // Approve at once: the review stays, its Approve now what you did, in the Archive, a spinner while GitHub (here never)
   // answers. Last: its toast would sit over the next shot.
   {
