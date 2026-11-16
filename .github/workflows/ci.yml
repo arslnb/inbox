@@ -58,7 +58,9 @@ jobs:
       - run: npm ci
         env:
           ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+      # Its own limit, under the job's: a hang fails the step, which keeps its log (a cancelled job keeps none).
       - run: npm test
+        timeout-minutes: 8
         env:
           NODE_OPTIONS: --test-shard=${{ matrix.shard }}/3
 
@@ -80,6 +82,8 @@ jobs:
       - run: npm ci
         env:
           ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+      # Its own limit, under the job's: a hang fails the step, which keeps its log (a cancelled job keeps none).
       - run: npm test
+        timeout-minutes: 8
         env:
           NODE_OPTIONS: --test-shard=${{ matrix.shard }}/3
