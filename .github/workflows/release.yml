@@ -1,0 +1,50 @@
+name: release
+
+# A release from GitHub's Mac runner, by hand: Actions → release → Run workflow, or `gh workflow run release.yml` (with
+# `-f version=0.3.0`, or none for the next patch). The same two scripts as on a Mac: release.ts commits and tags the
+# version, release-publish.sh checks, pushes main and the tag, builds every platform and publishes the Release.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "x.y.z (empty: the next patch)"
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+# One release at a time; never cancelled halfway, since it pushes main and the tag before it builds.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: macos-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: main
+          fetch-depth: 0
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - name: Commit and tag the version
+        env:
+          VERSION: ${{ inputs.version }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if [ -z "$VERSION" ]; then
+            VERSION=$(node -p 'const [a, b, c] = require("./package.json").version.split(".").map(Number); `${a}.${b}.${c + 1}`')
+          fi
+          npm run -s release "$VERSION"
+          echo "TAG=v${VERSION#v}" >> "$GITHUB_ENV"
+      - name: Check, push, build and publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: npm run -s release:publish "$TAG"
