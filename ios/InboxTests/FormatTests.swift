@@ -831,12 +831,65 @@ final class FormatTests: XCTestCase {
         .details(
           summary: [Span(text: "2 issues", bold: true), t(" found")],
           blocks: [.block(.ul([[t("one")], [t("two")]])), .block(.pre(text: "let a = <b>1</b>", info: "suggestion"))]),
-        .block(.p([t("See https://example.com\nnow.")])),
+        .block(.p([t("See "), Span(text: "https://example.com", link: "https://example.com"), t("\nnow.")])),
         .small([t("Reviewed by a bot")]),
       ])
     XCTAssertEqual(Blocks.said("<details>plain</details>"), [.details(summary: [t("Details")], blocks: [.block(.p([t("plain")]))])])
     XCTAssertEqual(Blocks.said("a <kbd>k</kbd>"), [.block(.p([t("a <kbd>k</kbd>")]))], "any other tag stays text")
     XCTAssertEqual(Blocks.said(""), [])
+  }
+
+  // A reviewer's links and images, as saidBlocks() with labels: a link is its words, an image its alt, nothing raw HTML.
+  func testWhatAReviewerWroteLinksAndImages() {
+    let t = { (s: String) in Span(text: s) }
+    let link = { (s: String, url: String) in Span(text: s, link: url) }
+    XCTAssertEqual(
+      Blocks.said("See [the notes](https://github.com/acme/api/wiki) and ![lgtm](https://media.example.com/a.gif)."),
+      [.block(.p([t("See "), link("the notes", "https://github.com/acme/api/wiki"), t(" and "), Span(text: "lgtm", link: "https://media.example.com/a.gif", image: true), t(".")]))])
+    XCTAssertEqual(
+      Blocks.said(#"Learn about <a href="https://vercel.com/docs">Vercel <span>for</span> GitHub</a>."#),
+      [.block(.p([t("Learn about "), link("Vercel for GitHub", "https://vercel.com/docs"), t(".")]))], "an <a>'s words, its tags gone")
+    XCTAssertEqual(
+      Blocks.said(#"<a href="https://preview.app"><img alt="Visit Preview" src="https://vercel.com/button"></a>"#),
+      [.block(.p([link("Visit Preview", "https://preview.app")]))], "a linked image is a link in its alt")
+    XCTAssertEqual(
+      Blocks.said(#"<picture><source media="(prefers-color-scheme: dark)" srcset="https://x/d.svg"><img alt="Coverage" src="https://x/l.svg"></picture>"#),
+      [.block(.p([Span(text: "Coverage", link: "https://x/l.svg", image: true)]))], "a <picture>'s image")
+    XCTAssertEqual(Blocks.said(#"<img src="https://x/a.png">"#), [.block(.p([Span(text: "image", link: "https://x/a.png", image: true)]))], "no alt: image")
+    XCTAssertEqual(Blocks.said("Details: https://vercel.com/acme/4127."), [.block(.p([t("Details: "), link("https://vercel.com/acme/4127", "https://vercel.com/acme/4127"), t(".")]))])
+    XCTAssertEqual(Blocks.said(#"<a href="http://x.com">plain</a> [no](http://x.com)"#), [.block(.p([t(#"<a href="http://x.com">plain</a> [no](http://x.com)"#)]))], "only https")
+    XCTAssertEqual(Blocks.said("[spoof](https://github.com@evil.com/)"), [.block(.p([t("[spoof](https://github.com@evil.com/)")]))], "no userinfo")
+    XCTAssertEqual(Blocks.said(#"<div align="center"><em>hi</em></div>"#), [.block(.p([t("hi")]))], "a tag's attributes go with it")
+    XCTAssertEqual(Blocks.said("`<a href=\"https://x.y\">k</a>`"), [.block(.p([Span(text: #"[k](https://x.y)"#, code: true)]))], "code is code")
+    XCTAssertEqual(Blocks.parse("[the PR](https://x.y/1)"), [.p([t("the PR (https://x.y/1)")])], "your agent's words keep the URL in sight")
+    XCTAssertEqual(Blocks.saidLine("<!-- x -->\n### Possible bug\n\nmore"), "Possible bug")
+    XCTAssertEqual(Blocks.saidLine(#"See <a href="https://x.y">the run</a>"#), "See the run")
+    XCTAssertEqual(Blocks.saidLine(""), "")
+  }
+
+  // Status's words and thresholds, the window's (Review.tsx's checksState(), changesWord()).
+  func testStatusWords() {
+    let check = { (state: String) in Checks.Check(name: state, state: state) }
+    XCTAssertEqual(Status.checks(Checks(failing: true, list: Lossy(wrappedValue: [check("failing")]))).said, "Checks failing")
+    XCTAssertEqual(Status.checks(Checks(failing: false, list: Lossy(wrappedValue: [check("passing"), check("cancelled")]))).said, "Some checks failing")
+    XCTAssertEqual(Status.checks(Checks(failing: false, list: Lossy(wrappedValue: [check("passing"), check("failing")]))).tone, .warn, "an optional one failing")
+    XCTAssertEqual(Status.checks(Checks(failing: false, list: Lossy(wrappedValue: [check("running"), check("passing")]))).said, "Checks running")
+    XCTAssertEqual(Status.checks(Checks(failing: false, list: Lossy(wrappedValue: [check("passing"), check("skipped")]))).said, "Checks passing")
+    XCTAssertEqual(Status.changes(add: 60, del: 40, files: 5), "Small changes", "100 lines in 5 files is small")
+    XCTAssertEqual(Status.changes(add: 60, del: 41, files: 5), "Moderate changes")
+    XCTAssertEqual(Status.changes(add: 10, del: 0, files: 6), "Moderate changes", "more than 5 files")
+    XCTAssertEqual(Status.changes(add: 600, del: 0, files: 20), "Moderate changes")
+    XCTAssertEqual(Status.changes(add: 600, del: 1, files: 20), "Lots of changes")
+    XCTAssertEqual(Status.changes(add: 1, del: 0, files: 21), "Lots of changes")
+    XCTAssertEqual(Status.risk("medium"), "Medium risk")
+    XCTAssertEqual([Status.riskBars("high"), Status.riskBars("medium"), Status.riskBars("low")], [1, 2, 4])
+    XCTAssertEqual(Status.reviewerAct(who: "sam", state: "asked", draft: false), "remove")
+    XCTAssertEqual(Status.reviewerAct(who: "sam", state: "changes requested", draft: false), "rerequest")
+    XCTAssertNil(Status.reviewerAct(who: "sam", state: "approved", draft: true), "a draft asks nobody again")
+    XCTAssertNil(Status.reviewerAct(who: "@backend", state: "asked", draft: false), "a team's ask is the team's")
+    XCTAssertNil(Status.reviewerAct(who: "you", state: "asked", draft: false))
+    XCTAssertEqual(Status.face("you", me: "gricha"), "gricha")
+    XCTAssertNil(Status.face("@backend", me: "gricha"))
   }
 
   func testProseBlocks() {

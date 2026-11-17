@@ -65,6 +65,7 @@ struct BottomBar<More: View>: View {
   var press: () -> Void = {}
   var quiet: [Quiet] = []
   var hasMore = false
+  var done: String?  // in the call to action's place, quiet: what you did ("✓ You approved")
   @ViewBuilder var more: () -> More
 
   var body: some View {
@@ -107,6 +108,7 @@ struct BottomBar<More: View>: View {
         .buttonStyle(PlainAct())
       }
       ForEach(quiet.dropLast(folded).reversed()) { q in item(q).buttonStyle(PlainAct()) }
+      if let done { Text(done).sans(14, 550).foregroundStyle(Theme.pencil).lineLimit(1).fixedSize().padding(.leading, 4) }
       if let cta { Button(cta, action: press).buttonStyle(AccentAct(go: go)).disabled(off) }
     }
   }

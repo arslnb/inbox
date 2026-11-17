@@ -522,6 +522,7 @@ struct ProseBlocks: View {
     for span in spans {
       var run = AttributedString(span.text)
       run.font = Font(span.code ? Typeface.mono.font(s * 0.9, weight: span.bold ? 600 : 400) : Typeface.sans.font(s, weight: span.bold ? 600 : 400))
+      if span.link != nil { run.underlineStyle = .single }  // a reviewer's link: its words, to copy (SaidText)
       out += run
     }
     return Text(out).foregroundStyle(color).lineSpacing(4).fixedSize(horizontal: false, vertical: true)

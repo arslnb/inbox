@@ -1,9 +1,10 @@
 import SwiftUI
 
-// The AI review's read of a PR, as the window's AiSection (web/src/components/Review.tsx): the goal, then the verdict
-// line, which opens the rest; what it says of the stack and of the description; what changed since your review; its
-// concerns only when they can't sit in the code. Or where the review stands: being written, failed, none. Every word of
-// it is the model's: plain text, a URL never a link.
+// The AI review's read of a PR, as the window's AiSection (web/src/components/Review.tsx): the goal; what it says of the
+// stack and of the description; the rest of the summary folded, its first lines fading into Show more; what changed
+// since your review; its concerns only when they can't sit in the code. Its verdict is the header's tag and its risk
+// Status's. Or where the review stands: being written, failed, none. Every word of it is the model's: plain text, a URL
+// never a link.
 struct AiSection: View {
   let ai: AiReview?
   var stale = false
@@ -17,6 +18,7 @@ struct AiSection: View {
   var ask: (() -> Void)?  // none for a PR in Merging: it's your agent's
   var toLine: ((String, String, Int) -> Void)?  // to a line of the diff: path, side, line
   @State var more = false  // the rest of the summary: every PR opens folded
+  @ScaledMetric(relativeTo: .body) private var scale: CGFloat = 100
 
   var body: some View {
     VStack(alignment: .leading, spacing: 8) {
@@ -56,62 +58,71 @@ struct AiSection: View {
   @ViewBuilder
   private func read(_ ai: AiReview) -> some View {
     let goal = ai.intent?.goal ?? ""
-    // The goal leads, above the verdict; an older review without one leads with its summary's first sentence.
+    // The goal leads; an older review without one leads with its summary's first sentence.
     let (first, rest) = goal.isEmpty ? Words.lead(ai.summary ?? "") : (goal, (ai.summary ?? "").trimmingCharacters(in: .whitespacesAndNewlines))
     let reasons = ai.riskReasons.compactMap(\.why).filter { !$0.isEmpty }
-    let lead1 = ai.risk != "low" ? reasons.first : nil
-    let later = lead1 == nil ? reasons : Array(reasons.dropFirst())
+    let later = ai.risk != "low" ? Array(reasons.dropFirst()) : reasons
     // A diagram no step draws sits in the fold, at most one.
     let loose = ai.diagrams.first { d in !(ai.guide?.steps ?? []).contains { $0.diagram == d.id } }
-    let folds = !first.isEmpty && (!rest.isEmpty || !later.isEmpty || !ai.interfaces.isEmpty || !ai.improvements.isEmpty || loose != nil)
+    let hasRest = !rest.isEmpty || !later.isEmpty || !ai.interfaces.isEmpty || !ai.improvements.isEmpty || loose != nil
+    let folds = !first.isEmpty && hasRest
 
     if !first.isEmpty {
       Prose(text: first, size: 15.5).foregroundStyle(Theme.ink).lineSpacing(3.5).fixedSize(horizontal: false, vertical: true)
+    }
+    if let stack = ai.intent?.stack, !stack.isEmpty { Named(name: "In the stack", text: stack) }
+    if let fit = Words.fit[ai.intent?.fit ?? ""], let gap = ai.intent?.gap, !gap.isEmpty { Named(name: fit, text: gap) }
+    if hasRest {
+      // Folded, its first lines show and fade out; they take no presses until it's opened.
+      let shut = folds && !more
+      VStack(alignment: .leading, spacing: 8) {
+        if !rest.isEmpty {
+          Prose(text: rest, size: 13.5).foregroundStyle(Theme.ink2).lineSpacing(3).fixedSize(horizontal: false, vertical: true)
+        }
+        if !later.isEmpty { Named(name: "Also risky", text: later.joined(separator: "; ")) }
+        if !ai.interfaces.isEmpty {
+          list("Interfaces") {
+            ForEach(Array(ai.interfaces.enumerated()), id: \.offset) { _, x in
+              item(to: x.path, x.side, x.line) { Interface(x: x) }
+            }
+          }
+        }
+        if !ai.improvements.isEmpty {
+          list("Could be better") {
+            ForEach(Array(ai.improvements.enumerated()), id: \.offset) { _, x in
+              item(to: x.path, x.side, x.line) {
+                Prose(text: x.body ?? "", size: 13).foregroundStyle(Theme.ink).lineSpacing(3).multilineTextAlignment(.leading)
+                  .fixedSize(horizontal: false, vertical: true)
+              }
+            }
+          }
+        }
+        if let loose, !shut { DiagramLines(diagram: loose).padding(.top, 2) }
+      }
+      .frame(maxHeight: shut ? AiSection.preview * scale / 100 : nil, alignment: .top)
+      .clipped()
+      .mask {
+        if shut {
+          LinearGradient(stops: [.init(color: .black, location: 0), .init(color: .black.opacity(0.45), location: 0.45), .init(color: .clear, location: 1)], startPoint: .top, endPoint: .bottom)
+        } else {
+          Color.black
+        }
+      }
+      .allowsHitTesting(!shut)
+      .accessibilityHidden(shut)
+      .padding(.bottom, shut ? -14 : 0)
     }
     if folds {
       Button {
         more.toggle()
       } label: {
-        HStack(alignment: .firstTextBaseline, spacing: 6) {
-          Image(systemName: "chevron.right").font(.system(size: 9, weight: .semibold)).foregroundStyle(Theme.faint)
-            .rotationEffect(.degrees(more ? 90 : 0)).frame(width: 9).accessibilityHidden(true)
-          verdict(ai, lead1)
-        }
-        .frame(maxWidth: .infinity, minHeight: 36, alignment: .leading)
-        .contentShape(Rectangle())
+        Text(more ? "Show less" : "Show more").sans(13.5, 550).foregroundStyle(Theme.accentInk)
+          .frame(minHeight: 36).contentShape(Rectangle())
       }
       .buttonStyle(.plain)
       .accessibilityHint(more ? "Folds the rest of the review" : "Shows the rest of the review")
-    } else {
-      verdict(ai, lead1)
     }
-    if let stack = ai.intent?.stack, !stack.isEmpty { Lead(label: "In the stack:", text: stack) }
-    if let fit = Words.fit[ai.intent?.fit ?? ""], let gap = ai.intent?.gap, !gap.isEmpty { Lead(label: "\(fit):", text: gap) }
-    if more || !folds {
-      if !rest.isEmpty {
-        Prose(text: rest, size: 13.5).foregroundStyle(Theme.ink2).lineSpacing(3).fixedSize(horizontal: false, vertical: true)
-      }
-      if !later.isEmpty { Lead(label: "Also risky:", text: later.joined(separator: "; ")) }
-      if !ai.interfaces.isEmpty {
-        list("Interfaces") {
-          ForEach(Array(ai.interfaces.enumerated()), id: \.offset) { _, x in
-            item(to: x.path, x.side, x.line) { Interface(x: x) }
-          }
-        }
-      }
-      if !ai.improvements.isEmpty {
-        list("Could be better") {
-          ForEach(Array(ai.improvements.enumerated()), id: \.offset) { _, x in
-            item(to: x.path, x.side, x.line) {
-              Prose(text: x.body ?? "", size: 13).foregroundStyle(Theme.ink).lineSpacing(3).multilineTextAlignment(.leading)
-                .fixedSize(horizontal: false, vertical: true)
-            }
-          }
-        }
-      }
-      if let loose { DiagramLines(diagram: loose).padding(.top, 2) }
-    }
-    if let since = ai.since, !since.isEmpty { Lead(label: "Since your review:", text: since) }
+    if let since = ai.since, !since.isEmpty { Named(name: "Since your review", text: since) }
     // Each concern is also a note in the code; listed here only when the notes can't sit there.
     if Words.listsConcerns(stale: stale, notes: notes) {
       if let concerns = ai.concerns, !concerns.isEmpty {
@@ -128,16 +139,8 @@ struct AiSection: View {
     }
   }
 
-  // "Look closely", how risky and the first reason why; "on an earlier commit" when a push has left it behind.
-  private func verdict(_ ai: AiReview, _ reason: String?) -> some View {
-    FlowLine(spacing: 10) {
-      Text(Words.verdict[ai.verdict ?? ""] ?? Words.capitalized(ai.verdict ?? ""))
-        .sans(14, ai.verdict == "look" ? 600 : 500).foregroundStyle(ai.verdict == "look" ? Theme.ink : ai.verdict == "skim" ? Theme.ink2 : Theme.pencil)
-      if let risk = ai.risk { RiskMeter(risk: risk) }
-      if let reason { Text(reason).sans(13).foregroundStyle(Theme.pencil).multilineTextAlignment(.leading) }
-      if stale { Text("on an earlier commit").sans(13).foregroundStyle(Theme.pencil) }
-    }
-  }
+  // The fold's preview: about four of its lines, as the window's 5.5em.
+  static let preview: CGFloat = 76
 
   private func list(_ head: String, @ViewBuilder _ rows: () -> some View) -> some View {
     VStack(alignment: .leading, spacing: 2) {
@@ -187,6 +190,20 @@ struct AiSection: View {
       }
       return Text(line).lineSpacing(3).multilineTextAlignment(.leading).fixedSize(horizontal: false, vertical: true)
     }
+  }
+}
+
+// A named part of the AI review: its name on a line of its own, then what it says.
+struct Named: View {
+  let name: String
+  let text: String
+
+  var body: some View {
+    VStack(alignment: .leading, spacing: 2) {
+      Text(name).sans(13, 600).foregroundStyle(Theme.ink).accessibilityAddTraits(.isHeader)
+      Prose(text: text, size: 13.5).foregroundStyle(Theme.ink2).lineSpacing(3).fixedSize(horizontal: false, vertical: true)
+    }
+    .frame(maxWidth: .infinity, alignment: .leading)
   }
 }
 

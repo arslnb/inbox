@@ -50,6 +50,7 @@ struct DiffSection: Identifiable, Sendable {
   let hunks: [ReviewHunk]  // none for a file with no text diff
   var notes: [Int] = []  // indices into ai.notes, in reading order
   let rows: Int  // how many lines it draws, its @@ lines among them
+  var marks: [String] = []  // what marking it viewed marks: its hunks', or a file's own without any
   var id: String { key }
 
   var additions: Int { hunks.reduce(0) { $0 + ($1.additions ?? 0) } }
@@ -128,6 +129,7 @@ enum Diff {
     o.rest.map { r in
       var s = section("rest:\(r.path ?? "")", r.path ?? "", r.file ?? 0, level: o.ranked == true ? "skip" : nil, why: r.why, r.hunks)
       s.notes = (r.notes ?? []) + s.notes
+      if r.hunks.isEmpty { s.marks = [r.mark].compactMap { $0 } }
       return s
     }
   }
@@ -135,7 +137,7 @@ enum Diff {
   static func section(_ key: String, _ path: String, _ file: Int, level: String?, why: String?, _ hunks: [ReviewHunk]) -> DiffSection {
     DiffSection(
       key: key, path: path, file: file, level: level, why: why, hunks: hunks, notes: hunks.flatMap { $0.notes ?? [] },
-      rows: hunks.reduce(0) { $0 + rows($1.patch ?? "") })
+      rows: hunks.reduce(0) { $0 + rows($1.patch ?? "") }, marks: hunks.compactMap(\.mark))
   }
 
   // A section's lines, its hunks one after another.
@@ -193,6 +195,41 @@ enum Diff {
   }
 }
 
+// Which files are folded, beside how each starts (DiffModel.startsShut): those pressed away from it, and viewed ones
+// opened for now. Review.tsx's isShut(), toggleFold() and markViewed().
+struct Folds: Equatable {
+  var flipped: Set<String> = []  // by section key
+  var peek: Set<String> = []  // viewed, opened again
+
+  // Viewed: every one of its marks is.
+  static func viewed(_ s: DiffSection, _ marks: Set<String>) -> Bool { !s.marks.isEmpty && s.marks.allSatisfy(marks.contains) }
+
+  // A viewed file stays folded until it's opened for now.
+  func shut(_ s: DiffSection, starts: Bool, viewed: Bool) -> Bool {
+    viewed ? !peek.contains(s.key) : starts != flipped.contains(s.key)
+  }
+
+  // A press on its header.
+  mutating func press(_ s: DiffSection, viewed: Bool) {
+    if viewed { peek.formSymmetricDifference([s.key]) } else { flipped.formSymmetricDifference([s.key]) }
+  }
+
+  // Viewed ticked folds it, unticked opens it.
+  mutating func marked(_ s: DiffSection, on: Bool, starts: Bool) {
+    peek.remove(s.key)
+    if !on, starts { flipped.insert(s.key) } else if !on { flipped.remove(s.key) }
+  }
+
+  // The marks viewed as the desk has them, with what was ticked here and hasn't come back from it yet.
+  static func marks(_ desk: [String], _ marking: [String: Bool]) -> Set<String> {
+    var out = Set(desk)
+    for (m, on) in marking {
+      if on { out.insert(m) } else { out.remove(m) }
+    }
+    return out
+  }
+}
+
 // One review's sections, and each one's lines once it has been drawn: a patch is parsed the first time it's unfolded or
 // scrolled to. A new one is made for every review that lands.
 @MainActor
@@ -243,6 +280,9 @@ final class DiffModel {
       return Stop(id: s.key, path: s.path, level: s.level, notes: list.contains { $0.path == s.path && !$0.notes.isEmpty })
     }
   }
+
+  // Traditional's files you've viewed, by path.
+  func seen(_ marks: Set<String>) -> Set<String> { Set(list.filter { Folds.viewed($0, marks) }.map(\.path)) }
 
   // The lines it draws: its first Diff.cap.
   func rows(_ s: DiffSection) -> [Row] {

@@ -22,7 +22,9 @@ struct DiffView: View {
   var show: (String) -> Void = { _ in }  // scrolls just far enough to bring what has this id into view
   var jump: (String) -> Void = { _ in }  // scrolls what has this id to the top
   var traditional: () -> Void = {}  // leaves the guide for every file
-  @State private var flipped: Set<String> = []  // sections pressed away from how they start
+  var viewed: Set<String> = []  // the marks you've viewed (ReviewView.viewed, with your ticks on their way)
+  var mark: ((DiffSection, Bool) -> Void)?  // the Viewed checkbox: nil where nothing can be marked
+  @State private var folds = Folds()
   @State private var restOpen = false
   @State private var opened: Set<String> = []  // resolved threads opened
   // Code stops growing where a line would hold too little to read as one; what people said under it grows on.
@@ -65,7 +67,8 @@ struct DiffView: View {
     }
   }
 
-  private func shut(_ s: DiffSection) -> Bool { model.startsShut(s) != flipped.contains(s.key) }
+  private func isViewed(_ s: DiffSection) -> Bool { Folds.viewed(s, viewed) }
+  private func shut(_ s: DiffSection) -> Bool { folds.shut(s, starts: model.startsShut(s), viewed: isViewed(s)) }
 
   @ViewBuilder
   private func section(_ s: DiffSection) -> some View {
@@ -186,41 +189,67 @@ struct DiffView: View {
     let status = DiffView.statuses[file?.status ?? ""].map { $0 + ((file?.previousPath).map { " from \($0)" } ?? "") }
     let under = [status, s.why].compactMap { $0 }.filter { !$0.isEmpty }
     let isShut = shut(s)
-    return Button {
-      guard !s.hunks.isEmpty else { return }
-      flipped.formSymmetricDifference([s.key])
-      // Folded from its pinned header, lines down: the file's own place comes back to the top, not the one after it.
-      if !isShut { Task { show(s.key) } }
-    } label: {
-      VStack(alignment: .leading, spacing: 2) {
-        HStack(alignment: .firstTextBaseline, spacing: 6) {
-          // Nothing to unfold in a file with no text diff.
-          chevron(!isShut).opacity(s.hunks.isEmpty ? 0 : 1)
-          if let level = s.level, let word = DiffView.levels[level] {
-            Text(word).sans(13, level == "look" ? 650 : level == "skim" ? 550 : 500)
-              .foregroundStyle(level == "look" ? Theme.amber : level == "skim" ? Theme.accentInk : Theme.pencil).fixedSize()
+    let seen = isViewed(s)
+    return HStack(alignment: .top, spacing: 0) {
+      Button {
+        guard !s.hunks.isEmpty else { return }
+        folds.press(s, viewed: seen)
+        // Folded from its pinned header, lines down: the file's own place comes back to the top, not the one after it.
+        if !isShut { Task { show(s.key) } }
+      } label: {
+        VStack(alignment: .leading, spacing: 2) {
+          HStack(alignment: .firstTextBaseline, spacing: 6) {
+            // Nothing to unfold in a file with no text diff.
+            chevron(!isShut).opacity(s.hunks.isEmpty ? 0 : 1)
+            if let level = s.level, let word = DiffView.levels[level] {
+              Text(word).sans(13, level == "look" ? 650 : level == "skim" ? 550 : 500)
+                .foregroundStyle(level == "look" ? Theme.amber : level == "skim" ? Theme.accentInk : Theme.pencil).fixedSize()
+            }
+            // The folder gives way from its head, so the name stays whole.
+            (Text(dir).foregroundStyle(Theme.pencil) + Text(name).foregroundStyle(Theme.ink)).mono(12.5, 500).lineLimit(1).truncationMode(.head)
+            Spacer(minLength: 4)
+            if !s.hunks.isEmpty {
+              Text("+\(s.additions) \u{2212}\(s.deletions)").sans(12.5, tabular: true).foregroundStyle(Theme.pencil).fixedSize()
+            }
           }
-          // The folder gives way from its head, so the name stays whole.
-          (Text(dir).foregroundStyle(Theme.pencil) + Text(name).foregroundStyle(Theme.ink)).mono(12.5, 500).lineLimit(1).truncationMode(.head)
-          Spacer(minLength: 4)
-          if !s.hunks.isEmpty {
-            Text("+\(s.additions) \u{2212}\(s.deletions)").sans(12.5, tabular: true).foregroundStyle(Theme.pencil).fixedSize()
+          if !under.isEmpty {
+            Text(under.joined(separator: " · ")).sans(12.5).foregroundStyle(Theme.pencil).lineLimit(2).padding(.leading, 15)
+              .frame(maxWidth: .infinity, alignment: .leading)
           }
         }
-        if !under.isEmpty {
-          Text(under.joined(separator: " · ")).sans(12.5).foregroundStyle(Theme.pencil).lineLimit(2).padding(.leading, 15)
-            .frame(maxWidth: .infinity, alignment: .leading)
-        }
+        .padding(.leading, Theme.pad)
+        .padding(.trailing, mark == nil || s.marks.isEmpty ? Theme.pad : 4)
+        .padding(.vertical, 6)
+        .frame(minHeight: 44)
+        .contentShape(Rectangle())
       }
-      .padding(.horizontal, Theme.pad)
-      .padding(.vertical, 6)
-      .frame(minHeight: 44)
-      .background(Theme.paper)
-      .overlay(alignment: .top) { Theme.rule.frame(height: 1) }
-      .contentShape(Rectangle())
+      .buttonStyle(.plain)
+      .accessibilityLabel("\(s.path), \(isShut ? "folded" : "shown")\(seen ? ", viewed" : "")")
+      // GitHub's checkbox: ticked, the file folds until a push changes what it changes.
+      if let mark, !s.marks.isEmpty {
+        Button {
+          folds.marked(s, on: !seen, starts: model.startsShut(s))
+          mark(s, !seen)
+          if !seen, !isShut { Task { show(s.key) } }
+        } label: {
+          HStack(spacing: 5) {
+            Image(systemName: seen ? "checkmark.square.fill" : "square").font(.system(size: 15))
+            Text("Viewed").sans(12.5)
+          }
+          .foregroundStyle(seen ? Theme.ink2 : Theme.pencil)
+          .padding(.horizontal, 10)
+          .frame(minWidth: 44, minHeight: 44)
+          .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .padding(.trailing, Theme.pad - 10)
+        .accessibilityLabel("Viewed")
+        .accessibilityValue(seen ? "ticked" : "not ticked")
+        .accessibilityHint(seen ? "Opens it again" : "Folds it until a push changes it")
+      }
     }
-    .buttonStyle(.plain)
-    .accessibilityLabel("\(s.path), \(isShut ? "folded" : "shown")")
+    .background(Theme.paper)
+    .overlay(alignment: .top) { Theme.rule.frame(height: 1) }
   }
 
   private func chevron(_ open: Bool) -> some View {

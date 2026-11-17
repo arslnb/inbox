@@ -126,11 +126,20 @@ wanted chat-opencode && shot chat-opencode -deskURL "$DESK" -chat "acme/api#4127
 wanted chat-large && shot chat-large -deskURL "$DESK" -chat "me/notes-app#12" \
   -UIPreferredContentSizeCategoryName UICTContentSizeCategoryAccessibilityL
 wanted item-pr && shot item-pr -deskURL "$DESK" -open "acme/api#4127"
+# Its Status: the risk opened to its reasons; and someone else's PR you approved (the bar says so).
+wanted item-pr-status && shot item-pr-status -deskURL "$DESK" -open "acme/api#4127" -part risk
+wanted item-pr-approved && shot item-pr-approved -deskURL "$DESK" -open "acme/api#4127" -approved
 # A PR's State: its checks opened to each by name (a failing run), and your own PR's reviewers with + Add reviewers.
 wanted item-pr-checks && shot item-pr-checks -deskURL "$DESK" -open "oss/tinyhttp#205" -part checks
 wanted item-pr-own && shot item-pr-own -deskURL "$DESK" -open "acme/worker#875" -part reviewers
 # A PR's diff: scrolled to its first file, a thread under its line, and the box for a comment on a line.
 wanted item-pr-diff && shot item-pr-diff -deskURL "$DESK" -open "acme/api#4127" -scroll diff -review.view traditional
+# A file marked viewed (the mock remembers it): folded, ticked, and counted in the list of files.
+if wanted item-pr-viewed; then
+  curl -fs -X POST -H "Content-Type: application/json" -d '{"marks":["ee1c4db634a7a0eb"],"viewed":true}' "$DESK/api/review/acme%2Fapi%234127/viewed" >/dev/null
+  shot item-pr-viewed -deskURL "$DESK" -open "acme/api#4127" -scroll diff -review.view traditional -part files
+  curl -fs -X POST -H "Content-Type: application/json" -d '{"marks":["ee1c4db634a7a0eb"],"viewed":false}' "$DESK/api/review/acme%2Fapi%234127/viewed" >/dev/null
+fi
 wanted item-pr-files && shot item-pr-files -deskURL "$DESK" -open "acme/api#4127" -scroll diff -review.view traditional -part files
 wanted item-pr-steps && shot item-pr-steps -deskURL "$DESK" -open "acme/api#4127" -scroll diff -part files
 wanted item-pr-diff-thread && shot item-pr-diff-thread -deskURL "$DESK" -open "acme/api#4127" -scroll thread -review.view traditional
@@ -159,9 +168,9 @@ wanted item-issue-none && shot item-issue-none -deskURL "$DESK" -open "acme/work
 wanted item-issue-blocked && shot item-issue-blocked -deskURL "$DESK" -open "acme/worker#860" -issue blocked
 # Yours: one that owes a reply (what was said, and Reply), a draft, one through review, one in Merging.
 wanted item-reply && shot item-reply -deskURL "$DESK" -open "me/notes-app#12"
-# What reviewers said: the first waiting one's own words unfolded, and the ones not waiting on you opened in place.
-wanted item-pr-said && shot item-pr-said -deskURL "$DESK" -open "me/notes-app#12" -said waiting
-wanted item-pr-more-conversations && shot item-pr-more-conversations -deskURL "$DESK" -open "me/notes-app#12" -said more -scroll said
+# The Conversation tab: what the mock never sends (a bot's links and images, reviews' verdicts, a resolved thread), and nothing said.
+wanted item-pr-conversation && shot item-pr-conversation -deskURL "$DESK" -open "acme/api#4127" -said links -scroll said
+wanted item-pr-conversation-none && shot item-pr-conversation-none -deskURL "$DESK" -open "acme/api#4127" -said none -scroll said
 wanted item-draft && shot item-draft -deskURL "$DESK" -open "acme/web#2303"
 wanted item-mine && shot item-mine -deskURL "$DESK" -open "acme/worker#875"
 wanted item-merging && shot item-merging -deskURL "$DESK" -page merging -open "acme/api#4122"

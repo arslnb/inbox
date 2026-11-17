@@ -907,11 +907,12 @@ final class Store {
     //   -page inbox|blocked|merging|archive   -open <item id>|inquiry:<id>|session:<id>   -settings   -empty
     //   -box approve|comment|changes|reviewers|reply|answer   with -open: that page's box, opened once it has loaded
     //   -part checks|reviewers|files   with -open: that line of a PR's State, or the diff's list of files (steps), opened
-    //   -scroll diff|thread|said   with -open: a PR's page scrolled to its diff, the first thread on a line of it, or what reviewers said
-    //   -said waiting|more   with -open: the first waiting conversation's own words unfolded, or the ones not waiting on you
+    //   -scroll diff|thread|said   with -open: a PR's page scrolled to its diff, the first thread on a line of it, or the Conversation tab
+    //   -said links|none   with -open: a PR's conversation as the mock never sends it (ReviewView.debugging()): a bot's links and images and reviews' verdicts, or nothing said
+    //   -approved   with -open: someone else's PR you approved
     //   -comment <path>:<line>   with -open: the box for a comment on that line of the new file
     //   -ai open   with -open: the AI review's fold, opened
-    //   -review.view guided|traditional   the diff's order where a review has steps (the saved choice, for this launch)
+    //   -review.view guided|traditional|conversation   the diff's order where a review has steps, or the Conversation tab (for this launch)
     //   -scroll guide|step-<n>|note|bugs   with -open: the guided review's first step, a later one, the first note on a line
     //   -issue running|again|failed|stale|none|off|injection|blocked   with -open: an issue's pre-review in that state
     //   -step <n>   with -open: an issue's walk at its nth step
@@ -952,6 +953,7 @@ final class Store {
       debugScroll = args.string(forKey: "scroll")
       debugComment = args.string(forKey: "comment")
       debugSaid = args.string(forKey: "said")
+      debugApproved = flags.contains("-approved")
       debugAi = args.string(forKey: "ai")
       debugIssue = args.string(forKey: "issue")
       debugStep = args.object(forKey: "step") == nil ? nil : args.integer(forKey: "step")
@@ -965,7 +967,8 @@ final class Store {
     var debugPart: String?
     var debugScroll: String?
     var debugComment: String?
-    var debugSaid: String?
+    @ObservationIgnored var debugSaid: String?
+    @ObservationIgnored var debugApproved = false
     var debugAi: String?
     var debugIssue: String?  // an issue's pre-review as the mock never sends it: see ItemDetail.debugging()
     var debugStep: Int?

@@ -39,6 +39,33 @@ final class PatchLinesTests: XCTestCase {
     XCTAssertEqual(later.last, PatchLine(kind: .context, old: 23, new: 28, text: "export function estimate(q: Query): number {"))
   }
 
+  // Viewed, as Review.tsx's isShut() and markViewed(): a file all of whose marks are viewed opens folded, a press opens
+  // it for now, ticking folds it and unticking opens it, even one that starts folded.
+  func testViewedFolding() throws {
+    let (list, _) = Diff.traditional(try XCTUnwrap(try review().order))
+    let plan = try XCTUnwrap(list.first { $0.path == "src/planner/plan.ts" })
+    XCTAssertEqual(plan.marks, ["190d3b30a187d22e", "ac218f9f505c6d80"], "each hunk's, in diff order")
+    XCTAssertFalse(Folds.viewed(plan, ["190d3b30a187d22e"]), "a push that rewrote one hunk unticks the file")
+    let marks = Folds.marks(["190d3b30a187d22e"], ["ac218f9f505c6d80": true])
+    XCTAssertTrue(Folds.viewed(plan, marks), "with a tick on its way")
+    XCTAssertFalse(Folds.viewed(plan, Folds.marks(["190d3b30a187d22e", "ac218f9f505c6d80"], ["ac218f9f505c6d80": false])))
+
+    var f = Folds()
+    XCTAssertTrue(f.shut(plan, starts: false, viewed: true), "viewed opens folded")
+    f.press(plan, viewed: true)
+    XCTAssertFalse(f.shut(plan, starts: false, viewed: true), "opened for now")
+    f.marked(plan, on: true, starts: false)
+    XCTAssertTrue(f.shut(plan, starts: false, viewed: true), "ticked again, it folds")
+    f.marked(plan, on: false, starts: true)
+    XCTAssertFalse(f.shut(plan, starts: true, viewed: false), "unticked opens even a file that starts folded")
+    f.press(plan, viewed: false)
+    XCTAssertTrue(f.shut(plan, starts: true, viewed: false))
+
+    let rest = Diff.restOf(try order(#"{"ranked": true, "rest": [{"path": "yarn.lock", "file": 3, "mark": "f00d", "hunks": []}]}"#))
+    XCTAssertEqual(rest.first?.marks, ["f00d"], "a file with no text diff marks its own")
+    XCTAssertFalse(Folds.viewed(DiffSection(key: "k", path: "p", file: 0, hunks: [], rows: 0), []), "nothing to mark is never viewed")
+  }
+
   func testSeveralHunksTheNoNewlineMarkerAndNothing() {
     let patch = "@@ -1,2 +1,2 @@\n a\n-b\n+c\n@@ -10 +10,2 @@ fn\n x\n+y\n\\ No newline at end of file"
     let lines = patchLines(patch)

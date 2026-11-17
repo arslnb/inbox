@@ -22,6 +22,8 @@ struct ItemPage: View {
   @State private var stopsOpen = false  // the list of files (or the guide's steps) to jump to
   @State private var fixAsked = false  // Make PR with fix was taken from this page: a second press would ask your agent twice
   @State private var sent: [SentWords] = []  // yours on the diff's lines, until the conversation has them
+  @State private var talking: Bool?  // on the Conversation tab; nil until picked: a PR opened to reply starts on it
+  @State private var marking: [String: Bool] = [:]  // Viewed ticks on their way, until a review read again agrees
   // This phone's choice where a review has steps: the guided review, or every file ("traditional"). The window's own.
   @AppStorage("review.view") private var reading = "guided"
 
@@ -60,6 +62,8 @@ struct ItemPage: View {
   private var owing: [Conversation] { (review?.conversation ?? []).filter { $0.waitingOnYou == true } }
   private func answered(_ c: Conversation) -> Bool { replied[c.id] == (c.comments.last?.id ?? "") }
   private var waiting: [Conversation] { owing.filter { !answered($0) } }
+  private var onConversation: Bool { talking ?? (card?.cta == "reply" || reading == "conversation") }
+  private var viewedMarks: Set<String> { Folds.marks(review?.viewed ?? [], marking) }
 
   var body: some View {
     ScrollViewReader { proxy in page(proxy) }
@@ -72,14 +76,22 @@ struct ItemPage: View {
           header(card)
           why(card)
           if card.isPR { aiBlock(card, proxy) }
-          if card.isPR { saidBlock(card) }
           if !card.isPR, let detail {
             IssuePre(detail: detail, busy: store.busy(card.id), run: { press($0, card) }, at: debugStep)
           }
-          if let error = review?.filesError { Text("Couldn't load the diff: \(error)").sans(13).foregroundStyle(Theme.red) }
           if let review { ReviewState(card: card, review: review, addReviewers: adds(card) ? { box = .reviewers } : nil) }
           if let stack { stackBlock(stack) }
-          if let review, let diff, !diff.list.isEmpty { diffBlock(card, review, diff, proxy) }
+          if let review {
+            tabs(review, proxy)
+            if onConversation {
+              saidBlock(card, review)
+            } else {
+              if let error = review.filesError { Text("Couldn't load the diff: \(error)").sans(13).foregroundStyle(Theme.red) }
+              if let diff, !diff.list.isEmpty { diffBlock(card, review, diff, proxy) }
+            }
+          } else if card.isPR, card.cta == "reply", failed == nil {
+            LoadingLines()
+          }
           // An issue's; a PR's review has none in the window (its activity only names who merged or closed it).
           if !card.isPR { activity(card) }
           if !landed, failed == nil { LoadingLines() }
@@ -114,9 +126,14 @@ struct ItemPage: View {
         }
         let mark = store.mark(id)
         switch await store.readReview(id) {
-        case .success(let r):
+        case .success(var r):
+          #if DEBUG
+            r = r.debugging(said: store.debugSaid, approved: store.debugApproved)
+          #endif
           review = r
           diff = model(r)
+          // A tick stays drawn until a read agrees with it; one the desk refused is put back by Store's bubble and this.
+          marking = marking.filter { Set(r.viewed).contains($0.key) != $0.value }
           drawn = (mark, Date())
           failed = nil
           if let c = r.card { saw(c) }
@@ -145,12 +162,14 @@ struct ItemPage: View {
         }
         if let diff, let to = store.debugScroll {
           store.debugScroll = nil
+          if to == "said" { talking = true }
           try? await Task.sleep(for: .milliseconds(300))
           let at =
             switch to {
             case "thread": diff.firstThread(review?.conversation ?? []) ?? "diff"
             case "note": diff.firstNote(review?.ai?.notes ?? []) ?? "diff"
-            case "said", "bugs": to
+            case "said": "tabs"
+            case "bugs": to
             case "guide": "step-0"
             default: to.hasPrefix("step-") ? to : "diff"
             }
@@ -202,9 +221,11 @@ struct ItemPage: View {
       let name = main == "block" ? "Block @\(detail?.issueAi?.injection?.who ?? "")" : main.flatMap { Words.act[$0] }
       // Approve needs the desk's say and the commit it's pinned to; Reply needs what was said.
       let notYet = (main == "approve" && (read == nil || review?.cantApprove != nil)) || (main == "reply" && waiting.isEmpty)
+      // Approved, the bar says so in Approve's place, as the window's.
+      let approved = main == "approve" && review?.approve?.approved == true
       BottomBar(
-        cta: name, go: main == "approve" || main == "handoff", off: store.busy(c.id) || notYet, press: { if let main { press(main, c) } }, quiet: quiet(c),
-        hasMore: true
+        cta: approved ? nil : name, go: main == "approve" || main == "handoff", off: store.busy(c.id) || notYet, press: { if let main { press(main, c) } },
+        quiet: quiet(c), hasMore: true, done: approved ? "✓ You approved" : nil
       ) { more(c, main) }
     } else {
       BottomBar()
@@ -268,7 +289,9 @@ struct ItemPage: View {
     case "comment": box = .comment
     case "request_changes", "changes": pinned(.changes)
     case "reviewers": box = .reviewers
-    case "reply": if let first = waiting.first { box = .reply(first) }
+    case "reply":
+      talking = true
+      if let first = waiting.first { box = .reply(first) }
     // Ready with nobody asked stays on the desk, and its page then offers Add reviewers; one already asked leaves it.
     case "ready": Task { if await store.ready(c), store.card(c.id)?.active != true { back() } }
     case "handoff": Task { if await store.handOff(c) { back() } }
@@ -381,22 +404,30 @@ struct ItemPage: View {
 
   // MARK: What reviewers said
 
-  // Each conversation waiting on you, then the rest under one line. Reply is for an open PR; the bar's answers the first.
+  // The Conversation tab: every conversation as a card, those waiting on you first; your comment's row at its foot.
   @ViewBuilder
-  private func saidBlock(_ c: Card) -> some View {
-    if let error = review?.conversationError {
-      Text("Couldn't load what reviewers said: \(error)").sans(13).foregroundStyle(Theme.red)
-    } else if let review {
-      if !review.conversation.isEmpty {
-        WhatWasSaid(
-          review: review, waiting: waiting, answered: owing.filter(answered), sent: Diff.pending(sent, in: review.conversation, me: store.me),
-          reply: item?.state == "open" ? { box = .reply($0) } : nil, ask: asking(c)
-        )
-        .id("said")
+  private func saidBlock(_ c: Card, _ review: ReviewView) -> some View {
+    let isOpen = item?.state == "open"
+    ConversationTab(
+      review: review, waiting: waiting, answered: Set(owing.filter(answered).map(\.id)),
+      sent: Diff.pending(sent, in: review.conversation, me: store.me),
+      reply: isOpen ? { box = .reply($0) } : nil, ask: asking(c), comment: isOpen ? { box = .comment } : nil, ref: c.shortRef
+    )
+    .id("said")
+  }
+
+  // The tabs over the diff's place: the guide (a review with steps), every file, and what reviewers said.
+  private func tabs(_ review: ReviewView, _ proxy: ScrollViewProxy) -> some View {
+    let guided = !(review.order?.steps ?? []).isEmpty
+    return HStack(spacing: 20) {
+      if guided { tab("Guided Review", on: !onConversation && diff?.guiding == true) { read("guided", review, proxy) } }
+      tab("Traditional", on: !onConversation && diff?.guiding != true) { read("traditional", review, proxy) }
+      tab("Conversation", count: owing.count, on: onConversation) {
+        talking = true
+        proxy.scrollTo("tabs", anchor: .top)
       }
-    } else if c.cta == "reply", failed == nil {
-      LoadingLines()
     }
+    .id("tabs")
   }
 
   // MARK: Header
@@ -449,10 +480,15 @@ struct ItemPage: View {
     var out: [Dotted.Part] = []
     if c.mine {
       let through = c.authorBot == true ? ", through \(c.author ?? "")" : ""
-      out.append(.init("by you\(through)", Theme.ink2))
+      out.append(.init("you\(through)", Theme.ink2, lead: "by", face: store.me.isEmpty ? nil : store.me))
     } else {
       // Their picture before the name, as the window's head; a bot has none.
       out.append(.init("\(c.author ?? c.by ?? "")\(c.authorBot == true ? " (bot)" : "")", lead: "by", face: c.authorBot == true ? nil : c.author ?? c.by))
+    }
+    // The AI review's verdict as a tag, filled in the colour of how much it asks of you; then whether it's of an earlier commit.
+    if c.isPR, let verdict = ai?.verdict, let words = Words.verdict[verdict] {
+      out.append(.init(words, tag: verdict == "look" ? Theme.red : verdict == "skim" ? Theme.amber : Theme.green))
+      if aiStale { out.append(.init("on an earlier commit")) }
     }
     // Amber only on yours, where it's work for you; in Merging your agent has it, so it stays pencil.
     if let stage = c.stage {
@@ -493,7 +529,9 @@ struct ItemPage: View {
       }
       if c.inflight == true, c.resolved == nil, let parts = mergingParts(c) { Dotted(parts: parts).sans(13) }
       // Why Approve is off, in the desk's words ("you approved this commit"), as its button's tooltip in the window.
-      if open, c.act(open: open) == "approve", let no = review?.cantApprove { Text(no).sans(13).foregroundStyle(Theme.pencil) }
+      if open, c.act(open: open) == "approve", review?.approve?.approved != true, let no = review?.cantApprove {
+        Text(no).sans(13).foregroundStyle(Theme.pencil)
+      }
       if !c.active, c.resolved == nil {
         Text(Words.capitalized(Words.clearedText(c, now: store.now)) + ".").sans(13).foregroundStyle(Theme.pencil)
       }
@@ -514,7 +552,7 @@ struct ItemPage: View {
   private func bugs(_ r: ReviewView) -> Int { r.aiStale == true ? 0 : r.ai?.concerns?.count ?? 0 }
 
   private func model(_ r: ReviewView) -> DiffModel? {
-    r.order.map { DiffModel($0, guided: reading != "traditional", bugs: bugs(r)) }
+    r.order.map { DiffModel($0, guided: reading != "traditional", bugs: bugs(r)) }  // "conversation", from a launch argument, reads guided
   }
 
   @ViewBuilder
@@ -564,13 +602,6 @@ struct ItemPage: View {
     let can = item?.state == "open" && review.diffHead != nil
     return VStack(alignment: .leading, spacing: 6) {
       stops(diff, Words.plural(review.files.isEmpty ? diff.list.count : review.files.count, "file") + " changed", proxy).id("diff")
-      // A review with steps reads two ways; the choice is this phone's and stays.
-      if !(review.order?.steps ?? []).isEmpty {
-        HStack(spacing: 20) {
-          tab("Guided Review", on: diff.guiding) { read("guided", review, proxy) }
-          tab("Traditional", on: !diff.guiding) { read("traditional", review, proxy) }
-        }
-      }
       DiffView(
         model: diff, files: review.files, conversation: review.conversation,
         sent: Diff.pending(sent, in: review.conversation, me: store.me), github: c.url.flatMap { URL(string: $0 + "/files") },
@@ -578,7 +609,8 @@ struct ItemPage: View {
         notes: review.ai?.notes ?? [], looks: review.aiStale == true ? [] : review.ai?.look ?? [], bugs: bugs(review),
         diagrams: review.ai?.diagrams ?? [],
         show: { proxy.scrollTo($0) }, jump: { reach($0, .top, proxy) },
-        traditional: { read("traditional", review, proxy) }
+        traditional: { read("traditional", review, proxy) },
+        viewed: viewedMarks, mark: c.isPR ? { s, on in markViewed(c, s, on) } : nil
       )
       // Edge to edge: a line's wash runs the page's width, its text keeps the gutter.
       .padding(.horizontal, -Theme.pad)
@@ -586,10 +618,11 @@ struct ItemPage: View {
   }
 
   // The window's list of files beside a review (with a guide, its steps), folded under the diff's heading: a press
-  // goes there. A file says its level, and has a dot when the AI review has notes in it.
+  // goes there. A file says its level, has a dot when the AI review has notes in it, and a tick once you've viewed it.
   @ViewBuilder
   private func stops(_ diff: DiffModel, _ heading: String, _ proxy: ScrollViewProxy) -> some View {
     let stops = diff.stops
+    let seen = diff.guiding ? [] : diff.seen(viewedMarks)
     VStack(alignment: .leading, spacing: 0) {
       Button {
         stopsOpen.toggle()
@@ -597,7 +630,7 @@ struct ItemPage: View {
         HStack(alignment: .firstTextBaseline, spacing: 6) {
           Image(systemName: "chevron.right").font(.system(size: 9, weight: .semibold)).foregroundStyle(Theme.pencil)
             .rotationEffect(.degrees(stopsOpen ? 90 : 0)).frame(width: 9).accessibilityHidden(true)
-          Text(heading).sans(12.5, 550).foregroundStyle(Theme.pencil)
+          Text(heading + (seen.isEmpty ? "" : " · \(seen.count) viewed")).sans(12.5, 550).foregroundStyle(Theme.pencil)
           Spacer(minLength: 0)
         }
         .frame(minHeight: 36)
@@ -628,6 +661,7 @@ struct ItemPage: View {
               if let level = stop.level, let word = DiffView.levels[level] {
                 Text(word).sans(12.5).foregroundStyle(level == "look" ? Theme.amber : level == "skim" ? Theme.accentInk : Theme.pencil).fixedSize()
               }
+              if seen.contains(stop.path) { Text("✓").sans(12.5).foregroundStyle(Theme.pencil).accessibilityLabel("viewed") }
             }
             .padding(.leading, 15)
             .frame(minHeight: 40)
@@ -649,10 +683,11 @@ struct ItemPage: View {
     }
   }
 
-  // One of the diff's two orders, as a word: the one on is ink with a rule under it. No box.
-  private func tab(_ name: String, on: Bool, _ press: @escaping () -> Void) -> some View {
+  // One of the tabs, as a word: the one on is ink with a rule under it. No box. Conversation counts those waiting on you.
+  private func tab(_ name: String, count: Int = 0, on: Bool, _ press: @escaping () -> Void) -> some View {
     Button(action: press) {
-      Text(name).sans(14, 600).foregroundStyle(on ? Theme.ink : Theme.pencil)
+      (Text(name).foregroundStyle(on ? Theme.ink : Theme.pencil) + Text(count > 0 ? " \(count)" : "").foregroundStyle(Theme.faint))
+        .sans(14, 600, tabular: true)
         .frame(minHeight: 40)
         .overlay(alignment: .bottom) { (on ? Theme.ink : Color.clear).frame(height: 2).clipShape(Capsule()) }
         .contentShape(Rectangle())
@@ -673,12 +708,28 @@ struct ItemPage: View {
     }
   }
 
-  // The other order, from its top.
+  // One of the diff's orders, from its top.
   private func read(_ how: String, _ review: ReviewView, _ proxy: ScrollViewProxy) {
-    guard reading != how || diff?.guiding != (how == "guided") else { return }
+    let was = onConversation
+    talking = false
+    guard reading != how || diff?.guiding != (how == "guided") else {
+      if was { proxy.scrollTo("tabs", anchor: .top) }
+      return
+    }
     reading = how
     diff = model(review)
-    proxy.scrollTo("diff", anchor: .top)
+    proxy.scrollTo("tabs", anchor: .top)
+  }
+
+  // Viewed folds the file and keeps it folded until a push changes it; the desk keeps the marks, nothing goes to GitHub.
+  // A refusal is Store's bubble, and the tick goes back as the read after it lands.
+  private func markViewed(_ c: Card, _ s: DiffSection, _ on: Bool) {
+    for m in s.marks { marking[m] = on }
+    Task {
+      if await !store.markViewed(c, marks: s.marks, viewed: on) {
+        for m in s.marks where marking[m] == on { marking[m] = nil }
+      }
+    }
   }
 
   // MARK: Its stack
@@ -690,7 +741,9 @@ struct ItemPage: View {
     let list = stack.around(id, all: stackAll)
     VStack(alignment: .leading, spacing: 0) {
       SmallHead(text: "Stack on \(stack.base ?? "its base")")
-      ForEach(list.line) { m in member(m) }
+      // A timeline, as the guide's: a node per PR on a pale line.
+      VStack(alignment: .leading, spacing: 0) { ForEach(list.line) { m in member(m) } }
+        .background(alignment: .leading) { Theme.rule.frame(width: 1).padding(.vertical, 22).padding(.leading, 5.5) }
       if list.more > 0 {
         Button {
           stackAll.toggle()
@@ -713,17 +766,19 @@ struct ItemPage: View {
       if !on { store.path.append(.item(m.id)) }
     } label: {
       HStack(alignment: .firstTextBaseline, spacing: 6) {
-        Text(m.state == "merged" ? "●" : m.state == "closed" ? "×" : "○").font(.system(size: 9)).foregroundStyle(Theme.pencil)
-          .frame(width: 12)
-        Text("#\(String(m.number ?? 0))").sans(13, on ? 600 : 400, tabular: true).foregroundStyle(on ? Theme.ink : Theme.pencil)
-          .fixedSize()
-        Text(m.title ?? "").sans(13, on ? 600 : 400).foregroundStyle(on ? Theme.ink : Theme.ink2).lineLimit(1)
+        Circle().fill(on ? Theme.accent : Theme.ruleStrong).frame(width: on ? 7 : 5, height: on ? 7 : 5)
+          .frame(width: 12).alignmentGuide(.firstTextBaseline) { $0[.bottom] - 1 }
+          .accessibilityHidden(true)
+        Text("#\(String(m.number ?? 0))").sans(13, tabular: true).foregroundStyle(Theme.pencil).fixedSize()
+        Text(m.title ?? "").sans(13).foregroundStyle(on ? Theme.ink : Theme.ink2.opacity(m.state == "open" ? 0.75 : 0.5)).lineLimit(1)
         Spacer(minLength: 6)
-        // Only what's news.
+        // Only what's news: CI failing a red cross, changes asked in amber, approved a green tick.
         if m.state == "open" {
-          if m.ci == "red" { Text("failing").sans(13).foregroundStyle(Theme.red).fixedSize() }
+          if m.ci == "red" { Image(systemName: "xmark").font(.system(size: 11, weight: .bold)).foregroundStyle(Theme.red).accessibilityLabel("CI failing") }
           if m.review == "changes_requested" { Text("changes").sans(13).foregroundStyle(Theme.amber).fixedSize() }
-          if m.review == "approved" { Text("✓").font(.system(size: 12)).foregroundStyle(Theme.green) }
+          if m.review == "approved" { Image(systemName: "checkmark").font(.system(size: 11, weight: .bold)).foregroundStyle(Theme.green).accessibilityLabel("approved") }
+        } else {
+          Text(m.state ?? "").sans(13).foregroundStyle(Theme.pencil).fixedSize()
         }
       }
       .frame(minHeight: 44)
@@ -770,13 +825,17 @@ struct Dotted: View {
     var face: String?  // whose picture goes before the text
     var strong: CGFloat?  // a name: this size at 550
     var mark: Text?  // after the text: a reviewer's tick
-    init(_ text: String, _ color: Color = Theme.pencil, lead: String? = nil, face: String? = nil, strong: CGFloat? = nil, mark: Text? = nil) {
+    var tag: Color?  // drawn as a tag filled with this colour, its words the sheet's
+    init(
+      _ text: String, _ color: Color = Theme.pencil, lead: String? = nil, face: String? = nil, strong: CGFloat? = nil, mark: Text? = nil, tag: Color? = nil
+    ) {
       self.text = text
       self.color = color
       self.lead = lead
       self.face = face
       self.strong = strong
       self.mark = mark
+      self.tag = tag
     }
   }
 
@@ -786,11 +845,17 @@ struct Dotted: View {
     DotFlow {
       ForEach(Array(parts.filter { !$0.text.isEmpty }.enumerated()), id: \.offset) { i, p in
         if i > 0 { Text("·").foregroundStyle(Theme.faint).accessibilityHidden(true) }
+        if let tag = p.tag {
+          Text(p.text).sans(12, 600).foregroundStyle(Theme.sheet).lineLimit(1).fixedSize()
+            .padding(.horizontal, 7).padding(.vertical, 2.5)
+            .background(tag, in: RoundedRectangle(cornerRadius: 5))
+        } else {
         HStack(alignment: .firstTextBaseline, spacing: 0) {
           if let lead = p.lead { Text(lead + " ").foregroundStyle(Theme.pencil).fixedSize() }
           if let face = p.face { Avatar(login: face, size: p.strong.map { $0 + 1 } ?? 14) }
           let words = (Text(p.text).foregroundStyle(p.color) + (p.mark ?? Text(""))).lineSpacing(3).fixedSize(horizontal: false, vertical: true)
           if let size = p.strong { words.sans(size, 550) } else { words }
+        }
         }
       }
     }
@@ -873,26 +938,6 @@ struct SmallHead: View {
   }
 }
 
-// The risk, as the window draws it: three steps, as many lit as it's risky, then the word, in its colour.
-struct RiskMeter: View {
-  let risk: String
-
-  var body: some View {
-    let lit = risk == "high" ? 3 : risk == "medium" ? 2 : 1
-    let color = risk == "high" ? Theme.red : risk == "medium" ? Theme.amber : Theme.green
-    HStack(alignment: .center, spacing: 6) {
-      HStack(spacing: 2) {
-        ForEach(0..<3, id: \.self) { i in
-          RoundedRectangle(cornerRadius: 1).fill(color.opacity(i < lit ? 1 : 0.25)).frame(width: 4, height: 11)
-        }
-      }
-      .accessibilityHidden(true)
-      Text("\(risk) risk").sans(13, risk == "low" ? 500 : 600).foregroundStyle(color)
-    }
-    .fixedSize()
-  }
-}
-
 // A plain button: a hairline edge on the sheet, as the window's.
 struct PlainAct: ButtonStyle {
   func makeBody(configuration: Configuration) -> some View {
@@ -972,3 +1017,35 @@ struct LoadingLines: View {
     .accessibilityHidden(true)
   }
 }
+
+#if DEBUG
+  extension ReviewView {
+    // A review as the mock never sends it, for shots and for trying a state by hand: -said links (a bot's links and images,
+    // a resolved thread, reviews' verdicts), -said none, -approved.
+    func debugging(said: String?, approved: Bool) -> ReviewView {
+      var v = self
+      if approved { v.approve = Allowance(ok: false, reason: "you approved this commit", approved: true) }
+      if said == "none" { v.conversation = [] }
+      if said == "links", let more = try? DeskJSON.decoder().decode([Conversation].self, from: Data(ReviewView.linked.utf8)) {
+        v.conversation += more
+      }
+      return v
+    }
+
+    private static let linked = #"""
+      [
+        {"id": "PRR_marco", "kind": "review", "state": "approved", "url": "https://github.com/acme/api/pull/4127#pullrequestreview-1",
+         "comments": [{"id": "lr1", "author": "marco", "at": "2026-11-16T09:00:00Z",
+           "body": "Looks right to me. See [the planner notes](https://github.com/acme/api/wiki/Planner) for why the budget is per batch.\n\n![lgtm](https://media.githubusercontent.com/lgtm.gif)"}]},
+        {"id": "IC_vercel", "kind": "comment", "url": "https://github.com/acme/api/pull/4127#issuecomment-2",
+         "comments": [{"id": "lc1", "author": "vercel[bot]", "bot": true, "at": "2026-11-16T08:00:00Z",
+           "body": "<!-- vercel-deployment -->\n**The latest updates on your projects.** Learn more about <a href=\"https://vercel.com/docs/git\">Vercel for GitHub</a>.\n\n<a href=\"https://api-git-planner.vercel.app\"><img alt=\"Visit Preview\" src=\"https://vercel.com/button\"></a> <picture><source media=\"(prefers-color-scheme: dark)\" srcset=\"https://codecov.io/dark.svg\"><img alt=\"Coverage 87%\" src=\"https://codecov.io/gh/acme/api/badge.svg\"></picture>\n\nDetails: https://vercel.com/acme/api/4127"}]},
+        {"id": "PRR_sam", "kind": "review", "state": "changes_requested", "url": "https://github.com/acme/api/pull/4127#pullrequestreview-3",
+         "comments": [{"id": "lr2", "author": "sam", "at": "2026-11-16T07:00:00Z", "body": "The count needs a test before this goes in."}]},
+        {"id": "PRRT_done", "kind": "thread", "path": "src/planner/stream.ts", "line": 12, "side": "new", "resolved": true,
+         "url": "https://github.com/acme/api/pull/4127#discussion_r4",
+         "comments": [{"id": "lt1", "author": "kai", "at": "2026-11-15T07:00:00Z", "body": "Should this be a `const`?"}]}
+      ]
+      """#
+  }
+#endif
