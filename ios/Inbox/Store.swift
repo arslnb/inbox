@@ -672,6 +672,7 @@ final class Store {
       var view = try await client.asks()
       #if DEBUG
         if let state = debugAsks { view = view.debugging(state) }
+        if let agent = debugAgent { view.options?.agent = agent }
       #endif
       asks = view
     } catch let e as APIError {
@@ -715,10 +716,10 @@ final class Store {
   }
 
   // How your agent runs, from the chat's own controls: one of AsksView.options' settings (agent.coordinator_bypass,
-  // _model, _effort). The desk's own words when it doesn't take; the chat reads again either way.
+  // _model, _effort). The desk's own words when it doesn't take, said under the chat's box (`whyNot`); the chat reads again either way.
   @discardableResult
   func setAgentOption(_ key: String, _ value: SettingValue) async -> Bool {
-    let took = await write("setting:\(key)") { client in
+    let took = await write("setting:\(key)", bubble: false) { client in
       let r = try await client.setting(key, value)
       if r.ok != true { throw APIError.refused(status: 409, message: r.errors.first?.message ?? "Not saved") }
       return nil
@@ -943,6 +944,7 @@ final class Store {
         path.append(.chat(ChatAbout(item: item.contains("#") ? item : nil)))
       }
       debugAsks = args.string(forKey: "asks")
+      debugAgent = args.string(forKey: "agent")
       showSettings = flags.contains("-settings")
       scrollTo = args.string(forKey: "scrollTo")
       debugBox = args.string(forKey: "box")
@@ -968,6 +970,7 @@ final class Store {
     var debugIssue: String?  // an issue's pre-review as the mock never sends it: see ItemDetail.debugging()
     var debugStep: Int?
     @ObservationIgnored var debugAsks: String?
+    @ObservationIgnored var debugAgent: String?  // the chat's agent as the desk would name another: codex, opencode
     var debugScan: String?  // what the camera would have read: the connect screen takes it once
     @ObservationIgnored var debugFilterFocus = false  // the filter's box takes the cursor, so its suggestions show
     var debugNote: String?  // "new", or a note's id: its box, opened once the desk has answered

@@ -656,6 +656,69 @@ final class FormatTests: XCTestCase {
     XCTAssertEqual(Wait(ask: "b7d3e410", live: mock.coordinator), .step("Searched for idempotency_key"))
   }
 
+  // Its words are on screen above the step line: a step they already hold (whitespace folded, less a trailing …) reads On it.
+  func testTheStepLineHidesWhatItSaid() throws {
+    let live = { (step: String, saying: String) in
+      try self.coordinator(#"{"on":true,"error":null,"status":"busy","queued":[],"activity":["Read app.py",\#(String(decoding: try JSONEncoder().encode(step), as: UTF8.self))],"saying":\#(String(decoding: try JSONEncoder().encode(saying), as: UTF8.self))}"#)
+    }
+    let saying = "The retry wraps the whole handler, so a second\nwebhook can double-charge.\n\nChecking the key next."
+    XCTAssertEqual(Wait(ask: "a1", live: try live("The retry wraps the whole handler, so a second webhook can double-charge.", saying)), .onIt)
+    XCTAssertEqual(Wait(ask: "a1", live: try live("Checking the key next\u{2026}", saying)), .onIt)
+    XCTAssertEqual(Wait(ask: "a1", live: try live("Searched for idempotency_key", saying)), .step("Searched for idempotency_key"))
+    XCTAssertEqual(Wait(ask: "a1", live: try live("Read app.py", "")), .step("Read app.py"), "nothing said yet")
+    let mock: AsksView = try Fixture.decode("asks")
+    XCTAssertEqual(Wait.said("Searched for idempotency_key", in: mock.coordinator?.saying ?? ""), false)
+    XCTAssertEqual(Wait.said("Checking how the idempotency key is read", in: mock.coordinator?.saying ?? ""), true)
+  }
+
+  // How each agent runs, as the chat's menus offer it (Chat.tsx's AGENT): its name, its words, its models and efforts.
+  func testTheAgentTable() {
+    let claude = AgentKind.of("claude-code")
+    XCTAssertEqual(claude.name, "Claude Code")
+    XCTAssertEqual(claude.run, ["Ask first", "Bypass permissions"])
+    XCTAssertEqual(claude.models(""), [
+      .init(value: "", label: "Default model"), .init(value: "fable", label: "Fable"), .init(value: "opus", label: "Opus"),
+      .init(value: "sonnet", label: "Sonnet"), .init(value: "haiku", label: "Haiku"),
+    ])
+    XCTAssertEqual(claude.efforts("").map(\.label), ["Default effort", "Low", "Medium", "High", "Xhigh", "Max"])
+    XCTAssertEqual(AgentKind.of(nil), claude, "an older desk names none: Claude Code")
+    let codex = AgentKind.of("codex")
+    XCTAssertEqual([codex.name] + codex.run, ["Codex", "Workspace only", "Full access"])
+    XCTAssertEqual(codex.models("").map(\.label), ["Default model"])
+    XCTAssertEqual(codex.efforts("high").map(\.label), ["Default effort", "Low", "Medium", "High", "Xhigh"])
+    let opencode = AgentKind.of("opencode")
+    XCTAssertEqual([opencode.name] + opencode.run, ["OpenCode", "Refuse what asks", "Approve what asks"])
+    XCTAssertTrue(opencode.efforts.isEmpty, "no effort menu on OpenCode")
+    // A typed model is listed as typed, after the ones it knows; a trigger says a word for the default.
+    let typed = claude.models("claude-opus-4-5")
+    XCTAssertEqual(typed.last, .init(value: "claude-opus-4-5", label: "claude-opus-4-5"))
+    XCTAssertEqual(AgentKind.said(typed, value: "claude-opus-4-5", none: "Model"), "claude-opus-4-5")
+    XCTAssertEqual(AgentKind.said(typed, value: "opus", none: "Model"), "Opus")
+    XCTAssertEqual(AgentKind.said(typed, value: "", none: "Model"), "Model")
+    XCTAssertEqual(AgentKind.said(codex.efforts("high"), value: "high", none: "Effort"), "High")
+  }
+
+  // Each agent's mark is drawn from the window's path in its 24×24 box.
+  func testTheAgentMarks() {
+    for agent in ["claude-code", "codex", "opencode"] {
+      let box = AgentMark(agent: agent).path(in: CGRect(x: 0, y: 0, width: 24, height: 24)).boundingRect
+      XCTAssertGreaterThanOrEqual(box.width, 16, agent)
+      XCTAssertGreaterThanOrEqual(box.height, 15, agent)
+      XCTAssertTrue(CGRect(x: -0.01, y: -0.01, width: 24.02, height: 24.02).contains(box), "\(agent): \(box)")
+    }
+    XCTAssertEqual(AgentMark(agent: "claude-code").path(in: CGRect(x: 0, y: 0, width: 24, height: 24)).boundingRect, CGRect(x: 0, y: 5, width: 24, height: 15))
+    // Codex's arcs reach its round edge on every side.
+    let codex = AgentMark(agent: "codex").path(in: CGRect(x: 0, y: 0, width: 24, height: 24)).boundingRect
+    XCTAssertEqual(codex.minX, 0, accuracy: 0.2)
+    XCTAssertEqual(codex.maxX, 24, accuracy: 0.2)
+    XCTAssertEqual(codex.minY, 0, accuracy: 0.2)
+    XCTAssertEqual(codex.maxY, 24, accuracy: 0.2)
+    // Opencode's: an outer frame with a hole; the hole is even-odd, so its centre isn't filled.
+    let opencode = AgentMark(agent: "opencode").path(in: CGRect(x: 0, y: 0, width: 24, height: 24))
+    XCTAssertTrue(opencode.contains(CGPoint(x: 5, y: 12), eoFill: true))
+    XCTAssertFalse(opencode.contains(CGPoint(x: 12, y: 12), eoFill: true))
+  }
+
   // Under your words: when, the item, and where in it.
   func testAnAsksMetaLine() throws {
     let ask = { (more: String) in
@@ -681,8 +744,8 @@ final class FormatTests: XCTestCase {
     let fresh = try DeskJSON.decoder().decode(Ask.self, from: Data(#"{"id":"a2","at":"\#(back(0.005))","text":"t"}"#.utf8))
     XCTAssertEqual(Asking.meta(fresh, now: now, agent: "Claude"), ["just now"])
     XCTAssertEqual(Asking.shortId("me/notes-app#12"), "notes-app#12")
-    XCTAssertEqual(Asking.empty("acme/api#4127"), "Ask or tell it something about api#4127: it answers here.")
-    XCTAssertEqual(Asking.empty(nil), "Ask or tell it something: it answers here.")
+    XCTAssertEqual(Asking.placeholder("acme/api#4127"), "Ask or tell it something about api#4127")
+    XCTAssertEqual(Asking.placeholder(nil), "Ask or tell it something")
     XCTAssertEqual(Asking.off, "Your agent is off in Settings → Agent, so nothing is sent.")
   }
 

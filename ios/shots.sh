@@ -119,6 +119,9 @@ wanted chat-item && shot chat-item -deskURL "$DESK" -chat "me/notes-app#12"
 wanted chat-empty && shot chat-empty -deskURL "$DESK" -chat "acme/api#4127" -asks empty
 wanted chat-off && shot chat-off -deskURL "$DESK" -chat none -asks off
 wanted chat-stopped && shot chat-stopped -deskURL "$DESK" -chat none -asks stopped
+# The same chat with your agent as Codex and as OpenCode: its name and mark, its own words for how it runs.
+wanted chat-codex && shot chat-codex -deskURL "$DESK" -chat none -agent codex
+wanted chat-opencode && shot chat-opencode -deskURL "$DESK" -chat "acme/api#4127" -asks empty -agent opencode
 wanted chat-large && shot chat-large -deskURL "$DESK" -chat "me/notes-app#12" \
   -UIPreferredContentSizeCategoryName UICTContentSizeCategoryAccessibilityL
 wanted item-pr && shot item-pr -deskURL "$DESK" -open "acme/api#4127"

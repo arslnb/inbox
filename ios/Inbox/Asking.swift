@@ -48,6 +48,7 @@ enum Wait: Equatable, Sendable {
   case onIt
   case stopped
 
+  // Its step line says only a tool it's using: a step already in what it's said so far (`saying`) reads as On it.
   init(ask: String, live: InflightView.Coordinator?) {
     guard let live else {
       self = .answer
@@ -60,13 +61,21 @@ enum Wait: Equatable, Sendable {
       self = .permission
     } else if live.queued?.contains(ask) == true {
       self = .queued
-    } else if working, let now = live.activity?.last, !now.isEmpty {
+    } else if working, let now = live.activity?.last, !now.isEmpty, !Wait.said(now, in: live.saying ?? "") {
       self = .step(now)
     } else if working {
       self = .onIt
     } else {
       self = .stopped
     }
+  }
+
+  // Chat.tsx's: its words whitespace-folded hold the step, less a trailing ellipsis.
+  static func said(_ step: String, in saying: String) -> Bool {
+    if saying.isEmpty { return false }
+    let folded = saying.replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+    let bare = step.hasSuffix("\u{2026}") ? String(step.dropLast()) : step
+    return folded.contains(bare)
   }
 
   var words: String {
@@ -112,8 +121,9 @@ enum Asking {
     id.replacingOccurrences(of: #"^[^/]+/"#, with: "", options: .regularExpression)
   }
 
-  static func empty(_ item: String?) -> String {
-    item.map { "Ask or tell it something about \(shortId($0)): it answers here." } ?? "Ask or tell it something: it answers here."
+  // The box's own words while it's empty: with nothing asked yet, they're all the page says.
+  static func placeholder(_ item: String?) -> String {
+    item.map { "Ask or tell it something about \(shortId($0))" } ?? "Ask or tell it something"
   }
 
   // "plan.ts:20–23", ", removed" for a removed line (view.ts's lineName() and linesLabel()).
@@ -175,4 +185,43 @@ enum Asking {
   }
 
   static func canRetry(_ w: Work) -> Bool { w.state == "failed" && w.kind != "answer" }
+}
+
+// How your agent runs, as the chat's menus offer it (Chat.tsx's AGENT): its name, how freely it runs in its own words,
+// the models it lists and its levels of effort (none on OpenCode). Every agent takes a typed model.
+struct AgentKind: Equatable, Sendable {
+  let name: String
+  let run: [String]  // bypass off, then on
+  let models: [String]
+  let efforts: [String]
+
+  static func of(_ agent: String?) -> AgentKind {
+    switch agent {
+    case "codex": AgentKind(name: "Codex", run: ["Workspace only", "Full access"], models: [], efforts: ["low", "medium", "high", "xhigh"])
+    case "opencode": AgentKind(name: "OpenCode", run: ["Refuse what asks", "Approve what asks"], models: [], efforts: [])
+    default:
+      AgentKind(
+        name: "Claude Code", run: ["Ask first", "Bypass permissions"], models: ["fable", "opus", "sonnet", "haiku"],
+        efforts: ["low", "medium", "high", "xhigh", "max"])
+    }
+  }
+
+  struct Choice: Equatable, Sendable {
+    let value: String
+    let label: String
+  }
+
+  // A menu's choices: its own default ("") first, then what it lists, then the value in force if it lists none such.
+  static func choices(_ known: [String], current: String, none: String) -> [Choice] {
+    let values = known + (current.isEmpty || known.contains(current) ? [] : [current])
+    return [Choice(value: "", label: none)] + values.map { Choice(value: $0, label: known.contains($0) ? $0.prefix(1).uppercased() + $0.dropFirst() : $0) }
+  }
+
+  // What a trigger says: the pick's label, or a word for the agent's own default, so the three fit a narrow line.
+  static func said(_ choices: [Choice], value: String, none: String) -> String {
+    value.isEmpty ? none : choices.first { $0.value == value }?.label ?? value
+  }
+
+  func models(_ current: String) -> [Choice] { AgentKind.choices(models, current: current, none: "Default model") }
+  func efforts(_ current: String) -> [Choice] { AgentKind.choices(efforts, current: current, none: "Default effort") }
 }

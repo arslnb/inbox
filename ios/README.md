@@ -74,6 +74,7 @@ xcrun simctl launch booted dev.inbox.ios -deskURL http://localhost:47841 -page m
 | `-issue running\|again\|failed\|stale\|none\|off\|injection\|blocked` | with `-open`: an issue's pre-review in a state the mock never sends     |
 | `-step <n>`                                    | with `-open`: an issue's walk at its nth step                           |
 | `-chat <owner/repo#n>\|none`                   | Ask your agent, about that item or nothing                              |
+| `-agent codex\|opencode`                       | with `-chat`: your agent as the desk would name another (its name, mark and menus); the mock's is Claude Code |
 | `-asks empty\|off\|on\|waiting\|queued\|onit\|stopped\|error\|none` | with `-chat`: the chat as the mock never sends it: nothing asked, your agent off (`on`: drawn as on though the desk says off, so a send is refused), and each thing it can be doing about the last ask |
 | `-filter "<text>" [-filterFocus]`              | the lists' filter as typed (`"author:dana "`: a term then a space is a pill); with the cursor in its box, so its suggestions show |
 | `-note new\|<note id>`                         | the note box: a new note, or that one opened (the mock's are `n1`, `n2`, `n3`) |
@@ -95,9 +96,11 @@ It builds, installs on the booted simulator, starts the mock on port 47841 (and 
 keeps), `inbox-filter-large` (the same at an accessibility text size), `inbox-fyi` (FYI's first five and Show 3 more),
 `blocked` (its tree's guides), `blocked-filter` (flat, "4 of 11"), `merging` (your agent's line with Wake it),
 `merging-work` (Claude's work: two reviews being written, your ask, a failed review with Try again, an answer nobody
-picked up), `chat` (Ask your agent: your asks and its answers, and what it's on under the last), `chat-item` (about a
-PR: its ref and ×, your agent's open question above the box), `chat-empty`, `chat-off`, `chat-stopped` (Wake it),
-`chat-large` (an accessibility text size), `archive`,
+picked up), `chat` (Ask your agent: Claude Code's name and mark, your asks and its answers, what it's said so far and
+what it's on under the last, how it runs by Send), `chat-item` (about a PR: its ref and ×, your agent's open question
+above the box), `chat-empty` (nothing asked: the box takes the page), `chat-off`, `chat-stopped` (Wake it),
+`chat-codex` and `chat-opencode` (their names, marks and words for how they run; no effort on OpenCode), `chat-large`
+(an accessibility text size: how it runs takes a line above Back and Send), `archive`,
 `archive-filter`, `note-new` and `note-edit` (the note box), `item-pr` (with an AI review, folded, and its State; Approve), `item-pr-ai-open` (a
 review with a goal, its fold opened), `item-pr-guided` (a step of the guide, its diagram as text), `item-pr-guided-note`
 (Look here and a potential bug under their line), `item-pr-guided-end` (the last step, its test file folded, the guide's
@@ -117,7 +120,8 @@ Look at them after any change here, as `npm run shots` is looked at for the wind
 title is 500, a heading 650, a row's facts 400), the facts line when it runs out of room, both appearances, and the top
 and bottom edges: an opened page has no navigation bar, so its first line sits under the status bar and its bar at the
 foot stays on one line. What a shot can't show (the page menu with New note and Ask your agent, which reads "Your agent · waiting" while your
-latest ask has no answer; a send and its answer landing, Copy on a code block, the chat's ×, a row's swipe and long press and each entry of its menu, the More
+latest ask has no answer; a send and its answer landing, Copy on a code block, the chat's ×, its menus open, Another
+model…'s field, a pick saved or refused, Expand the box, an answer's long press, a row's swipe and long press and each entry of its menu, the More
 menu, Show more, a pick from the filter's suggestions and Backspace on a pill, the reminder's menu and its date picker,
 Wake it, a write and its toast or refusal, the toast's Undo, pull to refresh, and the swipe back from the left edge on each opened page, which
 `Views/Acting.swift` keeps alive with the bar hidden), try by hand against the mock.
@@ -293,23 +297,38 @@ merge, where Snooze does); More is its three dots only where it doesn't fit even
     review, your chat or the question. **Try again**, under a failed review or ask, is its own press: a review is
     asked for again (`POST /api/review/:id/ai`, said at once, never waited for), an ask is handed to your agent again
     (`POST /api/coordinator/wake { ask }`). An answer has none: only the session that asked can read it.
-- **Ask your agent.** The window's chat (`Chat.tsx`) as a page: "Your agent", the item it's about and × (ask about
-  nothing in particular). One conversation, every ask oldest first: your words; when, its item (a press opens it)
-  and "on plan.ts:20–23" or "on a thread"; then the answer and its time. An answer is your agent's words, drawn as
-  text: paragraphs, lists, bold, `code`, a code block on the sheet with **Copy** (it keeps its fence, to paste on
-  GitHub); a URL is shown, never a link. Under the last ask without an answer, what your agent is doing: "Waiting on
-  a permission prompt" (Answer it on claude.ai), "Queued: it gets this when it's done with what it's on", its latest
-  step in its own words or "On it", "It can't run: …" in red, or "It stopped without answering" with **Wake it**
-  (then "Asked it again"); Watch it on claude.ai where it has a page. Above the box: your agent's open questions
-  about the item (Answer opens the question) and the spot the next ask carries ("On azulus's thread on
-  src/sync/merge.ts:88", × for the whole PR). The box: "Ask or tell it something" and **Send**; what you typed and
-  didn't send is kept per item. A refusal puts your words back with the desk's own in red (`Store.askFailed`), before
-  anything you typed meanwhile; if you'd left the chat by then, a bubble says why and its draft has them. Your agent off: the page
-  says so and the box is off. It opens from the page menu (**Ask your agent**, or **Your agent · waiting** while your
-  latest ask has no answer; not with your agent off), an item's More, a conversation or a thread on a line, a
-  line's box, a row of your agent's work, and after Make PR with fix. Opening it only reads (`GET /api/asks`, again
-  on each of the desk's updates, no timer); **Send and Wake it each spend a turn of your agent on your own Claude**,
-  so only a press sends one, and a second press while one is on its way sends nothing.
+- **Ask your agent.** The window's chat (`Chat.tsx`) as a page. Its head: your agent's own name and mark (Claude Code,
+  Codex, OpenCode: `AsksView.options.agent`; "Your agent" until the desk has answered), the item it's about and ×
+  (ask about nothing in particular). One conversation, every ask oldest first: your words; when, its item (a press
+  opens it) and "on plan.ts:20–23" or "on a thread"; then the answer and its time. An answer is your agent's words,
+  drawn as text: paragraphs, lists, bold, `code`, a code block on the sheet with **Copy** (it keeps its fence, to paste
+  on GitHub); a URL is shown, never a link. A long press on an answer is its tools, the window's at its foot: **Copy
+  this answer** and **Go to what you asked**. Under the last ask without an answer, what your agent has said so far this
+  turn (`coordinator.saying`, a message at a time, a shade quieter than an answer; the answer takes its place), then
+  what it's doing: "Waiting on a permission prompt" (Answer it on claude.ai), "Queued: it gets this when it's done with
+  what it's on", its latest step in its own words or "On it" (a step its words above already hold reads as On it,
+  `Wait.said()`), "It can't run: …" in red, or "It stopped without answering" with **Wake it** (then "Asked it
+  again"); Watch it on claude.ai where it has a page. Above the box: your agent's open questions about the item (Answer
+  opens the question) and the spot the next ask carries ("On azulus's thread on src/sync/merge.ts:88", × for the whole
+  PR). The box has no frame: you write on the page ("Ask or tell it something about api#4127"). With nothing asked yet
+  it takes the page, you write at its top and its controls keep the foot; with a conversation it sits at the foot, and
+  its corner expands it over the log and shrinks it back (Send shrinks it). Under it: Back, **how your agent runs**,
+  and Send (the accent's square with a paper plane). How it runs is the window's three menus, the same settings as
+  Settings → Agent (`agent.coordinator_bypass`, `_model`, `_effort`), each saved the moment it's picked
+  (`Store.setAgentOption()`, `PUT /api/settings`) with the one in force ticked: how freely it runs in its own words
+  (Ask first or Bypass permissions; Codex: Workspace only or Full access; OpenCode: Refuse what asks or Approve what
+  asks), its model ("Model" while it's the agent's default; Claude Code lists Fable, Opus, Sonnet and Haiku; **Another
+  model…** opens a field for any name its command takes) and its effort ("Effort" while default; Low to Max, Xhigh on
+  Codex; none on OpenCode). A pick shows at once; one the desk refuses goes back, its words in red under the box. Where
+  they don't fit beside Send (a long model's name, large text) they take a line of their own above Back and Send. What
+  you typed and didn't send is kept per item. A refusal puts your words back with the desk's own in red
+  (`Store.askFailed`), before anything you typed meanwhile; if you'd left the chat by then, a bubble says why and its
+  draft has them. Your agent off: the box is off and says so in place of the menus. It opens from the page menu (**Ask
+  your agent**, or **Your agent · waiting** while your latest ask has no answer; not with your agent off), an item's
+  More, a conversation or a thread on a line, a line's box, a row of your agent's work, and after Make PR with fix.
+  Opening it only reads (`GET /api/asks`, again on each of the desk's updates, no timer); **Send and Wake it each spend
+  a turn of your agent on your own Claude**, so only a press sends one, and a second press while one is on its way
+  sends nothing. A pick in the menus starts no turn: it changes how the next one runs.
 - **Notes.** A note leads the section you put it in: a due reminder, then Urgent's notes, lead Urgent (after the
   questions and sessions), Standard's lead Standard and FYI's lead FYI, each counted in its heading. Its row (Note, its
   words, Done, "at Tue 9:00" or "by you") opens its box: your words, **In** (Urgent, Standard or FYI; Standard for a
@@ -361,7 +380,8 @@ fix the chat opens on the issue, as the window's (`Store.askedAbout()`): the des
 Left out on purpose, each said here once.
 
 - **Settings' editors** (rules, automations, urgency criteria, themes, network, agents): configuration is done at the
-  desk's computer; the phone only renders the desk's state, in the default light and dark.
+  desk's computer; the phone only renders the desk's state, in the default light and dark. The one exception is the
+  chat's own menus for how your agent runs (its run mode, model and effort), as the window's chat has them by Send.
 - **The first run** (connecting GitHub, picking your agent): it sets up the desk's own machine, so it happens there.
   A phone paired before it was finished (`desk pair` doesn't check) shows the lists with a bubble, "The desk isn't
   set up yet", saying to finish it on the computer (`GET /api/setup`, asked once per connection and then on each read
@@ -410,6 +430,10 @@ Left out on purpose, each said here once.
   slow over a tailnet when measured.
 - **Asking for an AI review of your own PR that has none** (the window's More): yours shows one only once it exists.
 - **Links in your agent's answers**: a URL in the chat is text to read, not a link to follow.
+- **The chat following your agent's words as they come** (the window's, unless you've scrolled up): the page stays on
+  the newest turn's top, so a long answer being written never pulls the page from under your reading.
+- **Go to the top of the conversation** (an answer's third tool): the status bar's tap does it. The chat's Close icon
+  and its keys (Enter, Shift+Enter, Esc) are the window's; here it's Back, the swipe back and Send.
 
 Not built at all: notifications, an iPad layout.
 
@@ -429,7 +453,7 @@ Not built at all: notifications, an iPad layout.
 | Notes                                       | `Inbox/Views/NoteSheet.swift`; their places in `InboxList` and their menu in `NoteLine` (`DeskView.swift`); `Remind`, `Lists.moves(_:now:)` in `Format.swift`; `Store.saveNote()`, `doneNote()`, `noting` |
 | People's pictures                           | `Avatar` in `Inbox/Views/Rows.swift`; whose: `Card.face`, `Standings.Standing.face`, `WhoLine` |
 | Wake it                                     | `Store.wake()`, `APIClient.wake()`                                                     |
-| Ask your agent (the chat)                   | `Inbox/Views/Chat.swift` (`ChatPage`); what it's about, its words and the waiting line: `ChatAbout`, `Wait`, `Asking` in `Inbox/Asking.swift` (Chat.tsx's); `Store.asks`, `readAsks()`, `ask()`, `wake(ask:toast:)`, `openChat()`, `askDrafts`; `APIClient.asks()`, `ask()`; `AsksView` in `Models.swift`; the route is `Route.chat` |
+| Ask your agent (the chat)                   | `Inbox/Views/Chat.swift` (`ChatPage`); what it's about, its words and the waiting line: `ChatAbout`, `Wait`, `Asking` in `Inbox/Asking.swift` (Chat.tsx's); how it runs: `AgentKind` there (Chat.tsx's `AGENT`), `Store.setAgentOption()`; the marks: `Inbox/Views/AgentMark.swift`; `Store.asks`, `readAsks()`, `ask()`, `wake(ask:toast:)`, `openChat()`, `askDrafts`; `APIClient.asks()`, `ask()`; `AsksView` in `Models.swift`; the route is `Route.chat` |
 | Where the chat opens from                   | the page menu in `DeskView.swift`; More, `asking()` and `askLine()` in `ItemPage.swift`; `SaidActions` (`ask`); `WriteSheet`'s `aside`; `Store.askedAbout()` |
 | An agent's answer as text                   | `Blocks.parse()`, `inline()`, `fencedCopy()` in `Inbox/Blocks.swift` (the twins of `src/prose.ts`); drawn by `ProseBlocks` in `Chat.swift` |
 | What a reviewer wrote, as blocks            | `Blocks.said()` in `Inbox/Blocks.swift` (`saidBlocks()` in `src/prose.ts`); drawn by `SaidText` in `Said.swift`      |

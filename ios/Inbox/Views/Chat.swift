@@ -3,15 +3,21 @@ import UIKit
 
 // Ask your agent: your chat with the coordinator, as the window's (web/src/components/Chat.tsx). One conversation,
 // every ask oldest first, each with what it was about and its answer; under the last one it hasn't answered, what it's
-// doing. Opening it reads GET /api/asks and nothing else; only Send and Wake it spend a turn of your agent. Its
-// answers are an agent's words: drawn as text (ProseBlocks), never markup.
+// said so far and what it's doing. Opening it reads GET /api/asks and nothing else; only Send and Wake it spend a turn
+// of your agent. Its answers are an agent's words: drawn as text (ProseBlocks), never markup.
 struct ChatPage: View {
   @Environment(Store.self) private var store
   @Environment(\.openURL) private var openURL
   @State private var about: ChatAbout
   @State private var text = ""
   @State private var woke: String?  // what Wake it came to
+  @State private var tall = false  // the box over the log, to write at length
+  @State private var picked: [String: String] = [:]  // a menu's pick, until the desk says it back
+  @State private var unsaved: String?  // why the desk didn't take a pick, in its words
+  @State private var naming = false  // Another model…'s field
+  @State private var named = ""
   @FocusState private var typing: Bool
+  @ScaledMetric(relativeTo: .body) private var mark: CGFloat = 17
 
   init(about: ChatAbout) { _about = State(initialValue: about) }
 
@@ -19,36 +25,28 @@ struct ChatPage: View {
   private var failed: String? { store.askFailed[key] }  // why the last send wasn't taken, in the desk's words
   private var off: Bool { store.asks?.on == false }
   private var sending: Bool { store.busy(Store.chat) }
+  private var asks: [Ask] { store.asks?.asks ?? [] }
+  // Nothing asked yet, or the box expanded: it takes the page, you write at its top and its controls keep the foot.
+  private var fill: Bool { (store.asks != nil && asks.isEmpty) || tall }
+  private var kind: AgentKind { AgentKind.of(store.asks?.options?.agent) }
 
   var body: some View {
-    let asks = store.asks?.asks ?? []
-    ScrollViewReader { proxy in
-      ScrollView {
-        VStack(alignment: .leading, spacing: 18) {
-          if !asks.isEmpty {
-            ForEach(Array(asks.enumerated()), id: \.element.id) { i, a in turn(a, last: i == asks.count - 1).id(a.id) }
-          } else if off {
-            Text(Asking.off).sans(13).foregroundStyle(Theme.pencil).lineSpacing(3)
-          } else if store.asks != nil {
-            Text(Asking.empty(about.item)).sans(13).foregroundStyle(Theme.pencil).lineSpacing(3)
+    Group {
+      if fill {
+        ScrollView {
+          VStack(alignment: .leading, spacing: 6) {
+            hints
+            field
           }
+          .padding(.horizontal, Theme.pad)
+          .padding(.top, 10)
+          .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding(.horizontal, Theme.pad)
-        .padding(.vertical, 16)
-        .frame(maxWidth: .infinity, alignment: .leading)
-      }
-      .scrollDismissesKeyboard(.interactively)
-      // The newest turn's top: your words and the answer's lead, not the end of a long answer.
-      .onChange(of: "\(asks.count) \(asks.filter { $0.answer != nil }.count) \(failed ?? "")", initial: true) {
-        guard let last = asks.last else { return }
-        proxy.scrollTo(last.id, anchor: .top)
-        // Again once it's laid out: the first go lands where the turn was guessed to be.
-        Task {
-          for wait in [80, 300] {
-            try? await Task.sleep(for: .milliseconds(wait))
-            proxy.scrollTo(last.id, anchor: .top)
-          }
-        }
+        .scrollDismissesKeyboard(.interactively)
+        .contentShape(Rectangle())
+        .onTapGesture { if !off { typing = true } }
+      } else {
+        log
       }
     }
     .safeAreaInset(edge: .top, spacing: 0) { head }
@@ -72,13 +70,33 @@ struct ChatPage: View {
       }
       await store.readAsks()
     }
+    .alert("Another model", isPresented: $naming) {
+      TextField("Another model", text: $named).textInputAutocapitalization(.never).autocorrectionDisabled()
+      Button("Cancel", role: .cancel) {}
+      Button("Save") {
+        let model = named.trimmingCharacters(in: .whitespacesAndNewlines)
+        if !model.isEmpty { save("agent.coordinator_model", "model", .text(model), shown: model) }
+      }
+    } message: {
+      Text("Its name as \(kind.name)'s own command takes it.")
+    }
   }
 
   // MARK: Its head
 
+  // Your agent's own name and mark, once the desk has said which it is.
   private var head: some View {
-    HStack(alignment: .firstTextBaseline, spacing: 10) {
-      Text("Your agent").sans(16, 650, tracking: -0.01).foregroundStyle(Theme.ink).fixedSize()
+    HStack(alignment: .center, spacing: 10) {
+      if let agent = store.asks?.options?.agent {
+        HStack(spacing: 7) {
+          AgentMark(agent: agent).fill(Theme.ink, style: FillStyle(eoFill: true)).frame(width: mark, height: mark)
+            .accessibilityHidden(true)
+          Text(AgentKind.of(agent).name).sans(16, 650, tracking: -0.01).foregroundStyle(Theme.ink)
+        }
+        .fixedSize()
+      } else {
+        Text("Your agent").sans(16, 650, tracking: -0.01).foregroundStyle(Theme.ink).fixedSize()
+      }
       if let item = about.item {
         Text(Asking.shortId(item)).sans(13, tabular: true).foregroundStyle(Theme.pencil).lineLimit(1).truncationMode(.middle)
         drop("Ask about nothing in particular")
@@ -112,7 +130,33 @@ struct ChatPage: View {
 
   // MARK: The log
 
-  private func turn(_ a: Ask, last: Bool) -> some View {
+  private var log: some View {
+    ScrollViewReader { proxy in
+      ScrollView {
+        VStack(alignment: .leading, spacing: 18) {
+          ForEach(Array(asks.enumerated()), id: \.element.id) { i, a in turn(a, last: i == asks.count - 1, proxy).id(a.id) }
+        }
+        .padding(.horizontal, Theme.pad)
+        .padding(.vertical, 16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+      }
+      .scrollDismissesKeyboard(.interactively)
+      // The newest turn's top: your words and the answer's lead, not the end of a long answer.
+      .onChange(of: "\(asks.count) \(asks.filter { $0.answer != nil }.count) \(failed ?? "")", initial: true) {
+        guard let last = asks.last else { return }
+        proxy.scrollTo(last.id, anchor: .top)
+        // Again once it's laid out: the first go lands where the turn was guessed to be.
+        Task {
+          for wait in [80, 300] {
+            try? await Task.sleep(for: .milliseconds(wait))
+            proxy.scrollTo(last.id, anchor: .top)
+          }
+        }
+      }
+    }
+  }
+
+  private func turn(_ a: Ask, last: Bool, _ proxy: ScrollViewProxy) -> some View {
     VStack(alignment: .leading, spacing: 6) {
       Text(a.text ?? "").sans(14).foregroundStyle(Theme.ink).lineSpacing(3)
         .padding(.horizontal, 10).padding(.vertical, 6)
@@ -121,12 +165,38 @@ struct ChatPage: View {
         .frame(maxWidth: .infinity, alignment: .trailing)
       meta(a).frame(maxWidth: .infinity, alignment: .trailing)
       if let answer = a.answer {
-        ProseBlocks(text: answer.text ?? "")
-        Text(Words.sinceText(answer.at, now: store.now)).sans(12.5, tabular: true).foregroundStyle(Theme.pencil)
+        answered(answer, to: a.id, proxy)
       } else if last {
+        // What it's said so far, a message at a time, until its answer takes its place: a shade quieter than an answer.
+        if let saying = store.asks?.coordinator?.saying, !saying.isEmpty {
+          ProseBlocks(blocks: Blocks.parse(saying), color: Theme.ink2)
+        }
         waiting(a)
       }
     }
+  }
+
+  // An answer and when; its tools (the window's at its foot) are its long press.
+  private func answered(_ answer: Ask.Answer, to ask: String, _ proxy: ScrollViewProxy) -> some View {
+    let words = answer.text ?? ""
+    let copy = {
+      UIPasteboard.general.string = words
+      store.flash("Copied the answer")
+    }
+    return VStack(alignment: .leading, spacing: 6) {
+      ProseBlocks(text: words)
+      Text(Words.sinceText(answer.at, now: store.now)).sans(12.5, tabular: true).foregroundStyle(Theme.pencil)
+    }
+    .contentShape(Rectangle())
+    .contextMenu {
+      Button(action: copy) { Label("Copy this answer", systemImage: "doc.on.doc") }
+      Button {
+        withAnimation { proxy.scrollTo(ask, anchor: .top) }
+      } label: {
+        Label("Go to what you asked", systemImage: "arrow.up")
+      }
+    }
+    .accessibilityAction(named: "Copy this answer", copy)
   }
 
   // When, then what it was about: its item (a press opens it), the lines, the thread (on GitHub).
@@ -196,63 +266,143 @@ struct ChatPage: View {
 
   // MARK: The box
 
-  // Your agent's open questions about the item, the spot the next ask carries, then Back, the field and Send.
-  private var box: some View {
+  // Your agent's open questions about the item, and the spot the next ask carries.
+  private var hints: some View {
     let questions = (store.queue?.inquiries ?? []).filter { Words.isCoordinator($0.from) && $0.itemId == about.item && $0.answer == nil && !store.leaving.contains($0.id) }
-    let empty = text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-    return VStack(spacing: 0) {
-      NoticeStack()
-      VStack(alignment: .leading, spacing: 6) {
-        ForEach(questions) { q in
-          HStack(alignment: .firstTextBaseline, spacing: 0) {
-            Text("Your agent asks: \(q.question ?? "")").lineLimit(1)
-            Text("·").foregroundStyle(Theme.faint).padding(.horizontal, 6)
-            Button {
-              store.path.append(.inquiry(q.id))
-            } label: {
-              Text("Answer").underline(color: Theme.ruleStrong).foregroundStyle(Theme.ink2).fixedSize().contentShape(Rectangle().inset(by: -10))
-            }
-            .buttonStyle(.plain)
-          }
-        }
-        if let spot = about.spot {
-          HStack(alignment: .firstTextBaseline, spacing: 4) {
-            Text("On \(spot)").lineLimit(1).truncationMode(.middle)
-            drop("Ask about the whole PR instead")
-          }
-        }
-        if off, !(store.asks?.asks ?? []).isEmpty { Text(Asking.off).fixedSize(horizontal: false, vertical: true) }
-        if let failed { Text(failed).foregroundStyle(Theme.red).fixedSize(horizontal: false, vertical: true) }
-        HStack(alignment: .bottom, spacing: 8) {
+    return VStack(alignment: .leading, spacing: 6) {
+      ForEach(questions) { q in
+        HStack(alignment: .firstTextBaseline, spacing: 0) {
+          Text("Your agent asks: \(q.question ?? "")").lineLimit(1)
+          Text("·").foregroundStyle(Theme.faint).padding(.horizontal, 6)
           Button {
-            if !store.path.isEmpty { store.path.removeLast() }
+            store.path.append(.inquiry(q.id))
           } label: {
-            Image(systemName: "chevron.left").font(.system(size: 17, weight: .semibold)).foregroundStyle(Theme.ink2)
-              .frame(width: 26, height: 40, alignment: .leading)
-              .contentShape(Rectangle().inset(by: -10))
+            Text("Answer").underline(color: Theme.ruleStrong).foregroundStyle(Theme.ink2).fixedSize().contentShape(Rectangle().inset(by: -10))
           }
           .buttonStyle(.plain)
-          .accessibilityLabel("Back")
-          TextField(off ? "Your agent is off" : "Ask or tell it something", text: $text, axis: .vertical)
-            .sans(15).foregroundStyle(Theme.ink).lineLimit(1...6).focused($typing).disabled(off)
-            .padding(.init(top: 9, leading: 12, bottom: 9, trailing: 12))
-            .background(off ? Theme.wash : Theme.sheet, in: RoundedRectangle(cornerRadius: 9))
-            .overlay(RoundedRectangle(cornerRadius: 9).strokeBorder(off ? Theme.rule : Theme.ruleStrong, lineWidth: 1))
-            .accessibilityLabel("Your words to your agent")
-          if !off {
-            Button(sending ? "Sending…" : "Send", action: send).buttonStyle(AccentAct()).disabled(empty || sending)
-              .padding(.bottom, 2)
+        }
+      }
+      if let spot = about.spot {
+        HStack(alignment: .firstTextBaseline, spacing: 4) {
+          Text("On \(spot)").lineLimit(1).truncationMode(.middle)
+          drop("Ask about the whole PR instead")
+        }
+      }
+    }
+    .sans(12.5)
+    .foregroundStyle(Theme.pencil)
+  }
+
+  // No frame of its own: you write on the page. Once there's a conversation, its corner expands it over the log.
+  private var field: some View {
+    TextField(off ? "Your agent is off" : Asking.placeholder(about.item), text: $text, axis: .vertical)
+      .sans(15).foregroundStyle(Theme.ink).lineLimit(fill ? 3...200 : 1...6).focused($typing).disabled(off)
+      .padding(.vertical, 8)
+      .padding(.trailing, asks.isEmpty ? 0 : 36)
+      .overlay(alignment: .topTrailing) {
+        if !asks.isEmpty {
+          Button {
+            tall.toggle()
+            if !off { typing = true }
+          } label: {
+            Image(systemName: tall ? "arrow.down.right.and.arrow.up.left" : "arrow.up.left.and.arrow.down.right")
+              .font(.system(size: 14, weight: .medium)).foregroundStyle(Theme.pencil)
+              .frame(width: 44, height: 40, alignment: .topTrailing).padding(.top, 9)
+              .contentShape(Rectangle())
+          }
+          .buttonStyle(.plain)
+          .accessibilityLabel(tall ? "Shrink the box" : "Expand the box")
+          .accessibilityHint(tall ? "Back to the conversation" : "To write at length")
+        }
+      }
+      .accessibilityLabel("Your words to your agent")
+  }
+
+  // The hints and the field (unless they fill the page), what wasn't taken, then Back, how it runs and Send.
+  private var box: some View {
+    VStack(spacing: 0) {
+      NoticeStack()
+      VStack(alignment: .leading, spacing: 4) {
+        if !fill {
+          hints
+          field
+        }
+        if let failed { said(failed) }
+        if let unsaved { said(unsaved) }
+        controls
+      }
+      .padding(.horizontal, Theme.pad)
+      .padding(.top, fill ? 0 : 6)
+      .frame(maxWidth: .infinity, alignment: .leading)
+      .background(Theme.paper)
+      .overlay(alignment: .top) { if !fill { Theme.rule.frame(height: 1) } }
+    }
+  }
+
+  private func said(_ refused: String) -> some View {
+    Text(refused).sans(12.5).foregroundStyle(Theme.red).fixedSize(horizontal: false, vertical: true)
+  }
+
+  // On one line where they fit; else how it runs takes a line of its own above Back and Send.
+  @ViewBuilder private var controls: some View {
+    if off {
+      HStack(alignment: .center, spacing: 8) {
+        back
+        Text(Asking.off).sans(12.5).foregroundStyle(Theme.pencil).fixedSize(horizontal: false, vertical: true)
+      }
+    } else {
+      ViewThatFits(in: .horizontal) {
+        HStack(spacing: 2) {
+          back
+          options
+          Spacer(minLength: 4)
+          sendButton
+        }
+        VStack(alignment: .leading, spacing: 0) {
+          FlowLine(spacing: 2) { options }
+          HStack {
+            back
+            Spacer(minLength: 0)
+            sendButton
           }
         }
       }
-      .sans(12.5)
-      .foregroundStyle(Theme.pencil)
-      .padding(.horizontal, Theme.pad)
-      .padding(.vertical, 6)
-      .frame(maxWidth: .infinity, alignment: .leading)
-      .background(Theme.paper)
-      .overlay(alignment: .top) { Theme.rule.frame(height: 1) }
     }
+  }
+
+  private var back: some View {
+    Button {
+      if !store.path.isEmpty { store.path.removeLast() }
+    } label: {
+      Image(systemName: "chevron.left").font(.system(size: 17, weight: .semibold)).foregroundStyle(Theme.ink2)
+        .frame(width: 30, height: 44, alignment: .leading)
+        .contentShape(Rectangle())
+    }
+    .buttonStyle(.plain)
+    .accessibilityLabel("Back")
+  }
+
+  // The accent's square with a paper plane, pale until there's something to send.
+  private var sendButton: some View {
+    let empty = text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    let on = !empty && !sending
+    return Button(action: send) {
+      ZStack {
+        if sending {
+          ProgressView().controlSize(.small).tint(Theme.faint)
+        } else {
+          Image(systemName: "paperplane").font(.system(size: 15, weight: .medium))
+        }
+      }
+      .foregroundStyle(on ? Theme.onAccent : Theme.faint)
+      .frame(width: 36, height: 36)
+      .background(on ? Theme.accent : Theme.wash, in: RoundedRectangle(cornerRadius: 9))
+      .frame(width: 44, height: 44)
+      .contentShape(Rectangle())
+    }
+    .buttonStyle(.plain)
+    .disabled(!on)
+    .accessibilityLabel(sending ? "Sending" : "Send")
   }
 
   // Emptied at once, as the window's box; a refusal puts your words back, with the desk's own in red.
@@ -261,7 +411,74 @@ struct ChatPage: View {
     guard !words.isEmpty, !sending, !off else { return }
     let about = about
     text = ""
+    tall = false
     Task { await store.ask(words, about: about) }
+  }
+
+  // MARK: How it runs
+
+  // The window's three menus by Send, the same settings as Settings → Agent, each saved as it's picked.
+  @ViewBuilder private var options: some View {
+    if let o = store.asks?.options {
+      let bypass = picked["bypass"].map { $0 == "1" } ?? (o.bypass ?? false)
+      let model = picked["model"] ?? o.model ?? ""
+      let effort = picked["effort"] ?? o.effort ?? ""
+      let models = kind.models(model)
+      let efforts = kind.efforts(effort)
+      pick(
+        "How freely \(kind.name) runs", tip: "How freely \(kind.name) runs; it can't post as you either way", said: kind.run[bypass ? 1 : 0],
+        choices: [.init(value: "0", label: kind.run[0]), .init(value: "1", label: kind.run[1])], value: bypass ? "1" : "0"
+      ) { save("agent.coordinator_bypass", "bypass", .flag($0 == "1"), shown: $0) }
+      pick("\(kind.name)'s model", tip: "\(kind.name)'s model", said: AgentKind.said(models, value: model, none: "Model"), choices: models, value: model, other: true) {
+        save("agent.coordinator_model", "model", .text($0), shown: $0)
+      }
+      if !kind.efforts.isEmpty {
+        pick("\(kind.name)'s effort", tip: "How hard \(kind.name) thinks", said: AgentKind.said(efforts, value: effort, none: "Effort"), choices: efforts, value: effort) {
+          save("agent.coordinator_effort", "effort", .text($0), shown: $0)
+        }
+      }
+    }
+  }
+
+  // Its words open the menu, the one in force ticked; `other` adds Another model…, for a name it doesn't list.
+  private func pick(
+    _ label: String, tip: String, said: String, choices: [AgentKind.Choice], value: String, other: Bool = false, onPick: @escaping (String) -> Void
+  ) -> some View {
+    Menu {
+      Picker(tip, selection: Binding(get: { value }, set: { if $0 != value { onPick($0) } })) {
+        ForEach(choices, id: \.value) { Text($0.label).tag($0.value) }
+      }
+      .pickerStyle(.inline)
+      if other {
+        Button("Another model\u{2026}") {
+          named = ""
+          naming = true
+        }
+      }
+    } label: {
+      HStack(spacing: 3) {
+        Text(said).lineLimit(1).truncationMode(.middle)
+        Image(systemName: "chevron.down").font(.system(size: 9, weight: .semibold))
+      }
+      .sans(13)
+      .foregroundStyle(Theme.pencil)
+      .padding(.horizontal, 6)
+      .frame(minHeight: 44)
+      .contentShape(Rectangle())
+    }
+    .menuOrder(.fixed)
+    .accessibilityLabel("\(label): \(said)")
+  }
+
+  // Shown at once; the desk's own words in red under the box when it doesn't take, and the chat read again either way.
+  private func save(_ key: String, _ field: String, _ value: SettingValue, shown: String) {
+    picked[field] = shown
+    unsaved = nil
+    Task {
+      let took = await store.setAgentOption(key, value)
+      picked[field] = nil
+      if !took { unsaved = store.whyNot ?? "Not saved" }
+    }
   }
 }
 

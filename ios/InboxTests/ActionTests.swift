@@ -1002,6 +1002,27 @@ final class StoreWriteTests: XCTestCase {
     took = await store.setAgentOption("agent.coordinator_model", .text("opus"))
     XCTAssertFalse(took)
     XCTAssertEqual(store.whyNot, "can't write settings.json")
+    XCTAssertTrue(store.notices.isEmpty, "said in red under the chat's box, not in a bubble")
+  }
+
+  // Each of the chat's menus saves its one setting as a switch or words, as Settings → Agent does.
+  func testTheChatsMenusSaveTheirSettings() async throws {
+    let asks = Answer(body: String(decoding: try Fixture.data("asks"), as: UTF8.self))
+    try desk(["/api/settings": Answer(body: #"{"ok":true,"errors":[],"settings":{}}"#), "/api/asks": asks])
+    let saves: [(String, SettingValue, String)] = [
+      ("agent.coordinator_bypass", .flag(false), #"{"set":{"agent.coordinator_bypass":false}}"#),
+      ("agent.coordinator_model", .text("claude-opus-4-5"), #"{"set":{"agent.coordinator_model":"claude-opus-4-5"}}"#),
+      ("agent.coordinator_effort", .text(""), #"{"set":{"agent.coordinator_effort":""}}"#),
+    ]
+    for (key, value, sent) in saves {
+      StubProtocol.reset(StubProtocol.answers)
+      let took = await store.setAgentOption(key, value)
+      XCTAssertTrue(took, key)
+      let put = try XCTUnwrap(StubProtocol.requests().first { $0.httpMethod == "PUT" })
+      XCTAssertEqual(put.url?.path, "/api/settings")
+      let body = try JSONSerialization.jsonObject(with: try XCTUnwrap(put.sentBody)) as? NSDictionary
+      XCTAssertEqual(body, try JSONSerialization.jsonObject(with: Data(sent.utf8)) as? NSDictionary, key)
+    }
   }
 
   // A session's Done, Snooze and Mute are /api/act's, by its id; its snooze says only the time (it has no activity to wake on).
