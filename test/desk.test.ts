@@ -260,6 +260,17 @@ test("close_authors expands within GitHub's 256-char query limit", async () => {
   await t.cleanup();
 });
 
+test("a space's repo, org or user scope doesn't widen a query that names its own", async () => {
+  const t = await setup([]);
+  const x = (q: string, scope: string) => t.desk.gh.expandQuery(q, scope, t.desk.loaded!);
+  // GitHub ORs repo:, org: and user:, so `repo:acme/api org:acme` is every PR in acme.
+  assert.equal(x("is:pr is:open repo:acme/api", "org:acme"), "is:pr is:open repo:acme/api");
+  assert.equal(x("is:pr user:@me", "org:acme -org:other"), "is:pr user:@me -org:other");
+  assert.equal(x("is:pr review-requested:@me", "org:acme"), "is:pr review-requested:@me org:acme");
+  assert.equal(x("is:pr -repo:acme/web", "org:acme"), "is:pr -repo:acme/web org:acme");
+  await t.cleanup();
+});
+
 test("your areas: fetched on the first sync, then daily; a failure keeps them and retries in about an hour", async () => {
   const t = await setup([]);
   const later = (h: number) => new Date(NOW.getTime() + h * 3_600_000);

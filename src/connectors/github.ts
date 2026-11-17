@@ -295,6 +295,13 @@ export class GitHubConnector implements Connector {
   // Board query → expanded GitHub search string (null when it can't run, e.g. no collaborators yet).
   expandQuery(q: string, scope: string, loaded: LoadedConfig): string | null {
     const me = this.me();
+    // GitHub ORs repo:, org: and user:, so a query naming its own keeps the space's out.
+    const where = /^(repo|org|user):/;
+    if (q.split(/\s+/).some((t) => where.test(t)))
+      scope = scope
+        .split(/\s+/)
+        .filter((t) => !where.test(t))
+        .join(" ");
     let base = `${q} ${scope}`.replaceAll("{me}", me).replaceAll(/\s+/g, " ").trim();
     if (!base.includes("{close_authors}")) return base;
     base = base.replace("{close_authors}", "").replaceAll(/\s+/g, " ").trim();
