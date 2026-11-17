@@ -3429,9 +3429,18 @@ html::-webkit-scrollbar-corner,
   font-variant-numeric: tabular-nums;
 }
 
+/* The page's own chevron, as far in from the right as the words are from the left; the system's sat closer to its edge. */
 .input.choice {
   width: 240px;
+  padding-right: 30px;
+  background-image: linear-gradient(45deg, transparent 50%, var(--pencil) 50%), linear-gradient(135deg, var(--pencil) 50%, transparent 50%);
+  background-repeat: no-repeat;
+  background-position:
+    calc(100% - 16px) 50%,
+    calc(100% - 11px) 50%;
+  background-size: 5px 5px;
   cursor: pointer;
+  appearance: none;
 }
 
 .input.area {
@@ -3982,6 +3991,16 @@ html::-webkit-scrollbar-corner,
   margin-left: 8px;
   padding: 0 5px;
   opacity: 1;
+}
+
+/* In a button that spaces its parts (.act's gap), the hidden chip gives that gap back, so the words sit in the middle; shown,
+   it stands 8px off them as elsewhere. */
+.act[data-key]::after {
+  margin-left: -6px;
+}
+
+:root[data-keys] .act[data-key]::after {
+  margin-left: 2px;
 }
 
 /* A round send button has no room beside its arrow: its chip sits over it. */

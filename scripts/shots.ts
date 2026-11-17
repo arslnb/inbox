@@ -601,7 +601,9 @@ const settingsSays = (page: Page) =>
     return document.querySelector(".page-head").textContent.trim() + ": " + items.join(" ");
   })()`);
 // What settingsSays reads on the part named `on`.
-const onPart = (on: string) => `${on}: Inbox ${[...SETTINGS_SIDE, "GitHub", "Sessions"].map((p) => (p === on ? `[${p}]` : p)).join(" ")}`;
+// Its way back, the divider (no words), then the App group's parts and the Integrations group's.
+const onPart = (on: string) =>
+  `${on}: ${["Inbox", "", "App", ...SETTINGS_SIDE, "Integrations", "GitHub", "Sessions"].map((p) => (p === on ? `[${p}]` : p)).join(" ")}`;
 // The sidebar's pages in order; null where it's hidden.
 const sidePages = (page: Page) =>
   page.evaluate<string | null>(`(() => {
@@ -861,6 +863,14 @@ const SHOTS: Shot[] = [
       if (rows.urgent.length !== 1 || rows.standard.length !== 1) failures.push(`queue-notes: notes drawn ${JSON.stringify(rows)}`);
       if (!(await page.locator(".page-head .head-note", { hasText: "New note" }).count()))
         failures.push("queue-notes: no New note on the head");
+      // Its words in its middle: the hidden ⌘N chip takes no room.
+      const pad = await page.evaluate<number[]>(`(() => {
+        const b = document.querySelector(".page-head .head-note"), r = document.createRange();
+        r.selectNodeContents(b.firstChild);
+        const t = r.getBoundingClientRect(), o = b.getBoundingClientRect();
+        return [Math.round(t.left - o.left), Math.round(o.right - t.right)];
+      })()`);
+      if (Math.abs(pad[0]! - pad[1]!) > 1) failures.push(`queue-notes: New note's words sit ${pad.join("px | ")}px from its sides`);
       await page.keyboard.press(`${process.platform === "darwin" ? "Meta" : "Control"}+n`);
       await page.locator(".note-tray textarea").waitFor({ timeout: 3000 });
       await page.locator(".note-tray textarea").fill("Ping Sam about the holdout set once the reranker eval lands");
@@ -4376,7 +4386,7 @@ const SHOTS: Shot[] = [
       await open();
       const hash = await page.evaluate<string>("location.hash");
       if (hash !== "#/settings/automations/warden-issues") failures.push(`settings-automations-runs: its name opens ${hash}`);
-      await settingsView(page, "settings-automations-runs", name, "automations", "760px");
+      await settingsView(page, "settings-automations-runs", name, "automations", "980px");
       const seen = await page.evaluate<{ runs: number; tips: string[]; said: boolean }>(`(() => {
         const v = [...document.querySelectorAll(".s-view")].find((s) => !s.hidden);
         return {
@@ -4421,7 +4431,7 @@ const SHOTS: Shot[] = [
       await at("#/settings/automations")(page);
       await page.locator("#s-automations .s-name", { hasText: "My red CI" }).click();
       await page.locator(".s-view .au-run").first().waitFor();
-      await settingsView(page, "settings-automations-rule", "My red CI", "automations", "760px");
+      await settingsView(page, "settings-automations-rule", "My red CI", "automations", "980px");
       const seen = await automationFacts(page);
       const want = {
         line: "When CI changes · on",
@@ -4462,7 +4472,7 @@ const SHOTS: Shot[] = [
       );
       await page.reload();
       await open();
-      await settingsView(page, "settings-automations-ask", "Team pings", "automations", "760px");
+      await settingsView(page, "settings-automations-ask", "Team pings", "automations", "980px");
       const seen = await automationFacts(page);
       const want = {
         prompt: "A ping to my whole team that isn't about the config loader is FYI. One that is, I want today.",
@@ -4752,7 +4762,7 @@ const SHOTS: Shot[] = [
       await page.waitForTimeout(500);
       const copied = await page.evaluate<string>("location.hash");
       if (copied !== "#/settings/automations/pick-a-reviewer") failures.push(`settings-github-automations: Copy goes to ${copied}`);
-      await settingsView(page, "settings-github-automations (copy)", "Pick a reviewer", "automations", "760px");
+      await settingsView(page, "settings-github-automations (copy)", "Pick a reviewer", "automations", "980px");
       if (!(await page.locator(".s-view .au-view").getByRole("button", { name: "Edit" }).count()))
         failures.push("settings-github-automations: the copy has no Edit");
       if ((await page.locator(".s-view .au-view").getByRole("button", { name: "Turn on" }).count()) !== 1)
@@ -4761,7 +4771,7 @@ const SHOTS: Shot[] = [
       await page.evaluate(`fetch("/api/automations/${copied.split("/").pop()}", { method: "DELETE" })`);
       // The shot: the built-in one's own view, its way back GitHub, Copy where Edit would be.
       await at("#/settings/automations/github.pick-reviewer")(page);
-      await settingsView(page, "settings-github-automations", "Pick a reviewer", "github", "760px");
+      await settingsView(page, "settings-github-automations", "Pick a reviewer", "github", "980px");
       if (await page.locator(".s-view .au-view").getByRole("button", { name: "Edit" }).count())
         failures.push("settings-github-automations: a built-in one has Edit");
       if ((await sideOn(page)) !== "GitHub")
@@ -4773,16 +4783,17 @@ const SHOTS: Shot[] = [
     },
   },
   {
-    // On Settings the sidebar marks Settings, none of the pages, and the page head names it; in a browser This device has no
-    // rows, only a line saying they're the app's (the mac size has the app's bridge: settings-app-desktop).
+    // On Settings the sidebar marks Settings, none of the pages, and the page head names it; in a browser This device has
+    // only the theme, its own (the mac size has the app's bridge: settings-app-desktop).
     name: "settings-app",
     go: async (page) => {
       await at("#/settings/app")(page);
+      // The theme is this device's own, in a browser too: the app's rows are the rest.
       const rows = await page.evaluate<string[]>(
-        `[...document.querySelectorAll("#s-app .setting")].map((r) => r.id || r.querySelector(".input")?.id)`,
+        `[...document.querySelectorAll("#s-app .setting")].map((r) => r.id || r.querySelector(".input")?.id).filter((id) => id !== "s-theme")`,
       );
-      if (!(await page.evaluate<boolean>("!!window.desktop")) && (rows.length || !(await page.locator("#s-app .quiet-note").count())))
-        failures.push(`settings-app: This device in a browser has ${JSON.stringify(rows)}, not the line saying they're the app's`);
+      if (!(await page.evaluate<boolean>("!!window.desktop")) && rows.length)
+        failures.push(`settings-app: This device in a browser has ${JSON.stringify(rows)}, which are the app's`);
       const on = await sideOn(page);
       if (on !== "This device") failures.push(`settings-app: the sidebar marks ${JSON.stringify(on)}`);
       const says = await settingsSays(page);
@@ -4790,7 +4801,7 @@ const SHOTS: Shot[] = [
       if (await page.locator(".page-head a.back").count()) failures.push("settings-app: the page head is a way back");
       if (await page.locator("#s-automations").isVisible()) failures.push("settings-app: Your automations shows on This device");
       const col = await page.evaluate<string>(`getComputedStyle(document.querySelector(".main")).maxWidth`);
-      if (col !== "760px") failures.push(`settings-app: the column is ${col}, not 760px`);
+      if (col !== "980px") failures.push(`settings-app: the column is ${col}, not 760px`);
     },
   },
   {
