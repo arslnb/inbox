@@ -1588,6 +1588,7 @@ test("an agent on new events doesn't run again for an item its own add brought o
 });
 
 test("a decision model failing on one item passes the call to your agent; with that down too, the run waits and asks again later", async (c) => {
+  if (unixOnly(c)) return; // it falls back to your agent's fake CLI
   let fail = true;
   const api = await fakeDecisions((call) => {
     const id = /^id: (\S+)$/.exec(call.body.state?.item?.[0] ?? "")?.[1] ?? "";
@@ -1708,6 +1709,7 @@ test("what goes to the decision model is what a decision needs: not the AI revie
 });
 
 test("a question waiting on its model asks again at once when you edit it or set a new key", async (c) => {
+  if (unixOnly(c)) return; // it falls back to your agent's fake CLI
   let down = true;
   const api = await fakeDecisions(() =>
     down
