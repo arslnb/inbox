@@ -4407,20 +4407,214 @@ html::-webkit-scrollbar-corner,
   fill: currentcolor;
 }
 
-/* Close: the pane's own icon, at the head's right edge. */
+/* New chat: one bordered button in two halves, the plus and the arrow that picks which agent, before Close. */
+.chat-split {
+  position: relative;
+  display: inline-flex;
+  flex: none;
+  align-self: center;
+  margin-left: auto;
+  border: 1px solid var(--rule-strong);
+  border-radius: 7px;
+}
+
+.chat-new,
+.chat-new-with {
+  display: grid;
+  place-items: center;
+  height: 22px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+
+.chat-new .i,
+.chat-close .i {
+  width: 14px;
+  height: 14px;
+}
+
+.chat-new {
+  width: 24px;
+  border-radius: 6px 0 0 6px;
+}
+
+.chat-new-with {
+  width: 17px;
+  border-left: 1px solid var(--rule-strong);
+  border-radius: 0 6px 6px 0;
+}
+
+.chat-new:hover:not(:disabled),
+.chat-new-with:hover:not(:disabled),
+.chat-new-with[aria-expanded="true"] {
+  background: var(--wash);
+  color: var(--ink);
+}
+
+.chat-new:disabled,
+.chat-new-with:disabled {
+  cursor: default;
+}
+
+.chat-new-pop {
+  top: calc(100% + 4px);
+  right: 0;
+  left: auto;
+  width: 220px;
+}
+
+.chat-new-head {
+  margin: 0;
+  padding: 6px 10px 4px;
+  color: var(--pencil);
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.chat-new-pop .pop-item {
+  gap: 8px;
+  height: 30px;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 400;
+}
+
+.chat-new-yours {
+  margin-left: auto;
+  color: var(--pencil);
+  font-size: 12px;
+}
+
+.chat-split + .chat-close {
+  margin-left: 0;
+}
+
+/* The agent picked for a new chat isn't ready: what to run, in the pane's own column. */
+.chat-setup {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px 12px;
+  overflow-y: auto;
+  font-size: 13px;
+}
+
+.chat-setup-title {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin: 0;
+  color: var(--ink);
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.chat-setup-step {
+  margin: 0;
+  color: var(--ink-2);
+}
+
+.chat-setup-step a {
+  margin-left: 8px;
+}
+
+.chat-setup-run {
+  margin: 0;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: var(--wash);
+  color: var(--ink);
+  font: 12.5px var(--mono);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  user-select: text;
+}
+
+.chat-setup-acts {
+  display: flex;
+  gap: 8px;
+  margin: 4px 0 0;
+}
+
+/* A fresh chat's examples: small pills in the pane's middle, between the box at its top and the controls at its foot. */
+.chat-examples {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.chat-examples-title {
+  margin: 0;
+  color: var(--pencil);
+  font-size: 12px;
+}
+
+.chat-examples ul {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  max-width: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.chat-examples li {
+  max-width: 100%;
+}
+
+/* One line each, however narrow the pane. */
+.chat-example {
+  max-width: 100%;
+  height: 26px;
+  padding: 0 10px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 13px;
+  background: var(--wash);
+  color: var(--pencil);
+  font: 12.5px var(--sans);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.chat-example:hover {
+  color: var(--ink);
+}
+
+/* With them showing, the box keeps its two lines and they take the room. */
+.chat-box.fill:has(.chat-examples) .chat-field {
+  flex: none;
+}
+
+.chat-box.fill:has(.chat-examples) .chat-input {
+  height: auto;
+}
+
+/* Close: the pane's own icon, at the head's right edge, bordered as New chat is. */
 .chat-close {
   display: grid;
   flex: none;
   align-self: center;
   place-items: center;
-  width: 28px;
-  height: 28px;
-  margin: 0 6px 0 auto;
+  width: 24px;
+  height: 24px;
+  margin: 0 8px 0 auto;
   padding: 0;
-  border: 0;
+  border: 1px solid var(--rule-strong);
   border-radius: 7px;
   background: none;
-  color: var(--pencil);
+  color: var(--ink-2);
   cursor: pointer;
 }
 
@@ -4713,23 +4907,6 @@ html::-webkit-scrollbar-corner,
   width: 14px;
   height: 14px;
   color: var(--accent-ink);
-}
-
-.chat-free {
-  width: 100%;
-  height: 30px;
-  margin-top: 4px;
-  padding: 0 8px;
-  border: 1px solid var(--rule-strong);
-  border-radius: 7px;
-  background: var(--paper);
-  color: var(--ink);
-  font: 13px var(--sans);
-}
-
-.chat-free:focus {
-  border-color: var(--pencil);
-  outline: none;
 }
 
 /* An answer's foot: when, then its tools at the right, quiet until the pointer is on the turn. */
