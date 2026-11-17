@@ -972,6 +972,7 @@ struct Standings: Decodable, Sendable {
     // Whose picture goes before the name: a person's, not yours and not a team's ("@ml-team").
     var face: String? { who.flatMap { $0 == "you" || $0.hasPrefix("@") || $0.isEmpty ? nil : $0 } }
     var state: String?  // "changes requested" | "asked" | "approved" | "commented"
+    var again: Bool?  // asked again while their verdict holds
   }
 }
 

@@ -62,6 +62,11 @@ export function standings(it: Item, me: string): Standings {
   add(approved_by, "approved");
   add(asked, "asked");
   add(spoke, "commented");
+  // A verdict holds while they're asked again; the list says both.
+  for (const a of asked) {
+    const s = by.get(lc(a));
+    if (s && (s.state === "approved" || s.state === "changes requested")) by.set(lc(a), { ...s, again: true });
+  }
   const list = [...by.values()].toSorted((a, b) => STANDING.indexOf(a.state) - STANDING.indexOf(b.state));
   const who = (state: Standing["state"]) => list.filter((s) => s.state === state).map((s) => s.who);
   const hidden = it.review_requests_hidden ?? 0;

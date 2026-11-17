@@ -145,8 +145,9 @@ test("a PR's reviewers, each with a standing: changes requested, asked, approved
     reviews: [review("marco", "approved", 9), review("dana", "changes_requested", 8), review("dana", "commented", 2)],
   });
   assert.deepEqual(
-    again.list.map((s) => `${s.who}: ${s.state}`),
-    ["dana: changes requested", "marco: approved"],
+    again.list.map((s) => `${s.who}: ${s.state}${s.again ? ", again" : ""}`),
+    ["dana: changes requested, again", "marco: approved, again"],
+    "asked again: their verdict holds and the list says they're asked again",
   );
   assert.equal(again.line, "Changes requested by dana · approved by marco");
 

@@ -272,13 +272,13 @@ struct ReviewState: View {
     VStack(alignment: .leading, spacing: 0) {
       ForEach(Array(reviewers.list.enumerated()), id: \.offset) { _, r in
         let who = r.who ?? ""
-        let act = yours ? Status.reviewerAct(who: who, state: r.state, draft: review.item?.draft == true) : nil
+        let act = yours ? Status.reviewerAct(who: who, state: r.state, again: r.again == true, draft: review.item?.draft == true) : nil
         HStack(alignment: .center, spacing: 0) {
           HStack(alignment: .firstTextBaseline, spacing: 0) {
             if let face = Status.face(who, me: store.me) { Avatar(login: face) }
             Text(who).sans(13).foregroundStyle(Theme.ink2).lineLimit(1)
             Spacer(minLength: 14)
-            Text(r.state ?? "").sans(13).foregroundStyle(r.state == "changes requested" ? tone(Theme.amber) : Theme.pencil).fixedSize()
+            Text(r.again == true ? "\(r.state ?? "") · asked again" : r.state ?? "").sans(13).foregroundStyle(r.state == "changes requested" ? tone(Theme.amber) : Theme.pencil).fixedSize()
           }
           .accessibilityElement(children: .combine)
           if let act {
@@ -338,9 +338,10 @@ enum Status {
     who == "you" ? (me.isEmpty ? nil : me) : who.isEmpty || who.hasPrefix("@") ? nil : who
   }
 
-  // "remove" for one asked who hasn't reviewed yet, "rerequest" for one who has (not on a draft); none for you or a team.
-  static func reviewerAct(who: String, state: String?, draft: Bool) -> String? {
-    guard who != "you", !who.isEmpty, !who.hasPrefix("@") else { return nil }
+  // "remove" for one asked who hasn't reviewed yet, "rerequest" for one who has and isn't asked again yet (not on a draft);
+  // none for you or a team.
+  static func reviewerAct(who: String, state: String?, again: Bool = false, draft: Bool) -> String? {
+    guard who != "you", !who.isEmpty, !who.hasPrefix("@"), !again else { return nil }
     if state == "asked" { return "remove" }
     return draft ? nil : "rerequest"
   }

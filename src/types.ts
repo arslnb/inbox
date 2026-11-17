@@ -1029,6 +1029,7 @@ export interface Checks {
 export interface Standing {
   who: string;
   state: "changes requested" | "asked" | "approved" | "commented"; // asked: to review it, and it waits on them
+  again?: true; // asked again while their approval or change request holds
 }
 
 // Who reviews a PR and where each stands, as its review lists them in the sidebar.

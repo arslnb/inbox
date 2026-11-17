@@ -1295,11 +1295,11 @@ export function Review({
                 const person = r.who !== "you" && !r.who.startsWith("@"); // a team's ask is the team's
                 const yours = card.by === "you" && item.state === "open" && !acted;
                 const remove = yours && person && r.state === "asked";
-                const again = yours && person && !item.draft && r.state !== "asked";
+                const again = yours && person && !item.draft && r.state !== "asked" && !r.again;
                 return {
                   name: r.who,
                   ...(r.who === "you" ? me && { login: me } : person && { login: r.who }),
-                  state: r.state,
+                  state: r.again ? `${r.state} · asked again` : r.state,
                   bad: r.state === "changes requested" ? "t-warn" : "",
                   ...((remove || again) && {
                     tools: (

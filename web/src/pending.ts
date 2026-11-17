@@ -32,13 +32,18 @@ export type ReviewerAsks = Readonly<Record<string, "asked" | "removed">>;
 
 const ORDER: readonly Standing["state"][] = ["changes requested", "asked", "approved", "commented"];
 
-// A review's reviewers with your changes on them: a removed one off the list, an added or re-asked one asked.
+// A review's reviewers with your changes on them: a removed one off the list, an added one asked, and one asked again
+// keeps their verdict, asked again, as the desk will list them.
 export function withReviewerAsks(list: Standing[], asks: ReviewerAsks): Standing[] {
   if (!Object.keys(asks).length) return list;
   const by = new Map(list.map((s) => [s.who.toLowerCase(), s]));
   for (const [who, how] of Object.entries(asks)) {
     if (how === "removed") by.delete(who);
-    else by.set(who, { who: by.get(who)?.who ?? who, state: "asked" });
+    else {
+      const had = by.get(who);
+      const verdict = had?.state === "approved" || had?.state === "changes requested";
+      by.set(who, verdict ? { ...had, again: true } : { who: had?.who ?? who, state: "asked" });
+    }
   }
   return [...by.values()].toSorted((a, b) => ORDER.indexOf(a.state) - ORDER.indexOf(b.state));
 }

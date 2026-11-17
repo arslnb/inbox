@@ -886,6 +886,7 @@ final class FormatTests: XCTestCase {
     XCTAssertEqual(Status.reviewerAct(who: "sam", state: "asked", draft: false), "remove")
     XCTAssertEqual(Status.reviewerAct(who: "sam", state: "changes requested", draft: false), "rerequest")
     XCTAssertNil(Status.reviewerAct(who: "sam", state: "approved", draft: true), "a draft asks nobody again")
+    XCTAssertNil(Status.reviewerAct(who: "sam", state: "approved", again: true, draft: false), "already asked again")
     XCTAssertNil(Status.reviewerAct(who: "@backend", state: "asked", draft: false), "a team's ask is the team's")
     XCTAssertNil(Status.reviewerAct(who: "you", state: "asked", draft: false))
     XCTAssertEqual(Status.face("you", me: "gricha"), "gricha")

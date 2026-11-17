@@ -54,6 +54,11 @@ test("a reviewer change shows at once and drops once the review's requests have 
     { who: "dana", state: "asked" },
   ]);
   assert.equal(withReviewerAsks(list, {}), list);
+  assert.deepEqual(
+    withReviewerAsks([{ who: "marco", state: "approved" }], { marco: "asked" }),
+    [{ who: "marco", state: "approved", again: true }],
+    "asked again keeps their verdict, as the desk lists it",
+  );
   const user = (reviewer: string) => ({ reviewer, type: "user" as const, codeowner: false });
   assert.equal(settleReviewerAsks([user("Sam")], asks), asks);
   assert.deepEqual(settleReviewerAsks([user("kofi"), user("dana")], asks), {});
