@@ -291,13 +291,13 @@ let config: Config = {
       space: "personal",
       name: "Review requests",
       queries: ["is:open is:pr review-requested:{me}"],
-      // GitHub's rules, with two of yours in place of theirs, one after them, and one switched off.
+      // GitHub's rules, with one of yours in place of theirs, two after them, and one switched off.
       builtin: "review",
       off: ["added-by-bot"],
       rules: [
         { id: "asked-directly", when: W.direct, bucket: "now", why: "asked you directly", hard: true },
         { after: "asked-directly", when: W.depbot, bucket: "hide", why: "dependency bump by a bot" },
-        { id: "close-collaborator", when: W.close, bucket: "today", why: "close collaborator: {author.engaged_90d} PRs in 90 days" },
+        { after: "team-waited", when: W.close, bucket: "today", why: "close collaborator: {author.engaged_90d} PRs in 90 days" },
       ],
       default: "later",
       default_why: "team request",

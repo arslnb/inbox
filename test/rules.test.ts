@@ -141,7 +141,7 @@ test("sorts: waiting (oldest request first), updated, newest", () => {
   assert.deepEqual(mk("newest"), ["acme/api#1", "acme/api#2"]);
 });
 
-test("default review rules: an ask by name weighs most whoever added it; close collaborators' team pings hint Later", () => {
+test("default review rules: an ask by name weighs most whoever added it; a close collaborator's team ping is still a team ping", () => {
   const review = parseConfig(defaultConfigText({ workOrgs: ["acme"] })).loaded!.boards.find((x) => x.config.id === "acme-review")!;
   const direct = makeItem({
     number: 1,
@@ -178,7 +178,7 @@ test("default review rules: an ask by name weighs most whoever added it; close c
   );
   assert.equal(b(4).bucket, "fyi");
   assert.equal(b(4).why, "CODEOWNERS ping to @ml-team");
-  assert.deepEqual([b(5).bucket, b(5).why], ["later", "close collaborator: you engaged with 12 of their PRs in 90 days"]);
+  assert.deepEqual([b(5).bucket, b(5).why], ["fyi", "CODEOWNERS ping to @ml-team"]);
 });
 
 test("default review rules: a bot's PR is hidden, but one it opened for a person isn't, and one it opened for you (by a name you gave, or your login and assigned) isn't yours to review", () => {

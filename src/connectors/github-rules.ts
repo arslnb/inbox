@@ -60,13 +60,6 @@ export const GITHUB_RULES: Readonly<Record<string, BuiltInRules>> = {
         why: "asked of @{me.requested_team} a day ago, and nobody took it",
         weight: 5,
       },
-      {
-        id: "close-collaborator",
-        when: "author.close",
-        bucket: "later",
-        why: "close collaborator: you engaged with {author.engaged_90d} of their PRs in 90 days",
-        weight: 3,
-      },
       { id: "your-repo", when: "repo.mine", bucket: "today", why: "your repo", weight: 5 },
       { id: "bot-pr", when: "author.bot && author.person == ''", bucket: "hide", why: "bot PR", weight: 8 },
       { id: "added-by-bot", when: "me.requested_by_bot", bucket: "later", why: "added by {me.requested_by} (bot)", weight: 4 },

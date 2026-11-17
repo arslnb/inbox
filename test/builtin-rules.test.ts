@@ -157,7 +157,6 @@ rules = [
       "new-commits",
       "team-taken",
       "team-waited",
-      "close-collaborator",
       "6",
       "bot-pr",
       "1",
@@ -320,13 +319,13 @@ test("a config shaped as the owner's migrates losslessly", () => {
   assert.deepEqual(
     boards.map((b) => [b.id, b.builtin ?? null, b.off ?? [], b.rules.filter((r) => r.own !== undefined).length]),
     [
-      // Rules added since the copy are off, so nothing moves; its hard asks and its older draft and bot PR rules stand in GitHub's place.
-      ["acme-review", "review", ["team-taken", "team-waited", "team-your-area", "team"], 3],
+      // Rules added since the copy are off, so nothing moves; its hard asks and its older draft and bot PR rules stand in GitHub's place, and its close-collaborator rule, no longer built in, stays its own.
+      ["acme-review", "review", ["team-taken", "team-waited", "team-your-area", "team"], 4],
       ["acme-mine", "mine", ["no-review-ready"], 1],
       ["acme-mentions", "mentions", [], 0],
       ["acme-collaborators", "collaborators", [], 0],
       ["acme-watching", null, [], 0],
-      ["personal-review", "review", ["team-taken", "team-waited", "team-your-area", "team"], 3],
+      ["personal-review", "review", ["team-taken", "team-waited", "team-your-area", "team"], 4],
       ["personal-mine", "mine", ["no-review-ready"], 1],
       ["personal-mentions", "issues", [], 0],
     ],

@@ -1040,7 +1040,7 @@ test("a rule's placement reaches Claude as its hint, and hints in Now or Today g
   assert.match(asked, /- id: me\/api#2\n/, "the rules put it in Today, so it goes before a newer one they put in FYI");
   assert.doesNotMatch(asked, /acme\/api#1/);
   assert.match(asked, /\n {2}hint: the rules would put it in today on the "PRs to review" board \(your repo\)\n/);
-  assert.deepEqual([t.placed(2).rule, t.placed(2).bucket, t.placed(2).why], [8, "today", "fake says today"]);
+  assert.deepEqual([t.placed(2).rule, t.placed(2).bucket, t.placed(2).why], [7, "today", "fake says today"]);
   assert.deepEqual(t.placed(2).hint?.bucket, "today");
   assert.deepEqual([t.placed(1).bucket, t.placed(1).judge], ["fyi", { bucket: null, why: "", pending: true }]);
 });

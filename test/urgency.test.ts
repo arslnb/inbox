@@ -68,6 +68,14 @@ const where = (t: Awaited<ReturnType<typeof setup>>, id: string): [InboxSection,
 const svcPr = (n: number, o: Partial<Item> = {}): Item => ({ ...teamPing(n), title: "Service accounts reach the control silo", ...o });
 const teamAsk = (n: number) =>
   makeItem({ number: n, author: "alice", review_requests: [{ reviewer: "ml-team", type: "team", codeowner: false }] });
+// Alice pushed since you approved (now asked of dana): GitHub's rules put new commits in Later, and no criterion says yes.
+const reReview = (n: number) =>
+  makeItem({
+    number: n,
+    author: "alice",
+    review_requests: [{ reviewer: "dana", type: "user", codeowner: false }],
+    reviews: [{ author: "me", author_bot: false, state: "approved", at: hoursAgo(30), commit: "old" }],
+  });
 
 test("sections: an urgent yes and a hand-back lift it whatever its score; fyi holds; a direct ask or a pin never goes below Standard", () => {
   const t = { urgent_at: 8, fyi_at: 3 };
@@ -184,8 +192,8 @@ test(
 
 test("the score orders each section and says why on the row; a model's score can't push an urgent yes out of Urgent", posix, async (c) => {
   const fake = fakeClaude(c);
-  // Asked of your team by alice, a close collaborator, so in Later: GitHub's rules send other team asks to FYI.
-  const t = await setup([teamAsk(1), teamAsk(4), svcPr(2)], { settings: { ...QUIET, "agent.score": true } });
+  // New commits since your review, so in Later.
+  const t = await setup([reReview(1), reReview(4), svcPr(2)], { settings: { ...QUIET, "agent.score": true } });
   c.after(t.cleanup);
   fake.say("ask", [{ id: "acme/api#2", yes: ["svc"] }]);
   fake.say("score", [
@@ -324,8 +332,8 @@ test(
 
 test("a later item with no model score yet is Standard, below now and today; once the model scores it 3 it's FYI", posix, async (c) => {
   const fake = fakeClaude(c);
-  // Your red PR is today; asked of your team is later.
-  const t = await setup([teamAsk(1), teamAsk(4), myPr(3, { ci: "red" })], { settings: QUIET });
+  // Your red PR is today; new commits since your review are later.
+  const t = await setup([reReview(1), reReview(4), myPr(3, { ci: "red" })], { settings: QUIET });
   c.after(t.cleanup);
   await run(t.desk.sync());
   const before = inbox(t);
@@ -340,7 +348,7 @@ test("a later item with no model score yet is Standard, below now and today; onc
   );
   assert.deepEqual(before.fyi, []);
   fake.say("score", [
-    { id: "acme/api#1", score: 3, why: "a team ask nobody waits on" },
+    { id: "acme/api#1", score: 3, why: "a re-review nobody waits on" },
     { id: "acme/api#4", score: 5, why: "carol's small change" },
     { id: "acme/web#3", score: 6, why: "your red PR" },
   ]);

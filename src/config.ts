@@ -490,22 +490,6 @@ export function defaultConfigText(opts: { workOrgs: string[]; expanded?: boolean
       `default_why = "mentions you"`,
       ...builtinLines(work ? "mentions" : "issues", expanded),
     );
-    if (work) {
-      out.push(
-        ``,
-        `# PRs from people you work with most, where nobody asked you. {close_authors} expands to your top collaborators.`,
-        `[[boards]]`,
-        `id = ${toml(`${s.id}-collaborators`)}`,
-        `space = ${toml(s.id)}`,
-        `name = "Close collaborators"`,
-        `queries = ["is:pr is:open archived:false -is:draft -author:@me -review-requested:@me {close_authors}"]`,
-        `sort = "updated"`,
-        `caps = { now = 3, today = 6 }`,
-        `default = "fyi"`,
-        `default_why = "{author.login}: you engaged with {author.engaged_90d} of their PRs in 90 days"`,
-        ...builtinLines("collaborators", expanded),
-      );
-    }
   }
   return out.join("\n") + "\n";
 }

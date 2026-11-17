@@ -898,6 +898,16 @@ test("a config saved after the first start can't set settings: the agent-reachab
 
 test("settings that change the searches sync right away", async () => {
   const t = await setup([]);
+  const board = [
+    `[[boards]]`,
+    `id = "acme-collaborators"`,
+    `space = "acme"`,
+    `name = "Close collaborators"`,
+    `queries = ["is:pr is:open -author:@me -review-requested:@me {close_authors}"]`,
+    `builtin = "collaborators"`,
+  ];
+  assert.equal(runSync(t.desk.putConfig(`${t.desk.getConfig().text}\n${board.join("\n")}\n`)).ok, true);
+  await idle(t.desk);
   await run(t.desk.sync());
   assert.ok(!t.gh.searches.some((q) => q.includes("author:bob")));
   runSync(t.desk.putSettings({ set: { "github.close_collaborator_min": 1 } }));
