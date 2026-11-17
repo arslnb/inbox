@@ -1406,7 +1406,7 @@ export function App() {
     else if (k === "b") runUi(back(c));
     else if (k === "analyze" || k === "trust" || k === "fix" || k === "block" || k === "unblock") runUi(issueAct(c, k));
     else if (k === "a" && c.cta === "ready") markReady(c);
-    else if (k === "a" && c.cta === "merge") runUi(github(c, "merge"));
+    else if (k === "a" && c.cta === "handoff") handOff(c);
     else if (k === "a" && c.cta === "reviewers")
       openCard(c); // its review, with the reviewers box ready
     // Yours (or a bot's for you), or anyone's approved PR, resolved by your approval or not; the desk says no to the rest.

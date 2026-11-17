@@ -135,7 +135,7 @@ export interface Row {
   kind: string; // "pr", "issue"
   by: string; // "you", "alice", "Your agent"
   stage?: string; // "waiting for review"
-  cta?: string; // its one call to action: "ready", "reviewers", "merge", "reply"
+  cta?: string; // its one call to action: "ready", "reviewers", "handoff", "reply"
   actions?: string[]; // the writes its menus offer (GitHub: Desk.actions())
   fold?: { key: string; at: number }; // rows sharing a key show as one line (a stack)
   extra?: unknown; // only its own cells and pages read this: CI, verdict, preflight, stack, blocks, Merging's columns

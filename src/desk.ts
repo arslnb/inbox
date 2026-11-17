@@ -1981,8 +1981,8 @@ export class Desk {
       // Even with red CI: getting it green is the coordinator's once it's ready, so the desk never holds this back.
       ...(it.kind === "pr" && it.draft && it.state === "open" && me.author && this.writer && { cta: "ready" as const }),
       ...(snap.unasked.has(it.id) && this.writer && { cta: "reviewers" as const }),
-      // Merge on the row only for yours, and only once it's green and mergeable; anyone's reviewed PR has it in More.
-      ...(me.author && actions.includes("merge") && readyToMerge(it, this.me()) && { cta: "merge" as const }),
+      // Yours, green and mergeable: Hand off for merge, so your agent lands it; merging it yourself stays in More.
+      ...(me.author && !e.inflight && actions.includes("merge") && readyToMerge(it, this.me()) && { cta: "handoff" as const }),
       ...(me.author && sig.review_optional && { review_optional: true as const }),
       ...(talked(it, this.me()) && { talk: true as const }),
       ...(actions.length > 0 && { actions }),

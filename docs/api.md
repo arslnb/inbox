@@ -318,7 +318,7 @@ interface Card {
   verdict: "look" | "skim" | "skip" | null; // the current commit's AI review
   preflight?: Preflight; // Now and Today only
   handed_back?: boolean; // your PR back on top; its why says why
-  cta?: "ready" | "reply" | "reviewers" | "merge"; // the row's one call to action
+  cta?: "ready" | "reply" | "reviewers" | "handoff"; // the row's one call to action
   review_optional?: true; // your PR's repo needs no review: Hand off for merge beside Add reviewers
   talk?: true; // people said something on it
   actions?: GitHubAction[]; // the More menu's writes allowed now
@@ -1172,14 +1172,14 @@ The Inbox's sections, Urgent, Standard and FYI, and their order come from `src/u
 
 GitHub's are rule-only, so a fresh desk sections from its first sync:
 
-| Criterion              | Says yes when                                                                                                                                              | Urgent   |
-| ---------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
-| Asked by name          | `me.requested_direct`: a review asked of you by name, whoever added it; not one asked only of a team you're on. Reviewing it drops the request             | weight 3 |
-| Waiting on your reply  | `me.owes_reply`, or someone else's PR you reviewed got pushes since                                                                                        |          |
-| Ready to merge         | yours, approved or in a repo that needs no review, green, not a draft, not stacked or blocked, and no PR waits on it: one press merges it (`cta: "merge"`) | yes      |
-| Your draft             | yours and still a draft: it waits on you to mark it Ready for review (`cta: "ready"`)                                                                      | yes      |
-| Your PR others wait on | yours, other PRs need it merged first, and it's ready to merge or waits on your reply                                                                      | yes      |
-| Handed back            | `me.handed_back`                                                                                                                                           | yes      |
+| Criterion              | Says yes when                                                                                                                                                                                 | Urgent   |
+| ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------- |
+| Asked by name          | `me.requested_direct`: a review asked of you by name, whoever added it; not one asked only of a team you're on. Reviewing it drops the request                                                | weight 3 |
+| Waiting on your reply  | `me.owes_reply`, or someone else's PR you reviewed got pushes since                                                                                                                           |          |
+| Ready to merge         | yours, approved or in a repo that needs no review, green, not a draft, not stacked or blocked, and no PR waits on it: one press hands it off for merge (`cta: "handoff"`; More merges it now) | yes      |
+| Your draft             | yours and still a draft: it waits on you to mark it Ready for review (`cta: "ready"`)                                                                                                         | yes      |
+| Your PR others wait on | yours, other PRs need it merged first, and it's ready to merge or waits on your reply                                                                                                         | yes      |
+| Handed back            | `me.handed_back`                                                                                                                                                                              | yes      |
 
 **Outcomes.** A `when` alone is evaluated every time the desk computes its view. A question's answer is kept per item (kv `said:<id>`), keyed on the item (`sortKey()`, less the pin) and the question, so a model is asked again only when either changes; until then the item keeps its earlier answer (no, before the first). Questions go in the background, before scores:
 

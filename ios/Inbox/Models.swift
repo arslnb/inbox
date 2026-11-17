@@ -177,7 +177,7 @@ struct Card: Decodable, Identifiable, Sendable {
   var snoozeWhen: String?
   var wakeOn: [String]?
   var doneAt: String?
-  var cta: String?  // "ready" | "reply" | "reviewers" | "merge"
+  var cta: String?  // "ready" | "reply" | "reviewers" | "handoff"
   var reviewOptional: Bool?
   var actions: [String]?  // the GitHub writes the desk allows on it now (Words.more names them); absent when none
   var resolved: String?

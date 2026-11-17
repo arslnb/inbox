@@ -28,7 +28,7 @@ const CTA = {
   ready: { label: "Ready for review", title: "Mark it ready for review on GitHub" },
   reviewers: { label: "Add reviewers", title: "Nobody's asked to review it: opens its review to pick reviewers" },
   reply: { label: "Reply", title: "Someone waits on your answer: opens its review at their conversation" },
-  merge: { label: "Merge", title: "Approved, green and mergeable: merges it on GitHub with its repo's merge method" },
+  handoff: { label: "Hand off for merge", title: "Approved, green and mergeable: your agent gets it merged (More merges it now)" },
 };
 
 // What a row on Blocked or in the Archive says after its ref: why it's there. The Inbox's rows say their `reason`.

@@ -144,7 +144,7 @@ The desk picks it (`cta` on the card). A tinted button before the age, filled un
 - **Ready for review** on your own open draft, even with red CI (your agent fixes CI once it's ready). Marks it ready on GitHub at once and it leaves your desk.
 - **Reply** on your PR whose only action is answering someone. Opens its review with the first reply box focused.
 - **Add reviewers** on your ready PR nobody's asked to review. Opens its review with the Reviewers box focused.
-- **Merge** on your own PR that's approved, green and mergeable. Merges it on GitHub with the repo's merge method in one press, and it goes to the Archive.
+- **Hand off for merge** on your own PR that's approved, green and mergeable. It goes to Merging in one press, where your agent gets it merged. To merge it yourself now, its review's More has **Merge**.
 
 Ready for review with nobody asked isn't done: the PR comes back ready, with Add reviewers as its call to action, and the toast ends "Nobody's asked to review it yet". Ten minutes later it tops your desk.
 

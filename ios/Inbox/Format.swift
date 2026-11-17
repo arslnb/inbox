@@ -106,7 +106,7 @@ enum Words {
     "ready": "Ready for review",
     "reviewers": "Add reviewers",
     "reply": "Reply",
-    "merge": "Merge",
+    "handoff": "Hand off for merge",
   ]
 
   // An opened page's call to action: the row's own, then what the window's review offers where a row has none.

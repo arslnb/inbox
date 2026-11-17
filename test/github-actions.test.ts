@@ -129,8 +129,8 @@ test("the desk says which GitHub writes each item allows, on its card", async (c
   const cta = (ref: string) => runSync(t.desk.item(ref)).card.cta;
   assert.deepEqual(
     [cta("web#4"), cta("web#3"), cta("web#6"), cta("web#9"), cta("web#11")],
-    ["merge", undefined, undefined, undefined, undefined],
-    "Merge on the row when it can",
+    ["handoff", undefined, undefined, undefined, undefined],
+    "Hand off for merge on the row when it can be merged; merging it yourself is in More",
   );
   const view = await run(t.desk.reviewView("web#4"));
   assert.deepEqual(view.card.actions, ["close", "draft", "merge"], "the review's card says the same");

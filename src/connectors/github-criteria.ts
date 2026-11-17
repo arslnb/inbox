@@ -22,7 +22,7 @@ export const GITHUB_CRITERIA: readonly BuiltInCriterion[] = [
   {
     id: "ready",
     name: "Ready to merge",
-    help: 'Your PR is approved (or its repo needs no review) and its CI is green: one press merges it, so it\'s Urgent. One others wait on is "Your PR others wait on" instead.',
+    help: 'Your PR is approved (or its repo needs no review) and its CI is green: one press hands it off for merge, so it\'s Urgent. One others wait on is "Your PR others wait on" instead.',
     on: true,
     when: "me.author && !item.draft && !pr.stacked && !pr.blocked && len(pr.blocks) == 0 && pr.ci == 'green' && (pr.review == 'approved' || (pr.review_optional && pr.review != 'changes_requested'))",
     urgent: true,
