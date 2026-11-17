@@ -444,7 +444,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = dev.inbox.ios;
+				PRODUCT_BUNDLE_IDENTIFIER = it.pstrucha.inbox;
 				PRODUCT_NAME = Inbox;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -461,7 +461,7 @@
 					"@executable_path/Frameworks",
 					"@loader_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = dev.inbox.ios.tests;
+				PRODUCT_BUNDLE_IDENTIFIER = it.pstrucha.inbox.tests;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Inbox.app/Inbox";
@@ -539,7 +539,7 @@
 					"@executable_path/Frameworks",
 					"@loader_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = dev.inbox.ios.tests;
+				PRODUCT_BUNDLE_IDENTIFIER = it.pstrucha.inbox.tests;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/Inbox.app/Inbox";
@@ -557,7 +557,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = dev.inbox.ios;
+				PRODUCT_BUNDLE_IDENTIFIER = it.pstrucha.inbox;
 				PRODUCT_NAME = Inbox;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";

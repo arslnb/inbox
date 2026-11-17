@@ -54,7 +54,7 @@ A Debug build also reads launch arguments, for trying one state without tapping 
 ignores them):
 
 ```bash
-xcrun simctl launch booted dev.inbox.ios -deskURL http://localhost:47841 -page merging
+xcrun simctl launch booted it.pstrucha.inbox -deskURL http://localhost:47841 -page merging
 ```
 
 | Argument                                       | Shows                                                                   |
@@ -189,15 +189,15 @@ TestFlight once Apple has processed it. The build number is main's commit count;
 Once, before the first upload:
 
 1. **The app's record.** App Store Connect → Apps → + → New App: iOS, a name (shown on the App Store and in TestFlight;
-   "Inbox" alone is likely taken), the bundle ID `dev.inbox.ios` (register it under Certificates, Identifiers & Profiles
-   → Identifiers if the list doesn't offer it; if it's taken, change `PRODUCT_BUNDLE_IDENTIFIER` in `project.yml`), any SKU.
+   "Inbox" alone is likely taken), the bundle ID `it.pstrucha.inbox` (the first `ONLY_ARCHIVE=1 ios/testflight.sh`
+   registers it, so the list offers it), any SKU.
 2. **Signing.** Either stay signed in to Xcode with the Apple ID of the team (Settings → Accounts), or make an App Store
    Connect API key (Users and Access → Integrations, App Manager) and pass `ASC_KEY_ID`, `ASC_ISSUER_ID` and
    `ASC_KEY_PATH`. The first archive makes the team's distribution certificate and profile.
-3. **Run it**, with your team id (developer.apple.com → Membership details):
+3. **Run it.** The team is the owner's (`GYRQ5A56S5`) unless `TEAM` says another:
 
    ```bash
-   TEAM=<team id> ios/testflight.sh
+   ios/testflight.sh
    ```
 
 Testers in your own team (internal testing) get it at once. Anyone else (external testing) waits for Beta App Review,

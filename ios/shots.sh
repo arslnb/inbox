@@ -13,7 +13,7 @@ ROOT=$(dirname "$HERE")
 PORT=${SHOTS_PORT:-47841}
 DESK="http://localhost:$PORT"
 OUT="$HERE/.shots"
-BUNDLE=dev.inbox.ios
+BUNDLE=it.pstrucha.inbox
 PATH="/opt/homebrew/bin:$PATH"
 
 UDID=${SHOTS_UDID:-$(xcrun simctl list devices booted | sed -n 's/.*(\([0-9A-F-]\{36\}\)) (Booted).*/\1/p' | head -1)}

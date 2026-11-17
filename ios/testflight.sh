@@ -1,7 +1,7 @@
 #!/bin/bash
 # Builds the app for the App Store and sends it to TestFlight: ios/testflight.sh
 #
-#   TEAM=<team id>                 your Apple Developer team (developer.apple.com → Membership details)
+#   TEAM=<team id>                 the Apple Developer team (developer.apple.com → Membership details); the owner's by default
 #   ASC_KEY_ID, ASC_ISSUER_ID,     an App Store Connect API key (Users and Access → Integrations), its .p8 at ASC_KEY_PATH;
 #   ASC_KEY_PATH                   without them, the Apple ID signed in to Xcode (Settings → Accounts) signs and uploads
 #   ONLY_ARCHIVE=1                 build and sign the archive, send nothing
@@ -12,7 +12,7 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-: "${TEAM:?Set TEAM to your Apple Developer team id}"
+TEAM=${TEAM:-GYRQ5A56S5}
 BUILD=$(git rev-list --count HEAD)
 OUT=.build/testflight
 rm -rf "$OUT"
