@@ -13,6 +13,7 @@ import { fsError, messageOf } from "./errors.ts";
 import { codeOf, strings } from "./narrow.ts";
 import { deskHome } from "./home.ts";
 import { judgeText, weighedLines } from "./judge.ts";
+import { logLines } from "./placements.ts";
 import { permalink } from "./links.ts";
 import { renderText } from "./render.ts";
 import { install, uninstall } from "./launchd.ts";
@@ -284,6 +285,11 @@ const show = Effect.fnUntraced(function* (x: Ctx) {
   if (d.judge) {
     x.out();
     for (const l of weighedLines(d.judge)) x.out(l.startsWith("  ") ? plain(l) : x.c.bold(l));
+  }
+  const log = logLines(d.log);
+  if (log.length) {
+    x.out();
+    for (const l of log) x.out(l.startsWith("  ") ? plain(l) : x.c.bold(l));
   }
   return 0;
 });

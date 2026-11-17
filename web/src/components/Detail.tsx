@@ -169,7 +169,7 @@ export function Detail({ card, detail, ctx }: { card: Card; detail: ItemDetail |
   );
 }
 
-function PlacementView({ p }: { p: Placement }) {
+export function PlacementView({ p }: { p: Placement }) {
   return (
     <div className="placement">
       <ol className="trace">

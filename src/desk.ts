@@ -30,6 +30,7 @@ import { Automations, canOf } from "./automations.ts";
 import { Urgency } from "./urgency.ts";
 import { Light } from "./light.ts";
 import { Attributions } from "./attribution.ts";
+import { Placements } from "./placements.ts";
 import { askOf, GONE, Jobs } from "./jobs.ts";
 import type { GitHub } from "./github/index.ts";
 import type { GitHubWriter, InlineThread } from "./github/write.ts";
@@ -680,6 +681,7 @@ export class Desk {
   urgency: Urgency; // the Inbox's sections and order: criteria and scores
   light: Light; // the light model: what sorts, scores, answers your rules' questions and reads small facts
   attributions: Attributions; // the light model's read of whom a bot's PR is for, where no line says
+  placements: Placements; // each item's log: where it stood and why, each time that changed
   jobs: Jobs; // the work Claude owes the owner
   updates: Updates; // a newer Inbox than the packaged app running this desk
 
@@ -748,6 +750,7 @@ export class Desk {
     this.connectors = [this.gh];
     this.light = new Light(this);
     this.attributions = new Attributions(this);
+    this.placements = new Placements(this);
     this.judge = new Judge(this);
     this.convos = new Conversations(this);
     this.coordinator = new Coordinator(this, MERGING);
@@ -2346,7 +2349,7 @@ export class Desk {
           } else cleared.push(this.card(e, b.result.placements.get(id)!, snap));
         }
       }
-      return {
+      const view: QueueView = {
         inquiries: this.inquiries().filter((q) => !q.answer),
         notes: this.notesView(),
         sessions: this.sessions.cards(),
@@ -2360,6 +2363,8 @@ export class Desk {
         inbox,
         first_pass: this.firstPass(snap),
       };
+      this.placements.note(view, snap);
+      return view;
     });
   }
 
@@ -2485,6 +2490,7 @@ export class Desk {
         generating: this.aiRunning(id),
         held: this.awaitsAi(e, snap) && ["now", "today"].includes(snap.best.get(id)?.bucket ?? ""),
         activity: this.store.activity({ after: 0, limit: ITEM_ACTIVITY, item: id, latest: true }),
+        log: this.placements.log(id),
         stack: this.stack(id, snap),
         ...(e.item.kind === "issue" && this.issueView(e)),
       };

@@ -10,6 +10,7 @@ import type {
   InlineAt,
   JudgeStatus,
   JudgeStep,
+  PlacedEntry,
   QueueView,
   ReviewFile,
   ReviewHunk,
@@ -17,6 +18,8 @@ import type {
   SettingDef,
   SettingValue,
   SettingsView,
+  Status,
+  Where,
 } from "../../src/types.ts";
 import { onLines, type Section } from "../../src/sections.ts";
 import { ago, BUCKET_LABEL, shortRef, aiName } from "./format.ts";
@@ -30,6 +33,7 @@ export type Route =
   | { name: "inquiry"; id: string } // an agent's question
   | { name: "item"; id: string } // a permalink's (src/links.ts): a PR opens in its review, an issue in place on its page
   | { name: "doc"; id: string } // a review document's page (src/doc.ts), by its link
+  | { name: "log"; id: string } // an item's log: how it got where it is, and why
   | { name: "blocked" } // what can't move until something else happens
   | { name: "inflight" }
   | { name: "archive" }
@@ -180,8 +184,8 @@ export function parseRoute(hash: string): Route {
   if (hash === "#/inflight") return { name: "inflight" };
   if (hash === "#/blocked" || hash === "#/waiting") return { name: "blocked" };
   if (hash === "#/archive") return { name: "archive" };
-  const page = /^#\/(review|inquiry|item|doc)\/(.+)$/.exec(hash);
-  const name = oneOf(["review", "inquiry", "item", "doc"], page?.[1]);
+  const page = /^#\/(review|inquiry|item|doc|log)\/(.+)$/.exec(hash);
+  const name = oneOf(["review", "inquiry", "item", "doc", "log"], page?.[1]);
   if (page && name) {
     const id = Result.try({ try: () => decodeURIComponent(page[2]!), catch: () => "a mangled link" });
     return Result.isSuccess(id) ? { name, id: id.success } : { name: "queue" };
@@ -192,7 +196,7 @@ export function parseRoute(hash: string): Route {
 // The page the sidebar marks current: a review is on the page it was opened from, a question on the Inbox; Settings is none.
 export function pageOf(route: Route, from: ListPage): ListPage | null {
   if (route.name === "review") return from;
-  if (route.name === "inquiry" || route.name === "item" || route.name === "doc") return "queue";
+  if (route.name === "inquiry" || route.name === "item" || route.name === "doc" || route.name === "log") return "queue";
   return route.name === "settings" ? null : route.name;
 }
 
@@ -219,7 +223,7 @@ export const inboxCount = (v: QueueView, leaving: ReadonlySet<string> = new Set(
 
 export function routeHash(r: Route): string {
   if (r.name === "settings") return `#/settings/${r.section}`;
-  if (r.name === "review" || r.name === "inquiry" || r.name === "item" || r.name === "doc")
+  if (r.name === "review" || r.name === "inquiry" || r.name === "item" || r.name === "doc" || r.name === "log")
     return `#/${r.name}/${encodeURIComponent(r.id)}`;
   return r.name === "queue" ? "#/" : `#/${r.name}`;
 }
@@ -888,4 +892,56 @@ export function wholeFor(w: { old: string; new: string }, patch: string, section
   const trailing = (lines: string[], start: number, n: number) => lines.length - end(start, n);
   if (trailing(before, last.oldStart, last.oldCount) !== trailing(after, last.newStart, last.newCount)) return null;
   return { old: before.join("\n"), new: after.join("\n") };
+}
+
+// ---------------------------------------------------------------- an item's log
+
+export const WHERE_LABEL: Record<Where, string> = {
+  urgent: "Urgent",
+  standard: "Standard",
+  fyi: "FYI",
+  blocked: "Blocked",
+  hidden: "hidden by your rules",
+  cleared: "off your desk",
+  resolved: "resolved",
+  gone: "gone from your searches",
+};
+
+const STATUS_DID: Record<Exclude<Status, "active">, string> = {
+  done: "you marked it done",
+  snoozed: "you snoozed it",
+  muted: "you muted it",
+};
+
+// A log entry's headline: what moved, and where it stood after.
+export function placedLine(e: PlacedEntry): string {
+  const where = WHERE_LABEL[e.where];
+  const at = e.score === undefined ? where : `${where}, ${e.score}`;
+  if (e.changed.includes("new")) return `On your desk: ${at}`;
+  if (e.changed.includes("where")) return `Moved to ${at}`;
+  if (e.changed.includes("score")) return `Scored ${e.score ?? 0}, still ${where}`;
+  if (e.changed.includes("judge") && e.judge)
+    return `${e.judge.by ?? aiName()} ${e.judge.bucket ? `said ${BUCKET_LABEL[e.judge.bucket].toLowerCase()}` : "gave no answer"}, still ${where}`;
+  if (e.changed.includes("rule")) return e.rule ? `Another rule places it, still ${where}` : `No rule places it now, still ${where}`;
+  if (e.changed.includes("criteria")) return `Its criteria changed, still ${where}`;
+  return `Still ${at}`;
+}
+
+// What it rested on then: its row's why, the rule, the judge, the criteria, you.
+export function placedEvidence(e: PlacedEntry): string[] {
+  const out: string[] = [];
+  if (e.reason) out.push(`Why: ${e.reason}`);
+  if (e.rule)
+    out.push(
+      `Rule ${e.rule.id ?? "of yours"} (${e.rule.bucket === "judge" ? "the judge's" : BUCKET_LABEL[e.rule.bucket].toLowerCase()}): ${e.rule.when}`,
+    );
+  if (e.judge)
+    out.push(
+      `${e.judge.by ?? aiName()}: ${e.judge.bucket ? BUCKET_LABEL[e.judge.bucket].toLowerCase() : "no answer"}${e.judge.why ? `, ${e.judge.why}` : ""}`,
+    );
+  if (e.criteria?.length) out.push(`Criteria that said yes: ${e.criteria.join(", ")}`);
+  if (e.moved) out.push(`You moved it to ${WHERE_LABEL[e.moved]}`);
+  if (e.status) out.push(STATUS_DID[e.status].replace(/^./, (c) => c.toUpperCase()));
+  if (e.resolved) out.push(`Resolved: ${e.resolved}`);
+  return out;
 }

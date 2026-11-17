@@ -442,6 +442,7 @@ interface ItemDetail {
   generating: boolean;
   held: boolean; // kept off the queue until its first AI review
   activity: ActivityEvent[]; // latest first
+  log: PlacedEntry[]; // where it stood each time that changed, and why (src/placements.ts): Where, score, its row's why, the rule (with its when), Claude's answer, the criteria that said yes, your move, status, resolution; newest first, 100 kept
   stack: Stack | null;
 }
 

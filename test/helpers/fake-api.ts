@@ -269,6 +269,7 @@ function state(id: string, patch: Partial<ItemState> = {}): ItemState {
 
 function detail(c: Card): ItemDetail {
   return {
+    log: [],
     card: c,
     item: {} as ItemDetail["item"],
     signals: {} as ItemDetail["signals"],

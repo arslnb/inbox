@@ -67,6 +67,7 @@ import { Later, Queue } from "./components/Queue.tsx";
 import type { SessionCtx } from "./components/Session.tsx";
 import { PeopleFilter } from "./components/PeopleFilter.tsx";
 import { Review } from "./components/Review.tsx";
+import { ItemLog } from "./components/ItemLog.tsx";
 import { type RuleFocus } from "./components/Rules.tsx";
 import { Settings } from "./components/Settings.tsx";
 import { Setup } from "./components/Setup.tsx";
@@ -448,7 +449,9 @@ export function App() {
       return;
     }
     setReviewFrom(
-      route.name === "settings" || route.name === "inquiry" || route.name === "item" || route.name === "doc" ? "queue" : route.name,
+      route.name === "settings" || route.name === "inquiry" || route.name === "item" || route.name === "doc" || route.name === "log"
+        ? "queue"
+        : route.name,
     );
     setReviewQuestion(route.name === "inquiry" ? route.id : null);
   }, [route]);
@@ -1441,6 +1444,7 @@ export function App() {
     if (k === "enter") openCard(c);
     else if (k === "link") runUi(copyLink(c));
     else if (k === "github-link") runUi(copyLink(c, true));
+    else if (k === "log") go({ name: "log", id: c.id });
     else if (k === "rule" && c.rule) {
       setRuleFocus({ ...c.rule, at: Date.now() });
       go({ name: "settings", section: "rules" });
@@ -1918,6 +1922,22 @@ export function App() {
               title="Review document"
               src={`/api/docs/${encodeURIComponent(route.id)}/html`}
               sandbox="allow-popups allow-popups-to-escape-sandbox"
+            />
+          )}
+          {route.name === "log" && !broken && (
+            <ItemLog
+              key={route.id}
+              id={route.id}
+              loads={loads}
+              now={now}
+              me={me}
+              onBack={() => {
+                history.back();
+              }}
+              onRule={(rule) => {
+                setRuleFocus({ ...rule, at: Date.now() });
+                go({ name: "settings", section: "rules" });
+              }}
             />
           )}
           {route.name === "inquiry" && !broken && (

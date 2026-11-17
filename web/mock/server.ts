@@ -74,6 +74,7 @@ import type {
   Mergeable,
   Overview,
   Placement,
+  PlacedEntry,
   PlacingRule,
   Preflight,
   PreviewResult,
@@ -3038,6 +3039,66 @@ function resolve(ref: string): Rec {
   throw new HttpError(404, `unknown item ${ref}`);
 }
 
+// An item's log as the desk would have written it: the auth cleanup's story, and for the rest the one entry it starts with.
+function logOf(r: Rec, card: Card): PlacedEntry[] {
+  if (r.id === "acme/api#4099")
+    return [
+      {
+        seq: 3,
+        at: iso(8),
+        changed: ["where", "score", "judge"],
+        where: "urgent",
+        score: 8.2,
+        reason: "dana pushed fixes after your changes request",
+        rule: { board: "work-review", path: "boards[0].rules[1]", why: "pushed since your review", when: W.pushed, bucket: "now" },
+        judge: { bucket: "now", why: "dana answered your changes request; the auth cleanup waits on you" },
+      },
+      {
+        seq: 2,
+        at: iso(50),
+        changed: ["score"],
+        where: "standard",
+        score: 6.1,
+        reason: "dana's auth cleanup, asked of your team",
+        rule: {
+          board: "work-review",
+          path: "boards[0].rules[2]",
+          why: "close collaborator: 5 PRs in 90 days",
+          when: W.close,
+          bucket: "today",
+        },
+        judge: { bucket: "later", why: "a big cleanup with your review already in" },
+      },
+      {
+        seq: 1,
+        at: iso(110),
+        changed: ["new"],
+        where: "standard",
+        score: 5,
+        reason: "asked of @backend",
+        rule: {
+          board: "work-review",
+          path: "boards[0].rules[2]",
+          why: "close collaborator: 5 PRs in 90 days",
+          when: W.close,
+          bucket: "today",
+        },
+        criteria: ["Asked of your team"],
+      },
+    ];
+  const at = card.section ?? "fyi";
+  return [
+    {
+      seq: 1,
+      at: card.created_at ?? iso(24),
+      changed: ["new"],
+      where: at,
+      reason: card.reason ?? card.why,
+      ...(card.score !== undefined && { score: card.score }),
+    },
+  ];
+}
+
 function detail(r: Rec): ItemDetail {
   const sig = signals(r);
   const placements = config.boards.flatMap((b) =>
@@ -3051,8 +3112,10 @@ function detail(r: Rec): ItemDetail {
   const best = placements.reduce((a, b) => (RANK[b.bucket] < RANK[a.bucket] ? b : a), placements[0] ?? none);
   const item = itemOf(r);
   const ai = reviews.get(r.id) ?? null;
+  const card = cardOf(r, shownAt(r, best));
   return {
-    card: cardOf(r, shownAt(r, best)),
+    card,
+    log: logOf(r, card),
     item,
     signals: sig,
     placements,

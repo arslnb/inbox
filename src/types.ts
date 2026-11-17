@@ -962,6 +962,30 @@ export interface ReviewRest {
   mark: string; // the file's own mark, for one with no hunks to carry them: new once a push changes it
 }
 
+// Where an item stood on your desk: an Inbox section, Blocked, hidden by the rules, off it (done, snoozed or muted), resolved,
+// or gone from every search.
+export type Where = InboxSection | "blocked" | "hidden" | "cleared" | "resolved" | "gone";
+
+// What an item's log keeps each time where it stands changes, and why it stood there (src/placements.ts).
+export interface Placed {
+  where: Where;
+  score?: number; // on the Inbox: 0 to 10
+  reason: string; // its row's why then
+  rule?: PlacingRule & { when: string; bucket: RuleBucket }; // the rule that placed it
+  judge?: { bucket: Bucket | null; why: string; by?: string }; // Claude's answer, or an automation's sort (by)
+  criteria?: readonly string[]; // the urgency criteria that said yes
+  moved?: InboxSection; // you moved it there
+  status?: Exclude<Status, "active">;
+  resolved?: string;
+}
+
+// One entry of an item's log: what changed since the one before ("new" for the first), and where it stood then.
+export interface PlacedEntry extends Placed {
+  seq: number;
+  at: string;
+  changed: string[]; // of "new", "where", "score", "rule", "judge", "criteria", "moved", "status", "resolved"
+}
+
 export interface ItemDetail {
   card: Card;
   item: Item;
@@ -976,6 +1000,7 @@ export interface ItemDetail {
   generating: boolean;
   held: boolean; // in Now or Today, but kept off the queue until Claude's first review of it is written
   activity: ActivityEvent[]; // the latest events for this item, newest first
+  log: PlacedEntry[]; // how it got where it is: each change of where it stood and why, newest first
   stack: Stack | null; // its stack, with it current
   issue_ai?: IssueReview | null; // an issue's pre-review, the latest even if the issue has moved on since
   issue_ai_state?: "running" | "failed" | "off" | null; // its run: on its way, failed on this version (issue_ai_error says why), or AI reviews are off

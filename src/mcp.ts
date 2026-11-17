@@ -13,6 +13,7 @@ import { fsError } from "./errors.ts";
 import { deskHome } from "./home.ts";
 import { linesText } from "./coordinator.ts";
 import { judgeText, weighedLines } from "./judge.ts";
+import { logLines } from "./placements.ts";
 import { permalink, placeOf } from "./links.ts";
 import { renderText } from "./render.ts";
 import {
@@ -283,6 +284,7 @@ function itemText(d: ItemDetail): string {
         ? d.placements.flatMap(traceLines)
         : ["not on any board now: a board filter drops it, or no board's search returns it anymore"]),
       ...(d.judge ? weighedLines(d.judge) : []),
+      ...logLines(d.log),
       ...(d.stack ? stackLines(d.stack) : []),
       ...(d.ai
         ? [
@@ -447,7 +449,7 @@ export function createMcpServer(
     "inbox_item",
     {
       description:
-        "One item: facts, its bucket and why on each board, the rule trace, the review hand-off prompt, and its link in the desk (inbox://…) to give the owner, which opens it there.",
+        "One item: facts, its bucket and why on each board, the rule trace, its log (each time where it stood changed, and the rule, judge answer and criteria behind it: for tuning rules), the review hand-off prompt, and its link in the desk (inbox://…) to give the owner, which opens it there.",
       inputSchema: { ref: z.string().describe(REF) },
       annotations: readOnly,
     },

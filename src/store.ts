@@ -96,6 +96,8 @@ function json<S extends Schema.ConstraintDecoder<unknown>>(schema: S, v: unknown
   return Result.isSuccess(r) ? r.success : undefined;
 }
 
+const LOG_KEPT = 100; // entries an item's log keeps
+
 export class Store {
   db: DatabaseSync;
 
@@ -113,6 +115,9 @@ export class Store {
       CREATE TABLE IF NOT EXISTS jobs (kind TEXT NOT NULL, key TEXT NOT NULL, item TEXT, head TEXT, state TEXT NOT NULL, attempts INTEGER NOT NULL DEFAULT 0, queued_at TEXT NOT NULL, started_at TEXT, finished_at TEXT, retry_at TEXT, error TEXT, PRIMARY KEY (kind, key));
       CREATE TABLE IF NOT EXISTS activity (seq INTEGER PRIMARY KEY AUTOINCREMENT, at TEXT NOT NULL, source TEXT NOT NULL, item_id TEXT NOT NULL, kind TEXT NOT NULL, actor TEXT NOT NULL, data TEXT NOT NULL);
       CREATE INDEX IF NOT EXISTS activity_item ON activity (item_id, seq);
+      -- Each item's log: where it stood on your desk each time that changed, and why (src/placements.ts).
+      CREATE TABLE IF NOT EXISTS placements (seq INTEGER PRIMARY KEY AUTOINCREMENT, at TEXT NOT NULL, item_id TEXT NOT NULL, data TEXT NOT NULL);
+      CREATE INDEX IF NOT EXISTS placements_item ON placements (item_id, seq);
       -- The desk-run coordinator's log, no longer written; the events.agent migration below still reads it.
       -- Your other devices paired over Tailscale (src/remote.ts): a token's sha256, never the token.
       CREATE TABLE IF NOT EXISTS devices (id TEXT PRIMARY KEY, name TEXT NOT NULL, kind TEXT NOT NULL, hash TEXT NOT NULL, created_at TEXT NOT NULL, last_used_at TEXT);
@@ -424,6 +429,34 @@ export class Store {
           },
         ];
       });
+  }
+
+  // --- placements (each item's log)
+
+  // Appends one entry per item, keeping each item's latest LOG_KEPT.
+  addPlacements(rows: { at: string; item_id: string; data: unknown }[]): void {
+    const add = this.db.prepare("INSERT INTO placements (at, item_id, data) VALUES (?, ?, ?)");
+    const trim = this.db.prepare(
+      "DELETE FROM placements WHERE item_id = ? AND seq NOT IN (SELECT seq FROM placements WHERE item_id = ? ORDER BY seq DESC LIMIT ?)",
+    );
+    this.tx(() => {
+      for (const row of rows) {
+        add.run(row.at, row.item_id, JSON.stringify(row.data));
+        trim.run(row.item_id, row.item_id, LOG_KEPT);
+      }
+    });
+  }
+
+  // One item's entries, newest first; or, without an item, every item's latest.
+  placements(item?: string): { seq: number; at: string; item_id: string; data: unknown }[] {
+    const rows =
+      item === undefined
+        ? this.db.prepare("SELECT * FROM placements WHERE seq IN (SELECT MAX(seq) FROM placements GROUP BY item_id)").all()
+        : this.db.prepare("SELECT * FROM placements WHERE item_id = ? ORDER BY seq DESC").all(item);
+    return rows.map((r) => {
+      const data: unknown = JSON.parse(text(r.data));
+      return { seq: int(r.seq), at: text(r.at), item_id: text(r.item_id), data };
+    });
   }
 
   lastSeq(): number {
