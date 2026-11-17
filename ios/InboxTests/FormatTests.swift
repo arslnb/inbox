@@ -268,6 +268,24 @@ final class FormatTests: XCTestCase {
     XCTAssertNil(try card(#","author":"dependabot[bot]","author_bot":true,"by":"dependabot[bot]""#).face, "a bot's own PR")
     XCTAssertEqual(try card(#","author":"acme-junior[bot]","author_bot":true,"by":"dana""#).face, "dana", "a bot's PR opened for dana")
     XCTAssertNil(try card(#","author":"acme-junior[bot]","author_bot":true,"by":"you""#).face)
+  }
+
+  func testABotsPRSaysWhoItWasOpenedForViaTheBot() throws {
+    let card = { (more: String) in
+      try DeskJSON.decoder().decode(
+        Card.self, from: Data(#"{"id":"a/b#1","kind":"pr","repo":"a/b","number":1,"title":"t","author":"sentry-junior","author_bot":true\#(more)}"#.utf8))
+    }
+    let dana = try card(#","by":"dana","attribution":{"person":"@dana","agent":"sentry-junior","source":"line"}"#)
+    XCTAssertEqual([dana.byWords, dana.face], ["dana via sentry-junior", "dana"])
+    let named = try card(#","by":"Dana Q","attribution":{"person":"Dana Q","agent":"sentry-junior","source":"model"}"#)
+    XCTAssertEqual(named.byWords, "Dana Q via sentry-junior")
+    XCTAssertNil(named.face, "a name alone has no picture")
+    let mine = try card(#","by":"you","attribution":{"person":"@me","agent":"sentry-junior","source":"line"}"#)
+    XCTAssertEqual(mine.byWords, "you via sentry-junior")
+    let nobody = try card(#","by":"sentry-junior","attribution":{"person":"","agent":"sentry-junior","source":"none"}"#)
+    XCTAssertEqual(nobody.byWords, "sentry-junior")
+    XCTAssertNil(nobody.face)
+    XCTAssertEqual(try card(#","by":"sentry-junior""#).byWords, "sentry-junior", "a desk from before attribution")
     let standing = { (who: String) in try DeskJSON.decoder().decode(Standings.Standing.self, from: Data(#"{"who":"\#(who)","state":"asked"}"#.utf8)).face }
     XCTAssertEqual(try standing("marco"), "marco")
     XCTAssertNil(try standing("you"))

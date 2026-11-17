@@ -479,8 +479,10 @@ struct ItemPage: View {
   private func facts(_ c: Card) -> [Dotted.Part] {
     var out: [Dotted.Part] = []
     if c.mine {
-      let through = c.authorBot == true ? ", through \(c.author ?? "")" : ""
-      out.append(.init("you\(through)", Theme.ink2, lead: "by", face: store.me.isEmpty ? nil : store.me))
+      out.append(.init(c.attribution == nil ? "you" : c.byWords, Theme.ink2, lead: "by", face: store.me.isEmpty ? nil : store.me))
+    } else if c.attribution?.person?.isEmpty == false {
+      // A bot's PR opened for someone: "dana via sentry-junior", their picture when a login.
+      out.append(.init(c.byWords, lead: "by", face: c.face))
     } else {
       // Their picture before the name, as the window's head; a bot has none.
       out.append(.init("\(c.author ?? c.by ?? "")\(c.authorBot == true ? " (bot)" : "")", lead: "by", face: c.authorBot == true ? nil : c.author ?? c.by))

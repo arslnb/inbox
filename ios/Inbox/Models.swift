@@ -158,6 +158,7 @@ struct Card: Decodable, Identifiable, Sendable {
   var author: String?
   var authorBot: Bool?
   var by: String?
+  var attribution: Attribution?  // a bot's PR: who it was opened for, and the bot
   var people: [String]?
   var stage: String?
   var bucket: String?
@@ -223,10 +224,30 @@ struct Card: Decodable, Identifiable, Sendable {
     var waits: String?
   }
 
+  // docs/api.md → Opened for you: person is "@login", a name, or "" when nothing says.
+  struct Attribution: Decodable, Sendable {
+    var person: String?
+    var agent: String?
+    var source: String?  // "line" | "assignee" | "model" | "none"
+  }
+
   var isPR: Bool { kind == "pr" }
   var mine: Bool { by == "you" }
-  // Whose picture its row shows: a person's. None for you, nor a bot that wrote its own PR (docs/ui.md: "none for you or a bot").
-  var face: String? { mine || (authorBot == true && by == author) ? nil : by }
+  // Whose picture its row shows: a person's. None for you, nor a bot that wrote its own PR (docs/ui.md: "none for you or a bot"),
+  // nor a bot's PR opened for someone known by a name alone.
+  var face: String? {
+    if mine || (authorBot == true && by == author) { return nil }
+    if let person = attribution?.person { return person.hasPrefix("@") ? String(person.dropFirst()) : nil }
+    return by
+  }
+  // Who it's by in words, as the window's byOf(): "dana via sentry-junior", "you via …", the bot alone when nobody's known.
+  var byWords: String {
+    guard let a = attribution, let agent = a.agent, !agent.isEmpty else { return by ?? author ?? "" }
+    if mine { return "you via \(agent)" }
+    let person = a.person ?? ""
+    if person.isEmpty { return agent }
+    return "\(person.hasPrefix("@") ? String(person.dropFirst()) : person) via \(agent)"
+  }
   var active: Bool { (status ?? "active") == "active" }
   // Hand off for merge is for a PR through its review (view.ts's handsOff()): not a draft, not one awaiting review, nor
   // one nobody's asked unless its repo needs no review. Offered on your own open PR; the desk refuses the rest in words.

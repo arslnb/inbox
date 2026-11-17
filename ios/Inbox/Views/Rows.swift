@@ -280,7 +280,7 @@ struct CardRow: View {
   // Who it's from is their picture alone: yours, theirs, or a robot for a bot's own PR.
   private var face: RowFace? {
     guard let by = card.by, !by.isEmpty else { return nil }
-    let said = "by \(by)"
+    let said = "by \(card.byWords)"
     if card.mine { return RowFace(who: .person(me), said: said) }
     return RowFace(who: card.face.map { .person($0) } ?? .glyph(.agent), said: said)
   }
