@@ -1422,41 +1422,59 @@ html::-webkit-scrollbar-corner,
   min-width: 0;
 }
 
-/* An item's log: where it stands now, then each move and what happened on GitHub, newest first, the time in a column. */
-.item-log p {
-  margin: 0 0 6px;
+/* An item's log: one line per event, newest first, in columns: when, what kind, then where it went and why. */
+.item-log {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+  padding: 0 12px;
 }
 
-.log-head {
-  font-size: 15px;
-}
-
-.log-signals li {
-  padding: 3px 0;
-  font-size: 13px;
+.log-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
 }
 
 .log-lines > li {
   display: grid;
-  grid-template-columns: 64px 1fr;
+  grid-template-columns: 8.5em 6em 1fr;
   gap: 12px;
-  padding: 8px 0;
+  align-items: baseline;
+  padding: 4px 0;
   border-top: 1px solid var(--rule);
+  font: 12.5px/1.5 var(--mono);
 }
 
-.log-lines .log-what {
-  margin: 0;
+.log-lines time {
+  white-space: nowrap;
 }
 
-.log-placed .log-what {
-  font-weight: 550;
+.log-lines time,
+.log-github .log-kind,
+.log-github .log-msg {
+  color: var(--pencil);
 }
 
-.log-evidence {
-  margin-top: 2px;
-  color: var(--ink-2);
-  font-size: 12.5px;
+.log-msg {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  min-width: 0;
   overflow-wrap: anywhere;
+}
+
+.log-rule {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--accent-ink);
+  font: inherit;
+  cursor: pointer;
+}
+
+.log-rule:hover {
+  text-decoration: underline;
 }
 
 /* Whose words these are, in the accent: an agent's, waiting on your answer. */
@@ -1481,8 +1499,7 @@ html::-webkit-scrollbar-corner,
    it's about, the answers) at the column's edge, as a review's diff. */
 .inquiry > .rv-head,
 .inquiry > .inq-context,
-.inquiry > .inq-links,
-.item-log > section {
+.inquiry > .inq-links {
   padding: 0 12px;
 }
 

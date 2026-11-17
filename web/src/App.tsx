@@ -1445,10 +1445,7 @@ export function App() {
     else if (k === "link") runUi(copyLink(c));
     else if (k === "github-link") runUi(copyLink(c, true));
     else if (k === "log") go({ name: "log", id: c.id });
-    else if (k === "rule" && c.rule) {
-      setRuleFocus({ ...c.rule, at: Date.now() });
-      go({ name: "settings", section: "rules" });
-    } else if (k === "close") setExpanded(null);
+    else if (k === "close") setExpanded(null);
     else if (k === "t") openAsk(c.id);
     else if (k === "b") runUi(back(c));
     else if (k === "analyze" || k === "trust" || k === "fix" || k === "block" || k === "unblock") runUi(issueAct(c, k));
@@ -1929,7 +1926,6 @@ export function App() {
               key={route.id}
               id={route.id}
               loads={loads}
-              now={now}
               me={me}
               onBack={() => {
                 history.back();

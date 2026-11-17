@@ -182,8 +182,7 @@ Right-click any row (Inbox, Blocked, Merging, Archive) for a menu at the pointer
 - **Snooze**, opening to the side: a time, until activity, or what the PR can wait on now (`wake_on`: CI passes, new commits, it's approved, it's ready for review, the merge conflict is fixed).
 - **Move to Urgent** / **Move to Standard** / **Move to FYI**, on the Inbox: one section up or down (Standard offers both; Urgent and FYI offer Standard). It stays there until you're done with it, snooze or mute it; Undo moves it back.
 - **Close on GitHub**, where it can be closed.
-- **See its log**: the item's log page (below).
-- **See the rule that put it here**, when a rule did (not the board's default): Settings → GitHub → Searches and rules, with yours selected in the file or a built-in one marked in its board's list (`Card.rule`).
+- **Show log**: the item's log (below).
 - **Copy link**, **Copy GitHub link** (the PR or issue on GitHub).
 
 On Merging the menu is **Back to the desk**, **Copy link** and **Copy GitHub link**. A question's is **Answer**, **Copy link**, **Dismiss**. A session's is **Done**, **Snooze** and its call to action. A note's is **Done**, its moves (**Move to Urgent**, **Move to Standard**, **Move to FYI**, one section up or down as a row's; a due reminder counts as Urgent, and a move drops the reminder), **Snooze** (a time, which becomes its reminder), **Change note** and **Copy text**. Every kind of row starts with Done and Snooze, from one place in `RowMenu.tsx`. Arrows move, → opens Snooze, Enter picks, Esc closes.
@@ -658,12 +657,9 @@ In order:
 
 ## An item's log
 
-For tuning your rules: what put an item where it is, and how it got there. **See its log** on a row's right-click menu opens it (`#/log/<id>`, `ItemLog.tsx`); Esc goes back.
+For tuning your rules: **Show log** on a row's right-click menu opens it (`#/log/<id>`, `ItemLog.tsx`); Esc goes back. One line per event, newest first, in columns: when, what kind (`new`, `moved`, `score`, `judge`, `rule`, `criteria`, `you moved`, `done`, `snoozed`, `muted`, `resolved`, or `github` for what happened on GitHub), then where it went (section and score), the rule that placed it (a link that opens it in Settings → GitHub → Searches and rules; its condition in the tooltip), Claude's answer, and why.
 
-- **Now**: where it stands (its section, score and why), the rule that placed it with **See the rule**, Claude's answer, what Claude weighs (each rule that matches with its weight), and the rule trace, folded.
-- **How it got here**: newest first, each time where it stood changed (reached your desk, moved, scored a point or more differently, another rule, Claude's answer, the criteria, your move, done or snoozed, resolved), with what it rested on then, between what happened on GitHub (its events).
-
-The desk writes the log as it computes the Inbox (`Placements` in `src/placements.ts`), only when something moved, so it starts with this version: older items have their first entry from now on.
+The desk writes a line each time where an item stands changes, as it computes the Inbox (`Placements` in `src/placements.ts`): its section, a score that moved a point or more, the rule, Claude's answer, the criteria, your move. Logging started with v0.2.48: older items begin then.
 
 ## Asking your agent
 

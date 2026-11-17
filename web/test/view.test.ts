@@ -88,7 +88,7 @@ import {
   wholeFor,
 } from "../src/view.ts";
 import { hashOf } from "../../src/links.ts";
-import { filterOf, filterPeople, filterRest, parseFilter, placedEvidence, placedLine } from "../src/view.ts";
+import { filterOf, filterPeople, filterRest, parseFilter, logLine } from "../src/view.ts";
 import { isTestPath, onLines, sections, traditional, walk } from "../../src/sections.ts";
 import { keepDraft, keptDraft } from "../src/drafts.ts";
 
@@ -1435,32 +1435,23 @@ test("who a row is by: the person a bot opened it for, via the bot; the bot alon
   assert.deepEqual(byOf({ author: "renovate[bot]", author_bot: true, by: "renovate[bot]" }, "me"), { who: "renovate[bot]", face: null });
 });
 
-test("an item's log reads each move and what it rested on", () => {
+test("an item's log line: the kind of change, where it went, Claude's answer, and why", () => {
   const e = (o: Partial<PlacedEntry>): PlacedEntry => ({ seq: 1, at: "", changed: [], where: "standard", reason: "", ...o });
-  assert.equal(placedLine(e({ changed: ["new"], score: 5 })), "On your desk: Standard, 5");
-  assert.equal(placedLine(e({ changed: ["where", "score"], where: "urgent", score: 8.2 })), "Moved to Urgent, 8.2");
-  assert.equal(placedLine(e({ changed: ["score"], score: 6.1 })), "Scored 6.1, still Standard");
-  assert.equal(placedLine(e({ changed: ["where", "status"], where: "cleared", status: "done" })), "Moved to off your desk");
+  assert.deepEqual(logLine(e({ changed: ["new"], score: 5, reason: "asked of @backend", criteria: ["Asked of your team"] })), {
+    kind: "new",
+    where: "Standard 5",
+    judge: "",
+    note: "Asked of your team",
+    why: "asked of @backend",
+  });
+  const moved = logLine(e({ changed: ["where", "score"], where: "urgent", score: 8.2, judge: { bucket: "now", why: "dana pushed" } }));
+  assert.deepEqual([moved.kind, moved.where, moved.why], ["moved", "Urgent 8.2", "dana pushed"]);
+  assert.match(moved.judge, /: now$/);
+  assert.equal(logLine(e({ changed: ["score"], score: 6.1 })).kind, "score");
+  assert.equal(logLine(e({ changed: ["where", "status"], where: "cleared", status: "done" })).kind, "done");
+  assert.equal(logLine(e({ changed: ["where", "moved"], where: "fyi", moved: "fyi" })).kind, "you moved");
   assert.deepEqual(
-    placedEvidence(
-      e({
-        reason: "asked of @backend",
-        rule: { board: "b", id: "team", why: "", when: "me.requested", bucket: "fyi" },
-        judge: { bucket: "later", why: "a big cleanup", by: "Triage" },
-        criteria: ["Asked of your team"],
-        moved: "urgent",
-        status: "snoozed",
-        resolved: "approved by dana",
-      }),
-    ),
-    [
-      "Why: asked of @backend",
-      "Rule team (fyi): me.requested",
-      "Triage: later, a big cleanup",
-      "Criteria that said yes: Asked of your team",
-      "You moved it to Urgent",
-      "You snoozed it",
-      "Resolved: approved by dana",
-    ],
+    [logLine(e({ changed: ["where", "resolved"], where: "resolved", resolved: "approved by dana" }))].map((x) => [x.kind, x.note]),
+    [["resolved", "approved by dana"]],
   );
 });

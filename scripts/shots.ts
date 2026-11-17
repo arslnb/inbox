@@ -5588,7 +5588,7 @@ const SHOTS: Shot[] = [
       );
       if (
         JSON.stringify(items[0]) !== JSON.stringify(["Done", "Snooze›"]) ||
-        JSON.stringify(items.at(-2)) !== JSON.stringify(["See its log", "See the rule that put it here"]) ||
+        JSON.stringify(items.at(-2)) !== JSON.stringify(["Show log"]) ||
         JSON.stringify(items.at(-1)) !== JSON.stringify(["Copy link", "Copy GitHub link"])
       )
         failures.push(`row-menu: it reads ${JSON.stringify(items)}`);
@@ -5597,32 +5597,17 @@ const SHOTS: Shot[] = [
       await page.keyboard.press("Escape");
     },
   },
-  // A row's "See its log": where it stands and why, then how it got there, each move with its evidence.
+  // A row's "Show log": one line per event, newest first: the desk's moves between what happened on GitHub.
   {
     name: "item-log",
     go: async (page) => {
       await at("#/")(page);
       await page.locator(".line", { hasText: "Drop the legacy v1 auth" }).locator(".row-main").click({ button: "right" });
-      await page.locator(".ctx-item", { hasText: "See its log" }).click();
+      await page.locator(".ctx-item", { hasText: "Show log" }).click();
       await page.locator(".item-log .log-lines li").first().waitFor();
-      const heads = await page.locator(".log-placed .log-what").allTextContents();
-      if (JSON.stringify(heads) !== JSON.stringify(["Moved to Urgent, 8.2", "Scored 6.1, still Standard", "On your desk: Standard, 5"]))
-        failures.push(`item-log: its moves read ${JSON.stringify(heads)}`);
-    },
-  },
-  // A row's "See the rule that put it here": Rules, with that rule marked (a built-in one) or selected in the file (yours).
-  {
-    name: "row-rule",
-    go: async (page) => {
-      await at("#/")(page);
-      await page.locator(".line", { hasText: "Drop the legacy v1 auth" }).locator(".row-main").click({ button: "right" });
-      await page.locator(".ctx-item", { hasText: "See the rule that put it here" }).click();
-      await page.waitForFunction(
-        `!!document.querySelector(".builtin-rules li.lit") || (document.activeElement?.tagName === "TEXTAREA" && document.activeElement.selectionEnd > document.activeElement.selectionStart)`,
-        undefined,
-        { timeout: 5000 },
-      );
-      await page.waitForTimeout(300);
+      const kinds = await page.locator(".log-desk .log-kind").allTextContents();
+      if (JSON.stringify(kinds) !== JSON.stringify(["moved", "score", "new"]))
+        failures.push(`item-log: its moves read ${JSON.stringify(kinds)}`);
     },
   },
   {

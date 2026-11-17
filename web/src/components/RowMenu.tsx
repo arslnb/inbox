@@ -53,7 +53,7 @@ export function RowMenu({ card, x, y, snooze, run, act, github, reopen, onClose 
     rowActions(card)
       .filter((a) => a === "close")
       .map((a) => ({ label: `${MORE[a]} on GitHub`, do: { github: a } })),
-    [go("See its log", "log"), ...(card.rule ? [go("See the rule that put it here", "rule")] : [])],
+    [go("Show log", "log")],
     [go("Copy link", "link"), go("Copy GitHub link", "github-link")],
   ];
   function pick(d: Do) {

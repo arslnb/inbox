@@ -18,7 +18,6 @@ import type {
   SettingDef,
   SettingValue,
   SettingsView,
-  Status,
   Where,
 } from "../../src/types.ts";
 import { onLines, type Section } from "../../src/sections.ts";
@@ -896,52 +895,42 @@ export function wholeFor(w: { old: string; new: string }, patch: string, section
 
 // ---------------------------------------------------------------- an item's log
 
-export const WHERE_LABEL: Record<Where, string> = {
+const WHERE_LABEL: Record<Where, string> = {
   urgent: "Urgent",
   standard: "Standard",
   fyi: "FYI",
   blocked: "Blocked",
-  hidden: "hidden by your rules",
-  cleared: "off your desk",
-  resolved: "resolved",
-  gone: "gone from your searches",
+  hidden: "Hidden",
+  cleared: "Off desk",
+  resolved: "Resolved",
+  gone: "Gone",
 };
 
-const STATUS_DID: Record<Exclude<Status, "active">, string> = {
-  done: "you marked it done",
-  snoozed: "you snoozed it",
-  muted: "you muted it",
-};
-
-// A log entry's headline: what moved, and where it stood after.
-export function placedLine(e: PlacedEntry): string {
-  const where = WHERE_LABEL[e.where];
-  const at = e.score === undefined ? where : `${where}, ${e.score}`;
-  if (e.changed.includes("new")) return `On your desk: ${at}`;
-  if (e.changed.includes("where")) return `Moved to ${at}`;
-  if (e.changed.includes("score")) return `Scored ${e.score ?? 0}, still ${where}`;
-  if (e.changed.includes("judge") && e.judge)
-    return `${e.judge.by ?? aiName()} ${e.judge.bucket ? `said ${BUCKET_LABEL[e.judge.bucket].toLowerCase()}` : "gave no answer"}, still ${where}`;
-  if (e.changed.includes("rule")) return e.rule ? `Another rule places it, still ${where}` : `No rule places it now, still ${where}`;
-  if (e.changed.includes("criteria")) return `Its criteria changed, still ${where}`;
-  return `Still ${at}`;
-}
-
-// What it rested on then: its row's why, the rule, the judge, the criteria, you.
-export function placedEvidence(e: PlacedEntry): string[] {
-  const out: string[] = [];
-  if (e.reason) out.push(`Why: ${e.reason}`);
-  if (e.rule)
-    out.push(
-      `Rule ${e.rule.id ?? "of yours"} (${e.rule.bucket === "judge" ? "the judge's" : BUCKET_LABEL[e.rule.bucket].toLowerCase()}): ${e.rule.when}`,
-    );
-  if (e.judge)
-    out.push(
-      `${e.judge.by ?? aiName()}: ${e.judge.bucket ? BUCKET_LABEL[e.judge.bucket].toLowerCase() : "no answer"}${e.judge.why ? `, ${e.judge.why}` : ""}`,
-    );
-  if (e.criteria?.length) out.push(`Criteria that said yes: ${e.criteria.join(", ")}`);
-  if (e.moved) out.push(`You moved it to ${WHERE_LABEL[e.moved]}`);
-  if (e.status) out.push(STATUS_DID[e.status].replace(/^./, (c) => c.toUpperCase()));
-  if (e.resolved) out.push(`Resolved: ${e.resolved}`);
-  return out;
+// One log line's parts: what kind of change it was, where it stood after, and what that rested on (the rule is drawn as a
+// link of its own, so it isn't here).
+export function logLine(e: PlacedEntry): { kind: string; where: string; judge: string; note: string; why: string } {
+  const c = e.changed;
+  const kind = c.includes("new")
+    ? "new"
+    : c.includes("where") && e.status
+      ? e.status
+      : c.includes("resolved")
+        ? "resolved"
+        : c.includes("moved") && e.moved
+          ? "you moved"
+          : c.includes("where")
+            ? "moved"
+            : c.includes("score")
+              ? "score"
+              : c.includes("judge")
+                ? "judge"
+                : c.includes("rule")
+                  ? "rule"
+                  : "criteria";
+  const where = `${WHERE_LABEL[e.where]}${e.score === undefined ? "" : ` ${e.score}`}`;
+  const judge = e.judge ? `${e.judge.by ?? aiName()}: ${e.judge.bucket ? BUCKET_LABEL[e.judge.bucket].toLowerCase() : "no answer"}` : "";
+  const note = e.resolved ?? (c.includes("criteria") || c.includes("new") ? (e.criteria ?? []).join(", ") : "");
+  // Claude's why when it gave one: it's what moved the item; else the row's.
+  const said = e.judge?.why ?? "";
+  return { kind, where, judge, note, why: said.length > 0 ? said : e.reason };
 }
