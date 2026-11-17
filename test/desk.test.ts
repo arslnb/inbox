@@ -642,6 +642,31 @@ test("Resolved lists the last day's items that were in Now or Today or asked of 
   await t.cleanup();
 });
 
+test("no rule keeps an approved PR on the Inbox when its ask went to your team; one that asked you by name after the approval stays", async (c) => {
+  const approved = (n: number, reviewer: string, type: "user" | "team") =>
+    reviewAsk(n, {
+      review_requests: [{ reviewer, type, codeowner: type === "team" }],
+      request_events: [{ at: hoursAgo(5), actor: "carol", actor_bot: false, reviewer, reviewer_type: type }],
+      reviews: [{ author: "dana", author_bot: false, state: "approved", at: hoursAgo(20), commit: "abc" }],
+      review_decision: "approved",
+    });
+  const t = await setup([approved(1, "ml-team", "team"), approved(2, "me", "user")], { settings: { ...UNSCORED, "policy.judge": false } });
+  c.after(t.cleanup);
+  // A hard rule of yours on team asks, as an owner might write: it can't hold what's settled.
+  const text = fs.readFileSync(path.join(t.home, "config.toml"), "utf8");
+  const mine = text.replace(
+    /(id = "acme-review"[\s\S]*?\nbuiltin = "review"\n)/,
+    `$1rules = [{ when = "me.requested && !me.requested_direct", bucket = "now", why = "my team's", hard = true }]\n`,
+  );
+  assert.equal(runSync(t.desk.putConfig(mine)).ok, true);
+  await run(t.desk.sync());
+  const inbox = runSync(t.desk.queue()).inbox;
+  const on = new Set([...inbox.urgent, ...inbox.standard, ...inbox.fyi].map((x) => x.id));
+  assert.ok(!on.has("acme/api#1"), "settled by dana's approval");
+  assert.equal(runSync(t.desk.item("acme/api#1")).card.resolved, "approved by dana");
+  assert.ok(on.has("acme/api#2"), "asked you by name after the approval: someone wants you");
+});
+
 test("a review asked only of your team says so", async () => {
   const t = await setup([reviewAsk(4, { review_requests: [{ reviewer: "ml-team", type: "team", codeowner: true }] })]);
   await run(t.desk.sync());
