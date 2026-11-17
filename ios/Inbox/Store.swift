@@ -175,7 +175,7 @@ final class Store {
 
   private static func localWords(_ e: APIError, _ address: DeskAddress) -> String {
     switch e {
-    case .unreachable: "Nothing answers at \(address.text). Start the desk with desk serve, or open the desktop app."
+    case .unreachable: "Nothing answers at \(address.text). Start the desk with inbox serve, or open the desktop app."
     case .notDesk: "Something answers at \(address.text), but it isn't the desk."
     default: Words.capitalized(e.words) + "."
     }

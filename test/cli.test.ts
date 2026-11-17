@@ -15,7 +15,7 @@ import { startFakeApi, unusedPort, type FakeApi } from "./helpers/fake-api.ts";
 import { failure, run as runFx } from "./helpers/run.ts";
 
 const ROOT = join(import.meta.dirname, "..");
-const BIN = join(ROOT, "bin", "desk");
+const BIN = join(ROOT, "bin", "inbox");
 const tmp = mkdtempSync(join(tmpdir(), "desk-cli-"));
 
 let fake: FakeApi;
@@ -71,10 +71,10 @@ test("client fails with DeskDown when nothing is listening", async () => {
   await withPort(await unusedPort(), async () => {
     const down = await failure(api.overview());
     assert.equal(down._tag, "DeskDown");
-    assert.equal(down.message, "desk is not running — start it with: desk serve");
+    assert.equal(down.message, "desk is not running — start it with: inbox serve");
     const r = await run(["ls"]);
     assert.equal(r.code, 1);
-    assert.equal(r.err, "desk is not running — start it with: desk serve\n");
+    assert.equal(r.err, "desk is not running — start it with: inbox serve\n");
   });
 });
 
@@ -159,7 +159,7 @@ test("ls defaults to focus, grouped by bucket, with counts of the rest", async (
       "TODAY 1",
       "◐ sentry#101  Fix the flaky snuba test that only fails on Tuesdays  your team was asked · 1d",
       "",
-      "1 later · 1 fyi · 1 cleared · 1 hidden  (desk ls --all)",
+      "1 later · 1 fyi · 1 cleared · 1 hidden  (inbox ls --all)",
       "",
     ].join("\n"),
   );
@@ -180,7 +180,7 @@ test("ls <board> hides blocked/later/fyi unless --all, and counts cleared/hidden
   const r = await run(["ls", "reviews"]);
   assert.equal(r.code, 0);
   assert.doesNotMatch(r.out, /LATER|sentry#202/);
-  assert.match(r.out, /1 blocked \u00b7 1 later \u00b7 1 fyi \u00b7 1 cleared \u00b7 1 hidden {2}\(desk ls reviews --all\)\n$/);
+  assert.match(r.out, /1 blocked \u00b7 1 later \u00b7 1 fyi \u00b7 1 cleared \u00b7 1 hidden {2}\(inbox ls reviews --all\)\n$/);
 
   const all = await run(["ls", "reviews", "--all"]);
   assert.match(all.out, /TODAY 1\n.*\n\nBLOCKED 1\n\u2298 sentry#606 +Read the new region config/);
@@ -193,7 +193,7 @@ test("ls <board> hides blocked/later/fyi unless --all, and counts cleared/hidden
 test("ls unknown board lists the boards", async () => {
   const r = await run(["ls", "nope"]);
   assert.equal(r.code, 1);
-  assert.equal(r.err, "desk: unknown board nope — boards: focus, reviews\n");
+  assert.equal(r.err, "inbox: unknown board nope — boards: focus, reviews\n");
 });
 
 test("ls --json prints the raw view", async () => {
@@ -240,7 +240,7 @@ test("show reports ambiguous and unknown refs", async () => {
   assert.match(amb.err, /candidates: getsentry\/sentry#1, other\/sentry#1/);
   const unk = await run(["show", "nope#9"]);
   assert.equal(unk.code, 1);
-  assert.equal(unk.err, "desk: unknown item nope#9\n");
+  assert.equal(unk.err, "inbox: unknown item nope#9\n");
 });
 
 test("done/mute/pin post the action", async () => {
@@ -253,7 +253,7 @@ test("done/mute/pin post the action", async () => {
     const r = await run([cmd, "seer#8949"]);
     assert.equal(r.code, 0);
     assert.deepEqual(lastCall(), { method: "POST", path: "/api/act", body: { id: "seer#8949", action: cmd } });
-    assert.match(r.out, new RegExp(`^✓ ${past} getsentry/seer#8949  \\(desk undo \\d+ to revert\\)\\n$`));
+    assert.match(r.out, new RegExp(`^✓ ${past} getsentry/seer#8949  \\(inbox undo \\d+ to revert\\)\\n$`));
   }
 });
 
@@ -261,7 +261,7 @@ test("add posts the ref and says what it started", async () => {
   const r = await run(["add", "seer#8949"]);
   assert.equal(r.code, 0);
   assert.deepEqual(lastCall(), { method: "POST", path: "/api/add", body: { id: "seer#8949" } });
-  assert.equal(r.out, "✓ added getsentry/seer#8949 to your desk, pinned, AI review started  (desk undo 8 to revert)\n");
+  assert.equal(r.out, "✓ added getsentry/seer#8949 to your desk, pinned, AI review started  (inbox undo 8 to revert)\n");
   assert.equal((await run(["add"])).code, 2);
   assert.equal((await run(["add", "seer#8949", "your call on the timeout", "--from", "flags fix"])).code, 0);
   assert.deepEqual(lastCall().body, { id: "seer#8949", why: "your call on the timeout", from: "flags fix" });
@@ -271,12 +271,12 @@ test("snooze defaults to tomorrow and passes an explicit until", async () => {
   const r = await run(["snooze", "seer#8949"]);
   assert.equal(r.code, 0);
   assert.deepEqual(lastCall().body, { id: "seer#8949", action: "snooze", until: "tomorrow" });
-  assert.match(r.out, /^✓ snoozed getsentry\/seer#8949 until .+ or activity {2}\(desk undo \d+ to revert\)\n$/);
+  assert.match(r.out, /^✓ snoozed getsentry\/seer#8949 until .+ or activity {2}\(inbox undo \d+ to revert\)\n$/);
 
   await run(["snooze", "seer#8949", "3h"]);
   assert.equal(lastCall().body.until, "3h");
   const act = await run(["snooze", "seer#8949", "activity"]);
-  assert.match(act.out, /^✓ snoozed getsentry\/seer#8949 until someone else acts {2}\(desk undo \d+ to revert\)\n$/);
+  assert.match(act.out, /^✓ snoozed getsentry\/seer#8949 until someone else acts {2}\(inbox undo \d+ to revert\)\n$/);
 });
 
 test("undo, sync, prompt", async () => {
@@ -311,9 +311,9 @@ test("status --short prints the status text, or 'desk offline' fast", async () =
   // 503 means up but not serving yet, or the config never loaded: by its reason, or an older desk's words.
   for (const [body, out] of [
     [{ error: "desk is starting; the first sync can take a minute" }, "desk starting\n"],
-    [{ error: "config has errors: boards[0].id: missing" }, "desk config error\n"],
-    [{ error: "config has errors: boards[0].id: missing", tag: "Unavailable", reason: "config" }, "desk config error\n"],
-    [{ error: "the rules have errors", tag: "Unavailable", reason: "config" }, "desk config error\n"],
+    [{ error: "config has errors: boards[0].id: missing" }, "inbox config error\n"],
+    [{ error: "config has errors: boards[0].id: missing", tag: "Unavailable", reason: "config" }, "inbox config error\n"],
+    [{ error: "the rules have errors", tag: "Unavailable", reason: "config" }, "inbox config error\n"],
     [{ error: "the config is loading", tag: "Unavailable", reason: "starting" }, "desk starting\n"],
   ] as const) {
     assert.equal((await answering(503, body, () => run(["status", "--short"]))).out, out, JSON.stringify(body));
@@ -335,11 +335,11 @@ test("status --short prints the status text, or 'desk offline' fast", async () =
   }
 });
 
-test("a bug in a command is `desk: <its words>`, exit 1", async () => {
+test("a bug in a command is `inbox: <its words>`, exit 1", async () => {
   // A desk that answers 200 with nothing: ls reads null.
   const r = await answering(200, null, () => run(["ls"]));
   assert.equal(r.code, 1);
-  assert.match(r.err, /^desk: .*null.*\n$/);
+  assert.match(r.err, /^inbox: .*null.*\n$/);
 });
 
 test("usage errors exit 2", async () => {
@@ -365,11 +365,11 @@ test("usage errors exit 2", async () => {
   ]) {
     const r = await run(argv);
     assert.equal(r.code, 2, argv.join(" "));
-    assert.match(r.err, /^desk: .+\nrun 'desk help' for usage\n$/);
+    assert.match(r.err, /^inbox: .+\nrun 'inbox help' for usage\n$/);
   }
   const help = await run([]);
   assert.equal(help.code, 0);
-  assert.match(help.out, /^usage: desk <command>/);
+  assert.match(help.out, /^usage: inbox <command>/);
   assert.equal((await run(["ls", "--help"])).code, 0);
 });
 
@@ -412,7 +412,7 @@ test("config works with the desk down: path, and check reads the file itself", a
     const bad = await run(["config", "check"]);
     assert.equal(bad.code, 1);
     assert.match(bad.out, /^✗ line 1: Invalid TOML document/m);
-    assert.match(bad.out, /desk isn't running; start it with: desk serve\n$/);
+    assert.match(bad.out, /desk isn't running; start it with: inbox serve\n$/);
     assert.equal((await run(["config", "path"])).out, `${join(home, "config.toml")}\n`);
   });
 });
@@ -467,18 +467,18 @@ test("settings set parses the value by the setting's type", async () => {
 test("settings set rejects bad values without writing", async () => {
   fake.settings = { "github.poll_seconds": 120 };
   const bad: [string[], string][] = [
-    [["github.poll_seconds", "5"], "desk: github.poll_seconds must be at least 30\n"],
-    [["github.poll_seconds", "soon"], "desk: github.poll_seconds must be a number\n"],
-    [["notify.enabled", "maybe"], "desk: notify.enabled must be true or false (yes/no, on/off)\n"],
-    [["github.my_repos", "nope"], `desk: github.my_repos "nope" isn't owner/name\n`],
-    [["nope.key", "1"], `desk: unknown setting "nope.key"; desk settings lists them\n`],
+    [["github.poll_seconds", "5"], "inbox: github.poll_seconds must be at least 30\n"],
+    [["github.poll_seconds", "soon"], "inbox: github.poll_seconds must be a number\n"],
+    [["notify.enabled", "maybe"], "inbox: notify.enabled must be true or false (yes/no, on/off)\n"],
+    [["github.my_repos", "nope"], `inbox: github.my_repos "nope" isn't owner/name\n`],
+    [["nope.key", "1"], `inbox: unknown setting "nope.key"; inbox settings lists them\n`],
   ];
   for (const [args, err] of bad) {
     const r = await run(["settings", "set", ...args]);
     assert.equal(r.code, 1, args.join(" "));
     assert.equal(r.err, err);
   }
-  assert.match((await run(["settings", "set", "github.bots", "[oops"])).err, /^desk: github\.bots: bad JSON list/);
+  assert.match((await run(["settings", "set", "github.bots", "[oops"])).err, /^inbox: github\.bots: bad JSON list/);
   assert.deepEqual(fake.settings, { "github.poll_seconds": 120 });
 });
 
@@ -497,7 +497,7 @@ test("connect claude prints what's missing and the commands that fix it", async 
   assert.equal(r.code, 0, r.err);
   const lines = r.out.split("\n");
   assert.deepEqual(lines.slice(0, 3), [
-    "# Claude Code (desk connect claude --apply does this)",
+    "# Claude Code (inbox connect claude --apply does this)",
     "# MCP tools: not connected",
     "claude mcp add --transport http --scope user inbox http://localhost:47960/mcp",
   ]);
@@ -521,7 +521,7 @@ test("setup shows GitHub and each agent with what to run, and naming one picks i
     "  Claude Code  ready",
     "  Codex        not logged in. Run: codex login",
     "  OpenCode     not installed. Run: curl -fsSL https://opencode.ai/install | bash && opencode auth login",
-    "Pick one: desk setup claude, codex or opencode",
+    "Pick one: inbox setup claude, codex or opencode",
     "",
   ]);
   const picked = await run(["setup", "claude"]);
@@ -530,16 +530,16 @@ test("setup shows GitHub and each agent with what to run, and naming one picks i
   const refused = await run(["setup", "opencode"]);
   assert.deepEqual(
     [refused.code, refused.err],
-    [1, "desk: OpenCode isn't installed. Run curl -fsSL https://opencode.ai/install | bash && opencode auth login\n"],
+    [1, "inbox: OpenCode isn't installed. Run curl -fsSL https://opencode.ai/install | bash && opencode auth login\n"],
   );
 });
 
 test("connect without an argument connects Claude Code; codex connects Codex", async () => {
   const claude = await withEnv(scratchHome(), () => run(["connect"]));
-  assert.match(claude.out, /^# Claude Code \(desk connect --apply does this\)\n/);
+  assert.match(claude.out, /^# Claude Code \(inbox connect --apply does this\)\n/);
   const codex = await withEnv(scratchHome(), () => run(["connect", "codex"]));
   assert.equal(codex.code, 0, codex.err);
-  assert.match(codex.out, /^# Codex \(desk connect codex --apply does this\)\n/);
+  assert.match(codex.out, /^# Codex \(inbox connect codex --apply does this\)\n/);
   assert.match(codex.out, /^codex mcp add inbox --url http:\/\/localhost:47960\/mcp$/m);
   assert.equal((await withEnv(scratchHome(), () => run(["connect", "vim"]))).code, 2);
 });
@@ -558,7 +558,7 @@ test("connect --apply registers the desk and installs the skill", { skip: proces
   assert.equal(missing.code, 1);
   assert.equal(
     missing.err,
-    "desk: claude isn't on PATH. Run it yourself: claude mcp add --transport http --scope user inbox http://localhost:47960/mcp\n",
+    "inbox: claude isn't on PATH. Run it yourself: claude mcp add --transport http --scope user inbox http://localhost:47960/mcp\n",
   );
   const r = await withEnv({ ...env, PATH: bin }, () => run(["connect", "--apply"]));
   assert.equal(r.code, 0, r.err);
@@ -583,7 +583,7 @@ test("install and uninstall are macOS-only", async () => {
         assert.equal(r.code, 1);
         assert.equal(
           r.err,
-          `desk: ${cmd} is macOS-only. On Linux and Windows, use Settings → This device → Open at login in the desktop app\n`,
+          `inbox: ${cmd} is macOS-only. On Linux and Windows, use Settings → This device → Open at login in the desktop app\n`,
         );
       }
     } finally {
@@ -691,7 +691,7 @@ test(
       [e._tag, e.message],
       [
         "Conflict",
-        `desk install needs the port free: quit the desk running from ${old} (Review Desk.app, or that desk serve), then run it again`,
+        `inbox install needs the port free: quit the desk running from ${old} (Review Desk.app, or that inbox serve), then run it again`,
       ],
     );
     assert.ok(!existsSync(join(home, "Library", "LaunchAgents", "dev.inbox.desk.plist")), "no plist naming a log in the old folder");
@@ -703,9 +703,9 @@ test(
 // oxlint-disable-next-line typescript/strict-void-return -- promisify picks execFile's util.promisify.custom form, so no return value is discarded
 const execBin = promisify(execFile);
 
-// bin/desk is a POSIX sh launcher; Windows uses bin/desk.cmd.
-test("bin/desk resolves through a symlink", { skip: process.platform === "win32" }, async () => {
-  const link = join(tmp, "desk");
+// bin/inbox is a POSIX sh launcher; Windows uses bin/inbox.cmd.
+test("bin/inbox resolves through a symlink", { skip: process.platform === "win32" }, async () => {
+  const link = join(tmp, "inbox");
   symlinkSync(BIN, link);
   const env = { ...process.env, DESK_PORT: String(fake.port) };
   const { stdout } = await execBin(link, ["status", "--short"], { env });
@@ -719,7 +719,7 @@ test("bin/desk resolves through a symlink", { skip: process.platform === "win32"
 
   await assert.rejects(
     execBin(link, ["ls"], { env: down }),
-    (e: { code: number; stderr: string }) => e.code === 1 && e.stderr === "desk is not running — start it with: desk serve\n",
+    (e: { code: number; stderr: string }) => e.code === 1 && e.stderr === "desk is not running — start it with: inbox serve\n",
   );
 });
 

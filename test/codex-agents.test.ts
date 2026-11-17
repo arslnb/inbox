@@ -21,7 +21,7 @@ const COORDINATOR_OFF = ["apps", "plugins", "browser_use", "browser_use_external
   "--disable",
   x,
 ]);
-const READ = '["desk_list","desk_item","desk_overview","desk_events","desk_brief","desk_merging"]';
+const READ = '["inbox_list","inbox_item","inbox_overview","inbox_events","inbox_brief","inbox_merging"]';
 
 // A codex that lists `servers` for `mcp list --json`, and for exec records its args, folder and stdin, says its thread
 // first (a resume's is its id), writes `answer` to -o, waits while `hold` exists, and fails as `fail` or `turnfail` say.

@@ -453,7 +453,7 @@ test("wakeFor: unblocked says which PR merged", () => {
     wakeFor({ kind: "unblocked", data: { was: "sentry#129460", merged: "", closed: "sentry#129460" } }),
     "needs sentry#129460, closed without merging",
   );
-  assert.equal(wakeFor({ kind: "blocked", data: { by: "sentry#129460" } }), null, "desk_merging says it on the next wake");
+  assert.equal(wakeFor({ kind: "blocked", data: { by: "sentry#129460" } }), null, "inbox_merging says it on the next wake");
 });
 
 test("a line ask keeps its lines and wakes the coordinator with where they are by number, never the file's name", posix, async (c) => {
@@ -468,7 +468,7 @@ test("a line ask keeps its lines and wakes the coordinator with where they are b
   await until(() => t.said().length === 1);
   assert.equal(
     t.said()[0],
-    `${AGENT_ROLE} My ask ${ask.id}, about my PR acme/web#3 (https://github.com/acme/web/pull/3), not handed off, on lines 20-23 of its diff (desk_ask ${ask.id} says where): "why only between batches?" Answer it with desk_answer.`,
+    `${AGENT_ROLE} My ask ${ask.id}, about my PR acme/web#3 (https://github.com/acme/web/pull/3), not handed off, on lines 20-23 of its diff (inbox_ask ${ask.id} says where): "why only between batches?" Answer it with inbox_answer.`,
   );
   assert.ok(!t.fake.calls().flat().join(" ").includes("ignore that"), "never the file's name");
 });
@@ -503,7 +503,7 @@ test("an ask says whose it is in the desk's words: my PR not handed off or in Me
   await t.merged("acme/web#5");
   const about = async (item_id: string) => {
     const a = await run(t.desk.ask({ text: "x", item_id }));
-    return new RegExp(`^My ask ${a.id}, (.*): "x" Answer it with desk_answer\\.$`).exec(t.told.at(-1)!)?.[1];
+    return new RegExp(`^My ask ${a.id}, (.*): "x" Answer it with inbox_answer\\.$`).exec(t.told.at(-1)!)?.[1];
   };
   assert.equal(await about("web#3"), "about my PR acme/web#3 (https://github.com/acme/web/pull/3), not handed off");
   assert.equal(await about("web#4"), "about my PR acme/web#4 (https://github.com/acme/web/pull/4), in Merging");
@@ -538,7 +538,7 @@ test("askLine says where lines are by number and side only, and fails closed on 
   const mine = { url: "https://github.com/acme/web/pull/3", whose: "mine", merging: false, state: "open" } as const;
   const on = (l: Omit<AskLines, "path" | "head">) =>
     /, (on .*): "is this right\?"/.exec(askLine(a({ path: "x.ts", head: "a".repeat(40), ...l }), mine))?.[1];
-  const tail = "of its diff (desk_ask 9c1e2f3a says where)";
+  const tail = "of its diff (inbox_ask 9c1e2f3a says where)";
   assert.equal(on({ line: 23, side: "new" }), `on line 23 ${tail}`);
   assert.equal(on({ line: 23, side: "new", start: { line: 20, side: "new" } }), `on lines 20-23 ${tail}`);
   assert.equal(on({ line: 18, side: "old", start: { line: 17, side: "old" } }), `on removed lines 17-18 ${tail}`);
@@ -547,7 +547,7 @@ test("askLine says where lines are by number and side only, and fails closed on 
   assert.ok(
     askLine(a(null, "acme/api#4127"), null).includes("about acme/api#4127, not on the desk now, read only: don't push to it or post on it"),
   );
-  assert.equal(askLine(a(null, null), null), 'My ask 9c1e2f3a: "is this right?" Answer it with desk_answer.');
+  assert.equal(askLine(a(null, null), null), 'My ask 9c1e2f3a: "is this right?" Answer it with inbox_answer.');
 });
 
 test(
@@ -605,7 +605,7 @@ test("Wake it re-sends a line ask with the item's state now", async (c) => {
   assert.deepEqual(t.told, [askLine(a, { url: "https://github.com/acme/web/pull/3", whose: "mine", merging: true, state: "open" })]);
   assert.equal(
     t.told[0],
-    'My ask a1, about my PR acme/web#3 (https://github.com/acme/web/pull/3), in Merging, on lines 20-23 of its diff (desk_ask a1 says where): "is this right?" Answer it with desk_answer.',
+    'My ask a1, about my PR acme/web#3 (https://github.com/acme/web/pull/3), in Merging, on lines 20-23 of its diff (inbox_ask a1 says where): "is this right?" Answer it with inbox_answer.',
   );
 });
 
@@ -710,14 +710,14 @@ test("what it's doing: its steps since the latest prompt from its transcript, sa
     said(tool("Read", { file_path: "/x/old.py" })),
     j({ type: "user", message: { content: "<desk-ask id=82ae57f6>" } }),
     j({ type: "mode" }),
-    said({ type: "thinking", thinking: "" }, tool("mcp__inbox__desk_brief", { ref: "getsentry/seer#9517" })),
+    said({ type: "thinking", thinking: "" }, tool("mcp__inbox__inbox_brief", { ref: "getsentry/seer#9517" })),
     j({ type: "user", message: { content: [{ type: "tool_result", content: "…" }] } }),
     said(tool("Bash", { command: "git show abc:src/app.py", description: "Show the commit's app.py" })),
     said(tool("Bash", { command: "git log\n  --oneline" })),
     said(tool("Read", { file_path: "/Users/me/code/seer/src/app.py" })),
     "{not json",
     said({ type: "text", text: "The retry wraps\n the handler." }, tool("Grep", { pattern: "idempotency_key" })),
-    said(tool("mcp__inbox__desk_answer", { ask_id: "82ae57f6", text: "…" })),
+    said(tool("mcp__inbox__inbox_answer", { ask_id: "82ae57f6", text: "…" })),
   ].join("\n");
   assert.deepEqual(activityOf(lines), [
     "Ran git log --oneline",

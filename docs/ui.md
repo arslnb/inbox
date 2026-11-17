@@ -188,7 +188,7 @@ On Merging the menu is **Back to the desk**, **Copy link** and **Copy GitHub lin
 
 ### Agents' questions
 
-A Claude Code session asks you in the desk (`desk_inquire`) beside its chat: when you asked it to, or about work going on while you're away. Your agent always asks here.
+A Claude Code session asks you in the desk (`inbox_inquire`) beside its chat: when you asked it to, or about work going on while you're away. Your agent always asks here.
 
 A question is a row at the top of Urgent: a question mark as its icon, the question as its title, **Answer** as its call to action, a small robot whose tip says who asks ("Asked by your agent", or the session's name), and its age. The desk refuses a question without enough context, a link or item, or answers that say what follows.
 
@@ -217,7 +217,7 @@ Your own Claude Code and Codex sessions on this computer that are blocked on you
 
 Once answered or dismissed it leaves the Inbox at once. The page stays and says so ("✓ Answered", with your answer). If the desk refuses, your words come back.
 
-Under your answer: **Not picked up yet**, then **Picked up 2m ago** once the asking session reads it (`desk_inquiry`, or your agent's wake). Nothing pushes an answer to a session that stopped waiting. Until it's read, it's a line in Merging's [Claude's work](#claudes-work); after 30 minutes unread the desk tells you once that the session has probably ended. A dismissal owes nothing.
+Under your answer: **Not picked up yet**, then **Picked up 2m ago** once the asking session reads it (`inbox_inquiry`, or your agent's wake). Nothing pushes an answer to a session that stopped waiting. Until it's read, it's a line in Merging's [Claude's work](#claudes-work); after 30 minutes unread the desk tells you once that the session has probably ended. A dismissal owes nothing.
 
 ## The review view
 
@@ -456,7 +456,7 @@ Empty: "Nothing in Merging yet: hand off one of your PRs for merge when you're d
 
 - Clicking one anywhere on the computer opens the desktop app there (`#/item/<id>`): a PR's review, or an issue opened in place on its page.
 - Pages: `inbox://inbox`, `inbox://blocked`, `inbox://merging`, `inbox://archive`. `inbox://fyi` opens the Inbox.
-- A question: `inbox://question/<id>` opens its page. Pasted to any agent, `desk_inquiry` reads it (the question whole and your answer). Reading it by link isn't picking up your answer; only the asking session does that.
+- A question: `inbox://question/<id>` opens its page. Pasted to any agent, `inbox_inquiry` reads it (the question whole and your answer). Reading it by link isn't picking up your answer; only the asking session does that.
 - A review document: `inbox://doc/<id>`.
 - An agent can also read `http://localhost:47823/#/review/<id>` as the item's ref.
 
@@ -464,7 +464,7 @@ Code: `src/links.ts`; the protocol in `electron/main.ts`.
 
 ## A review document
 
-`#/doc/<id>` shows a review document (`inbox.review/1`) as the desk rendered it, framed with nothing allowed but its links. Agents write them with `desk_doc` or `desk render`; they're kept in `<home>/docs`. Format: [review-format.md](review-format.md).
+`#/doc/<id>` shows a review document (`inbox.review/1`) as the desk rendered it, framed with nothing allowed but its links. Agents write them with `inbox_doc` or `inbox render`; they're kept in `<home>/docs`. Format: [review-format.md](review-format.md).
 
 ## Settings
 
@@ -483,7 +483,7 @@ No tabs. In Settings the sidebar lists its parts in place of the pages, under **
 - A switch on a list (an automation, a criterion, a built-in rule) flips at once, as does Run now ("Running…") and a delete (the row goes). If the desk refuses, it's put back and a bubble says why; a refused delete reopens its editor with your words.
 - Under the control: "Saved" (green, briefly), "Not saved: …" (red, your input kept), or **Reset to default** on a changed setting (the default in its tooltip).
 - Tuning sits at the sheet's end in its own section, **More <part> settings**, always open.
-- A row that would do nothing here isn't drawn (`SHOWN`); one that waits on another is greyed (`DISABLED`). `desk settings` and settings.json still set every one.
+- A row that would do nothing here isn't drawn (`SHOWN`); one that waits on another is greyed (`DISABLED`). `inbox settings` and settings.json still set every one.
 - When settings.json has a problem, a notice above the part names each setting by label and key.
 - Old links still land: `#/settings/automations`, `notify` → Inbox and notifications, `review` and `handoff` → GitHub, `#/rules` → Searches and rules, `policy` (Your policy, gone) → Agent.
 - **Views**: Searches and rules (`#/settings/rules`) and each automation (`#/settings/automations/<id>`; a plugin's `github.<id>`) open as views. Their head is the way back to their part ("‹ GitHub", "‹ Automations"), and so is Esc once you've left the editor. Coming back puts focus on what opened it.
@@ -552,7 +552,7 @@ Each row:
 
 #### Urgency
 
-**Change with your agent**, on each criterion's line and under an automation's buttons: a box for what should change, in your words. **Ask your agent** sends them to your agent with what to do (`changeAsk()` in `web/src/view.ts`): change it with `desk_criteria` or `desk_automations`, only what you asked, and say what changed; a built-in can't be edited, so it writes your own instead (an automation saved off) and says whether to switch the built-in off. The chat opens on it.
+**Change with your agent**, on each criterion's line and under an automation's buttons: a box for what should change, in your words. **Ask your agent** sends them to your agent with what to do (`changeAsk()` in `web/src/view.ts`): change it with `inbox_criteria` or `inbox_automations`, only what you asked, and say what changed; a built-in can't be edited, so it writes your own instead (an automation saved off) and says whether to switch the built-in off. The chat opens on it.
 Your criteria on one sheet, under your automations ([api.md → Urgency](api.md#urgency)).
 
 - Each row: its name, what it says yes to, whether a yes is urgent, how many Inbox items it says yes to now, who wrote it, and its switch.
@@ -576,7 +576,7 @@ Two sections: Tailscale, then Local network.
 
 #### Tailscale
 
-Only in the desktop app (in a browser it says to open the app): **Use it from your other devices**, under it where it serves with **Pair a device** (a one-time code as a QR to scan in the Inbox app on your phone, its link for another device's browser and the `desk connect` command; it closes once the device pairs) and each paired device with **Revoke**, then **Tailscale login allowed in** ([api.md → Security model](api.md#security-model)).
+Only in the desktop app (in a browser it says to open the app): **Use it from your other devices**, under it where it serves with **Pair a device** (a one-time code as a QR to scan in the Inbox app on your phone, its link for another device's browser and the `inbox connect` command; it closes once the device pairs) and each paired device with **Revoke**, then **Tailscale login allowed in** ([api.md → Security model](api.md#security-model)).
 
 #### Local network
 
@@ -597,7 +597,7 @@ The first plugin's part.
 - **Searches and rules**: its help says where each org's items start ("acme goes to Work, everything else to Personal."), or the error count in red.
 - **Archive a review request when someone else approves**: Always, only when your team was asked, or never.
 - **Claude reviews other people's PRs ahead of time** (the AI review).
-- **More GitHub settings**: AI reviews running at once, repos that count as yours, more bots, names agents use for you, the close-collaborator threshold, the sync interval (`github.poll_seconds`, 90 s), and the prompts `desk prompt <ref>` prints for someone else's PR, yours and an issue.
+- **More GitHub settings**: AI reviews running at once, repos that count as yours, more bots, names agents use for you, the close-collaborator threshold, the sync interval (`github.poll_seconds`, 90 s), and the prompts `inbox prompt <ref>` prints for someone else's PR, yours and an issue.
 - **Automations**: the ones GitHub comes with (`src/connectors/github-automations.ts`). Each row: its name, what it does and its last run, **Run now** and its switch (the only thing you change). Its view has **Copy to your automations** in place of Edit (makes an editable copy, off) and no Delete.
 
 **Searches and rules** (`#/settings/rules`):
@@ -628,7 +628,7 @@ A desk that was never set up shows one page in the window's place, without the s
 - **GitHub**: "Signed in as @you", or why not ("You're not signed in to GitHub.", "The GitHub CLI isn't installed.", "Couldn't reach GitHub: …") with the command to run and **Retry**.
 - **Your agent**: one line on what it does, then Claude Code, Codex and OpenCode, each "Installed and logged in." with a green **Use Claude Code**, or "Not logged in." / "Not installed." with the command to run and **Retry**. While GitHub isn't connected the agents say only where they stand; GitHub's Retry asks about everything.
 - **Use …** is one press: "Connecting…", then the Inbox with the first sync running. What fails (the CLI refusing the MCP server, or missing) is red under that agent; a name something else of yours keeps never does, as Connect picks another, and the button stays to try again.
-- It never shows again. Settings → Agent changes the agent; `desk setup` does the same from a terminal.
+- It never shows again. Settings → Agent changes the agent; `inbox setup` does the same from a terminal.
 
 ## Bubbles
 

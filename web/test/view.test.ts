@@ -1297,11 +1297,11 @@ test("asking your agent to change an automation or a criterion names it, its too
   const own = changeAsk({ kind: "automation", id: "warden-issues", name: "Warden issues", builtIn: false }, "run it at 10 too");
   assert.match(
     own,
-    /^Change my automation "Warden issues" \(id warden-issues\): run it at 10 too\n\nWith desk_automations, read its whole definition, change only what I asked/,
+    /^Change my automation "Warden issues" \(id warden-issues\): run it at 10 too\n\nWith inbox_automations, read its whole definition, change only what I asked/,
   );
   const built = changeAsk({ kind: "criterion", id: "github.draft", name: "Your draft", builtIn: true }, "only when CI is green");
   assert.match(built, /^Change my urgency criterion "Your draft" \(id github.draft\): only when CI is green/);
-  assert.match(built, /built in, so it can't be edited: with desk_criteria, .*write my own criterion/);
+  assert.match(built, /built in, so it can't be edited: with inbox_criteria, .*write my own criterion/);
   assert.doesNotMatch(built, /stays off/, "a criterion isn't an automation");
 });
 

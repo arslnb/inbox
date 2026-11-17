@@ -63,7 +63,7 @@ export function noticesOf(c: Conditions): Notice[] {
         sig: "offline",
         tone: "red",
         title: "The desk isn't running",
-        text: "Start it with `desk serve` or open the desktop app.",
+        text: "Start it with `inbox serve` or open the desktop app.",
         fix: { label: "Retry", run: "retry" },
       },
     ];

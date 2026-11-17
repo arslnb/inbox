@@ -1,5 +1,5 @@
 // The desk's errors, logs and traces go to Sentry (greg-pstrucha-test: review-desk, and review-desk-web for the UI; the projects
-// keep their names from before the rename to Inbox). Only `desk serve` starts it, so tests and the CLI's other commands send
+// keep their names from before the rename to Inbox). Only `inbox serve` starts it, so tests and the CLI's other commands send
 // nothing; DESK_SENTRY=0 turns it off.
 import { AsyncLocalStorage } from "node:async_hooks";
 import { spawnSync } from "node:child_process";
@@ -21,7 +21,7 @@ const root = AsyncLocalStorage.snapshot();
 
 export async function startSentry(): Promise<void> {
   if (process.env.DESK_SENTRY === "0") return;
-  // Loaded here, not on import: only `desk serve` pays for the SDK, and the app ships without it.
+  // Loaded here, not on import: only `inbox serve` pays for the SDK, and the app ships without it.
   // The SDK is a dev dependency: an npm install has none, and reports nothing.
   const s = await import("@sentry/hono/node").catch((e: unknown) => {
     if (codeOf(e) === "ERR_MODULE_NOT_FOUND") return null;

@@ -1,5 +1,5 @@
 @echo off
-rem Windows twin of bin/desk.
+rem Windows twin of bin/inbox.
 set "entry=%~dp0..\src\cli.ts"
 if not exist "%entry%" set "entry=%~dp0..\lib\cli.js"
 node --disable-warning=ExperimentalWarning "%entry%" %*

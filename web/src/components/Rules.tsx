@@ -83,7 +83,7 @@ export function Rules({
     };
   }, []);
 
-  // Re-read the file each time the page opens: it may have been edited outside (desk config edit, an editor).
+  // Re-read the file each time the page opens: it may have been edited outside (inbox config edit, an editor).
   // Not on an edit: finishing one (dirty to clean) must not trigger a re-read.
   useKeyed(active ? refresh : null, (signal) => {
     if (doc === null || text === doc.text) runUi(load(), { signal });

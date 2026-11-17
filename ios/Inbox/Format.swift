@@ -524,7 +524,7 @@ enum Notices {
         c.local
           ? Notice(
             id: "desk", sig: "offline", tone: .red, title: "The desk isn't running",
-            text: "Start it with `desk serve` or open the desktop app.", fix: .retry, fixLabel: "Retry")
+            text: "Start it with `inbox serve` or open the desktop app.", fix: .retry, fixLabel: "Retry")
           : Notice(
             id: "desk", sig: "offline", tone: .red, title: "The desk can't be reached",
             text: "Check this phone has Tailscale on, and that the desk's computer is awake.", fix: .retry, fixLabel: "Retry")

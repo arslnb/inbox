@@ -80,8 +80,8 @@ const LOOPBACK = new Set(["localhost", "127.0.0.1", "[::1]"]);
 // cli.ts from source, cli.js in the published package.
 const CLI = fileURLToPath(new URL(`cli${path.extname(import.meta.filename)}`, import.meta.url));
 
-// An Inbox desk's entry, on any port: its /mcp on a loopback address, or `desk mcp` over stdio (bin/desk, bin/desk.cmd, or
-// node on this desk's src/cli.ts) at the port `desk mcp` takes from DESK_PORT as the desk does. Where that desk answers, or
+// An Inbox desk's entry, on any port: its /mcp on a loopback address, or `inbox mcp` (once `desk mcp`) over stdio (bin/inbox, bin/inbox.cmd, or
+// node on this desk's src/cli.ts) at the port `inbox mcp` takes from DESK_PORT as the desk does. Where that desk answers, or
 // null: another server of the owner's may be named inbox, and a helpdesk's `mcp` isn't a desk's.
 function deskOf(entry: unknown): string | null {
   if (typeof entry !== "object" || entry === null) return null;
@@ -95,7 +95,7 @@ function deskOf(entry: unknown): string | null {
     const vars = field(entry, "env") ?? field(entry, "environment");
     const own = str(field(vars, "DESK_PORT")) ?? "";
     const port = own || (process.env.DESK_PORT ?? "") || "47823";
-    const desk = argv.at(-1) === "mcp" && (/^desk(\.cmd)?$/i.test(prog.split(/[\\/]/).at(-1) ?? "") || prog === CLI);
+    const desk = argv.at(-1) === "mcp" && (/^(?:desk|inbox)(\.cmd)?$/i.test(prog.split(/[\\/]/).at(-1) ?? "") || prog === CLI);
     return desk ? `http://localhost:${port}` : null;
   }
   const at = urlOf(field(entry, "url"));
@@ -174,10 +174,12 @@ const bundledFile = (f: string, name = NAME) =>
 
 const readFile = (file: string) => Effect.try({ try: () => fs.readFileSync(file), catch: fsError("read", file) });
 
-// The desk's skill names itself and its tools, as every version has (a zendesk_search isn't one); a skill of the owner's
-// may have the same name.
+// The desk's skill names itself and its tools, as every version has (inbox_*, desk_* before; a zendesk_search isn't one);
+// a skill of the owner's may have the same name.
 const desksSkill = (text: string, name: string) =>
-  new RegExp(String.raw`^---\r?\nname: ${name}\r?\n`).test(text) && /\bdesk_list\b/.test(text) && /\bdesk_item\b/.test(text);
+  new RegExp(String.raw`^---\r?\nname: ${name}\r?\n`).test(text) &&
+  /\b(?:inbox|desk)_list\b/.test(text) &&
+  /\b(?:inbox|desk)_item\b/.test(text);
 
 type SkillState = AgentStatus["skill"]["state"] | "taken";
 
@@ -376,7 +378,7 @@ export const refreshSkills = Effect.fn("agents.refreshSkills")(function* (deskHo
   return done;
 });
 
-// What to paste on another machine to give its agents a desk at `at` (https://<tailnet name>) with `token`: desk pair --print.
+// What to paste on another machine to give its agents a desk at `at` (https://<tailnet name>) with `token`: inbox pair --print.
 export function remoteCommands(at: string, token: string): string[] {
   const skill = (dir: string) =>
     `mkdir -p ${dir}/${NAME} && curl -fsS -H ${sh(`Authorization: Bearer ${token}`)} ${at}/skill -o ${dir}/${NAME}/SKILL.md`;

@@ -157,7 +157,7 @@ async function cli(argv: string[]) {
   return { code, out, err };
 }
 
-test("desk render writes the page beside the document, or where -o says, without a desk", async () => {
+test("inbox render writes the page beside the document, or where -o says, without a desk", async () => {
   const file = join(tmp, "review.json");
   writeFileSync(file, JSON.stringify(sample()));
   const r = await cli(["render", file]);
@@ -172,10 +172,10 @@ test("desk render writes the page beside the document, or where -o says, without
   writeFileSync(file, JSON.stringify(sample({ format: "nope" })));
   const bad = await cli(["render", file]);
   assert.equal(bad.code, 1);
-  assert.match(bad.err, /^desk: not a review document: format must be "inbox.review\/1", not "nope"/);
+  assert.match(bad.err, /^inbox: not a review document: format must be "inbox.review\/1", not "nope"/);
 });
 
-// ---------------------------------------------------------------- the desk: its routes, its own reviews, desk_doc
+// ---------------------------------------------------------------- the desk: its routes, its own reviews, inbox_doc
 
 async function deskWith() {
   const item = makeItem({ number: 7, review_requests: [{ reviewer: "me", type: "user", codeowner: false }] });
@@ -235,7 +235,7 @@ test("the desk writes a document for each AI review it makes, and on demand for 
   assert.equal(((await again.json()) as DocSaved).id, ai.doc, "kept, not written again");
 });
 
-test("desk_doc submits a document from the agent's file and says where its page is", async (c) => {
+test("inbox_doc submits a document from the agent's file and says where its page is", async (c) => {
   const t = await deskWith();
   c.after(t.cleanup);
   const [a, b] = InMemoryTransport.createLinkedPair();
@@ -245,13 +245,13 @@ test("desk_doc submits a document from the agent's file and says where its page 
   c.after(() => client.close());
   const file = join(tmp, "agent.json");
   writeFileSync(file, JSON.stringify(sample({}, { notes: [], concerns: [] })));
-  const r = await client.callTool({ name: "desk_doc", arguments: { path: file } });
+  const r = await client.callTool({ name: "inbox_doc", arguments: { path: file } });
   const text = (r.content as { text: string }[]).map((x) => x.text).join("\n");
   assert.ok(!r.isError, text);
   const id = /^review document ([0-9a-f]{16})$/m.exec(text)?.[1];
   assert.ok(id, text);
   assert.ok(text.includes(`page: ${join(t.home, "docs", `${id}.html`)}`), text);
   assert.ok(text.includes(`in the desk: inbox://doc/${id}`), text);
-  const none = await client.callTool({ name: "desk_doc", arguments: {} });
+  const none = await client.callTool({ name: "inbox_doc", arguments: {} });
   assert.ok(none.isError);
 });

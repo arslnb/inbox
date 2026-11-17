@@ -117,7 +117,7 @@ export function branchPrs(dirs: (keyof typeof PROBE)[]): string {
 fragment B on PullRequest { __typename ${HIT} headRepository { nameWithOwner } }`;
 }
 
-// desk_add's way in for a PR or issue no search returned: the details query wants its node id.
+// inbox_add's way in for a PR or issue no search returned: the details query wants its node id.
 export const LOOKUP = `query($owner: String!, $name: String!, $number: Int!) {
   ${RATE}
   repository(owner: $owner, name: $name) {

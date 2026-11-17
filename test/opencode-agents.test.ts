@@ -272,7 +272,7 @@ test(
     assert.deepEqual(call!.args, [...RUN, "--title", "Inbox automation"]);
     assert.equal(fs.realpathSync(call!.cwd), fs.realpathSync(path.join(t.home, "automations")));
     assert.match(call!.stdin, /the desk's read tools .* and nothing else: no shell, no gh, no web\.\n/);
-    const read = ["list", "item", "overview", "events", "brief", "merging"].map((x) => [`inbox_desk_desk_${x}`, "allow"]);
+    const read = ["list", "item", "overview", "events", "brief", "merging"].map((x) => [`inbox_desk_inbox_${x}`, "allow"]);
     assert.deepEqual(config(call!), {
       share: "disabled",
       // Your inbox isn't the desk's: it's off, and the desk's comes in as inbox_desk.

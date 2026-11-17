@@ -89,7 +89,7 @@ function pick(text: string): string {
 
 // ---------------------------------------------------------------------------- the page
 
-// A document as written (JSON), read and rendered: what `desk render`, desk_doc and POST /api/docs share. What it refuses
+// A document as written (JSON), read and rendered: what `inbox render`, inbox_doc and POST /api/docs share. What it refuses
 // says why, in the words an agent can fix it from.
 export function renderText(text: string): Effect.Effect<{ doc: ReviewDoc; html: string; dropped: string[] }, BadRequest | FsError> {
   return Effect.gen(function* () {

@@ -1,7 +1,7 @@
 // The desk's permalinks: inbox://item/<owner>/<repo>/<number> for a PR or an issue, inbox://question/<id> for an agent's
 // question, inbox://doc/<id> for a review document (src/doc.ts), and inbox://inbox, inbox://blocked, inbox://fyi, inbox://merging and inbox://archive for the pages. Copy link
 // copies them, the desktop app opens them, and every ref reads an item's, as it does the desk's own http links
-// (http://localhost:47823/#/review/<id>); desk_inquiry reads a question's.
+// (http://localhost:47823/#/review/<id>); inbox_inquiry reads a question's.
 import { Result } from "effect";
 
 // Each page's name in a link, its words, and its route in the window (web/src/view.ts).
@@ -83,7 +83,7 @@ export function linkRef(ref: string): { id: string } | { refused: string } | nul
   if (!DESK_LINK.test(s)) return null;
   const p = placeOf(s);
   if (p && "item" in p) return { id: p.item };
-  if (p && "question" in p) return { refused: `"${s}" is a question's link, not an item's: desk_inquiry reads it` };
+  if (p && "question" in p) return { refused: `"${s}" is a question's link, not an item's: inbox_inquiry reads it` };
   if (p && "doc" in p) return { refused: `"${s}" is a review document's link, not an item's: GET /api/docs/${p.doc} reads it` };
   if (p) return { refused: `"${s}" is the ${PAGES[p.page].name} page's link, not an item's: give a PR's or an issue's` };
   return { refused: `can't read "${s}"; an item's link is inbox://item/owner/repo/123` };

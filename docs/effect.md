@@ -119,7 +119,7 @@ services (`Context.Service`, `Layer`, `ManagedRuntime`), `Data.TaggedError` not 
 - **Effect's timers keep the process up.** A fiber left in `Effect.sleep` or a `Schedule` silently keeps `node --test`
   from exiting. So periodic loops (the connector's poll, the judge, the coordinator's ticker, automations) use an
   unref'd Node timer and fork one runner Effect per tick. `Effect.sleep` and `Schedule` are only for waits inside one
-  run (retries, `halt`, `desk_inquiry`'s minute).
+  run (retries, `halt`, `inbox_inquiry`'s minute).
 - **A GitHub write and its bookkeeping are one `Effect.uninterruptible` region**: the write, then `logWrite`,
   `doneAfterWrite`/`act`/`undo`, `wrote`, `ask`'s rollback. Why: a client leaving must never cancel a started write or
   skip its record. Never `restore` around the write.
@@ -189,7 +189,7 @@ Each boundary runs an Effect and answers for whatever fails.
     only bugs.
 - **Background**: the runner, above.
 - **CLI** (`src/cli.ts`): `main` runs one Effect and maps its exit. `UsageError` exits 2 with
-  `desk: <msg>` and "run 'desk help' for usage". `DeskDown` prints its message alone, exit 1. Anything else prints
+  `desk: <msg>` and "run 'inbox help' for usage". `DeskDown` prints its message alone, exit 1. Anything else prints
   `desk: <message>`, exit 1. stdout is flushed before `process.exit`. `status --short` always prints a status word,
   exit 0.
 - **MCP** (`src/mcp.ts`): a tool's failure is its `isError` text; a defect is also logged. Tools take no signal.

@@ -55,7 +55,7 @@ export class Updates {
     this.changed = opts.changed;
   }
 
-  // Only the packaged app's desk asks GitHub: a checkout's main is live, and desk serve has no build to replace.
+  // Only the packaged app's desk asks GitHub: a checkout's main is live, and inbox serve has no build to replace.
   start(): void {
     if (!this.app || this.timer) return;
     const check = () => {

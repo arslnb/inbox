@@ -262,7 +262,7 @@ test("a flagged issue says so in its row, stands down, and Block mutes its autho
   assert.equal(card().status, "active");
 });
 
-test("Make PR with fix asks your agent with our analysis, not the issue's words, and desk_ask lets it open a draft PR", async (c) => {
+test("Make PR with fix asks your agent with our analysis, not the issue's words, and inbox_ask lets it open a draft PR", async (c) => {
   const t = await desk(c, (it) => written(it));
   t.desk.store.set("issue_ai:acme/api#9", written(t.gh.items.get("acme/api#9")!));
   const told: string[] = [];

@@ -19,21 +19,21 @@ On macOS and Linux, that one command:
 
 - installs the app from the latest release: `/Applications/Inbox.app`, or `~/.local/bin/Inbox.AppImage` on Linux. It updates itself from then on. Until there's a release (or with `bash -s -- --source`), it installs from source in `~/.local/share/inbox`, which needs Node 22.18+ and git;
 - signs you in to GitHub with the GitHub CLI (`gh auth login`), offering to install `gh` with Homebrew;
-- puts `desk` in `~/.local/bin` and that on your PATH (not with Linux's AppImage: there `npm install -g @gricha/inbox` brings it);
+- puts `inbox` in `~/.local/bin` and that on your PATH (not with Linux's AppImage: there `npm install -g @gricha/inbox` brings it);
 - opens Inbox;
 - run by Claude Code, Codex or OpenCode (ask it to install Inbox with that command), installs Inbox's MCP tools and skill in that agent and picks it as yours. Start a new session of it to use them.
 
 Run it again to update. On Windows, run the installer from [Releases](https://github.com/gricha/inbox/releases).
 
-**The first open** is one page: GitHub, signed in as you or what to run, and your agent. Claude Code, Codex and OpenCode each say whether they're installed and logged in, or the command that gets them there. Press **Use Claude Code** (or yours): that installs Inbox's MCP tools and skill in it, and you're on your Inbox while the first sync runs, about 30 seconds. Settings → Agent changes it later; `desk setup` does the same from a terminal.
+**The first open** is one page: GitHub, signed in as you or what to run, and your agent. Claude Code, Codex and OpenCode each say whether they're installed and logged in, or the command that gets them there. Press **Use Claude Code** (or yours): that installs Inbox's MCP tools and skill in it, and you're on your Inbox while the first sync runs, about 30 seconds. Settings → Agent changes it later; `inbox setup` does the same from a terminal.
 
 Every agent run is your own CLI, on your own login.
 
-Without the app, from npm: the server, the web UI at <http://localhost:47823> and the `desk` CLI.
+Without the app, from npm: the server, the web UI at <http://localhost:47823> and the `inbox` CLI.
 
 ```bash
 npm install -g @gricha/inbox
-desk serve --open
+inbox serve --open
 ```
 
 From a checkout:
@@ -43,7 +43,7 @@ npm install
 npm run app
 ```
 
-The app runs the desk server itself; if one is already running on port 47823 (`desk serve`), the app attaches to it.
+The app runs the desk server itself; if one is already running on port 47823 (`inbox serve`), the app attaches to it.
 
 To build an installable app for the current OS into `release/` (a `.dmg`, an AppImage, or a Windows installer):
 
@@ -111,7 +111,7 @@ rules = [
 ```
 
 - **Expressions**: `&& || ! == != < <= > >= in matches`, plus `len() lower() contains() startswith() any(list, "glob*")`. An unknown field is an error with a suggestion.
-- **Fields**: `item.*`, `pr.*`, `me.*`, `author.*`, `repo.*`. The full list is beside the editor and in `desk fields`.
+- **Fields**: `item.*`, `pr.*`, `me.*`, `author.*`, `repo.*`. The full list is beside the editor and in `inbox fields`.
 - **Buckets**: `now`, `today`, `blocked`, `later`, `fyi`, `hide`. Only rules fill `blocked`. Hidden items are in the Archive under "Hidden by rules".
 - `{close_authors}` in a query expands to the people you review most.
 
@@ -135,7 +135,7 @@ Settings → Agent picks the agent that sorts your desk, writes AI reviews and r
 
 The agent needs two things from the desk. Settings → Agent says if either is missing, and **Connect** there adds it.
 
-- **MCP tools**, served by the desk at `http://localhost:47823/mcp` while the app or `desk serve` runs. The list: [docs/api.md → MCP tools](docs/api.md#mcp-tools).
+- **MCP tools**, served by the desk at `http://localhost:47823/mcp` while the app or `inbox serve` runs. The list: [docs/api.md → MCP tools](docs/api.md#mcp-tools).
 - **The Inbox skill** ([skills/inbox/SKILL.md](skills/inbox/SKILL.md)): what the desk is, which tool to use when, and its rules. The desk keeps installed copies up to date.
 
 | Agent       | MCP tools                                                                       | Skill copied to                    |
@@ -147,40 +147,40 @@ The agent needs two things from the desk. Settings → Agent says if either is m
 The same from a terminal:
 
 ```bash
-desk connect            # what Claude Code is missing, and the commands that fix it
-desk connect --apply    # do it
-desk connect codex      # or: desk connect opencode
+inbox connect            # what Claude Code is missing, and the commands that fix it
+inbox connect --apply    # do it
+inbox connect codex      # or: inbox connect opencode
 ```
 
-Clients that only speak stdio can run `desk mcp`. Connecting from another machine: [Use it from another machine](#use-it-from-another-machine).
+Clients that only speak stdio can run `inbox mcp`. Connecting from another machine: [Use it from another machine](#use-it-from-another-machine).
 
 **A `/desk` pane for Claude Code**: your Inbox beside the chat, with its count as a status line. Install it with `claude plugin marketplace add ~/code/review-desk`, then `claude plugin install inbox@inbox`, and type `/desk` in a new session. (Had it as `review-desk`? Run `claude plugin uninstall review-desk@review-desk` and `claude plugin marketplace remove review-desk` first.)
 
 ## The CLI
 
-`desk` (`bin/desk`, or `bin/desk.cmd` on Windows) talks to the running desk. To use it from anywhere, link it onto your PATH:
+`inbox` (`bin/inbox`, or `bin/inbox.cmd` on Windows) talks to the running desk. To use it from anywhere, link it onto your PATH:
 
 ```bash
-ln -sf ~/code/review-desk/bin/desk ~/.local/bin/desk
+ln -sf ~/code/review-desk/bin/inbox ~/.local/bin/inbox
 ```
 
 ```bash
-desk ls                       # your Inbox; --all adds blocked, later and FYI
-desk show seer#8463           # why it's there, with the rule trace
-desk add getsentry/seer#8463  # put it on your desk, pinned, and start its AI review
-desk add getsentry/seer#8463 "your call on the retry budget" --from "seer retry fix"  # with the line it shows as why
-desk done seer#8463           # also: snooze, mute, pin, restore, undo
-desk sync                     # sync with GitHub now
-desk settings                 # list settings; `desk settings set review.auto_ai false`
-desk status --short           # "desk 10 +2" (10 on your Inbox, 2 new), for a status line
-desk render review.json       # a review document as one HTML page (docs/review-format.md)
+inbox ls                       # your Inbox; --all adds blocked, later and FYI
+inbox show seer#8463           # why it's there, with the rule trace
+inbox add getsentry/seer#8463  # put it on your desk, pinned, and start its AI review
+inbox add getsentry/seer#8463 "your call on the retry budget" --from "seer retry fix"  # with the line it shows as why
+inbox done seer#8463           # also: snooze, mute, pin, restore, undo
+inbox sync                     # sync with GitHub now
+inbox settings                 # list settings; `inbox settings set review.auto_ai false`
+inbox status --short           # "desk 10 +2" (10 on your Inbox, 2 new), for a status line
+inbox render review.json       # a review document as one HTML page (docs/review-format.md)
 ```
 
-`desk help` lists every command. Routes, tools and types: [docs/api.md](docs/api.md).
+`inbox help` lists every command. Routes, tools and types: [docs/api.md](docs/api.md).
 
 ## Use it from another machine
 
-Over [Tailscale](https://tailscale.com), for you alone. On the desk's computer, turn on Settings → Network → Tailscale → **Use it from your other devices** (or run `desk serve --tailscale`).
+Over [Tailscale](https://tailscale.com), for you alone. On the desk's computer, turn on Settings → Network → Tailscale → **Use it from your other devices** (or run `inbox serve --tailscale`).
 
 - The desk runs `tailscale serve`, so it answers at `https://<this machine's tailnet name>/` on your tailnet only, never on the internet (no `tailscale funnel`). It stops serving when you turn the setting off or the desk stops.
 - It needs Tailscale signed in, with MagicDNS and HTTPS certificates on. The setting says what's missing.
@@ -189,21 +189,21 @@ Over [Tailscale](https://tailscale.com), for you alone. On the desk's computer, 
 Pair a device with a one-time code (10 minutes, one try): press **Pair a device** under the setting (a QR code to scan in the Inbox app on your phone, the link for another device's browser, and the command for another machine), or on the desk's computer:
 
 ```bash
-desk pair
+inbox pair
 ```
 
 - **A browser** (phone, laptop): open the link it prints, `https://<name>/pair#<code>`.
 - **The iPhone app**: the desk's address and the code. It pairs as a phone, and what you tap there counts as your click in the window.
-- **Another machine with an Inbox checkout**: `bin/desk connect https://<name> --code <code>` (add `codex` or `opencode`). It pairs and connects that machine's agent.
-- **A machine without a checkout**: run `desk pair --print` on the desk's computer and paste the commands it prints. They carry a token: treat it as a password.
+- **Another machine with an Inbox checkout**: `bin/inbox connect https://<name> --code <code>` (add `codex` or `opencode`). It pairs and connects that machine's agent.
+- **A machine without a checkout**: run `inbox pair --print` on the desk's computer and paste the commands it prints. They carry a token: treat it as a password.
 - **Codex and OpenCode** read the token from `INBOX_TOKEN`; the commands above print the `export` line.
-- **stdio clients and the CLI**: `DESK_URL=https://<name> DESK_TOKEN=<token> desk mcp` (or any `desk` command).
+- **stdio clients and the CLI**: `DESK_URL=https://<name> DESK_TOKEN=<token> inbox mcp` (or any `inbox` command).
 
 Settings → Network → Tailscale lists paired devices; **Revoke** shuts one out at once. The desk's own computer needs no token. How requests are checked: [docs/api.md → Security model](docs/api.md#security-model).
 
 ## On your phone
 
-A small native iPhone app lives in [`ios/`](ios/README.md) (v0, Simulator only so far). It pairs as a phone (Settings → Network → Pair a device, or `desk pair`), shows your Inbox, Blocked, Merging and the Archive, triages (Done, Snooze, Mute, Undo) and acts as the window does: Approve, Comment, Reply, Ready for review, Ask reviewers, Merge, the More menu's writes, Hand off for merge, answering a question and kicking a session. The desk takes a paired phone as its own window. Checked against the mock desk; pairing as a phone through a real tailnet hasn't been run yet. [ios/README.md](ios/README.md) says how to build and run it.
+A small native iPhone app lives in [`ios/`](ios/README.md) (v0, Simulator only so far). It pairs as a phone (Settings → Network → Pair a device, or `inbox pair`), shows your Inbox, Blocked, Merging and the Archive, triages (Done, Snooze, Mute, Undo) and acts as the window does: Approve, Comment, Reply, Ready for review, Ask reviewers, Merge, the More menu's writes, Hand off for merge, answering a question and kicking a session. The desk takes a paired phone as its own window. Checked against the mock desk; pairing as a phone through a real tailnet hasn't been run yet. [ios/README.md](ios/README.md) says how to build and run it.
 
 ## Coordinator
 
@@ -258,7 +258,7 @@ An automation is an instruction the desk runs for you, on a schedule or on event
 - On by default (no model): **Pick a reviewer** (your ready PR, a workday with nobody asked by name), **Follow up on silent reviewers** (two workdays of silence), **Team reviews someone else took** (to FYI), **Wide team pings** (asked of four or more teams: hidden).
 - Off by default: **Snooze while CI is red** and **Questions in mentions** (a model spots a question for you).
 
-**Yours.** Settings → Automations lists them, with when each runs, its last run, **Run now** and a switch. Open one to edit it. Ask any agent with the desk's tools to write one (`desk_automations`). One an agent writes or changes is on as soon as it's saved, as yours is; only you can delete one.
+**Yours.** Settings → Automations lists them, with when each runs, its last run, **Run now** and a switch. Open one to edit it. Ask any agent with the desk's tools to write one (`inbox_automations`). One an agent writes or changes is on as soon as it's saved, as yours is; only you can delete one.
 
 **When it runs.**
 
@@ -363,6 +363,6 @@ npm run release:publish v0.2.4    # checks, pushes main and the tag, builds ever
   - On macOS the app does it itself, since the ad-hoc signed build can't use the usual updater (`electron/mac-update.ts`): it downloads this Mac's `.dmg`, checks it against the checksum GitHub lists for it, and puts the new app where the old one was, deleting the old one.
 - **Download 0.2.0** elsewhere (an archive, or a Mac app it can't write over, such as one opened straight from the dmg): a link to the release page.
 
-A desk run from a checkout (`npm run app`, `desk serve`, Run from a checkout) never checks.
+A desk run from a checkout (`npm run app`, `inbox serve`, Run from a checkout) never checks.
 
 **npm.** `npm publish` from the tagged commit ships `@gricha/inbox`: `prepack` compiles `src/` to `lib/` (Node won't run TypeScript from `node_modules`) and builds the web UI. An npm install has no Sentry SDK, so it reports nothing.

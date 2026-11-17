@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Installs Inbox, or updates it in place: the app from the latest GitHub release (from source until there is one, or with
-# --source), a GitHub CLI login for it to read GitHub with, and `desk` on your PATH. Then it opens the app.
+# --source), a GitHub CLI login for it to read GitHub with, and `inbox` on your PATH. Then it opens the app.
 #   curl -fsSL https://raw.githubusercontent.com/gricha/inbox/main/install.sh | bash
 # Run by Claude Code, Codex or OpenCode, it installs Inbox's MCP tools and skill in that agent and picks it as yours.
-# Settings: INBOX_APPS (where the app goes), INBOX_DIR (the source checkout), INBOX_BIN (where `desk` goes), INBOX_NO_OPEN=1
+# Settings: INBOX_APPS (where the app goes), INBOX_DIR (the source checkout), INBOX_BIN (where `inbox` goes), INBOX_NO_OPEN=1
 # (don't open it), INBOX_AGENT=claude|codex|opencode|none (the agent to set up, in place of the one running this). INBOX_API, INBOX_DOWNLOADS and INBOX_GIT point it at another release or clone (for testing it).
 set -euo pipefail
 
@@ -78,17 +78,25 @@ release_asset() {
   return 0
 }
 
+# The CLI was desk before it was inbox: drop the one this script put there, never someone else's desk.
+drop_old_cli() {
+  grep -qs "written by Inbox's install.sh" "$BIN/desk" && rm -f "$BIN/desk"
+  case "$(readlink "$BIN/desk" 2>/dev/null)" in */bin/desk | */bin/inbox) rm -f "$BIN/desk" ;; esac
+  return 0
+}
+
 # A launcher that runs the CLI the app bundles, in the app's own Node.
 cli_from_app() {
   local app=$1
   mkdir -p "$BIN"
-  rm -f "$BIN/desk"
-  cat >"$BIN/desk" <<EOF
+  drop_old_cli
+  rm -f "$BIN/inbox"
+  cat >"$BIN/inbox" <<EOF
 #!/bin/sh
-# desk, from $app (written by Inbox's install.sh).
+# inbox, from $app (written by Inbox's install.sh).
 ELECTRON_RUN_AS_NODE=1 exec "$app/Contents/MacOS/Inbox" --disable-warning=ExperimentalWarning "$app/Contents/Resources/app.asar/src/cli.ts" "\$@"
 EOF
-  chmod 755 "$BIN/desk"
+  chmod 755 "$BIN/inbox"
   CLI=1
 }
 
@@ -109,7 +117,7 @@ install_dmg() {
   # It's ad-hoc signed, not notarized: without this macOS refuses to open it.
   xattr -dr com.apple.quarantine "$apps/Inbox.app" 2>/dev/null || true
   cli_from_app "$apps/Inbox.app"
-  say "Installed $apps/Inbox.app, with desk at $BIN/desk. It updates itself from the sidebar."
+  say "Installed $apps/Inbox.app, with inbox at $BIN/inbox. It updates itself from the sidebar."
   APP=$apps/Inbox.app
 }
 
@@ -133,7 +141,7 @@ from_release() {
   rm -rf "$tmp"
 }
 
-# The checkout, its packages, and `desk` on your PATH; the app runs with npm run app.
+# The checkout, its packages, and `inbox` on your PATH; the app runs with npm run app.
 from_source() {
   local dir=${INBOX_DIR:-$HOME/.local/share/inbox}
   need_node
@@ -148,9 +156,10 @@ from_source() {
   fi
   (cd "$dir" && npm ci --no-audit --no-fund --loglevel=error </dev/null)
   mkdir -p "$BIN"
-  ln -sf "$dir/bin/desk" "$BIN/desk"
+  drop_old_cli
+  ln -sf "$dir/bin/inbox" "$BIN/inbox"
   CLI=1
-  say "Installed from source in $dir, with desk at $BIN/desk. Start the app there with npm run app."
+  say "Installed from source in $dir, with inbox at $BIN/inbox. Start the app there with npm run app."
   SOURCE=$dir
 }
 
@@ -159,8 +168,8 @@ on_path() {
   local rc line="export PATH=\"$BIN:\$PATH\""
   case ":$PATH:" in *":$BIN:"*) return ;; esac
   case "${SHELL:-}" in */zsh) rc=$HOME/.zshrc ;; */bash) rc=$HOME/.bashrc ;; *) rc=$HOME/.profile ;; esac
-  grep -qsF "$line" "$rc" || printf '\n# Inbox: desk\n%s\n' "$line" >>"$rc"
-  say "Added $BIN to your PATH in $rc: open a new terminal to run desk."
+  grep -qsF "$line" "$rc" || printf '\n# Inbox: inbox\n%s\n' "$line" >>"$rc"
+  say "Added $BIN to your PATH in $rc: open a new terminal to run inbox."
 }
 
 # The agent running this, from what each sets for the commands it runs.
@@ -185,7 +194,7 @@ label() { case "$1" in claude) echo "Claude Code" ;; codex) echo Codex ;; openco
 # Its MCP tools and skill, which need no running desk: the tools answer once the app is open.
 connect_agent() {
   say "Installing Inbox's MCP tools and skill in $(label "$AGENT")."
-  "$BIN/desk" connect "$AGENT" --apply </dev/null || say "That didn't finish: pick $(label "$AGENT") on Inbox's first page instead."
+  "$BIN/inbox" connect "$AGENT" --apply </dev/null || say "That didn't finish: pick $(label "$AGENT") on Inbox's first page instead."
 }
 
 # Once the desk answers, the agent is picked as yours, so the first page waits on GitHub alone.
@@ -199,7 +208,7 @@ pick_agent() {
     }
     sleep 1
   done
-  "$BIN/desk" setup "$AGENT" </dev/null || say "Pick $(label "$AGENT") on Inbox's first page."
+  "$BIN/inbox" setup "$AGENT" </dev/null || say "Pick $(label "$AGENT") on Inbox's first page."
 }
 
 open_app() {

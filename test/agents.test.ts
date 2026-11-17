@@ -87,9 +87,9 @@ test("Codex: ~/.codex/config.toml and ~/.agents/skills", () => {
   assert.equal(s.skill?.path, join(home, ".agents", "skills", "inbox", "SKILL.md"));
   write(join(".codex", "config.toml"), `model = "o3"\n\n[mcp_servers.inbox]\nurl = "${MCP}"\n`);
   assert.equal(runSync(status("codex", MCP)).mcp?.connected, true);
-  const cmd = String.raw`C:\Users\me\code\review-desk\bin\desk.cmd`;
+  const cmd = String.raw`C:\Users\me\code\review-desk\bin\inbox.cmd`;
   write(join(".codex", "config.toml"), `[mcp_servers.inbox]\ncommand = '${cmd}'\nargs = ["mcp"]\nenv = { DESK_PORT = "47961" }\n`);
-  assert.equal(runSync(status("codex", MCP)).mcp?.connected, true, "desk.cmd mcp, on Windows");
+  assert.equal(runSync(status("codex", MCP)).mcp?.connected, true, "inbox.cmd mcp, on Windows");
 });
 
 test("OpenCode: ~/.config/opencode/opencode.json and its skills folder", async () => {
@@ -99,9 +99,9 @@ test("OpenCode: ~/.config/opencode/opencode.json and its skills folder", async (
   write(join(".config", "opencode", "opencode.json"), JSON.stringify({ mcp: { inbox: { type: "remote", url: MCP } } }));
   assert.equal(runSync(status("opencode", MCP)).mcp?.connected, true);
   // OpenCode's command is the whole argv, its variables `environment`.
-  const local = { type: "local", command: ["/opt/desk/bin/desk", "mcp"], environment: { DESK_PORT: "47961" } };
+  const local = { type: "local", command: ["/opt/desk/bin/inbox", "mcp"], environment: { DESK_PORT: "47961" } };
   write(join(".config", "opencode", "opencode.json"), JSON.stringify({ mcp: { inbox: local } }));
-  assert.equal(runSync(status("opencode", MCP)).mcp?.connected, true, "desk mcp over stdio");
+  assert.equal(runSync(status("opencode", MCP)).mcp?.connected, true, "inbox mcp over stdio");
   write(join(".config", "opencode", "opencode.json"), JSON.stringify({ mcp: { inbox: { type: "local", command: ["helpdesk", "mcp"] } } }));
   const beside = await run(status("opencode", MCP));
   assert.deepEqual([beside.needs, beside.mcp.name], ["connect", "inbox-desk"]);
@@ -132,6 +132,11 @@ test("connect copies the skill, and refreshes it when it's out of date", async (
   writeFileSync(claudeSkill(), SKILL.replace("Inbox", "Old Desk"));
   assert.equal(runSync(status("claude-code", MCP)).skill?.state, "outdated");
   assert.equal((await run(connect("claude-code", MCP))).skill?.state, "installed");
+  assert.equal(readFileSync(claudeSkill(), "utf8"), SKILL);
+  // One from before the tools were inbox_*, when they were desk_*, is the desk's too.
+  writeFileSync(claudeSkill(), SKILL.replaceAll("inbox_", "desk_"));
+  assert.equal(runSync(status("claude-code", MCP)).skill?.state, "outdated");
+  assert.deepEqual(await run(refreshSkills(join(home, ".inbox"), MCP)), [`refreshed the Inbox skill at ${claudeSkill()}`]);
   assert.equal(readFileSync(claudeSkill(), "utf8"), SKILL);
 });
 
@@ -424,12 +429,12 @@ test("a desk's inbox that no longer answers is left from a gone desk: Connect re
   assert.deepEqual(calls(), ["mcp remove --scope user inbox", add.slice("claude ".length)]);
   assert.deepEqual(claudeServers(), { other: {}, inbox: { type: "http", url: MCP } });
   assert.deepEqual(said, [`replaced claude's MCP server inbox (${gone}), left by a desk that isn't running`]);
-  // A gone desk's `desk mcp` over stdio too.
+  // A gone desk's `inbox mcp` over stdio too.
   rmSync(join(home, "claude-calls"));
   const port = new URL(gone).port;
   write(
     ".claude.json",
-    JSON.stringify({ mcpServers: { inbox: { command: "/opt/desk/bin/desk", args: ["mcp"], env: { DESK_PORT: port } } } }),
+    JSON.stringify({ mcpServers: { inbox: { command: "/opt/desk/bin/inbox", args: ["mcp"], env: { DESK_PORT: port } } } }),
   );
   await run(connect("claude-code", MCP));
   assert.deepEqual(calls(), ["mcp remove --scope user inbox", add.slice("claude ".length)]);
@@ -515,7 +520,7 @@ test(
     ]);
     assert.equal(existsSync(join(home, "claude-calls")), false, "nothing was added or removed");
     assert.deepEqual(servers(), ["review-desk", "inbox"]);
-    // A command that only ends in desk mcp isn't the desk's: the desk's review-desk isn't removed for it.
+    // A command that only ends in inbox mcp isn't the desk's: the desk's review-desk isn't removed for it.
     const helpdesk = { type: "stdio", command: "npx", args: ["-y", "@acme/helpdesk", "mcp"] };
     write(".claude.json", JSON.stringify({ mcpServers: { "review-desk": { type: "http", url: MCP }, inbox: helpdesk } }));
     assert.deepEqual(await run(refreshSkills(join(home, ".inbox"), MCP)), [
@@ -524,7 +529,7 @@ test(
     assert.equal(existsSync(join(home, "claude-calls")), false);
     assert.deepEqual(servers(), ["review-desk", "inbox"]);
 
-    // The desk's own, by its URL on any loopback name, or as `desk mcp` over stdio (bin/desk, bin/desk.cmd, or node on this
+    // The desk's own, by its URL on any loopback name, or as `inbox mcp` over stdio (bin/inbox, bin/inbox.cmd, or node on this
     // desk's src/cli.ts) aimed at its port; another port, or another program's mcp, isn't this desk.
     const cli = join(import.meta.dirname, "..", "src", "cli.ts");
     const at = { DESK_PORT: "47961" };
@@ -534,15 +539,15 @@ test(
     };
     for (const inbox of [
       { type: "http", url: "http://127.0.0.1:47961/mcp" },
-      { type: "stdio", command: "/usr/local/bin/desk", args: ["mcp"], env: at },
-      { type: "stdio", command: String.raw`C:\Users\me\code\review-desk\bin\desk.cmd`, args: ["mcp"], env: at },
+      { type: "stdio", command: "/usr/local/bin/inbox", args: ["mcp"], env: at },
+      { type: "stdio", command: String.raw`C:\Users\me\code\review-desk\bin\inbox.cmd`, args: ["mcp"], env: at },
       { type: "stdio", command: "/opt/homebrew/bin/node", args: ["--disable-warning=ExperimentalWarning", cli, "mcp"], env: at },
     ])
       assert.equal(connected(inbox), true, JSON.stringify(inbox));
     for (const inbox of [
       { type: "http", url: "http://localhost:47962/mcp" },
-      { type: "stdio", command: "/usr/local/bin/desk", args: ["mcp"], env: { DESK_PORT: "47962" } },
-      { type: "stdio", command: "/usr/local/bin/desk", args: ["mcp"] },
+      { type: "stdio", command: "/usr/local/bin/inbox", args: ["mcp"], env: { DESK_PORT: "47962" } },
+      { type: "stdio", command: "/usr/local/bin/inbox", args: ["mcp"] },
       { type: "stdio", command: "npx", args: ["-y", "@acme/helpdesk", "mcp"], env: at },
       { type: "stdio", command: "node", args: ["/elsewhere/src/cli.ts", "mcp"], env: at },
     ])

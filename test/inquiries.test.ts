@@ -1,4 +1,4 @@
-// Agents' questions for the owner (desk_inquire): a row on the main page and a notification, answered only in the desk's
+// Agents' questions for the owner (inbox_inquire): a row on the main page and a notification, answered only in the desk's
 // window; and a write the owner makes in the desk takes its item off the desk at once.
 import { test } from "node:test";
 import assert from "node:assert/strict";
@@ -166,7 +166,7 @@ test("the coordinator ends its turn once it asks: your answer, or that you dismi
   runSync(t.desk.answerInquiry(again.id, "", true));
   assert.equal(told[1], `I dismissed your question ${again.id} ("Close #3?"): decide yourself.`);
   runSync(t.desk.answerInquiry(runSync(t.desk.inquire(full())).id, "Text"));
-  assert.equal(told.length, 2, "another session reads its own answer with desk_inquiry");
+  assert.equal(told.length, 2, "another session reads its own answer with inbox_inquiry");
   // Its name before the rename to Inbox: a question it asked then, or one from a session that follows the old skill.
   const old = runSync(t.desk.inquire(full({ from: "Review Desk coordinator", question: "Rebase #3?" })));
   runSync(t.desk.answerInquiry(old.id, "No"));
@@ -188,7 +188,7 @@ test("your agent's question is answered back to your agent, never to the coordin
 test("asks a desk kept from when one session did both move to your agent at start; answers to the coordinator's questions stay", async (c) => {
   const t = await setup([myPr(3)], { settings: { "agent.coordinator": false } });
   c.after(t.cleanup);
-  const ask = 'My ask a1: "is it green?" Answer it with desk_answer.';
+  const ask = 'My ask a1: "is it green?" Answer it with inbox_answer.';
   const answer = 'My answer to your question q1 ("Rebase?"): "Yes"';
   t.desk.store.set("coordinator_asks", [ask, answer]);
   t.desk.start();
@@ -208,7 +208,7 @@ test("a dismissed question tells the agent so", async (c) => {
   assert.equal((await req("GET", "/api/inquiries/nope")).status, 404);
 });
 
-test("an answer is owed to the agent that asked until it reads it: Claude's work lists it, desk_inquiry finds it, and its first read is kept", async (c) => {
+test("an answer is owed to the agent that asked until it reads it: Claude's work lists it, inbox_inquiry finds it, and its first read is kept", async (c) => {
   const t = await setup([reviewAsk(1)]);
   c.after(t.cleanup);
   await run(t.desk.sync());
@@ -230,7 +230,7 @@ test("an answer is owed to the agent that asked until it reads it: Claude's work
 
   t.setNow(new Date(NOW.getTime() + 2 * 60_000));
   const read = await req("POST", `/api/inquiries/${q.id}/read`);
-  assert.equal(read.status, 200, "any local client: the asking session, through desk_inquiry");
+  assert.equal(read.status, 200, "any local client: the asking session, through inbox_inquiry");
   const at = new Date(NOW.getTime() + 2 * 60_000).toISOString();
   assert.equal(((await read.json()) as { inquiry: Inquiry }).inquiry.answer?.read_at, at);
   assert.ok(t.desk.rev > rev, "the window hears of it");
@@ -243,7 +243,7 @@ test("an answer is owed to the agent that asked until it reads it: Claude's work
   assert.equal((await req("POST", "/api/inquiries/nope/read")).status, 404);
 });
 
-test("the whole way round: an agent asks through MCP, you answer in the window, its desk_inquiry finds your answer and then picks it up", async (c) => {
+test("the whole way round: an agent asks through MCP, you answer in the window, its inbox_inquiry finds your answer and then picks it up", async (c) => {
   const t = await setup([]);
   c.after(t.cleanup);
   await run(t.desk.sync());
@@ -259,15 +259,15 @@ test("the whole way round: an agent asks through MCP, you answer in the window, 
   c.after(() => agent.close());
   const call = async (name: string, args: Record<string, unknown> = {}) =>
     ((await agent.callTool({ name, arguments: args })).content as { text: string }[])[0]!.text;
-  const id = /^asked as inquiry (\w+)/.exec(await call("desk_inquire", full({ from: "docs research" })))![1]!;
-  assert.equal(await call("desk_inquiry"), "no answers waiting to be picked up");
-  assert.equal(await call("desk_inquiry", { id }), 'no answer yet to "Ship it?"');
+  const id = /^asked as inquiry (\w+)/.exec(await call("inbox_inquire", full({ from: "docs research" })))![1]!;
+  assert.equal(await call("inbox_inquiry"), "no answers waiting to be picked up");
+  assert.equal(await call("inbox_inquiry", { id }), 'no answer yet to "Ship it?"');
   assert.equal((await http(t)("POST", `/api/inquiries/${id}/answer`, { text: "Yes" }, DESK)).status, 200);
-  assert.ok((await call("desk_inquiry")).includes(`\n${id}  docs research asked "Ship it?"\n`), "who asked, the question, its id");
+  assert.ok((await call("inbox_inquiry")).includes(`\n${id}  docs research asked "Ship it?"\n`), "who asked, the question, its id");
   assert.equal(runSync(t.desk.inquiry(id)).answer?.read_at, null, "finding it isn't picking it up");
-  assert.equal(await call("desk_inquiry", { id }), "the user answered: Yes");
+  assert.equal(await call("inbox_inquiry", { id }), "the user answered: Yes");
   assert.equal(runSync(t.desk.inquiry(id)).answer?.read_at, NOW.toISOString(), "its page says when");
-  assert.equal(await call("desk_inquiry"), "no answers waiting to be picked up");
+  assert.equal(await call("inbox_inquiry"), "no answers waiting to be picked up");
   assert.deepEqual(runSync(t.desk.inflight()).work, []);
 });
 

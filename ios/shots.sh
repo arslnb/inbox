@@ -78,7 +78,7 @@ ONLY="$*"
 
 wanted connect && shot connect -connect
 wanted connect-error && shot connect-error -connect -connectAddress "https://desk.tail1234.ts.net" \
-  -connectError "That pairing code isn't valid: run desk pair again for a new one."
+  -connectError "That pairing code isn't valid: run inbox pair again for a new one."
 # What the camera would have read (the Simulator has none): a QR that isn't a desk's never leaves the connect screen.
 wanted connect-scan-wrong && shot connect-scan-wrong -connect -scan "https://example.com"
 # A desk's link, read: nothing is sent until Connect, and the address it named is said first.

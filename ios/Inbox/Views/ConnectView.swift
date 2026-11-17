@@ -69,7 +69,7 @@ struct ConnectView: View {
             .focused($focus, equals: .code)
             .submitLabel(.go)
             .onSubmit(connect)
-          Prose(text: "On the desk's computer, Settings → Network → Pair a device shows a QR to scan, and the address and a code to type (so does `desk pair`). A code works once, for 10 minutes.")
+          Prose(text: "On the desk's computer, Settings → Network → Pair a device shows a QR to scan, and the address and a code to type (so does `inbox pair`). A code works once, for 10 minutes.")
             .foregroundStyle(Theme.pencil).lineSpacing(2).padding(.top, 8)
         } else if scannedLink != nil {
           // Where the code would go, said before anything is sent there: a QR can name any address.

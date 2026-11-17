@@ -432,7 +432,7 @@ export function defaultConfigText(opts: { workOrgs: string[]; expanded?: boolean
     `# \`caps\` limit Now and Today; overflow moves down a bucket with a note. Pinned and \`nocap\` items don't count, and nor do`,
     `# your PRs in Merging. Caps apply after Claude, so give every board one: a board without caps can fill Now.`,
     `# Expressions: && || ! == != < <= > >= in matches ( ) and len() lower() contains() startswith() any().`,
-    `# Fields (me.requested_direct, author.close, pr.ci, ...) are listed beside the editor in Searches and rules and by \`desk fields\`.`,
+    `# Fields (me.requested_direct, author.close, pr.ci, ...) are listed beside the editor in Searches and rules and by \`inbox fields\`.`,
     `# Within a bucket, cards sort by rule order (earlier rules first), then \`priority\`, then \`sort\`.`,
     `# \`why\` texts can include fields: "{author.login} asked you".`,
     `# Sync interval, bots, notifications and agents' prompts are in Settings (settings.json).`,

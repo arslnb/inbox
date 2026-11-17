@@ -271,7 +271,7 @@ export interface Snapshot {
   judging: Map<string, { signals: JudgeSignal[]; key: string }>; // while the judge is on: what it weighs for each item, and its answer's key
 }
 
-// Without it a pin no board places (desk_add's, or one a board's search dropped) would be on no page at all.
+// Without it a pin no board places (inbox_add's, or one a board's search dropped) would be on no page at all.
 const ADDED: CompiledBoard = {
   config: { id: "added", space: "", name: "Added", queries: [], rules: [], default: "today", default_why: "you added it", sort: "updated" },
   filter: null,
@@ -337,7 +337,7 @@ export interface DeskOptions {
   app?: AppUpdater; // the packaged app running this desk: what a newer release is checked against, and its install
 }
 
-// Agents' hand-offs (desk_add) of an item, by the seq of the pin each made.
+// Agents' hand-offs (inbox_add) of an item, by the seq of the pin each made.
 type Added = Record<string, Handoff>;
 
 // A PR's Merging record, in kv under the babysitters' old `sitter:` prefix so hand-backs made before survive.
@@ -1180,7 +1180,7 @@ export class Desk {
       const text = yield* this.readConfig();
       const m = migrateLegacy(text);
       if (!m) {
-        // Nothing to move, so it's done: legacy keys saved later (desk_config save, an agent) only warn, never become settings.
+        // Nothing to move, so it's done: legacy keys saved later (inbox_config save, an agent) only warn, never become settings.
         if (parseConfig(text, this.settings, this.connectors).loaded) this.store.set("settings_migrated", this.now().toISOString());
         return;
       }
@@ -1839,7 +1839,7 @@ export class Desk {
       // config.ts refuses a board whose source the desk doesn't run.
       const m = this.connectors.find((c) => c.id === (board.config.source ?? "github"))!.boardIds(board, scope, loaded);
       const ids = new Set(m.ids);
-      // A coordinator's desk_add too, after you act on it, so it doesn't vanish once its pin stops counting as yours.
+      // A coordinator's inbox_add too, after you act on it, so it doesn't vanish once its pin stops counting as yours.
       if (board === ADDED)
         for (const [id, by] of pins)
           if ((by === "them" || coordinatorAdded.has(id)) && ![...boards.values()].some((b) => b.result.placements.has(id))) ids.add(id);
@@ -2596,7 +2596,7 @@ export class Desk {
     });
   }
 
-  // POST /api/review/:id/ai (and desk_brief, `desk brief`): the cached review for this commit unless `force`. What fails the
+  // POST /api/review/:id/ai (and inbox_brief, `inbox brief`): the cached review for this commit unless `force`. What fails the
   // run is passed on in its words, its error the cause: the run reported it already.
   aiReview(ref: string, force = false): Effect.Effect<AiReview, RefError | BadRequest | Upstream> {
     return Effect.gen({ self: this }, function* () {
@@ -2755,7 +2755,7 @@ export class Desk {
     );
   }
 
-  // POST /api/docs (desk_doc): an agent's document, read as the desk reads its own, kept and rendered.
+  // POST /api/docs (inbox_doc): an agent's document, read as the desk reads its own, kept and rendered.
   submitDoc(text: string): Effect.Effect<DocSaved, BadRequest | FsError> {
     return Effect.gen({ self: this }, function* () {
       const { doc, html, dropped } = yield* renderText(text);
@@ -3481,7 +3481,7 @@ export class Desk {
     });
   }
 
-  // GET /api/sessions/:id (desk_item for a session).
+  // GET /api/sessions/:id (inbox_item for a session).
   session(ref: string): Effect.Effect<SessionCard, NotFound> {
     return this.sessions.get(ref);
   }
@@ -3532,7 +3532,7 @@ export class Desk {
       // A pin alone leaves a done, snoozed or muted item hidden; one undo seq takes back both.
       const before = this.store.state(id);
       this.store.putState({ ...before, ...ACTIVE, pinned: true });
-      // The coordinator's desk_add is its opinion, which Claude weighs: no floor, as the old desk-run coordinator's pins.
+      // The coordinator's inbox_add is its opinion, which Claude weighs: no floor, as the old desk-run coordinator's pins.
       const undo_seq = this.store.logAction(id, "pin", before, this.now().toISOString(), isCoordinator(who) ? "coordinator" : undefined);
       if (note !== null)
         this.store.set(`added:${id}`, { ...this.store.read(`added:${id}`, AddedSchema), [undo_seq]: { why: note, from: who } });
@@ -3542,7 +3542,7 @@ export class Desk {
     });
   }
 
-  // An automation's find: on your desk as desk_add puts it, with its why. One that's on your queue already stays as it is;
+  // An automation's find: on your desk as inbox_add puts it, with its why. One that's on your queue already stays as it is;
   // one you dealt with (done, snoozed, muted, handed off for merge), or that nobody needs now, stays that way too.
   // A rule or a question has no agent that's told what its last run added, so the desk remembers (`once`, per automation:
   // the item's sortKey, less the pin): it adds an item once for what it is, also one you'd marked done, which nothing else
@@ -3903,7 +3903,7 @@ export class Desk {
     return Effect.succeed(t);
   }
 
-  // desk_note: the coordinator's latest status line on a PR in Merging, shown on its row.
+  // inbox_note: the coordinator's latest status line on a PR in Merging, shown on its row.
   note(ref: string, text: string): Effect.Effect<{ text: string }, RefError | BadRequest | Conflict> {
     return Effect.gen({ self: this }, function* () {
       const e = yield* this.inflightEntry(ref);
@@ -3914,7 +3914,7 @@ export class Desk {
     });
   }
 
-  // desk_hand_back: the coordinator can't realistically get it merged. The PR leaves Merging for your desk with the line as its
+  // inbox_hand_back: the coordinator can't realistically get it merged. The PR leaves Merging for your desk with the line as its
   // why, on top. Nothing goes to GitHub.
   handBack(ref: string, why: string): Effect.Effect<{ reason: string }, RefError | BadRequest | Conflict> {
     return Effect.gen({ self: this }, function* () {
@@ -4116,7 +4116,7 @@ export class Desk {
     return { url: it.url, whose, merging: e.inflight, state: it.state };
   }
 
-  // GET /api/asks/:id (desk_ask): where an ask is, and the only branch a change it asks for may be pushed to.
+  // GET /api/asks/:id (inbox_ask): where an ask is, and the only branch a change it asks for may be pushed to.
   askPlace(id: string): Effect.Effect<AskPlace, Unavailable | NotFound> {
     return Effect.gen({ self: this }, function* () {
       yield* this.requireConfig();
@@ -4160,7 +4160,7 @@ export class Desk {
         if (item.kind !== "pr") return yield* bad("lines are on a PR's diff");
         if (b.thread_id || b.thread_url) return yield* bad("an ask is on a thread or on lines, not both");
         if (!/^[0-9a-f]{40}$/.test(l.head)) return yield* bad("lines need head: the 40-character commit they were read at");
-        // desk_ask hands the name to a shell, quoted: what could break a line or read as something else is refused, not stripped.
+        // inbox_ask hands the name to a shell, quoted: what could break a line or read as something else is refused, not stripped.
         // oxlint-disable-next-line no-control-regex -- control characters are what it refuses
         const odd = /[\u0000-\u001f\u2028\u2029]/.test(l.path) || l.path.replaceAll(INVISIBLE, "") !== l.path;
         if (!l.path || l.path.length > 1000 || odd) return yield* bad("lines need path: a file name with no control characters");
@@ -4240,7 +4240,7 @@ export class Desk {
     });
   }
 
-  // desk_inquire: an agent session's question for you, a row on your main page and a notification, until you answer it. You
+  // inbox_inquire: an agent session's question for you, a row on your main page and a notification, until you answer it. You
   // decide from its page alone, so it's refused without the context, what each answer leads to, and a link to what it's about.
   inquire(b: {
     question: string;
@@ -4404,12 +4404,12 @@ export class Desk {
     this.changed();
   }
 
-  // GET /api/inquiries/unread (desk_inquiry with no id): your answers nobody has picked up yet, in the order they were asked.
+  // GET /api/inquiries/unread (inbox_inquiry with no id): your answers nobody has picked up yet, in the order they were asked.
   unreadAnswers(): Inquiry[] {
     return this.inquiries().filter((q) => q.answer?.read_at === null);
   }
 
-  // POST /api/inquiries/:id/read (desk_inquiry gave whoever asked your answer) and the wake that gives your agent its own:
+  // POST /api/inquiries/:id/read (inbox_inquiry gave whoever asked your answer) and the wake that gives your agent its own:
   // when it was first read, which ends its job in Claude's work.
   answerRead(id: string): Effect.Effect<Inquiry, NotFound> {
     return Effect.map(this.inquiry(id), (q) => {
@@ -4434,7 +4434,7 @@ export class Desk {
       this.notify("Answer not picked up", `Your answer to ${who} hasn't been picked up, so that session has probably ended.`);
   }
 
-  // desk_answer: the coordinator's answer to one of your asks, in your chat with it in the desk, and a notification.
+  // inbox_answer: the coordinator's answer to one of your asks, in your chat with it in the desk, and a notification.
   answer(id: string, text: string): Effect.Effect<Ask, NotFound | BadRequest> {
     return Effect.gen({ self: this }, function* () {
       const all = this.asks();

@@ -2,7 +2,7 @@
 
 One local process owns everything: the **desk**. It reads GitHub, keeps a SQLite cache and your triage state, places items with rules, your agent and urgency criteria, and serves the web UI, a JSON API and MCP on `127.0.0.1:47823`.
 
-Everything else is a client of that API: the desktop window, the CLI (`desk …`), `desk mcp`, and agents over `/mcp`.
+Everything else is a client of that API: the desktop window, the CLI (`desk …`), `inbox mcp`, and agents over `/mcp`.
 
 - [AGENTS.md](../AGENTS.md) is the map: where each kind of change goes.
 - [api.md](api.md) is the reference for routes, types, MCP tools and behaviour.
@@ -63,7 +63,7 @@ What the home holds:
 - **Merging** (internally `inflight`): your PRs handed off for merge. They leave the queue until the coordinator hands them back to the top. `Desk.inflight()` builds it; `waitsOn()` says what each waits on. Notes and hand-backs are kv `sitter:<id>`.
 - **Stack** (`src/stacks.ts`, pure): PRs in one repo, each based on the branch of the one below. Worked out from stored PRs on every snapshot. The queue lists a stack once (`oneLinePerStack()`).
 - **Event log**: the `activity` table. Each fresh snapshot is diffed against the stored one (`src/connectors/github-events.ts`, pure) into events: review requested, reviewed, pushed, CI, commented, merged…
-- **Settings**: `SETTINGS` in `src/settings.ts` is the schema. The Settings page and `desk settings` render from it.
+- **Settings**: `SETTINGS` in `src/settings.ts` is the schema. The Settings page and `inbox settings` render from it.
 
 ## How an item is placed
 
@@ -75,7 +75,7 @@ What the home holds:
 4. **Caps** (`caps = { now = 3, today = 6 }` per board): overflow drops one bucket, keeping order. Pins and `nocap` rules are exempt. Hard-rule items count but stay at their floor.
 5. **Urgency** (`src/urgency.ts`): items in now, today, later or fyi get criteria answers and a score out of 10, then a section: Urgent, Standard or FYI. That's `QueueView.inbox`, what the window draws. Full detail: [api.md → Urgency](api.md#urgency).
 
-Every item appears once, at its best placement across boards. The buckets stay the rules' view (`QueueView.sections`, the rule trace, `desk_list`). **Focus** is now plus today, for the CLI, MCP and the status line.
+Every item appears once, at its best placement across boards. The buckets stay the rules' view (`QueueView.sections`, the rule trace, `inbox_list`). **Focus** is now plus today, for the CLI, MCP and the status line.
 
 ### The judge
 
@@ -95,7 +95,7 @@ Used by `when`, `filter` and criteria. No JS eval; only known signal fields.
 - Operators, low to high: `||`/`or`; `&&`/`and`; `!`/`not`; `== != < <= > >= in matches`; `+ -`; `* /`; unary `-`.
 - `a in b`: list membership, or substring when `b` is a string. `s matches "re"`: case-insensitive regex.
 - Functions: `len(x)`, `lower(s)`, `contains(s, sub)`, `startswith(s, p)`, `any(list, "glob*")`.
-- `compile()` checks and compiles; `renderTemplate()` fills `why` templates; `FIELDS` in `src/signals.ts` lists every field (`desk fields`).
+- `compile()` checks and compiles; `renderTemplate()` fills `why` templates; `FIELDS` in `src/signals.ts` lists every field (`inbox fields`).
 
 ## GitHub (`src/github/`)
 
@@ -174,7 +174,7 @@ What Claude owes you lives in one ledger, the `jobs` table, so a restart forgets
 | Job         | Key                              | Starts               | Ends                                                |
 | ----------- | -------------------------------- | -------------------- | --------------------------------------------------- |
 | `ai_review` | the PR, one head commit          | `startAi()`          | its run finishing                                   |
-| `ask`       | your ask to your agent           | your agent taking it | `desk_answer`                                       |
+| `ask`       | your ask to your agent           | your agent taking it | `inbox_answer`                                      |
 | `answer`    | an agent's question you answered | `answerInquiry()`    | the asking session reading it (`Desk.answerRead()`) |
 
 Each job has a state (queued, running, done, failed), tries, timestamps, and the last error in your words. `Jobs.tick` runs every minute.
@@ -194,7 +194,7 @@ Each job has a state (queued, running, done, failed), tries, timestamps, and the
 **Answers**
 
 - Owed from the moment you answer (a dismissal owes nothing).
-- Done when the asking session reads it: `desk_inquiry`, or for your own agent, the wake that delivers it. Each stamps `answer.read_at`.
+- Done when the asking session reads it: `inbox_inquiry`, or for your own agent, the wake that delivers it. Each stamps `answer.read_at`.
 - Nothing pushes an answer to a session that stopped polling. Unread after 30 minutes, it fails with "that session has probably ended" and you're notified once. Only the asking session knows what the question was for, so nothing re-routes it.
 
 **Cleanup**: work on a PR that merged, closed or moved past the job's commit is dropped. Done jobs, and failed answers you were told about, leave after a day.
@@ -217,7 +217,7 @@ Prompts, the AI review's checks and the reviewer read: [api.md → Your own agen
 
 ### Connecting an agent
 
-`src/agents.ts` checks whether your agent has the desk's MCP server and the Inbox skill (`skills/inbox/`), and connects them (`desk connect`, Settings → Agent). One driver per agent registers the MCP server at user scope and copies the skill. See [api.md → Connect an agent](api.md#connect-an-agent).
+`src/agents.ts` checks whether your agent has the desk's MCP server and the Inbox skill (`skills/inbox/`), and connects them (`inbox connect`, Settings → Agent). One driver per agent registers the MCP server at user scope and copies the skill. See [api.md → Connect an agent](api.md#connect-an-agent).
 
 ### The coordinator (`src/coordinator.ts`)
 
@@ -229,7 +229,7 @@ Your agent, run in the background to get PRs in Merging merged and to answer Ask
 
 The desk runs two seats of it: the coordinator, started on the first hand-off and woken with one line per minute's batch of news on PRs in Merging, and your agent, started on the first ask and woken at once with each. It checks every 5 minutes that each that's started is still running (no turn).
 
-On a wake the coordinator reads `desk_merging` and `desk_events`, writes `desk_note` and `desk_hand_back`, and pushes and merges with your own `git` and `gh`; your agent answers asks with `desk_answer`. What each does is in the skill's "Coordinator" and "Your agent" sections. Product rules: [vision.md](vision.md), [api.md → The coordinator](api.md#the-coordinator).
+On a wake the coordinator reads `inbox_merging` and `inbox_events`, writes `inbox_note` and `inbox_hand_back`, and pushes and merges with your own `git` and `gh`; your agent answers asks with `inbox_answer`. What each does is in the skill's "Coordinator" and "Your agent" sections. Product rules: [vision.md](vision.md), [api.md → The coordinator](api.md#the-coordinator).
 
 ### Sessions (`src/connectors/sessions.ts`)
 
@@ -260,38 +260,38 @@ Who it answers:
 One set of tools (`@modelcontextprotocol/sdk`), two transports:
 
 - **HTTP** at `/mcp`: a fresh stateless server per request, calling the routes in-process.
-- **stdio** via `desk mcp`: proxies to the HTTP API through `src/client.ts`.
+- **stdio** via `inbox mcp`: proxies to the HTTP API through `src/client.ts`.
 
 Tool results mark PR titles and bodies as untrusted; the config comes fenced. No tool writes to GitHub. Tool list: [api.md → MCP tools](api.md#mcp-tools).
 
 ## CLI (`src/cli.ts`)
 
-`bin/desk` runs `node src/cli.ts`. Most commands talk to the running desk (`render` and `config` work without one); with none running they say `desk is not running — start it with: desk serve`. `desk help` prints the full usage.
+`bin/inbox` runs `node src/cli.ts`. Most commands talk to the running desk (`render` and `config` work without one); with none running they say `desk is not running — start it with: inbox serve`. `inbox help` prints the full usage.
 
 ```
-desk serve [--port N] [--open] [--tailscale]   run the desk in the foreground
-desk open | status [--short] | sync
-desk ls [board|focus] [--all] [--json]          list cards (default: focus)
-desk show <ref> [--json]                        one item: why, facts, rule trace
-desk add <ref> [why]                            put a PR or issue on your desk
-desk done|mute|unmute|pin|unpin|restore <ref>
-desk snooze <ref> [until] | undo [seq]
-desk prompt <ref> | brief <ref> [--force]       hand-off prompt; the PR's AI review
-desk render <doc.json> [-o out.html]            a review document as HTML, no desk needed
-desk config [path|check|edit] | settings [set|reset] | fields
-desk mcp [--url <address>]                      MCP on stdio
-desk connect [claude|codex|opencode] [--apply]  connect your agent
-desk connect <address> --code <code> | pair      use a desk on another machine
-desk install | uninstall                        launchd job for the headless desk (macOS)
+inbox serve [--port N] [--open] [--tailscale]   run the desk in the foreground
+inbox open | status [--short] | sync
+inbox ls [board|focus] [--all] [--json]          list cards (default: focus)
+inbox show <ref> [--json]                        one item: why, facts, rule trace
+inbox add <ref> [why]                            put a PR or issue on your desk
+inbox done|mute|unmute|pin|unpin|restore <ref>
+inbox snooze <ref> [until] | undo [seq]
+inbox prompt <ref> | brief <ref> [--force]       hand-off prompt; the PR's AI review
+inbox render <doc.json> [-o out.html]            a review document as HTML, no desk needed
+inbox config [path|check|edit] | settings [set|reset] | fields
+inbox mcp [--url <address>]                      MCP on stdio
+inbox connect [claude|codex|opencode] [--apply]  connect your agent
+inbox connect <address> --code <code> | pair      use a desk on another machine
+inbox install | uninstall                        launchd job for the headless desk (macOS)
 ```
 
 A ref is `owner/repo#123`, `repo#123` when unique, a GitHub URL, or an `inbox://item/…` link. Snooze takes a duration (`1h`, `2d`), `tomorrow`, `monday`, `activity`, a date or ISO time, or an event: `ci`, `push`, `approved`, `ready`, `conflict`.
 
-`desk install` writes `~/Library/LaunchAgents/dev.inbox.desk.plist`, logging to `~/.inbox/desk.log`. It also removes the old `dev.review-desk.desk` job and settles the home first (`settleHome()`).
+`inbox install` writes `~/Library/LaunchAgents/dev.inbox.desk.plist`, logging to `~/.inbox/desk.log`. It also removes the old `dev.review-desk.desk` job and settles the home first (`settleHome()`).
 
 ## Sentry (`src/sentry.ts`)
 
-- `desk serve` starts it before the server's modules load. `DESK_SENTRY=0` turns it off. The packaged app doesn't ship the SDK, and the app's own desk doesn't start it.
+- `inbox serve` starts it before the server's modules load. `DESK_SENTRY=0` turns it off. The packaged app doesn't ship the SDK, and the app's own desk doesn't start it.
 - It sends request spans, log lines, 5xx responses, and `report()` from catches that would otherwise only log (sync, the judge, AI reviews, the coordinator, automations…), tagged with `what` and the item.
 - A refusal the desk chose (a `DeskHttpError` under 500, or a 503 while starting) isn't an issue.
 - Bodies, MCP arguments and results, and IPs stay out. Log lines carry what they say (an agent's question, a hand-back's reason).

@@ -104,11 +104,11 @@ const AT_ONCE = 4; // decision requests in flight: one per item
 const DAYS = ["sunday", "monday", "tuesday", "wednesday", "thursday", "friday", "saturday"];
 // The desk's MCP server, and its name before the rename to Inbox, which an agent connected then keeps until the desk renames it.
 const NAMES = ["inbox", "review-desk"];
-const desks = (tools: string[], names: string[]) => names.flatMap((s) => tools.map((t) => `mcp__${s}__desk_${t}`));
+const desks = (tools: string[], names: string[]) => names.flatMap((s) => tools.map((t) => `mcp__${s}__inbox_${t}`));
 const READ_TOOLS = ["list", "item", "overview", "events", "brief", "merging"];
 // Codex's and OpenCode's run have only these: no shell, no web, no MCP server but the desk's.
 const CODEX_TOOLS =
-  "- On this run you have the desk's read tools (desk_list, desk_item, desk_overview, desk_events, desk_brief, desk_merging) and nothing else: no shell, no gh, no web.";
+  "- On this run you have the desk's read tools (inbox_list, inbox_item, inbox_overview, inbox_events, inbox_brief, inbox_merging) and nothing else: no shell, no gh, no web.";
 // A run reads, never asks, and is refused the rest: these and whatever your own settings allow (your MCP servers' tools you
 // allowed, say). The desk adds what it lists, so it reads the desk too: under the name it's connected as, beside another desk's inbox.
 const allow = (name: string | null) => [
@@ -203,7 +203,7 @@ const SCHEMA = {
 export const canOf = (a: Pick<Automation, "can">): readonly Verb[] => a.can ?? ["add"];
 const addsOnly = (can: readonly Verb[]) => can.length === 1 && can[0] === "add";
 
-// A snooze's `until`, in desk_act's words.
+// A snooze's `until`, in inbox_act's words.
 const UNTILS =
   "1h, 3h, tomorrow (the default), monday, activity, an ISO time, or until it happens: ci (CI passes), push (new commits), approved, ready (out of draft), conflict (fixed)";
 // What each verb does, as a run is told.
@@ -968,7 +968,7 @@ export class Automations {
       const opts = {
         dir: yield* this.dir(),
         schema: schemaFor(canOf(a)),
-        desk: { url, tools: READ_TOOLS.map((t) => `desk_${t}`) },
+        desk: { url, tools: READ_TOOLS.map((t) => `inbox_${t}`) },
         timeout: TIMEOUT,
       };
       const got = yield* agent === "codex" ? codexRun(said, opts) : opencodeRun(said, opts);

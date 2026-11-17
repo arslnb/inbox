@@ -593,7 +593,7 @@ export interface Card {
   stage?: Stage; // a PR's, from stage() in src/stage.ts, or that your agent handed it back; an issue has none
   bucket: Bucket;
   why: string;
-  handoff?: Handoff; // an agent put it on your desk (desk_add) and said why; gone once you act on it
+  handoff?: Handoff; // an agent put it on your desk (inbox_add) and said why; gone once you act on it
   demoted?: string;
   board: string;
   boards: string[]; // every board the item is on (for Focus)
@@ -718,7 +718,7 @@ export interface Overview {
   ai_agent: AgentName; // who sorts and reviews (agent.harness), as the window names it
   rate_limit: { remaining: number; reset_at: string } | null;
   sentry?: { dsn: string; release: string | undefined } | null; // where the UI reports its errors: absent or null, nowhere
-  update?: UpdateView | null; // absent or null: no packaged app runs this desk (a checkout, desk serve), so nothing to update
+  update?: UpdateView | null; // absent or null: no packaged app runs this desk (a checkout, inbox serve), so nothing to update
 }
 
 // The packaged app's version against Inbox's latest GitHub Release.
@@ -870,7 +870,7 @@ export interface ReviewInterface {
   line: number;
 }
 
-// A review document the desk keeps (POST /api/docs, desk_doc): where it is, and what of it fell out on the way in.
+// A review document the desk keeps (POST /api/docs, inbox_doc): where it is, and what of it fell out on the way in.
 export interface DocSaved {
   id: string;
   json: string; // <home>/docs/<id>.json, the document
@@ -1076,7 +1076,7 @@ export interface Take {
 }
 
 // ---------------------------------------------------------------------------
-// The event log (GET /api/activity, the desk_events MCP tool)
+// The event log (GET /api/activity, the inbox_events MCP tool)
 
 export const ACTIVITY_KINDS = [
   "new", // first seen on the desk
@@ -1157,7 +1157,7 @@ export interface InflightRow {
   blocked_by: { ref: string; waits: string } | null; // another PR must merge first: pr.blocker and pr.blocker_waits
   requires_closed: string[]; // PRs it needs that were closed without merging, as repo#number: pr.requires_closed
   waits_on: string | null; // what it waits on, in Merging's words: "waits on CI", "ready to merge"; null once merged or closed
-  note: { text: string; at: string } | null; // the coordinator's latest desk_note on it; untrusted, an agent wrote it
+  note: { text: string; at: string } | null; // the coordinator's latest inbox_note on it; untrusted, an agent wrote it
 }
 
 export interface InflightView {
@@ -1225,7 +1225,7 @@ export interface AgentOptions {
   effort: string; // agent.coordinator_effort; "" is its own default (OpenCode takes none)
 }
 
-// Your words to the coordinator from the desk's window (Ask your agent), about what you were on, and its answer (desk_answer).
+// Your words to the coordinator from the desk's window (Ask your agent), about what you were on, and its answer (inbox_answer).
 export interface Ask {
   id: string;
   at: string;
@@ -1233,7 +1233,7 @@ export interface Ask {
   item_id: string | null;
   thread_id: string | null; // a conversation in the PR's review
   thread_url: string | null;
-  lines?: AskLines | null; // absent on asks kept before it; the file's name never goes in the wake line (desk_ask gives it)
+  lines?: AskLines | null; // absent on asks kept before it; the file's name never goes in the wake line (inbox_ask gives it)
   fix?: boolean; // Make PR with fix on an issue: your agent may open a draft PR with its fix
   answer: { text: string; at: string } | null; // untrusted: an agent wrote it; in paragraphs, drawn by src/prose.ts, never as HTML
 }
@@ -1252,7 +1252,7 @@ export interface AskAbout {
   state: "open" | "closed" | "merged";
 }
 
-// GET /api/asks/:id (desk_ask): where an ask is, and where a change it asks for may go.
+// GET /api/asks/:id (inbox_ask): where an ask is, and where a change it asks for may go.
 export interface AskPlace {
   ask: Ask;
   about: AskAbout | null; // null: about nothing, or the item left the desk
@@ -1262,7 +1262,7 @@ export interface AskPlace {
   fix: { repo: string; base: string } | null; // Make PR with fix on an open issue: a new branch off base and a draft PR in repo; else null
 }
 
-// A question an agent session put to you through the desk (desk_inquire): a row on the main page until you answer it, and
+// A question an agent session put to you through the desk (inbox_inquire): a row on the main page until you answer it, and
 // its own page with all you need to decide without opening anything else. Everything but the answer is untrusted: an agent wrote it.
 export interface Inquiry {
   id: string;
@@ -1273,7 +1273,7 @@ export interface Inquiry {
   options: InquiryOption[]; // its pick first; you can always write your own
   links: InquiryLink[]; // what it's about and what it read: comments, files, runs, docs
   item_id: string | null; // the PR or issue it's about
-  // read_at: when whoever asked first read your answer (desk_inquiry, or the wake that gives your agent its own); null
+  // read_at: when whoever asked first read your answer (inbox_inquiry, or the wake that gives your agent its own); null
   // until then; absent on a dismissal, which owes nothing, and on an answer from before the desk kept it.
   answer: { text: string; at: string; dismissed: boolean; read_at?: string | null } | null;
 }

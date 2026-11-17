@@ -92,7 +92,7 @@ function read(queue: HttpResponse, status: HttpResponse, now: number): View {
 async function refresh($: EngineInterface): Promise<void> {
   view = await Promise.all([$.http.fetch(`${API}/api/queue`), $.http.fetch(`${API}/api/status`), $.clock.now()]).then(
     ([queue, status, now]) => read(queue, status, now),
-    () => ({ rows: [], status: "desk offline", error: "desk is not running. Start it with: desk serve" }),
+    () => ({ rows: [], status: "desk offline", error: "desk is not running. Start it with: inbox serve" }),
   );
   $.ui.invalidate("ui.render");
   $.ui.status(view.status || undefined);

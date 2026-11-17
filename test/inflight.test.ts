@@ -318,7 +318,7 @@ test("your handed-off PR's conflict stays the coordinator's to merge; one it han
   assert.ok(!t.woke.some(([, what]) => what === REBASE));
 });
 
-test("desk_note: the coordinator's latest line on a PR in Merging shows on its row; m again starts without it", async (c) => {
+test("inbox_note: the coordinator's latest line on a PR in Merging shows on its row; m again starts without it", async (c) => {
   const t = await setup([reviewAsk(1), myPr(3, { ci: "pending" })]);
   c.after(t.cleanup);
   await run(t.desk.sync());
@@ -341,7 +341,7 @@ test("desk_note: the coordinator's latest line on a PR in Merging shows on its r
   assert.equal(runSync(t.desk.inflight()).rows[0]!.note, null);
 });
 
-test("desk_hand_back: the PR leaves Merging for the top of Now with the why, writes nothing, and notifies", async (c) => {
+test("inbox_hand_back: the PR leaves Merging for the top of Now with the why, writes nothing, and notifies", async (c) => {
   const w = fakeWriter();
   const t = await setup([reviewAsk(1), myPr(3, { ci: "pending" }), myPr(4, { ci: "pending" })], {
     settings: { "notify.quiet": "" },

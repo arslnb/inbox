@@ -66,7 +66,7 @@ The core never knows what a PR, review, CI run, branch, login, team, search quer
 ```
 pull   start()'s loops, sync() ─────┐
 push   a function its file exports  ├─▶ put ─▶ store, events(prev, next), resolved flips ─▶ event log ─▶ long-polls, wake()
-add    you, desk_add, a find: ref() ┘   (a ref nobody holds is fetched, then pinned)
+add    you, inbox_add, a find: ref() ┘   (a ref nobody holds is fetched, then pinned)
 look   look(items, at) ─▶ a Lens per item ─▶ status (done, snooze, mute, Merging)
 place  per board (members + pins): filter ─▶ first rule ─▶ judge ─▶ floors ─▶ quiet ─▶ caps ─▶ best across boards
 move   hand-backs and needs ─▶ every react("synced") ─▶ notify ─▶ the judge's pump
@@ -160,17 +160,17 @@ export interface Write {
 
 **Errors and verbs.** `RefError`, `ActError` and `WriteError` move from desk.ts to `src/errors.ts`, so `src/plugin.ts` can name them without a cycle. `put` never fails (docs/effect.md → Desk's shape). `act`, `add`, `push` and `hold` keep their signatures. The new `Desk.write(ref, action, input): Effect.Effect<{ url: string }, WriteError | ReviewersNotAsked>` is called only by the window's routes.
 
-| Hook       | Yours or an agent's (kept on the desk)                           | The plugin's (from its snapshots)                                                              | Undone when                                                 |
-| ---------- | ---------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
-| Add        | `add` (pin, desk_add), `push` (an automation's find), via `hold` | `members` (a board lists it); `ref` (fetched if need be)                                       | you unpin; the board stops listing it                       |
-| Remove     | done (until `activity` moves), mute                              | `resolved(item)`                                                                               | `resolved` answers null again                               |
-| Wait       | snooze until a time, activity, or one of `until`                 | `until` offers; `happened` ends one; `arrive: "held"`                                          | the time comes, activity moves, or it happened; held: shown |
-| Block      | none: rules fill Blocked (`final`); the judge never answers it   | `blocked`                                                                                      | `blocked` clears                                            |
-| Your agent | hand off (only `yours`), take back; desk_hand_back               | `needs.by = "agent"` (the desk gives it); `needs.by = "you"` (hands back or raises); `handoff` | `needs` clears or your agent is off: it returns silently    |
-| Automation | a schedule, run by your agent; finds go to `push`                | `agent` (allow, deny); a find reaches it through `ref`                                         |                                                             |
-| Pull       | Sync now: `sync()`                                               | `start()`'s loops: `put`, then `changed(true)`                                                 |                                                             |
-| Push in    | none                                                             | a function its file exports, wired in server.ts, ending in `put`                               |                                                             |
-| Push out   | the window's click, through `Desk.write`                         | `write` answers a `Write`                                                                      |                                                             |
+| Hook       | Yours or an agent's (kept on the desk)                            | The plugin's (from its snapshots)                                                              | Undone when                                                 |
+| ---------- | ----------------------------------------------------------------- | ---------------------------------------------------------------------------------------------- | ----------------------------------------------------------- |
+| Add        | `add` (pin, inbox_add), `push` (an automation's find), via `hold` | `members` (a board lists it); `ref` (fetched if need be)                                       | you unpin; the board stops listing it                       |
+| Remove     | done (until `activity` moves), mute                               | `resolved(item)`                                                                               | `resolved` answers null again                               |
+| Wait       | snooze until a time, activity, or one of `until`                  | `until` offers; `happened` ends one; `arrive: "held"`                                          | the time comes, activity moves, or it happened; held: shown |
+| Block      | none: rules fill Blocked (`final`); the judge never answers it    | `blocked`                                                                                      | `blocked` clears                                            |
+| Your agent | hand off (only `yours`), take back; inbox_hand_back               | `needs.by = "agent"` (the desk gives it); `needs.by = "you"` (hands back or raises); `handoff` | `needs` clears or your agent is off: it returns silently    |
+| Automation | a schedule, run by your agent; finds go to `push`                 | `agent` (allow, deny); a find reaches it through `ref`                                         |                                                             |
+| Pull       | Sync now: `sync()`                                                | `start()`'s loops: `put`, then `changed(true)`                                                 |                                                             |
+| Push in    | none                                                              | a function its file exports, wired in server.ts, ending in `put`                               |                                                             |
+| Push out   | the window's click, through `Desk.write`                          | `write` answers a `Write`                                                                      |                                                             |
 
 **Writing.** `Desk.write`:
 
@@ -216,7 +216,7 @@ export interface Plugin<I extends Head = Head> {
   write?(item: I, action: string, input: unknown, writer: unknown): Effect.Effect<Write, WriteError>; // PUSH OUT: only Desk.write calls it
   agent?: { allow: string[]; deny: string[] }; // what automation runs may and may never use, beside the core's lists
   about?(item: I, merging: boolean): { line: string; place: Record<string, unknown> }; // an ask about it
-  detail?(item: I, seat: (id: string) => Seat): Record<string, unknown>; // the rest of desk_item, under today's keys
+  detail?(item: I, seat: (id: string) => Seat): Record<string, unknown>; // the rest of inbox_item, under today's keys
 }
 // Members is built (connector.ts). JudgeItem<I> is today's less `signals` and `ai`: GitHub's brief reads its own.
 
@@ -318,7 +318,7 @@ Your own Claude Code and Codex sessions on this computer that are blocked on you
 
 - **Follows the one rule already.** Each pass derives the fact (blocked or stalled, and why). An item exists only while the fact holds, so a session that moves on, ends, or is archived resolves itself.
 - **Core verbs work on it.** Done, snooze, mute and undo act on its id (`session:<id>`), in the `state` table and action log like any item.
-- **Not a `Connector` yet**, because the recompute still reads every item as GitHub's. Its cards live in memory and reach the core the way questions do: `QueueView.sessions`, `FocusView.sessions`, `Desk.sessionAct()`, `desk_list`, `desk_item` (`GET /api/sessions/:id`).
+- **Not a `Connector` yet**, because the recompute still reads every item as GitHub's. Its cards live in memory and reach the core the way questions do: `QueueView.sessions`, `FocusView.sessions`, `Desk.sessionAct()`, `inbox_list`, `inbox_item` (`GET /api/sessions/:id`).
 - **Its writes are a session's, never GitHub's,** from the window or your paired phone only: Kick and Resume (`claude --resume <id> --bg`, through the coordinator's `halt()`), and Open (the desktop app's or Codex's link).
 - **Settings:** its own part, Sessions (`sessions.enabled`, `sessions.ask`, `sessions.quiet_minutes`). No built-in automations (`automations: false`).
 
@@ -363,7 +363,7 @@ Your agent's own run keeps its list alone, because it pushes with `--force-with-
 
 ### Your agent (the coordinator) and Merging (core)
 
-- **The core keeps:** `inflight_at` and kv `sitter:<id>`; your agent's one session (`src/coordinator.ts`), its wakes, `tell`, the 60 s batch and the 5-minute check; the Merging page, asks, `desk_note`, `desk_hand_back`; `takeback`; and the rule that agents never hand off.
+- **The core keeps:** `inflight_at` and kv `sitter:<id>`; your agent's one session (`src/coordinator.ts`), its wakes, `tell`, the 60 s batch and the 5-minute check; the Merging page, asks, `inbox_note`, `inbox_hand_back`; `takeback`; and the rule that agents never hand off.
 - **Membership.** In Merging means `inflight_at` set, `yours`, and unresolved. That is compute's `inflight` exactly, since GitHub derives `yours` from your login on every look and your own PRs resolve only by closing. The Merging page also lists yours resolved within 3 days.
 - **Hand off.** `act("inflight")` refuses, in this order: not `yours` or resolved (in `handoff`'s words); already in Merging; then whatever `handoff` says. GitHub's `handoff`: not your open PR, a draft, nobody asked. Nothing is handed off by default.
 - **The desk's own moves stay core, with today's gates:**
@@ -406,14 +406,14 @@ Stays core:
 
 - **GitHub's facts and words:** stage, wait kinds, resolution reasons, chips, cta kinds, stacks, `requires` parsing and the dependency graph, Context, spaces' `org:` scope, search queries, the feed, the rate limit, CODEOWNERS, merge conditions, hand-off prompts. Each reaches the core only as a lens field or inside `row.extra`.
 - **Plugin pages and asks.** The Review page is GitHub's UI. New things become rules or settings, not pages. Asks are your agent's channel, not items; a plugin only words one (`about`).
-- **Not added:** a loader, manifests, versions or sandboxes (plugins are modules in this repo, listed in `startServer`); a route or MCP tool registry; an event bus; a plugin storage API; one shared "agent job" pump (the judge, AI review, conversations, automations and coordinator fail differently on purpose); a `remove` call; plugin buckets or parts; a `block` verb or `desk_block`; an agent registry; per-plugin judge prompts; rules that act instead of place.
+- **Not added:** a loader, manifests, versions or sandboxes (plugins are modules in this repo, listed in `startServer`); a route or MCP tool registry; an event bus; a plugin storage API; one shared "agent job" pump (the judge, AI review, conversations, automations and coordinator fail differently on purpose); a `remove` call; plugin buckets or parts; a `block` verb or `inbox_block`; an agent registry; per-plugin judge prompts; rules that act instead of place.
 - **GitHub's kv keys** stay unprefixed and are listed in its file: `context`, `blocked`, `review:`, `pr:`, `take:`, `reconciled_at`, `synced_at`. `baseline_at` (what counts as new) is the core's; GitHub sets it once, after its first pass.
 
 **Still GitHub-shaped in core files, on purpose** (until a second plugin needs otherwise):
 
 - config.ts: the query check (GitHub's boards only); `spaceOf` and `catchAllOf`, which read `org:`, `user:` and `repo:` scopes for Settings' GitHub part, until GitHub's `status()` carries them.
 - `SETTINGS`' `github.*`, `review.*`, `handoff.*`; `agentKey` reading `review.auto_ai`.
-- `UNTIL` in types.ts, which format.ts, client.ts and desk_act's description use to word a snooze.
+- `UNTIL` in types.ts, which format.ts, client.ts and inbox_act's description use to word a snooze.
 - store.ts's `itemMeta` `lacks`: GitHub's backfill test in SQL.
 - Added, the board for pins, which names no source. GitHub answers its members: none of its own, and as `kept`, every search's. That keeps an unresolved item any search keeps off every board, Added included, until a second source keeps items to show as resolved.
 - errors.ts's GitHub errors; coordinator.ts's `ROLE`, `REBASE` and deny list; the judge's frame, worded for PRs.
@@ -483,17 +483,17 @@ Each has a recommended answer and today's behaviour as the conservative one, wit
   _Conservative:_ `capped` and `Row.rank` (+1 lens field, +1 row field). Guarded by `test/rules.test.ts`.
 
 - **Q. Agents' questions become the second plugin.** Recommended: yes, after D1 to D3, since it's your own example of a source. One visible step adds `src/plugins/questions.ts`:
-  - **Items.** `questions:<hex>` items replace kv `inquiries`, imported once, same cap. Put quietly, so desk_events doesn't change.
+  - **Items.** `questions:<hex>` items replace kv `inquiries`, imported once, same cap. Put quietly, so inbox_events doesn't change.
   - **Asking.** `ask(body, resolve)` keeps `Desk.inquire`'s checks and words. server.ts wires it to `POST /api/inquiries`, passes `desk.itemId` as `resolve` (the item is still checked last), and notifies in today's words.
   - **Lens.** While open: `needs: { by: "you", why: "<from> asks" }`, part `"asks"` (before "back"), `arrive: "silent"`, and `refuse` in place of `handoff`, covering done, snooze, mute, pin and hand off, saying your agent waits on your answer.
   - **Answering.** Answer and Dismiss keep their own route, not `Desk.write`. `answer()` reads the item without the config check, so you can answer while config.toml has errors (a test). server.ts passes the answer to your agent; nothing enters the action log.
-  - **What you'd see:** the tray menu, `desk ls` and desk_list list open questions as Now items, and `QueueView.inquiries` goes. The rows and `InquiryPage` look the same.
+  - **What you'd see:** the tray menu, `inbox ls` and inbox_list list open questions as Now items, and `QueueView.inquiries` goes. The rows and `InquiryPage` look the same.
   - **Adds to the core:** part "asks", `refuse` for `handoff`, and the hoist passing part "asks" with no board and never quiet. _Conservative:_ questions stay in desk.ts, at no cost.
 
 **For agents only.** Each is one commit, on your yes.
 
-- **D4. Snooze words come only from what's offered now.** Recommended: yes. Today desk_act refuses a snooze until a kind the item doesn't offer with 409 "can't wait until it's approved; it can until …". With D4 it's an unreadable snooze time (400). The window is unchanged: it offers only what `until` lists. _Conservative:_ `waits` (+1 member).
-- **D5. blocked and unblocked events say source `github`** instead of `desk`. Recommended: yes. Only desk_events shows it. _Conservative:_ `put`'s `source` option.
+- **D4. Snooze words come only from what's offered now.** Recommended: yes. Today inbox_act refuses a snooze until a kind the item doesn't offer with 409 "can't wait until it's approved; it can until …". With D4 it's an unreadable snooze time (400). The window is unchanged: it offers only what `until` lists. _Conservative:_ `waits` (+1 member).
+- **D5. blocked and unblocked events say source `github`** instead of `desk`. Recommended: yes. Only inbox_events shows it. _Conservative:_ `put`'s `source` option.
 
 **Offered, not assumed.**
 

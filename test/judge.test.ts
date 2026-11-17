@@ -1088,7 +1088,7 @@ test("the judge sees every signal with its weight: each matching rule, an automa
       "",
     ].join("\n"),
   );
-  // The judge's answer, once it has weighed the sort, places it; desk_item's trace shows what it weighed.
+  // The judge's answer, once it has weighed the sort, places it; inbox_item's trace shows what it weighed.
   assert.deepEqual([t.placed(1).bucket, t.placed(1).why, t.placed(1).judge?.by], ["later", "fake says later", undefined]);
   const d = runSync(t.desk.item("api#1"));
   assert.deepEqual(

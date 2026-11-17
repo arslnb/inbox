@@ -14,7 +14,7 @@ process.env.DESK_CLAUDE = "/nonexistent/claude";
 
 const DAY = 24 * 3_600_000;
 const ID = "acme/other#9";
-// Someone else's PR no board's search returns: only desk_add brings it in.
+// Someone else's PR no board's search returns: only inbox_add brings it in.
 const unknown = () => makeItem({ repo: "acme/other", number: 9, author: "dave" });
 
 // Diffs and AI reviews that never reach an agent: each review is "being written" until finish() writes it.

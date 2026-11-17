@@ -280,8 +280,8 @@ async function forAgent(agent: agents.DriverId): Promise<void> {
           });
           if (v.id !== first) throw new Error(`a new session ${v.id}, not ${first}`);
           const answer = t.desk.asks().find((x) => x.id === r.id)?.answer;
-          // Whether it called desk_answer is the model's to get right, so it's said, not failed on.
-          return `${JSON.stringify(v)}; ${answer ? `answered through the desk: ${JSON.stringify(answer).slice(0, 100)}` : "the model didn't answer through desk_answer this time"}`;
+          // Whether it called inbox_answer is the model's to get right, so it's said, not failed on.
+          return `${JSON.stringify(v)}; ${answer ? `answered through the desk: ${JSON.stringify(answer).slice(0, 100)}` : "the model didn't answer through inbox_answer this time"}`;
         });
       if (first)
         await step(name, "coordinator deny list", async () => {

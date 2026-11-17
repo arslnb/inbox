@@ -268,7 +268,7 @@ export function signalLine(x: Pick<JudgeSignal, "from" | "bucket" | "why" | "wei
   return `  - ${x.bucket}, weight ${x.weight}${x.hard ? ", hard" : ""}: ${oneLine(x.from)}${why}`;
 }
 
-// An item's trace (desk_item, desk show): what the judge weighs now and, when its answer saw something else, what that was.
+// An item's trace (inbox_item, inbox show): what the judge weighs now and, when its answer saw something else, what that was.
 export function weighedLines(j: NonNullable<ItemDetail["judge"]>): string[] {
   const now = j.signals.length ? j.signals.map(signalLine) : ["  none: no rule matches it"];
   if (!j.saw) return ["signals the judge weighs (no answer yet):", ...now];

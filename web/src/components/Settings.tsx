@@ -1003,7 +1003,7 @@ function PairRow({
   onCopy: (text: string, what: string) => void;
   onClose: () => void;
 }) {
-  const connect = `bin/desk connect ${p.url} --code ${p.code}`;
+  const connect = `bin/inbox connect ${p.url} --code ${p.code}`;
   return (
     <div className="setting s-pair">
       {!expired && (

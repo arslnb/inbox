@@ -25,7 +25,7 @@
   "main": "electron/main.ts",
   "desktopName": "inbox.desktop",
   "bin": {
-    "desk": "bin/desk"
+    "inbox": "bin/inbox"
   },
   "engines": {
     "node": ">=22.18"

@@ -129,7 +129,7 @@ type Shell = { platform: string } | undefined;
 type Values = Record<string, SettingValue>;
 const inApp = (_: Values, app: Shell) => app !== undefined;
 
-// Settings' rows that would do nothing here aren't drawn, by key; `desk settings` and settings.json still set them.
+// Settings' rows that would do nothing here aren't drawn, by key; `inbox settings` and settings.json still set them.
 export const SHOWN: Record<string, ((values: Values, app: Shell) => boolean) | undefined> = {
   "agent.coordinator_bypass": (v) => v["agent.coordinator"] !== false,
   "agent.coordinator_model": (v) => v["agent.coordinator"] !== false,
@@ -783,9 +783,9 @@ export function judgeStatusText(j: JudgeStatus, now: number): string {
 }
 
 // What your agent is told with your words, so it changes the right thing the right way: an automation through
-// desk_automations, a criterion through desk_criteria; a built-in one can't be edited, so it writes your own instead.
+// inbox_automations, a criterion through inbox_criteria; a built-in one can't be edited, so it writes your own instead.
 export function changeAsk(what: { kind: "automation" | "criterion"; id: string; name: string; builtIn: boolean }, words: string): string {
-  const tool = what.kind === "automation" ? "desk_automations" : "desk_criteria";
+  const tool = what.kind === "automation" ? "inbox_automations" : "inbox_criteria";
   const it = `my ${what.kind === "automation" ? "automation" : "urgency criterion"} "${what.name}" (id ${what.id})`;
   return what.builtIn
     ? `Change ${it}: ${words}\n\nIt's built in, so it can't be edited: with ${tool}, read its definition and write my own ${what.kind} that does this instead${what.kind === "automation" ? " (it stays off until I turn it on)" : ""}. Then tell me what you wrote and whether I should switch the built-in off.`

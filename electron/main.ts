@@ -1,5 +1,5 @@
 // The desktop app: a window, tray and global hotkey around the desk. It attaches to a desk already
-// running on the port (desk serve, launchd), runs one from a checkout (electron/source.ts), or runs its own in a utility
+// running on the port (inbox serve, launchd), runs one from a checkout (electron/source.ts), or runs its own in a utility
 // process (electron/desk-host.ts), so nothing the desk does holds up the window.
 import {
   app,

@@ -379,7 +379,7 @@ interface Seed {
   asked2?: string[]; // pr.waiting_on: who's asked and hasn't approved, teams as @slug
 }
 
-// A PR in Merging: its failing checks, who it waits on, and the coordinator's latest desk_note (hours ago).
+// A PR in Merging: its failing checks, who it waits on, and the coordinator's latest inbox_note (hours ago).
 interface Flight {
   failing?: string[];
   waiting?: string[];

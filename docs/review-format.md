@@ -20,9 +20,9 @@ Code: the format and its checks in `src/doc.ts` (`readDoc`, `docOf`, `saveDoc`);
 
 | Who                   | How                                                                                                                                                            |
 | --------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| The desk              | Every AI review it writes (`Desk.runAi()`). On demand for a PR's current review: `POST /api/review/:id/doc`, or `desk_doc` with `ref`.                         |
-| An agent, with a desk | `desk_doc` with `doc` or `path`, or `POST /api/docs` with the document as the body. Answers `{ id, json, html, link, dropped }`.                               |
-| An agent, without one | `desk render <doc.json> [-o out.html]` writes the page beside the file (`-o -`: stdout). `desk_doc` with the desk down renders into the desk's home itself.    |
+| The desk              | Every AI review it writes (`Desk.runAi()`). On demand for a PR's current review: `POST /api/review/:id/doc`, or `inbox_doc` with `ref`.                        |
+| An agent, with a desk | `inbox_doc` with `doc` or `path`, or `POST /api/docs` with the document as the body. Answers `{ id, json, html, link, dropped }`.                              |
+| An agent, without one | `inbox render <doc.json> [-o out.html]` writes the page beside the file (`-o -`: stdout). `inbox_doc` with the desk down renders into the desk's home itself.  |
 | Reading               | `GET /api/docs/:id` (JSON), `GET /api/docs/:id/html` (page), `inbox://doc/<id>` (the desktop app opens `#/doc/<id>`, framed so it runs nothing), or the files. |
 
 ## The document

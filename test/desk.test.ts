@@ -1370,7 +1370,7 @@ test("a dependency closed without merging puts your PR in Today: needs X, closed
   );
 });
 
-test("the coordinator's desk_add is its opinion: no Today floor; on no other board it's on Added; anyone else's desk_add is your pin", async (c) => {
+test("the coordinator's inbox_add is its opinion: no Today floor; on no other board it's on Added; anyone else's inbox_add is your pin", async (c) => {
   const needs = (n: number) => myPr(n, { ci: "green", requires: ["acme/web#100"] });
   const t = await setup([myPr(100, { ci: "green" }), needs(1), needs(2)], { settings: QUIET });
   c.after(t.cleanup);
@@ -1397,11 +1397,11 @@ test("the coordinator's desk_add is its opinion: no Today floor; on no other boa
       ["acme/api#6", "added", "you added it"],
       ["acme/web#2", "acme-mine", "blocked by web#100, which waits on a review from dana"],
     ],
-    "on no other board it's on Added; anyone else's desk_add is your pin, which lifts it to Today",
+    "on no other board it's on Added; anyone else's inbox_add is your pin, which lifts it to Today",
   );
 });
 
-test("a coordinator's desk_add on no other board stays on Added after you act on it: in the Archive while done, back in Today on activity", async (c) => {
+test("a coordinator's inbox_add on no other board stays on Added after you act on it: in the Archive while done, back in Today on activity", async (c) => {
   const t = await setup([], { settings: QUIET });
   c.after(t.cleanup);
   t.gh.items.set("acme/api#77", makeItem({ number: 77, author: "carol" }));

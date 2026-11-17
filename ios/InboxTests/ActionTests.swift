@@ -513,7 +513,7 @@ final class StoreWriteTests: XCTestCase {
   }
 
   func testARevokedPhoneGoesBackToPairing() async throws {
-    try desk(["/api/github": no(401, "pair this device first: run desk pair on the desk's machine")])
+    try desk(["/api/github": no(401, "pair this device first: run inbox pair on the desk's machine")])
     let took = await store.github(try card("acme/worker#875"), "merge", head: head)
     XCTAssertFalse(took)
     XCTAssertNil(store.address)

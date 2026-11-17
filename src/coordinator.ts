@@ -307,7 +307,7 @@ export function halt(a: Pick<Agent, "id" | "status" | "pid">): Effect.Effect<voi
 }
 
 const span = (s: "new" | "old") => (s === "old" ? "removed " : "");
-// Where lines are, by number and side only: the file's name is PR text, so desk_ask gives it.
+// Where lines are, by number and side only: the file's name is PR text, so inbox_ask gives it.
 export function linesText(l: AskLines): string {
   const s = l.start;
   const at = !s
@@ -334,10 +334,10 @@ export function askLine(a: Ask, about: AskAbout | null): string {
       ? `about ${about ? `${WHOSE[about.whose]}${a.item_id} (${about.url})${stateText(about)}` : `${a.item_id}, not on the desk now${READ_ONLY}`}`
       : "",
     a.thread_url ? `on the thread ${a.thread_url}` : "",
-    l ? `on ${linesText(l)} of its diff (desk_ask ${a.id} says where)` : "",
-    a.fix ? `Make PR with fix: open a draft PR with this fix (desk_ask ${a.id} says where)` : "",
+    l ? `on ${linesText(l)} of its diff (inbox_ask ${a.id} says where)` : "",
+    a.fix ? `Make PR with fix: open a draft PR with this fix (inbox_ask ${a.id} says where)` : "",
   ].filter(Boolean);
-  return `My ask ${a.id}${parts.length ? `, ${parts.join(", ")}` : ""}: "${a.text.replaceAll(/\s+/g, " ")}" Answer it with desk_answer.`;
+  return `My ask ${a.id}${parts.length ? `, ${parts.join(", ")}` : ""}: "${a.text.replaceAll(/\s+/g, " ")}" Answer it with inbox_answer.`;
 }
 
 // What wakes it, in its words; null for what doesn't (its own pushes, CI starting).
@@ -1243,11 +1243,11 @@ function step(name: string, input: unknown): string {
     case "ToolSearch":
       return "Loaded its tools";
   }
-  const desk = /^mcp__\w+__desk_(\w+)$/.exec(name)?.[1];
+  const desk = /^mcp__\w+__inbox_(\w+)$/.exec(name)?.[1];
   if (desk) {
     const what = s("ref") || s("item") || s("ask_id");
     const done = DESK_STEPS[desk];
-    return done ? `${done}${what && desk !== "answer" ? ` ${what}` : ""}` : `desk_${desk}${what ? ` ${what}` : ""}`;
+    return done ? `${done}${what && desk !== "answer" ? ` ${what}` : ""}` : `inbox_${desk}${what ? ` ${what}` : ""}`;
   }
   return name.replace(/^mcp__\w+?__/, "");
 }

@@ -320,7 +320,7 @@ test("MCP called with a phone's token is still an agent: its tools reach no rout
       requestInit: { headers: bearer(phone) },
     }),
   );
-  const undone = await client.callTool({ name: "desk_undo", arguments: { seq: back.undo_seq } });
+  const undone = await client.callTool({ name: "inbox_undo", arguments: { seq: back.undo_seq } });
   assert.ok(undone.isError, JSON.stringify(undone.content));
   await client.close();
   assert.equal((await post("/api/undo", { seq: back.undo_seq })).status, 200, "the phone itself may");
@@ -341,8 +341,8 @@ test("MCP over /mcp from another device: with a token it lists the tools; withou
     new StreamableHTTPClientTransport(new URL(`${AT}/mcp`), { fetch: send(OWNER), requestInit: { headers: bearer(tok) } }),
   );
   const tools = (await client.listTools()).tools.map((x) => x.name);
-  assert.ok(tools.includes("desk_list") && tools.includes("desk_item"), tools.join(", "));
-  const r = await client.callTool({ name: "desk_list", arguments: {} });
+  assert.ok(tools.includes("inbox_list") && tools.includes("inbox_item"), tools.join(", "));
+  const r = await client.callTool({ name: "inbox_list", arguments: {} });
   assert.ok(!r.isError, JSON.stringify(r.content));
   await client.close();
   const res = await far(new Request(`${AT}/mcp`, { method: "POST", headers: { "tailscale-user-login": OWNER }, body: "{}" }));
@@ -505,7 +505,7 @@ test("with no tailscale installed, Settings says so", async (c) => {
   await srv.close();
 });
 
-test("desk serve --tailscale serves over Tailscale with the setting off, for that run", async (c) => {
+test("inbox serve --tailscale serves over Tailscale with the setting off, for that run", async (c) => {
   if (unixOnly(c)) return;
   const { srv, ts } = await started(c, RUNNING, {}, true, true);
   await until(() => !!ts.served(), `tailscale serve ran: ${ts.calls().join("; ")}`);

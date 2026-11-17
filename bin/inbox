@@ -1,5 +1,5 @@
 #!/bin/sh
-# Follow symlinks (e.g. ~/bin/desk -> repo/bin/desk) so src/cli.ts is found next to the real file.
+# Follow symlinks (e.g. ~/bin/inbox -> repo/bin/inbox) so src/cli.ts is found next to the real file.
 self="$0"
 while [ -L "$self" ]; do
   link=$(readlink "$self")

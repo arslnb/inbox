@@ -1390,7 +1390,7 @@ export function App() {
     );
   }
 
-  // A question's link, inbox://question/<id>: the desktop app opens its page, and an agent reads it with desk_inquiry.
+  // A question's link, inbox://question/<id>: the desktop app opens its page, and an agent reads it with inbox_inquiry.
   function copyQuestionLink(q: Inquiry): Effect.Effect<void> {
     return copyText(permalink({ question: q.id })).pipe(
       Effect.tap(() =>

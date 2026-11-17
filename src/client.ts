@@ -74,7 +74,7 @@ export interface SettingsPatch {
 // Nothing listens on the desk's port: it isn't running.
 class DeskDown extends Data.TaggedError("DeskDown")<{ readonly cause?: unknown }> {
   override get message(): string {
-    return "desk is not running — start it with: desk serve";
+    return "desk is not running — start it with: inbox serve";
   }
 }
 

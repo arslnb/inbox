@@ -47,7 +47,7 @@ MOCK_PORT=47841 MOCK_NO_POLL=1 node --disable-warning=ExperimentalWarning web/mo
 Run the app, and on its first screen type `http://localhost:47841`. No code is asked for: the Simulator shares your
 Mac's localhost, and the desk's own computer needs no token.
 
-Against your own desk on the same Mac: start the desktop app (or `desk serve`) and type `http://localhost:47823`.
+Against your own desk on the same Mac: start the desktop app (or `inbox serve`) and type `http://localhost:47823`.
 Triage there is real: Done on the phone is Done on your desk (the toast's Undo takes it back).
 
 A Debug build also reads launch arguments, for trying one state without tapping to it (none is saved; a Release build
@@ -145,14 +145,14 @@ copy back, so an upload always has today's mock; the committed one is what tests
 
 Not tried on a phone yet: v0 has only run in the Simulator, and the project has no signing team set. When you do:
 
-1. On the desk's computer: Settings → Tailscale → **Use it from your other devices** (or `desk serve --tailscale`).
+1. On the desk's computer: Settings → Tailscale → **Use it from your other devices** (or `inbox serve --tailscale`).
    The desk then answers at `https://<machine>.<tailnet>.ts.net` on your tailnet only. It needs the `tailscale` command
    on the desk's PATH.
 2. On the phone: Tailscale on, signed in with the **same login** that owns the desk's computer.
 3. On the desk's computer: Settings → Network → **Pair a device**. It shows a QR, the address and a code (one try,
    10 minutes).
 4. In the app: **Scan the code** and point it at the QR. Scan it in the app, not with the phone's Camera app, which
-   opens the link in Safari and spends the code there. Or type the address and the code (`desk pair` prints both), or
+   opens the link in Safari and spends the code there. Or type the address and the code (`inbox pair` prints both), or
    paste the whole link (`https://<name>/pair#<code>`) into the address field.
 
 Scan the code takes only a link shaped like a desk's pairing link (`https://<any name>/pair#<code>`): any other QR is
@@ -465,7 +465,7 @@ Left out on purpose, each said here once.
   desk's computer; the phone only renders the desk's state, in the default light and dark. The one exception is the
   chat's own menus for how your agent runs (its run mode, model and effort), as the window's chat has them by Send.
 - **The first run** (connecting GitHub, picking your agent): it sets up the desk's own machine, so it happens there.
-  A phone paired before it was finished (`desk pair` doesn't check) shows the lists with a bubble, "The desk isn't
+  A phone paired before it was finished (`inbox pair` doesn't check) shows the lists with a bubble, "The desk isn't
   set up yet", saying to finish it on the computer (`GET /api/setup`, asked once per connection and then on each read
   while it's unfinished); with GitHub not connected every read is refused in the desk's words instead.
 - **The update line and installing an update**: that's the desktop app updating itself.

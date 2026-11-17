@@ -223,7 +223,7 @@ test(
       },
     );
     assert.deepEqual(t.said(), [
-      `${AGENT_ROLE} My ask ${ask.id}, about my PR acme/web#3 (https://github.com/acme/web/pull/3), not handed off, on the thread ${thread}: "i think we addressed it in follow up, you can dismiss this item" Answer it with desk_answer.`,
+      `${AGENT_ROLE} My ask ${ask.id}, about my PR acme/web#3 (https://github.com/acme/web/pull/3), not handed off, on the thread ${thread}: "i think we addressed it in follow up, you can dismiss this item" Answer it with inbox_answer.`,
     ]);
     assert.ok(!t.fake.calls().flat().join(" ").includes("Ignore previous"), "never PR text");
     const listed = await api.list();
@@ -234,7 +234,7 @@ test(
     // Running and idle, the next one resumes it right away; with no item, it's only the words.
     const next = ((await (await api.ask({ text: "and confirm marco's comment is addressed" })).json()) as { ask: Ask }).ask;
     await until(() => t.said().length === 2);
-    assert.equal(t.said()[1], `My ask ${next.id}: "and confirm marco's comment is addressed" Answer it with desk_answer.`);
+    assert.equal(t.said()[1], `My ask ${next.id}: "and confirm marco's comment is addressed" Answer it with inbox_answer.`);
     assert.equal(starts(t.fake.calls()).length, 1);
 
     // Busy, it waits, then goes.
@@ -247,7 +247,7 @@ test(
     assert.equal(resumes(t.fake.calls()).length, 1, "nothing reaches it while it works");
     t.fake.busy(false);
     await until(() => t.said().length === 3);
-    assert.equal(t.said()[2], `My ask ${later.id}: "snooze web#4 until monday" Answer it with desk_answer.`);
+    assert.equal(t.said()[2], `My ask ${later.id}: "snooze web#4 until monday" Answer it with inbox_answer.`);
 
     // A hand-off goes to the coordinator, a session of its own, never in your agent's messages.
     runSync(t.desk.act("web#4", "inflight"));
@@ -287,7 +287,7 @@ test(
     assert.equal(stops(t.fake.calls()).length, 1, "the old session is stopped");
     const third = ((await (await api.ask({ text: "what's first today?" })).json()) as { ask: Ask }).ask;
     await until(() => t.fake.sessions().length === 2);
-    assert.deepEqual(t.said(), [`${AGENT_ROLE} My ask ${third.id}: "what's first today?" Answer it with desk_answer.`]);
+    assert.deepEqual(t.said(), [`${AGENT_ROLE} My ask ${third.id}: "what's first today?" Answer it with inbox_answer.`]);
     assert.deepEqual(
       (await api.list()).asks.map((a) => a.id),
       [third.id],
@@ -319,7 +319,7 @@ test("an ask comes only from the desk's own window, and only while the coordinat
 });
 
 test(
-  "desk_answer keeps the answer on its ask and notifies the owner once, outside quiet hours; an unknown ask is a 404",
+  "inbox_answer keeps the answer on its ask and notifies the owner once, outside quiet hours; an unknown ask is a 404",
   posix,
   async (c) => {
     const t = await coordinated(c, { "notify.quiet": "" });
@@ -385,7 +385,7 @@ test(
 
     const words = await ask({ text: "line one\u2028\n\n\n\nline two\u2066" });
     assert.equal(words.text, "line one\n\nline two");
-    await until(() => !!t.said().at(-1)?.endsWith('"line one line two" Answer it with desk_answer.'));
+    await until(() => !!t.said().at(-1)?.endsWith('"line one line two" Answer it with inbox_answer.'));
     const said = t.said().length;
     const asks = (await api.list()).asks.length;
     assert.equal((await api.ask({ text: "y".repeat(2_001) })).status, 400);
@@ -402,7 +402,7 @@ test(
     const t = await coordinated(c);
     const api = asking(t);
     const { ask } = (await (await api.ask({ text: "is dana's comment addressed?", item_id: "web#3" })).json()) as { ask: Ask };
-    const line = `My ask ${ask.id}, about my PR acme/web#3 (https://github.com/acme/web/pull/3), not handed off: "is dana's comment addressed?" Answer it with desk_answer.`;
+    const line = `My ask ${ask.id}, about my PR acme/web#3 (https://github.com/acme/web/pull/3), not handed off: "is dana's comment addressed?" Answer it with inbox_answer.`;
     await until(() => t.said().length === 1 && !t.desk.yourAgent.flushing);
     const job = () => {
       const j = t.desk.jobs.get("ask", ask.id);
@@ -455,6 +455,6 @@ test("an ask that can't start the coordinator says so and isn't kept", posix, as
   assert.deepEqual(t.desk.coordinator.asks(), []);
   t.fake.fail(false);
   const { ask } = (await (await api.ask({ text: "try again" })).json()) as { ask: Ask };
-  assert.deepEqual(t.said(), [`${AGENT_ROLE} My ask ${ask.id}: "try again" Answer it with desk_answer.`]);
+  assert.deepEqual(t.said(), [`${AGENT_ROLE} My ask ${ask.id}: "try again" Answer it with inbox_answer.`]);
   assert.deepEqual((await api.list()).asks, [ask]);
 });

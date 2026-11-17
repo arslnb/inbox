@@ -30,7 +30,7 @@ export interface IO {
   stderr: Out;
 }
 
-const USAGE = `usage: desk <command>
+const USAGE = `usage: inbox <command>
 
   serve [--port N] [--open] [--tailscale]
                                       run the desk server in the foreground; --tailscale: also for your other devices
@@ -240,7 +240,7 @@ const ls = Effect.fnUntraced(function* (x: Ctx) {
       ];
   const more = counts.filter(([n]) => n).map(([n, l]) => `${n} ${l}`);
   const hint =
-    !x.opts.all && (s.blocked.length || s.later.length || s.fyi.length) ? `  (desk ls ${which === "focus" ? "" : `${which} `}--all)` : "";
+    !x.opts.all && (s.blocked.length || s.later.length || s.fyi.length) ? `  (inbox ls ${which === "focus" ? "" : `${which} `}--all)` : "";
   if (more.length) x.out("\n" + x.c.dim(clip(more.join(" · ") + hint, x.width)));
   return 0;
 });
@@ -295,7 +295,7 @@ const act =
     return Effect.map(api.act(x.args[0]!, action, until), (r) => {
       const s = r.state;
       const when = untilText(until, s, localTime);
-      x.out(`${x.c.green("✓")} ${PAST[action]} ${s.id}${when}  ${x.c.dim(`(desk undo ${r.undo_seq} to revert)`)}`);
+      x.out(`${x.c.green("✓")} ${PAST[action]} ${s.id}${when}  ${x.c.dim(`(inbox undo ${r.undo_seq} to revert)`)}`);
       return 0;
     });
   };
@@ -304,7 +304,7 @@ const add: Command = (x) =>
   Effect.map(api.add(x.args[0]!, x.args[1], typeof x.opts.from === "string" ? x.opts.from : undefined), (r) => {
     const d = r.item;
     const ai = d.generating ? ", AI review started" : "";
-    x.out(`${x.c.green("✓")} added ${d.card.id} to your desk, pinned${ai}  ${x.c.dim(`(desk undo ${r.undo_seq} to revert)`)}`);
+    x.out(`${x.c.green("✓")} added ${d.card.id} to your desk, pinned${ai}  ${x.c.dim(`(inbox undo ${r.undo_seq} to revert)`)}`);
     return 0;
   });
 
@@ -312,7 +312,7 @@ const add: Command = (x) =>
 function statusWord(cause: Cause.Cause<api.ClientError>): string {
   const e = Option.getOrUndefined(Cause.findErrorOption(cause));
   if (e?._tag !== "DeskApiError" || e.tag !== "Unavailable") return "desk offline";
-  return e.reason === "config" ? "desk config error" : "desk starting";
+  return e.reason === "config" ? "inbox config error" : "desk starting";
 }
 
 const status = Effect.fnUntraced(function* (x: Ctx) {
@@ -334,7 +334,7 @@ const status = Effect.fnUntraced(function* (x: Ctx) {
   const sync = o.syncing ? "syncing…" : `synced ${ago(o.synced_at)}`;
   x.out(`${x.glyph("now")} ${o.focus.now} now  ${x.glyph("today")} ${o.focus.today} today  +${o.focus.new} new   ${x.c.dim(sync)}`);
   if (o.sync_error) x.out(x.c.red(`sync error: ${o.sync_error}`));
-  if (o.config_errors.length) x.out(x.c.red(`${o.config_errors.length} config error(s) — desk config check`));
+  if (o.config_errors.length) x.out(x.c.red(`${o.config_errors.length} config error(s) — inbox config check`));
   if (o.rate_limit && o.rate_limit.remaining < 500)
     x.out(x.c.yellow(`GitHub rate limit low: ${o.rate_limit.remaining} left, resets ${localTime(o.rate_limit.reset_at)}`));
   const boards = o.spaces.flatMap((s) => s.boards);
@@ -379,8 +379,8 @@ const config = Effect.fnUntraced(function* (x: Ctx) {
     for (const w of warnings) x.out(`${x.c.yellow("!")} ${w.path}: ${w.message}`);
     x.out(
       errors.length
-        ? x.c.dim("desk isn't running; start it with: desk serve")
-        : `${x.c.green("✓")} ${path} is valid (desk isn't running; start it with: desk serve)`,
+        ? x.c.dim("desk isn't running; start it with: inbox serve")
+        : `${x.c.green("✓")} ${path} is valid (desk isn't running; start it with: inbox serve)`,
     );
     return errors.length ? 1 : 0;
   }
@@ -459,7 +459,7 @@ const settings = Effect.fnUntraced(function* (x: Ctx) {
     return 0;
   }
   const d = v.defs.find((def) => def.key === key);
-  if (!d) return yield* new CliError({ message: `unknown setting "${key}"; desk settings lists them` });
+  if (!d) return yield* new CliError({ message: `unknown setting "${key}"; inbox settings lists them` });
   const r = yield* api.putSettings(sub === "set" ? { set: { [d.key]: yield* parseSetting(d, raw!) } } : { reset: [d.key] });
   if (!r.ok) return yield* new CliError({ message: r.errors.map((e) => `${e.path} ${e.message}`).join("; ") });
   const isDefault = !r.settings.overridden.includes(d.key);
@@ -477,7 +477,7 @@ const HARNESSES: Record<string, { id: agents.DriverId; label: string }> = {
   opencode: { id: "opencode", label: "OpenCode" },
 };
 
-// A desk on another machine, from its address as `desk pair` prints it: https://<its tailnet name>.
+// A desk on another machine, from its address as `inbox pair` prints it: https://<its tailnet name>.
 const addressOf = (typed: string): string | null => {
   const u = URL.parse(typed.includes("://") ? typed : `https://${typed}`);
   return u && u.protocol === "https:" && (u.pathname === "/" || u.pathname === "") && !u.search && !u.hash ? u.origin : null;
@@ -487,15 +487,17 @@ const addressOf = (typed: string): string | null => {
 const connectTo = Effect.fnUntraced(function* (x: Ctx) {
   const at = addressOf(x.args[0]!);
   if (!at)
-    return yield* new UsageError({ message: `the desk's address is https://<its tailnet name>, as desk pair prints it: not ${x.args[0]}` });
+    return yield* new UsageError({
+      message: `the desk's address is https://<its tailnet name>, as inbox pair prints it: not ${x.args[0]}`,
+    });
   const driver = HARNESSES[x.args[1] ?? "claude"];
   if (!driver) return yield* new UsageError({ message: `unknown agent: ${x.args[1]} (try: claude, codex or opencode)` });
   if (typeof x.opts.code !== "string")
-    return yield* new UsageError({ message: "connect <address> needs --code <code>: run desk pair on the desk's machine" });
+    return yield* new UsageError({ message: "connect <address> needs --code <code>: run inbox pair on the desk's machine" });
   const desk = api.createClient((p, init) => fetch(at + p, init));
   const { token } = yield* desk.trade(x.opts.code, os.hostname());
   const noSkill = (why: string, cause?: unknown) =>
-    new CliError({ message: `the desk paired this machine but didn't send its skill (${why}): run desk pair again`, cause });
+    new CliError({ message: `the desk paired this machine but didn't send its skill (${why}): run inbox pair again`, cause });
   const res = yield* Effect.tryPromise({
     try: () => fetch(`${at}/skill`, { headers: { authorization: `Bearer ${token}` } }),
     catch: (cause) => noSkill(messageOf(cause), cause),
@@ -517,7 +519,7 @@ const connectTo = Effect.fnUntraced(function* (x: Ctx) {
 // On the desk's machine: what another device needs to pair, or with --print one machine's token and what to paste there.
 const pair = Effect.fnUntraced(function* (x: Ctx) {
   if (x.opts.print) {
-    const { url, token } = yield* api.pairToken(typeof x.opts.name === "string" ? x.opts.name : "A machine (desk pair --print)");
+    const { url, token } = yield* api.pairToken(typeof x.opts.name === "string" ? x.opts.name : "A machine (inbox pair --print)");
     x.out("# Paste these on the other machine. The token is a password for your desk; revoke it in Settings → Network → Tailscale.");
     for (const line of agents.remoteCommands(url, token)) x.out(line);
     return 0;
@@ -527,8 +529,8 @@ const pair = Effect.fnUntraced(function* (x: Ctx) {
   x.out("");
   x.out(`A browser on your other device: open ${p.pair_url}`);
   x.out(`The iPhone app: scan the QR in Settings → Network → Pair a device, or enter ${p.url} and the code.`);
-  x.out(`Another machine with an Inbox checkout: bin/desk connect ${p.url} --code ${p.code}`);
-  x.out(`One without: run desk pair --print here instead, and paste what it prints there.`);
+  x.out(`Another machine with an Inbox checkout: bin/inbox connect ${p.url} --code ${p.code}`);
+  x.out(`One without: run inbox pair --print here instead, and paste what it prints there.`);
   return 0;
 });
 
@@ -536,7 +538,7 @@ const connect = Effect.fnUntraced(function* (x: Ctx) {
   if (x.args[0] && /[.:]/.test(x.args[0])) return yield* connectTo(x);
   if (x.args.length > 1) return yield* new UsageError({ message: `connect: unexpected argument ${x.args[1]}` });
   const driver = HARNESSES[x.args[0] ?? "claude"];
-  if (!driver) return yield* new UsageError({ message: `unknown agent: ${x.args[0]} (try: desk connect claude, codex or opencode)` });
+  if (!driver) return yield* new UsageError({ message: `unknown agent: ${x.args[0]} (try: inbox connect claude, codex or opencode)` });
   const url = `http://localhost:${(process.env.DESK_PORT ?? "") || 47823}/mcp`;
   const log = (line: string) => {
     x.out(`# ${line}`);
@@ -546,13 +548,13 @@ const connect = Effect.fnUntraced(function* (x: Ctx) {
     x.out(`${x.c.green("✓")} ${driver.label}: MCP tools connected, skill installed (${s.skill.path})`);
     return 0;
   }
-  x.out(`# ${driver.label}${x.opts.apply ? "" : ` (desk connect ${x.args[0] ? `${x.args[0]} ` : ""}--apply does this)`}`);
+  x.out(`# ${driver.label}${x.opts.apply ? "" : ` (inbox connect ${x.args[0] ? `${x.args[0]} ` : ""}--apply does this)`}`);
   x.out(`# MCP tools: ${s.mcp.connected ? "connected" : "not connected"}`);
   if (s.connect.includes(s.mcp.command)) x.out(s.mcp.command);
   x.out(`# Skill: ${SKILL_STATE[s.skill.state]}`);
   if (s.connect.includes(s.skill.command)) x.out(s.skill.command);
   if (s.note) x.out(`# ${s.note}`);
-  x.out(`# The tools work while the desk runs (the app or desk serve). Clients that only speak stdio: desk mcp`);
+  x.out(`# The tools work while the desk runs (the app or inbox serve). Clients that only speak stdio: inbox mcp`);
   return 0;
 });
 
@@ -561,13 +563,13 @@ const setup = Effect.fnUntraced(function* (x: Ctx) {
   const pick = x.args[0];
   const driver = pick === undefined ? undefined : HARNESSES[pick];
   if (pick !== undefined && !driver)
-    return yield* new UsageError({ message: `unknown agent: ${pick} (try: desk setup claude, codex or opencode)` });
+    return yield* new UsageError({ message: `unknown agent: ${pick} (try: inbox setup claude, codex or opencode)` });
   const s = driver ? yield* api.chooseAgent(driver.id) : yield* api.checkSetup();
   const g = s.github;
   x.out(g.login ? `${x.c.green("✓")} GitHub: signed in as @${g.login}` : `GitHub: ${g.error}${g.fix ? ` Run: ${g.fix}` : ""}`);
   if (driver) {
     x.out(`${x.c.green("✓")} ${driver.label} is your agent: Inbox's MCP tools and skill are installed in it`);
-    if (s.needed) x.out(`Inbox opens once GitHub is connected: run ${g.fix ?? "desk setup"}, then press Retry in the app`);
+    if (s.needed) x.out(`Inbox opens once GitHub is connected: run ${g.fix ?? "inbox setup"}, then press Retry in the app`);
     return 0;
   }
   for (const a of s.agents) {
@@ -575,7 +577,7 @@ const setup = Effect.fnUntraced(function* (x: Ctx) {
     const mark = s.agent === a.id && !s.needed ? x.c.green("✓") : " ";
     x.out(`${mark} ${a.name.padEnd(12)} ${state}${a.fix ? `. Run: ${a.fix}` : ""}`);
   }
-  if (s.needed) x.out(`Pick one: desk setup claude, codex or opencode`);
+  if (s.needed) x.out(`Pick one: inbox setup claude, codex or opencode`);
   return 0;
 });
 
@@ -716,13 +718,13 @@ const COMMANDS: Record<string, Command> = {
     const { file, log } = yield* install(yield* cliPath(), undefined, (m) => {
       x.out(m);
     });
-    x.out(`${x.c.green("✓")} installed ${file}\n  desk serve now runs at login; log: ${log}`);
+    x.out(`${x.c.green("✓")} installed ${file}\n  inbox serve now runs at login; log: ${log}`);
     return 0;
   }),
   uninstall: Effect.fnUntraced(function* (x: Ctx) {
     yield* macOnly("uninstall");
     const gone = yield* uninstall();
-    x.out(gone.length ? `${x.c.green("✓")} removed ${gone.join(" and ")}` : "nothing to remove: desk install wasn't run");
+    x.out(gone.length ? `${x.c.green("✓")} removed ${gone.join(" and ")}` : "nothing to remove: inbox install wasn't run");
     return 0;
   }),
 };
@@ -753,7 +755,7 @@ const command = Effect.fnUntraced(function* (cmd: string, rest: string[], io: IO
 });
 
 // The CLI's boundary (docs/effect.md): a usage error exits 2 with the hint, the desk down says so alone, and anything
-// else, a bug too, is `desk: <its words>`, exit 1.
+// else, a bug too, is `inbox: <its words>`, exit 1.
 export async function main(argv: string[], io: IO = STDIO): Promise<number> {
   const [cmd = "help", ...rest] = argv;
   if (cmd === "help" || cmd === "--help" || cmd === "-h") return (io.stdout.write(USAGE), 0);
@@ -761,7 +763,7 @@ export async function main(argv: string[], io: IO = STDIO): Promise<number> {
   if (Exit.isSuccess(exit)) return exit.value;
   const failed = Option.getOrUndefined(Cause.findErrorOption(exit.cause));
   if (failed?._tag === "UsageError") {
-    io.stderr.write(`desk: ${failed.message}\nrun 'desk help' for usage\n`);
+    io.stderr.write(`inbox: ${failed.message}\nrun 'inbox help' for usage\n`);
     return 2;
   }
   if (failed?._tag === "DeskDown") {
@@ -769,7 +771,7 @@ export async function main(argv: string[], io: IO = STDIO): Promise<number> {
     return 1;
   }
   const e = failed ?? Cause.squash(exit.cause);
-  io.stderr.write(`desk: ${messageOf(e)}\n`);
+  io.stderr.write(`inbox: ${messageOf(e)}\n`);
   return 1;
 }
 

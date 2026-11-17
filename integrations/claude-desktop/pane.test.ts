@@ -182,7 +182,7 @@ test("a stopped desk says how to start it", async () => {
   await cc.fire("command.run", { command: "desk" });
   assert.deepEqual(lines(cc.draw("desktop")), [
     "desk offline [refresh] open desk → http://localhost:47823/",
-    "desk is not running. Start it with: desk serve",
+    "desk is not running. Start it with: inbox serve",
   ]);
 });
 

@@ -1,5 +1,5 @@
 // Settings: how the desk behaves, stored in settings.json (only values that differ from the default).
-// Adding a setting = one entry in SETTINGS: validation, `desk settings` and its section's part of the Settings page (`more` folds it).
+// Adding a setting = one entry in SETTINGS: validation, `inbox settings` and its section's part of the Settings page (`more` folds it).
 import type { AgentModels } from "./models.ts";
 import fs from "node:fs";
 import path from "node:path";
@@ -390,7 +390,7 @@ export const SETTINGS = [
     label: "Use it from your other devices",
     type: "boolean",
     default: false,
-    help: "Over Tailscale, at this machine's tailnet address, for you alone; each device pairs once (Pair a device, or desk pair).",
+    help: "Over Tailscale, at this machine's tailnet address, for you alone; each device pairs once (Pair a device, or inbox pair).",
   },
   {
     key: "app.tailscale_login",

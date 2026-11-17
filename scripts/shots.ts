@@ -957,7 +957,7 @@ const SHOTS: Shot[] = [
       await page.waitForTimeout(500);
       page.off("request", seen);
       const text = sent.length ? (str(field(JSON.parse(sent[0]!), "text")) ?? "") : "";
-      if (!text.includes("Only when its CI is green") || !text.includes("desk_criteria"))
+      if (!text.includes("Only when its CI is green") || !text.includes("inbox_criteria"))
         failures.push(`settings-criteria-ask: your agent was sent ${JSON.stringify(text)}`);
       if (!(await page.locator(".chat").count())) failures.push("settings-criteria-ask: the chat didn't open");
     },
@@ -4026,7 +4026,7 @@ const SHOTS: Shot[] = [
     },
   },
   {
-    // Quiet hours stored unpadded, as `desk settings set` may write it: in and out of its time without a change saves nothing.
+    // Quiet hours stored unpadded, as `inbox settings set` may write it: in and out of its time without a change saves nothing.
     name: "settings-queue-quiet-kept",
     go: async (page) => {
       await settingsAs((v) => {

@@ -98,7 +98,7 @@ const shown = (d: Device): Device => ({
 export class Remote {
   // While the desk serves over Tailscale; null otherwise, and then the remote listener refuses everything.
   tailnet: Tailnet | null = null;
-  wanted = false; // the setting, or desk serve --tailscale
+  wanted = false; // the setting, or inbox serve --tailscale
   text = "Off.";
   private code: { hash: string; until: number } | null = null;
   private tries: number[] = [];
@@ -150,7 +150,7 @@ export class Remote {
       const code = this.code;
       this.code = null;
       const ok = !!code && code.until > t && typeof typed === "string" && same(digest(codeOf(typed)), code.hash);
-      if (!ok) return Effect.fail(new Forbidden({ message: "that pairing code isn't valid: run desk pair again for a new one" }));
+      if (!ok) return Effect.fail(new Forbidden({ message: "that pairing code isn't valid: run inbox pair again for a new one" }));
       return Effect.succeed(this.issue(name, kind));
     });
   }

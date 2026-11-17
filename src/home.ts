@@ -60,7 +60,7 @@ export const held = (port: number): Effect.Effect<boolean> =>
 // The home a desk starting on `port` runs from, moving ~/.review-desk to ~/.inbox first when that's all there is. Never when
 // ~/.inbox is there already, and never while something answers on the port: with no desk on ~/.inbox yet, that's one
 // running from the old folder, which keeps it until a start finds the port free. A move that fails leaves it where it is.
-// What still opens ~/.review-desk after the move (Review Desk.app at login, its checkout's desk, a desk install job from
+// What still opens ~/.review-desk after the move (Review Desk.app at login, its checkout's desk, a `desk install` job from
 // before) finds the home through the link the move leaves there, rather than making an empty one.
 export const settleHome = (
   port: number,

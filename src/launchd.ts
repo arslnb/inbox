@@ -1,4 +1,4 @@
-// launchd LaunchAgent so `desk serve` runs at login and restarts if it dies.
+// launchd LaunchAgent so `inbox serve` runs at login and restarts if it dies.
 
 import { spawnSync } from "node:child_process";
 import { existsSync, mkdirSync, rmSync, writeFileSync } from "node:fs";
@@ -114,7 +114,7 @@ export const install = Effect.fn("launchd.install")(function* (
   const deskHome = yield* settleHome(port, log, "", home);
   if (deskHome !== defaultHome(home))
     return yield* new Conflict({
-      message: `desk install needs the port free: quit the desk running from ${deskHome} (Review Desk.app, or that desk serve), then run it again`,
+      message: `inbox install needs the port free: quit the desk running from ${deskHome} (Review Desk.app, or that inbox serve), then run it again`,
     });
   yield* mkdir(deskHome);
   yield* mkdir(dirname(file));

@@ -80,7 +80,7 @@ test("a first run without GitHub starts anyway: no config, the page says what to
     assert.deepEqual(s.github, { login: null, error: "You're not signed in to GitHub.", fix: "gh auth login" });
     const queue = await t.app.request("http://127.0.0.1:47823/api/queue");
     assert.equal(queue.status, 503);
-    assert.match(((await queue.json()) as { error: string }).error, /^GitHub isn't connected yet .*: run desk setup$/);
+    assert.match(((await queue.json()) as { error: string }).error, /^GitHub isn't connected yet .*: run inbox setup$/);
     t.signIn();
     const after = (await (await t.app.request("http://127.0.0.1:47823/api/setup/check", { method: "POST" })).json()) as {
       github: unknown;

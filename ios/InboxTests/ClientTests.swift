@@ -44,12 +44,12 @@ final class ClientTests: XCTestCase {
   }
 
   func testAWrongOrUsedCode() async {
-    StubProtocol.reset(["/api/pair": refused(403, "that pairing code isn't valid: run desk pair again for a new one")])
+    StubProtocol.reset(["/api/pair": refused(403, "that pairing code isn't valid: run inbox pair again for a new one")])
     let e = await failure { try await self.client(token: nil).pair(code: "ABCD2345", name: "x") }
-    XCTAssertEqual(e, .refused(status: 403, message: "that pairing code isn't valid: run desk pair again for a new one"))
+    XCTAssertEqual(e, .refused(status: 403, message: "that pairing code isn't valid: run inbox pair again for a new one"))
     let why = PairFailure(e!, host: tailnet.host)
-    XCTAssertEqual(why, .badCode("that pairing code isn't valid: run desk pair again for a new one"))
-    XCTAssertEqual(why.words, "That pairing code isn't valid: run desk pair again for a new one.")
+    XCTAssertEqual(why, .badCode("that pairing code isn't valid: run inbox pair again for a new one"))
+    XCTAssertEqual(why.words, "That pairing code isn't valid: run inbox pair again for a new one.")
     XCTAssertEqual(StubProtocol.requests().count, 1, "never retried")
   }
 
@@ -112,9 +112,9 @@ final class ClientTests: XCTestCase {
 
   // 401: the device was revoked.
   func testRevoked() async {
-    StubProtocol.reset(["/api/queue": refused(401, "pair this device first: run desk pair on the desk's machine", tag: "Unauthorized")])
+    StubProtocol.reset(["/api/queue": refused(401, "pair this device first: run inbox pair on the desk's machine", tag: "Unauthorized")])
     let e = await failure { try await self.client().queue() }
-    XCTAssertEqual(e, .unpaired("pair this device first: run desk pair on the desk's machine"))
+    XCTAssertEqual(e, .unpaired("pair this device first: run inbox pair on the desk's machine"))
   }
 
   // Whatever isn't the desk's JSON means the desk isn't there: Tailscale's own page, a proxy's 502, the web UI's HTML.
@@ -293,10 +293,10 @@ final class StoreTests: XCTestCase {
   }
 
   func testARefusedPairingSaysWhyAndSavesNothing() async {
-    StubProtocol.reset(["/api/pair": .init(status: 403, body: #"{"error":"that pairing code isn't valid: run desk pair again for a new one","tag":"Forbidden"}"#)])
+    StubProtocol.reset(["/api/pair": .init(status: 403, body: #"{"error":"that pairing code isn't valid: run inbox pair again for a new one","tag":"Forbidden"}"#)])
     let store = Store(defaults: defaults, session: StubProtocol.session())
     let said = await store.connect(typed: address, code: "ABCD-2345")
-    XCTAssertEqual(said, "That pairing code isn't valid: run desk pair again for a new one.")
+    XCTAssertEqual(said, "That pairing code isn't valid: run inbox pair again for a new one.")
     XCTAssertNil(store.address)
     XCTAssertNil(Keychain.read(for: address))
     XCTAssertNil(defaults.string(forKey: "desk.address"))
@@ -342,10 +342,10 @@ final class StoreTests: XCTestCase {
 
   // The field holds the address without the burnt code, so the code field shows for a new one.
   func testARefusalAfterAScanKeepsTheAddressAndAsksForACode() async {
-    StubProtocol.reset(["/api/pair": .init(status: 403, body: #"{"error":"that pairing code isn't valid: run desk pair again for a new one","tag":"Forbidden"}"#)])
+    StubProtocol.reset(["/api/pair": .init(status: 403, body: #"{"error":"that pairing code isn't valid: run inbox pair again for a new one","tag":"Forbidden"}"#)])
     let store = Store(defaults: defaults, session: StubProtocol.session())
     let (field, said) = await scan("https://desk.tail1234.ts.net/pair#ABCD-2345", into: store)
-    XCTAssertEqual(said, "That pairing code isn't valid: run desk pair again for a new one.")
+    XCTAssertEqual(said, "That pairing code isn't valid: run inbox pair again for a new one.")
     XCTAssertEqual(field, address)
     guard case .success(let typed) = DeskAddress.parse(field) else { return XCTFail("the field is an address") }
     XCTAssertNil(typed.code, "no code in the field: Connect again can't re-send the burnt one")
@@ -369,7 +369,7 @@ final class StoreTests: XCTestCase {
     StubProtocol.reset([:])
     let store = Store(defaults: defaults, session: StubProtocol.session())
     let said = await store.connect(typed: "http://localhost:9", code: "")
-    XCTAssertEqual(said, "Nothing answers at http://localhost:9. Start the desk with desk serve, or open the desktop app.")
+    XCTAssertEqual(said, "Nothing answers at http://localhost:9. Start the desk with inbox serve, or open the desktop app.")
     XCTAssertNil(store.address)
   }
 
@@ -379,7 +379,7 @@ final class StoreTests: XCTestCase {
     let store = Store(defaults: defaults, session: StubProtocol.session())
     _ = await store.connect(typed: address, code: "ABCD-2345")
     store.stopLive()
-    let unpaired = StubProtocol.Answer(status: 401, body: #"{"error":"pair this device first: run desk pair on the desk's machine","tag":"Unauthorized"}"#)
+    let unpaired = StubProtocol.Answer(status: 401, body: #"{"error":"pair this device first: run inbox pair on the desk's machine","tag":"Unauthorized"}"#)
     StubProtocol.reset(["/api/overview": unpaired, "/api/queue": unpaired])
     await store.load()
     XCTAssertNil(store.address)
@@ -573,7 +573,7 @@ final class StoreTests: XCTestCase {
     XCTAssertEqual(StubProtocol.requests().filter { $0.httpMethod != "GET" }.count, 0)
   }
 
-  // A desk paired before its first run was finished (desk pair doesn't check): the window shows the first-run page in
+  // A desk paired before its first run was finished (inbox pair doesn't check): the window shows the first-run page in
   // every page's place, so the phone says where to finish it. Asked once per connection, then while it's unfinished.
   func testADeskNotSetUpYetSaysSo() async throws {
     let store = Store(defaults: defaults, session: StubProtocol.session())

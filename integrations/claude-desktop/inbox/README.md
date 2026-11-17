@@ -4,7 +4,7 @@ A `/desk` pane in Claude Code (the Desktop app or a terminal) with your Inbox be
 
 A click on a row's title opens it in the desk. In a terminal that's its `inbox://` link, which the Inbox app opens. The Desktop app and VS Code draw any link but `https:` or `http://localhost` as plain text, so there it's the desk's own page for it (`http://localhost:47823/#/item/…`). `done` and `tomorrow` on a row are the desk's Done and a snooze until tomorrow. A call to action is a GitHub write or your answer to an agent, which the desk takes only from its own window: open the row.
 
-Under the prompt it pins what the desk says as a status line, e.g. `desk 10 +2` (10 in the queue, 2 new), which Claude Code leads with `⚠` and the plugin's name, and reads the desk again every minute. It reads the local Inbox server at http://localhost:47823 (the default port; the pane always uses it), so the desk must be running: the Inbox app, or `desk serve`. Nothing here talks to GitHub.
+Under the prompt it pins what the desk says as a status line, e.g. `desk 10 +2` (10 in the queue, 2 new), which Claude Code leads with `⚠` and the plugin's name, and reads the desk again every minute. It reads the local Inbox server at http://localhost:47823 (the default port; the pane always uses it), so the desk must be running: the Inbox app, or `inbox serve`. Nothing here talks to GitHub.
 
 ## Install
 

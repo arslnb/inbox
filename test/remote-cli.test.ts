@@ -21,7 +21,7 @@ const NAME = "desk.tail1.ts.net";
 const AT = `https://${NAME}`;
 const OWNER = "owner@example.com";
 
-// The desk on a loopback port for `desk pair`, and every fetch to its tailnet address answered in-process as serve would.
+// The desk on a loopback port for `inbox pair`, and every fetch to its tailnet address answered in-process as serve would.
 async function setup(c: { after(fn: () => unknown): void; mock: { method: typeof import("node:test").mock.method } }) {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), "desk-rcli-"));
   fs.writeFileSync(path.join(home, "settings.json"), JSON.stringify({ "policy.judge": false }));
@@ -90,14 +90,14 @@ async function cli(argv: string[]) {
   return { code, out, err };
 }
 
-test("desk pair prints the code, the browser's link and the other machine's command; --print a token whose commands work", async (c) => {
+test("inbox pair prints the code, the browser's link and the other machine's command; --print a token whose commands work", async (c) => {
   const t = await setup(c);
   const p = await cli(["pair"]);
   assert.equal(p.code, 0, p.err);
   const code = /Pairing code (\w{4}-\w{4})/.exec(p.out)?.[1];
   assert.ok(code, p.out);
   assert.ok(p.out.includes(`${AT}/pair#${code}`), p.out);
-  assert.ok(p.out.includes(`bin/desk connect ${AT} --code ${code}`), p.out);
+  assert.ok(p.out.includes(`bin/inbox connect ${AT} --code ${code}`), p.out);
   const printed = await cli(["pair", "--print", "--name", "work laptop"]);
   assert.equal(printed.code, 0, printed.err);
   const token = /Bearer (inbox_[\w-]+)/.exec(printed.out)?.[1];
@@ -113,7 +113,7 @@ test("desk pair prints the code, the browser's link and the other machine's comm
   assert.ok(!t.logs.some((l) => l.includes(token) || l.includes(code)), t.logs.join("\n"));
 });
 
-test("desk connect <address> --code on another machine trades the code, installs the skill and registers the MCP server with the token", async (c) => {
+test("inbox connect <address> --code on another machine trades the code, installs the skill and registers the MCP server with the token", async (c) => {
   if (unixOnly(c)) return;
   const t = await setup(c);
   t.agent("claude");
@@ -131,12 +131,12 @@ test("desk connect <address> --code on another machine trades the code, installs
   // A device's name is clipped to 60 characters; a CI runner's hostname is longer.
   assert.equal(t.remote.devices()[0]!.name, os.hostname().slice(0, 60));
   const again = await cli(["connect", AT, "--code", code]);
-  assert.deepEqual([again.code, again.err], [1, "desk: that pairing code isn't valid: run desk pair again for a new one\n"]);
+  assert.deepEqual([again.code, again.err], [1, "inbox: that pairing code isn't valid: run inbox pair again for a new one\n"]);
   const bad = await cli(["connect", `http://${NAME}`, "--code", code]);
   assert.equal(bad.code, 2, "only https");
 });
 
-test("desk connect for Codex registers the variable it reads the token from, and says to set it", async (c) => {
+test("inbox connect for Codex registers the variable it reads the token from, and says to set it", async (c) => {
   if (unixOnly(c)) return;
   const t = await setup(c);
   t.agent("codex");
@@ -156,7 +156,7 @@ test("when the agent's CLI fails, what connect says names <token>, never the tok
   assert.ok(r.err.includes("--header 'Authorization: Bearer <token>'") && !r.err.includes("inbox_"), r.err);
 });
 
-test("DESK_URL and DESK_TOKEN point the CLI and desk mcp at a desk on another machine, the token only over https", async (c) => {
+test("DESK_URL and DESK_TOKEN point the CLI and inbox mcp at a desk on another machine, the token only over https", async (c) => {
   const t = await setup(c);
   const { token } = t.remote.issue("stdio", "device");
   const saved = { DESK_URL: process.env.DESK_URL, DESK_TOKEN: process.env.DESK_TOKEN };

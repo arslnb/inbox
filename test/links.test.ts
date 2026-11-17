@@ -74,7 +74,7 @@ test("a ref that's a desk link is its item's id; one naming no item is refused i
     refused: `can't read "http://localhost:3000/foo"; an item's link is inbox://item/owner/repo/123`,
   });
   assert.deepEqual(linkRef("inbox://question/1c0ffee2"), {
-    refused: `"inbox://question/1c0ffee2" is a question's link, not an item's: desk_inquiry reads it`,
+    refused: `"inbox://question/1c0ffee2" is a question's link, not an item's: inbox_inquiry reads it`,
   });
   for (const ref of ["acme/api#7", "api#7", "#7", "https://github.com/acme/api/pull/7", "http://localhostile.example/#/review/x"])
     assert.equal(linkRef(ref), null, ref);

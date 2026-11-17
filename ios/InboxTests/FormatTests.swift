@@ -398,7 +398,7 @@ final class FormatTests: XCTestCase {
 
     let local = Notices.of(Conditions(offline: true, local: true, overview: nil))
     XCTAssertEqual(local.map(\.title), ["The desk isn't running"])
-    XCTAssertEqual(local[0].text, "Start it with `desk serve` or open the desktop app.")
+    XCTAssertEqual(local[0].text, "Start it with `inbox serve` or open the desktop app.")
     XCTAssertEqual(local[0].fixLabel, "Retry")
     let away = Notices.of(Conditions(offline: true))
     XCTAssertEqual(away.map(\.title), ["The desk can't be reached"])

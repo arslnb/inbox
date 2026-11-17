@@ -22,7 +22,7 @@ final class AddressTests: XCTestCase {
     XCTAssertEqual(parse("gregs-mac.tail1234.ts.net/some/page?x=1")?.address.text, "https://gregs-mac.tail1234.ts.net")
   }
 
-  // The whole pairing link, as desk pair prints it, carries the address and the code.
+  // The whole pairing link, as inbox pair prints it, carries the address and the code.
   func testThePairingLink() {
     let link = parse("https://gregs-mac.tail1234.ts.net/pair#ABCD-2345")
     XCTAssertEqual(link?.address.text, "https://gregs-mac.tail1234.ts.net")

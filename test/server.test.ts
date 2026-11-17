@@ -236,9 +236,9 @@ test("a bug in a tool at /mcp is its error and is logged in the desk's log", asy
     await t.cleanup();
   });
   await client.connect(new StreamableHTTPClientTransport(new URL(`http://127.0.0.1:${(srv.address() as AddressInfo).port}/mcp`)));
-  const r = await client.callTool({ name: "desk_item", arguments: { ref: "api#7" } });
+  const r = await client.callTool({ name: "inbox_item", arguments: { ref: "api#7" } });
   assert.equal(r.isError, true);
-  assert.equal(logs.filter((l) => l.startsWith("desk mcp: ")).length, 1, logs.join("\n"));
+  assert.equal(logs.filter((l) => l.startsWith("inbox mcp: ")).length, 1, logs.join("\n"));
 });
 
 test("MCP over Streamable HTTP at /mcp: the stdio tools, served in-process", async () => {
@@ -257,59 +257,59 @@ test("MCP over Streamable HTTP at /mcp: the stdio tools, served in-process", asy
   };
   try {
     assert.deepEqual((await client.listTools()).tools.map((x) => x.name).sort(), [
-      "desk_act",
-      "desk_add",
-      "desk_answer",
-      "desk_ask",
-      "desk_automations",
-      "desk_brief",
-      "desk_config",
-      "desk_criteria",
-      "desk_doc",
-      "desk_events",
-      "desk_hand_back",
-      "desk_inquire",
-      "desk_inquiry",
-      "desk_item",
-      "desk_list",
-      "desk_merging",
-      "desk_note",
-      "desk_overview",
-      "desk_sync",
-      "desk_undo",
+      "inbox_act",
+      "inbox_add",
+      "inbox_answer",
+      "inbox_ask",
+      "inbox_automations",
+      "inbox_brief",
+      "inbox_config",
+      "inbox_criteria",
+      "inbox_doc",
+      "inbox_events",
+      "inbox_hand_back",
+      "inbox_inquire",
+      "inbox_inquiry",
+      "inbox_item",
+      "inbox_list",
+      "inbox_merging",
+      "inbox_note",
+      "inbox_overview",
+      "inbox_sync",
+      "inbox_undo",
     ]);
-    assert.match((await call("desk_overview")).text, /focus: 1 now, 0 today/);
-    const events = await call("desk_events", { after: 0, item: "api#7" });
+    assert.match((await call("inbox_overview")).text, /focus: 1 now, 0 today/);
+    const events = await call("inbox_events", { after: 0, item: "api#7" });
     assert.match(events.text, /^1 event\(s\) after 0 on api#7 · last_seq 1/);
     assert.match(events.text, /#1 {2}\S+ {2}acme\/api#7 {2}new by alice {2}kind=pr/);
 
-    const act = await call("desk_act", { ref: "api#7", action: "done" });
-    const seq = Number(/Undo with desk_undo seq=(\d+)/.exec(act.text)?.[1]);
+    const act = await call("inbox_act", { ref: "api#7", action: "done" });
+    const seq = Number(/Undo with inbox_undo seq=(\d+)/.exec(act.text)?.[1]);
     assert.ok(seq > 0, act.text);
     assert.equal(runSync(t.desk.status()).text, "");
-    assert.deepEqual(await call("desk_undo", { seq }), { text: "undid done on acme/api#7", isError: false });
+    assert.deepEqual(await call("inbox_undo", { seq }), { text: "undid done on acme/api#7", isError: false });
     assert.equal(runSync(t.desk.status()).text, "desk 1");
 
-    const added = await call("desk_add", { ref: "api#7", why: "needs your call on the retry budget", from: "seer retry fix" });
-    assert.match(added.text, /^added acme\/api#7 to the user's desk, pinned\. .*Undo with desk_undo seq=\d+\./);
+    const added = await call("inbox_add", { ref: "api#7", why: "needs your call on the retry budget", from: "seer retry fix" });
+    assert.match(added.text, /^added acme\/api#7 to the user's desk, pinned\. .*Undo with inbox_undo seq=\d+\./);
     assert.equal(runSync(t.desk.item("api#7")).state.pinned, true);
     assert.deepEqual(runSync(t.desk.item("api#7")).card.handoff, { why: "needs your call on the retry budget", from: "seer retry fix" });
-    assert.equal((await call("desk_add", { ref: "api#7" })).isError, true, "a hand-off says why");
+    assert.equal((await call("inbox_add", { ref: "api#7" })).isError, true, "a hand-off says why");
 
-    const missing = await call("desk_item", { ref: "api#99" });
+    const missing = await call("inbox_item", { ref: "api#99" });
     assert.equal(missing.isError, true);
     assert.match(missing.text, /no item "api#99"/);
-    // The link the owner pastes from Copy link, or the desk's own http one, is a ref; desk_item gives its link back.
-    const linked = await call("desk_item", { ref: "inbox://item/acme/api/7" });
+    // The link the owner pastes from Copy link, or the desk's own http one, is a ref; inbox_item gives its link back.
+    const linked = await call("inbox_item", { ref: "inbox://item/acme/api/7" });
     assert.match(
       linked.text,
       /^acme\/api#7 · pr by alice .*\nhttps:\/\/github\.com\/acme\/api\/pull\/7\nin the desk: inbox:\/\/item\/acme\/api\/7\n/,
     );
     assert.match(
-      (await call("desk_act", { ref: "http://localhost:47823/#/review/acme%2Fapi%237", action: "pin" })).text,
+      (await call("inbox_act", { ref: "http://localhost:47823/#/review/acme%2Fapi%237", action: "pin" })).text,
       /^pin acme\/api#7\./,
     );
-    assert.deepEqual(await call("desk_brief", { ref: "inbox://archive" }), {
+    assert.deepEqual(await call("inbox_brief", { ref: "inbox://archive" }), {
       text: `"inbox://archive" is the Archive page's link, not an item's: give a PR's or an issue's`,
       isError: true,
     });
@@ -321,7 +321,7 @@ test("MCP over Streamable HTTP at /mcp: the stdio tools, served in-process", asy
   }
 });
 
-test("desk_inquiry by a question's link gives the question too: who asks, the question and all it said, fenced, under the answer or that there's none, and picks no answer up; its id still gives the answer alone and picks it up; a tool that takes an item says where a question's link goes", async (c) => {
+test("inbox_inquiry by a question's link gives the question too: who asks, the question and all it said, fenced, under the answer or that there's none, and picks no answer up; its id still gives the answer alone and picks it up; a tool that takes an item says where a question's link goes", async (c) => {
   const t = await setup();
   const srv = await new Promise<ReturnType<typeof serve>>((resolve) => {
     const s = serve({ fetch: t.app.fetch, port: 0, hostname: "127.0.0.1" }, () => {
@@ -365,24 +365,24 @@ test("desk_inquiry by a question's link gives the question too: who asks, the qu
         `links:\\n- The label's code: https://github\\.com/acme/api/blob/main/web/src/Row\\.tsx#L12\\n</untrusted-data nonce="\\1">$`,
     );
   const open = 'no answer yet to "Keep the label as text, or icons\\?"';
-  assert.match((await call("desk_inquiry", { id: link })).text, said(open));
-  assert.match((await call("desk_inquiry", { id: `http://localhost:47823/#/inquiry/${q.id}` })).text, said(open));
+  assert.match((await call("inbox_inquiry", { id: link })).text, said(open));
+  assert.match((await call("inbox_inquiry", { id: `http://localhost:47823/#/inquiry/${q.id}` })).text, said(open));
   assert.equal(
-    (await call("desk_inquiry", { id: q.id })).text,
+    (await call("inbox_inquiry", { id: q.id })).text,
     'no answer yet to "Keep the label as text, or icons?"',
     "by its id, as before",
   );
   runSync(t.desk.answerInquiry(q.id, "Text"));
-  assert.match((await call("desk_inquiry", { id: link, wait: 5 })).text, said("the user answered: Text"));
+  assert.match((await call("inbox_inquiry", { id: link, wait: 5 })).text, said("the user answered: Text"));
   assert.equal(runSync(t.desk.inquiry(q.id)).answer?.read_at, null, "read by its link, often by another session: not picked up");
-  assert.equal((await call("desk_inquiry", { id: q.id })).text, "the user answered: Text");
+  assert.equal((await call("inbox_inquiry", { id: q.id })).text, "the user answered: Text");
   assert.equal(runSync(t.desk.inquiry(q.id)).answer?.read_at, NOW.toISOString(), "by its id: the session that asked has it");
-  // A question isn't an item: desk_item and the rest say which tool reads its link.
-  assert.deepEqual(await call("desk_item", { ref: link }), {
-    text: `"${link}" is a question's link, not an item's: desk_inquiry reads it`,
+  // A question isn't an item: inbox_item and the rest say which tool reads its link.
+  assert.deepEqual(await call("inbox_item", { ref: link }), {
+    text: `"${link}" is a question's link, not an item's: inbox_inquiry reads it`,
     isError: true,
   });
-  assert.deepEqual(await call("desk_inquiry", { id: "inbox://question/nope" }), { text: `no inquiry "nope"`, isError: true });
+  assert.deepEqual(await call("inbox_inquiry", { id: "inbox://question/nope" }), { text: `no inquiry "nope"`, isError: true });
 });
 
 test("API round trip: overview, board, item, act, undo, status", async () => {

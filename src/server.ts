@@ -189,7 +189,7 @@ const PAIR_PAGE = `<!doctype html><meta charset="utf-8"><meta name="viewport" co
 const code = location.hash.slice(1);
 history.replaceState(null, "", "/pair");
 const say = (t) => { document.getElementById("m").textContent = t; };
-if (!code) say("This link has no pairing code. On the desk's machine, run desk pair and open the link it prints.");
+if (!code) say("This link has no pairing code. On the desk's machine, run inbox pair and open the link it prints.");
 else
   fetch("/api/pair", {
     method: "POST",
@@ -283,7 +283,7 @@ export function createApp(desk: Desk, port: number, remote: Remote = new Remote(
         VIA.set(c.req.raw, !bearer ? "cookie" : dev.kind === "phone" ? "phone" : "bearer");
         return Effect.void;
       }
-      return Effect.fail(new Unauthorized({ message: "pair this device first: run desk pair on the desk's machine" }));
+      return Effect.fail(new Unauthorized({ message: "pair this device first: run inbox pair on the desk's machine" }));
     });
   // From the local network: the desk's own address as Origin, GET only, and the token, as Basic auth's password or a bearer.
   const lan = (c: Context) =>
@@ -330,7 +330,7 @@ export function createApp(desk: Desk, port: number, remote: Remote = new Remote(
     !desk.loaded && !desk.configErrors.length
       ? Effect.fail(
           new Unavailable({
-            message: desk.githubError ? `GitHub isn't connected yet (${desk.githubError.message}): run desk setup` : STARTING,
+            message: desk.githubError ? `GitHub isn't connected yet (${desk.githubError.message}): run inbox setup` : STARTING,
             reason: "starting",
           }),
         )
@@ -404,7 +404,7 @@ export function createApp(desk: Desk, port: number, remote: Remote = new Remote(
     });
     return respond(c, act, { log });
   });
-  // desk_add and `desk add`: a pin plus GitHub reads, so agents may call it.
+  // inbox_add and `inbox add`: a pin plus GitHub reads, so agents may call it.
   app.post("/api/add", (c) => {
     const add = Effect.gen(function* () {
       yield* up;
@@ -556,7 +556,7 @@ export function createApp(desk: Desk, port: number, remote: Remote = new Remote(
       { log, read: true },
     ),
   );
-  // desk_note and desk_hand_back: local only, so agents may call them.
+  // inbox_note and inbox_hand_back: local only, so agents may call them.
   app.post("/api/inflight/:id{.+}/note", (c) => {
     const note = Effect.gen(function* () {
       yield* up;
@@ -648,7 +648,7 @@ export function createApp(desk: Desk, port: number, remote: Remote = new Remote(
     });
     return respond(c, fresh, { log });
   });
-  // desk_ask: local only, so agents may read where an ask is.
+  // inbox_ask: local only, so agents may read where an ask is.
   app.get("/api/asks/:id", (c) =>
     respond(
       c,
@@ -656,7 +656,7 @@ export function createApp(desk: Desk, port: number, remote: Remote = new Remote(
       { log, read: true },
     ),
   );
-  // desk_answer: local only, so agents may call it.
+  // inbox_answer: local only, so agents may call it.
   app.post("/api/asks/:id/answer", (c) => {
     const answer = Effect.gen(function* () {
       return { ok: true, ask: yield* desk.answer(c.req.param("id"), yield* field(c, "text")) };
@@ -734,7 +734,7 @@ export function createApp(desk: Desk, port: number, remote: Remote = new Remote(
       { log },
     ),
   );
-  // desk_inquire and desk_inquiry: an agent's question for you, and reading your answer. Local only, so agents may call them.
+  // inbox_inquire and inbox_inquiry: an agent's question for you, and reading your answer. Local only, so agents may call them.
   app.post("/api/inquiries", (c) => {
     const inquire = Effect.gen(function* () {
       yield* up;
@@ -768,7 +768,7 @@ export function createApp(desk: Desk, port: number, remote: Remote = new Remote(
   });
   app.get("/api/inquiries/unread", (c) => total(c, () => desk.unreadAnswers())); // before :id, which would take it
   app.get("/api/inquiries/:id", (c) => respond(c, desk.inquiryView(c.req.param("id")), { log, read: true }));
-  // desk_inquiry gave whoever asked your answer: the desk notes when, so you can see it was picked up.
+  // inbox_inquiry gave whoever asked your answer: the desk notes when, so you can see it was picked up.
   app.post("/api/inquiries/:id/read", (c) =>
     respond(
       c,
@@ -1162,7 +1162,7 @@ type ServeOptions = {
   notify?: (title: string, body: string) => void; // the desktop app shows its own notifications
   log?: (msg: string) => void;
   writer?: GitHubWriter; // a stand-in for live checks that must not write to GitHub
-  tailscale?: boolean; // desk serve --tailscale: serve over Tailscale whatever the setting says
+  tailscale?: boolean; // inbox serve --tailscale: serve over Tailscale whatever the setting says
   app?: AppUpdater; // the packaged app runs this desk: it checks for a newer Inbox
 };
 type Served = { url: string; desk: Desk; close(): Promise<void> };
@@ -1308,7 +1308,7 @@ function onLan(app: Hono, desk: Desk, port: number) {
 }
 
 // What the desk installed in your agents, kept current and renamed from before Inbox, on every start of the owner's desk
-// (desk serve, the app's own): what it did, in the log.
+// (inbox serve, the app's own): what it did, in the log.
 export const refreshAgents = (desk: Desk, url: string): Effect.Effect<void> =>
   Effect.flatMap(refreshSkills(desk.home, `${url}/mcp`), (done) =>
     Effect.sync(() => {
