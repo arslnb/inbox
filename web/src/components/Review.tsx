@@ -860,6 +860,8 @@ export function Review({
   );
   const open = item.state === "open";
   const aiShown = !isMine || !!view.ai || view.generating || busy === "ai" || !!view.ai_error;
+  // A review of an earlier commit isn't shown, so it isn't taken for this commit's.
+  const ai = view.ai_stale ? null : view.ai;
 
   // The diff's two orders; the choice is this device's.
   const pickOrder = (w: boolean) => {
@@ -1011,22 +1013,13 @@ export function Review({
         {toggle}
         <div className="rv-main">
           <div className="rv-top">
-            <Head
-              card={card}
-              me={me}
-              now={now}
-              resolved={resolved?.line ?? null}
-              row={row}
-              ai={aiShown ? view.ai : null}
-              stale={view.ai_stale}
-            />
+            <Head card={card} me={me} now={now} resolved={resolved?.line ?? null} row={row} ai={aiShown ? ai : null} />
             {/* Yours gets no AI summary unless asked for, so its description's first paragraph says what it's about. */}
-            {isMine && !view.ai && item.body && <p className="rv-summary rv-desc">{item.body.split("\n")[0]}</p>}
+            {isMine && !ai && item.body && <p className="rv-summary rv-desc">{item.body.split("\n")[0]}</p>}
             {/* Your own PR gets no AI review unless one was asked for; More still asks. */}
             {aiShown && (
               <AiSection
-                ai={view.ai}
-                stale={view.ai_stale}
+                ai={ai}
                 busy={view.generating || busy === "ai"}
                 error={view.ai_error}
                 job={view.ai_job}
@@ -1213,7 +1206,7 @@ export function Review({
           <aside id="rv-side" className="rv-side" aria-label="Status, stack, reviewers and files">
             <div className="rv-side-top" aria-hidden="true" />
             <StatusPart
-              ai={view.ai}
+              ai={ai}
               checks={view.checks}
               checksError={view.checks_error}
               size={size && { ...size, files: item.changed_files }}
@@ -1474,7 +1467,6 @@ function Head({
   resolved,
   row,
   ai = null,
-  stale = false,
 }: {
   card: Card;
   me: string;
@@ -1482,7 +1474,6 @@ function Head({
   resolved: string | null;
   row: InflightRow | null;
   ai?: AiShown | null; // its verdict, a tag at the metadata's end
-  stale?: boolean; // that review is of an earlier commit
 }) {
   const isMine = card.by === "you"; // yours, or a bot's opened for you
   // What it waits on and the coordinator's latest note, as Merging says it.
@@ -1510,7 +1501,6 @@ function Head({
             {VERDICT[ai.verdict]}
           </span>
         )}
-        {ai && stale && <span className="quiet">on an earlier commit</span>}
       </p>
       {card.handoff && (
         <p className="rv-meta rv-handoff">
@@ -1610,9 +1600,11 @@ function Shell({
           concerns: pf.concerns ?? [],
         }
       : null;
+  // An earlier commit's read isn't shown, as in the loaded review.
+  const fresh = pf?.state === "ready" ? ai : null;
   // Opening it starts the review unless AI reviews are off or paused.
   const writing = pf?.state === "running" || pf?.state === "queued" || pf?.state === "stale";
-  const none = !ai && (pf?.state === "off" || pf?.state === "paused" || pf?.state === "failed");
+  const none = !fresh && (pf?.state === "off" || pf?.state === "paused" || pf?.state === "failed");
   // Its call to action and More, where the loaded review draws them.
   const keys = (
     <div className="actions rv-actions" aria-hidden="true">
@@ -1625,7 +1617,7 @@ function Shell({
       <div className="rv-bar" aria-hidden="true">
         {/* Its views' pills: Guided Review only where there's an AI review to guide by. */}
         <div className="rv-views">
-          {ai && <span className="sk sk-tab" />}
+          {fresh && <span className="sk sk-tab" />}
           <span className="sk sk-tab" />
           <span className="sk sk-tab" />
         </div>
@@ -1642,8 +1634,7 @@ function Shell({
                 now={now}
                 resolved={card.resolved ? resolvedHead([], card.resolved, me).line : null}
                 row={row}
-                ai={ai}
-                stale={pf?.state !== "ready"}
+                ai={fresh}
               />
             ) : (
               <header className="rv-head" aria-hidden="true">
@@ -1658,18 +1649,8 @@ function Shell({
                 </p>
               </header>
             )}
-            {ai || writing || none ? (
-              <AiSection
-                ai={ai}
-                stale={pf?.state !== "ready"}
-                busy={writing}
-                error={null}
-                job={null}
-                now={now}
-                open
-                notes={pf?.notes ?? 0}
-                onAsk={undefined}
-              />
+            {fresh || writing || none ? (
+              <AiSection ai={fresh} busy={writing} error={null} job={null} now={now} open notes={pf?.notes ?? 0} onAsk={undefined} />
             ) : (
               (!isMine || !!card?.verdict) && (
                 <section className="rv-ai" aria-label="AI review">
@@ -1708,7 +1689,7 @@ function Shell({
           <aside id="rv-side" className="rv-side" aria-hidden="true">
             <div className="rv-side-top" />
             <StatusPart
-              ai={ai}
+              ai={fresh}
               checks={null}
               checksError={null}
               size={shellSize}
@@ -2124,7 +2105,6 @@ type AiShown = Pick<AiReview, "verdict" | "risk" | "summary" | "since" | "concer
 
 function AiSection({
   ai,
-  stale,
   busy,
   error,
   job,
@@ -2135,7 +2115,6 @@ function AiSection({
   onLine,
 }: {
   ai: AiShown | null;
-  stale: boolean;
   busy: boolean; // being written
   error: string | null;
   job: Job | null; // its job in the desk's ledger: how long it's run, its tries, when it tries again
@@ -2279,7 +2258,7 @@ function AiSection({
           {folds && toggle(more ? "Show less" : "Show more")}
           {ai.since && <Named name="Since your review">{spans(unlinked(inline(ai.since)))}</Named>}
           {/* Each concern is also a note in the code; listed here only when the notes can't sit there. */}
-          {(stale || notes === 0) &&
+          {notes === 0 &&
             (ai.concerns.length > 0 ? (
               <ul className="rv-concerns" aria-label="Concerns">
                 {ai.concerns.map((c) => (
