@@ -1,5 +1,5 @@
 // Records the mock desk (web/mock/server.ts) into ios/Inbox/Demo.json: every answer the iPhone app asks for, which its
-// test mode replays with no desk. Run it after the mock's data changes: npm run ios:demo.
+// test mode replays with no desk. ios/testflight.sh runs it before each upload (npm run ios:demo).
 import { spawn } from "node:child_process";
 import { writeFileSync } from "node:fs";
 import { join } from "node:path";
@@ -20,7 +20,13 @@ async function get(path: string): Promise<unknown> {
 
 async function up() {
   for (let i = 0; i < 100; i++) {
-    if ((await get("/health").catch(() => null)) !== undefined) return;
+    if (
+      await fetch(base + "/health").then(
+        (r) => r.ok,
+        () => false,
+      )
+    )
+      return;
     await new Promise((r) => {
       setTimeout(r, 100);
     });

@@ -137,7 +137,8 @@ Review sees. Every request goes to `DemoDesk` (`Inbox/Demo.swift`), a `URLProtoc
 answer, Hand off) takes the item off the lists, Undo puts it back, a note shows in its section, and an ask is answered
 at once with a line saying no agent runs here. Toasts say "in test mode" where they'd say "on GitHub", and nobody's
 GitHub picture is asked for. Settings → **Leave test mode** goes back to the connect screen; a fresh launch starts the
-made-up desk afresh. After the mock's data changes, record it again with `npm run ios:demo`. Shots: `test-mode`,
+made-up desk afresh. `ios/testflight.sh` records it afresh for each upload (`npm run ios:demo`) and puts the committed
+copy back, so an upload always has today's mock; the committed one is what tests and shots use. Shots: `test-mode`,
 `test-mode-settings` (`-deskURL https://test-mode.invalid`).
 
 ## On a real phone

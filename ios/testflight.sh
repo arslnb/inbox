@@ -6,6 +6,7 @@
 #   ASC_KEY_PATH                   without them, the Apple ID signed in to Xcode (Settings → Accounts) signs and uploads
 #   ONLY_ARCHIVE=1                 build and sign the archive, send nothing
 #
+# It records test mode afresh from the mock desk first (npm run ios:demo), so nothing needs recording by hand.
 # The build number is the commit count, so each upload from a newer main is newer. MARKETING_VERSION in project.yml is
 # the version testers see. Signing is automatic: Xcode makes the distribution certificate and profile the first time.
 set -euo pipefail
@@ -24,6 +25,10 @@ if [[ -n "${ASC_KEY_ID:-}" ]]; then
 fi
 
 command -v xcodegen >/dev/null && xcodegen generate --quiet
+
+# Test mode from today's mock desk; the committed recording goes back afterwards, so the tree stays as it was.
+if git diff --quiet -- Inbox/Demo.json; then trap 'git checkout -- Inbox/Demo.json' EXIT; fi
+(cd .. && npm run --silent ios:demo)
 
 echo "Archiving build $BUILD for team $TEAM…"
 xcodebuild archive -project Inbox.xcodeproj -scheme Inbox -configuration Release \
