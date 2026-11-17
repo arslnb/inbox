@@ -29,6 +29,7 @@ export function Rules({
   const [warnings, setWarnings] = useState<ConfigError[]>([]);
   const [hard, setHard] = useState<ConfigDoc["hard"]>([]);
   const [builtins, setBuiltins] = useState<ConfigDoc["builtins"]>([]);
+  const [flipped, setFlipped] = useState<Record<string, boolean>>({}); // built-ins switched here by `board rule`, until the file read again agrees
   const [preview, setPreview] = useState<{ text: string; result: PreviewResult } | null>(null);
   const [busy, setBusy] = useState<"" | "preview" | "save">("");
   const [fields, setFields] = useState<FieldDoc[]>([]);
@@ -36,6 +37,7 @@ export function Rules({
   const [pos, setPos] = useState("1:1");
   const ta = useRef<HTMLTextAreaElement>(null);
   const dirty = doc !== null && text !== doc.text;
+  const shownBuiltins = builtins.map((b) => ({ ...b, rules: b.rules.map((r) => ({ ...r, on: flipped[flipKey(b.board, r.id)] ?? r.on })) }));
   const latest = useRef({ doc, text });
   latest.current = { doc, text };
 
@@ -55,6 +57,13 @@ export function Rules({
             setWarnings(c.warnings ?? []);
             setHard(c.hard);
             setBuiltins(c.builtins);
+            setFlipped((f) =>
+              Object.fromEntries(
+                Object.entries(f).filter(([k, on]) =>
+                  c.builtins.some((b) => b.rules.some((r) => flipKey(b.board, r.id) === k && r.on !== on)),
+                ),
+              ),
+            );
             setLoadError("");
           },
           onFailure: (e) => {
@@ -183,16 +192,24 @@ export function Rules({
 
   // A built-in rule's switch writes its board's `off` in the file, so it waits for an edit to be saved or reverted.
   function turn(board: string, rule: string, on: boolean) {
+    const key = flipKey(board, rule);
+    const back = () => {
+      setFlipped((f) => Object.fromEntries(Object.entries(f).filter(([k]) => k !== key)));
+    };
     setBusy("save");
+    setFlipped((f) => ({ ...f, [key]: on }));
     runUi(
       api.switchRule(board, rule, on, doc?.text).pipe(
         Effect.match({
           onSuccess: (r) => {
             setErrors(r.errors);
-            if (!r.ok) flash(`Not switched: ${r.errors[0]?.message ?? "the rules have errors"}`, true);
-            else onSaved();
+            if (!r.ok) {
+              back();
+              flash(`Not switched: ${r.errors[0]?.message ?? "the rules have errors"}`, true);
+            } else onSaved();
           },
           onFailure: (e) => {
+            back();
             flash(e.message, true);
           },
         }),
@@ -385,7 +402,7 @@ export function Rules({
                 Each says how much {aiName()} counts it when it weighs what matches. Switch one off here; to change one, write a rule of
                 yours with its <code>id</code> in the board's <code>rules</code>, and it stands in its place.
               </p>
-              {builtins.map((b) => (
+              {shownBuiltins.map((b) => (
                 // Open where you've changed something: what's off, or yours in a rule's place.
                 <details key={b.board} className="builtin-board" open={b.rules.some((r) => !r.on || r.yours)}>
                   <summary>
@@ -636,6 +653,8 @@ export function Rules({
     </div>
   );
 }
+
+const flipKey = (board: string, rule: string) => `${board} ${rule}`;
 
 // A board's built-in rules folded: which set, and what you changed of it.
 function foldLine(b: ConfigDoc["builtins"][number]): string {

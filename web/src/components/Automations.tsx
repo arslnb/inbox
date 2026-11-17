@@ -112,6 +112,10 @@ export function useAutomations(active: boolean, refresh: number, flash: (text: s
   const [list, setList] = useState<Auto[] | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  // Drawn at once, until the list read again agrees: switched here, Run now pressed, deleted here.
+  const [flipped, setFlipped] = useState<Record<string, boolean>>({});
+  const [starting, setStarting] = useState<string[]>([]);
+  const [gone, setGone] = useState<string[]>([]);
   // A new one being written: the tab's last row opens it, and its editor sits under the tab's sheet.
   const [writing, setWriting] = useState<Draft | null>(null);
   // An edit open in an automation's view, by its id: kept across a trip to another automation's view, or anywhere, and back.
@@ -126,6 +130,8 @@ export function useAutomations(active: boolean, refresh: number, flash: (text: s
         Effect.match({
           onSuccess: (l) => {
             setList(l);
+            setFlipped((f) => Object.fromEntries(Object.entries(f).filter(([id, on]) => l.some((a) => a.id === id && a.on !== on))));
+            setGone((g) => g.filter((id) => l.some((a) => a.id === id)));
             setError("");
           },
           onFailure: (e) => {
@@ -166,7 +172,18 @@ export function useAutomations(active: boolean, refresh: number, flash: (text: s
 
   // The whole automation each time: what a switch doesn't change goes back as it is. A plugin's is only switched.
   function turn(a: Auto, on: boolean): Effect.Effect<boolean> {
-    if (!a.plugin) return put(a.id, bodyOf({ ...editing(a), on }), `${a.name} is ${on ? "on" : "off"}`);
+    return Effect.suspend(() => {
+      setFlipped((f) => ({ ...f, [a.id]: on }));
+      return a.plugin ? switchPlugin(a, on) : put(a.id, bodyOf({ ...editing(a), on }), `${a.name} is ${on ? "on" : "off"}`);
+    }).pipe(
+      Effect.tap((ok) =>
+        Effect.sync(() => {
+          if (!ok) setFlipped((f) => Object.fromEntries(Object.entries(f).filter(([id]) => id !== a.id)));
+        }),
+      ),
+    );
+  }
+  function switchPlugin(a: Auto, on: boolean): Effect.Effect<boolean> {
     return Effect.suspend(() => {
       setBusy(true);
       return api.switchAutomation(a.id, on).pipe(
@@ -182,23 +199,41 @@ export function useAutomations(active: boolean, refresh: number, flash: (text: s
   }
 
   function runNow(a: Auto): Effect.Effect<void> {
-    return api.runAutomation(a.id).pipe(
-      Effect.andThen(() => {
-        flash(`Running ${a.name}: what it finds lands on your desk`);
-        return load();
-      }),
-      Effect.catch(failed),
-    );
+    return Effect.suspend(() => {
+      setStarting((s) => [...s, a.id]);
+      return api.runAutomation(a.id).pipe(
+        Effect.andThen(() => {
+          flash(`Running ${a.name}: what it finds lands on your desk`);
+          return load();
+        }),
+        Effect.catch(failed),
+        Effect.ensuring(
+          Effect.sync(() => {
+            setStarting((s) => s.filter((x) => x !== a.id));
+          }),
+        ),
+      );
+    });
   }
 
-  // True once it's gone.
+  // True once it's gone; its row goes at once and comes back on a refusal.
   function remove(id: string): Effect.Effect<boolean> {
     return Effect.suspend(() => {
       setBusy(true);
+      setGone((g) => [...g, id]);
       return api.deleteAutomation(id).pipe(
         Effect.andThen(load),
         Effect.as(true),
-        Effect.catch((e) => failed(e).pipe(Effect.as(false))),
+        Effect.catch((e) =>
+          failed(e).pipe(
+            Effect.andThen(
+              Effect.sync(() => {
+                setGone((g) => g.filter((x) => x !== id));
+              }),
+            ),
+            Effect.as(false),
+          ),
+        ),
         Effect.ensuring(idle),
       );
     });
@@ -226,7 +261,12 @@ export function useAutomations(active: boolean, refresh: number, flash: (text: s
       ),
     );
 
-  return { list, error, busy, writing, setWriting, edits, keep, turn, runNow, remove, save, copy };
+  const shown =
+    list &&
+    list
+      .filter((a) => !gone.includes(a.id))
+      .map((a) => Object.assign({}, a, { on: flipped[a.id] ?? a.on, running: a.running || starting.includes(a.id) }));
+  return { list: shown, error, busy, writing, setWriting, edits, keep, turn, runNow, remove, save, copy };
 }
 
 const editing = (a: Auto): Draft => ({
@@ -338,6 +378,7 @@ function AutomationRow({ a, au, now }: { a: Auto; au: Automations; now: number }
           // oxlint-disable-next-line jsx-a11y/role-has-required-aria-props -- a checkbox input's state is its native checked
           role="switch"
           checked={a.on}
+          disabled={au.busy}
           aria-label={`Run ${a.name} ${a.events ? "when its events land" : "on its schedule"}`}
           onChange={() => {
             runUi(au.turn(a, !a.on));
@@ -485,14 +526,16 @@ export function AutomationView({
               setDraft(null);
             }}
             onDelete={() => {
+              const part = routeHash({ name: "settings", section: "automations" });
+              location.replace(part); // its view is gone with it
               runUi(
                 au.remove(a.id).pipe(
                   Effect.tap((ok) =>
                     Effect.sync(() => {
-                      if (!ok) return;
-                      setDraft(null);
-                      flash(`Deleted ${a.name}`);
-                      location.replace(routeHash({ name: "settings", section: "automations" })); // its view is gone with it
+                      if (ok) {
+                        setDraft(null);
+                        flash(`Deleted ${a.name}`);
+                      } else if (location.hash === part) location.replace(viewOf(a.id)); // refused: back to its editor, your words kept
                     }),
                   ),
                 ),

@@ -216,6 +216,16 @@ const release = (glob: string) => async (page: Page) => {
   for (const r of held.splice(0)) await r.continue().catch(() => {}); // a reload dropped it
   await fresh(page);
 };
+// A write the desk (here never) answers, to see what the page draws meanwhile; `drop` throws it away, never to reach the mock.
+const unanswered: Route[] = [];
+const stall = (route: Route) => {
+  unanswered.push(route);
+};
+const drop = async (page: Page) => {
+  await fresh(page);
+  for (const r of unanswered.splice(0)) await r.abort().catch(() => {}); // after the reload, so no page sees it fail
+  await unroute(page);
+};
 // Puts back what queueAs, reviewAs and the like changed; a live update refetching mid-handler just then fulfills too late.
 const unroute = (page: Page) => page.unrouteAll({ behavior: "ignoreErrors" });
 // A review as the mock serves it, changed in the browser.
@@ -4305,6 +4315,103 @@ const SHOTS: Shot[] = [
     after: async (page) => {
       await page.locator("#s-criteria .au-editor").getByRole("button", { name: "Cancel" }).click();
     },
+  },
+  // Switches and Run now show at once, before the desk (here never) answers.
+  {
+    name: "settings-criteria-switch",
+    go: async (page) => {
+      await page.route("**/api/criteria/*/on", stall);
+      await at("#/settings/criteria")(page);
+      const sw = page.locator("#s-criteria .cr-row .switch").first();
+      await sw.click();
+      await page.waitForTimeout(150);
+      if (await sw.isChecked()) failures.push("settings-criteria-switch: the criterion stays on until the desk answers");
+    },
+    after: drop,
+  },
+  {
+    name: "settings-automations-switch",
+    go: async (page) => {
+      await page.route("**/api/automations/*/on", stall);
+      await page.route("**/api/automations/*/run", stall);
+      await page.route("**/api/automations/*", async (route) => {
+        if (route.request().method() === "PUT") stall(route);
+        else await route.fallback();
+      });
+      await at("#/settings/github")(page);
+      const theirs = page.locator("#s-github .au-row .switch").first();
+      const was = await theirs.isChecked();
+      await theirs.click();
+      await page.waitForTimeout(150);
+      if ((await theirs.isChecked()) === was)
+        failures.push("settings-automations-switch: GitHub's automation waits for the desk to switch");
+      await page.reload(); // its switch's write still out, the others wait
+      await at("#/settings/automations")(page);
+      const row = page.locator("#s-automations .au-row").first();
+      await row.locator(".s-edit", { hasText: "Run now" }).click();
+      await page.waitForTimeout(150);
+      if (!(await row.locator(".s-edit", { hasText: "Running…" }).count()))
+        failures.push("settings-automations-switch: Run now waits for the desk");
+      await row.locator(".switch").click();
+      await page.waitForTimeout(150);
+      if (await row.locator(".switch").isChecked()) failures.push("settings-automations-switch: yours stays on until the desk answers");
+    },
+    after: drop,
+  },
+  {
+    name: "settings-rules-switch",
+    go: async (page) => {
+      await page.route("**/api/config/builtin", stall);
+      await at("#/settings/rules")(page);
+      await page.evaluate(`document.querySelector(".builtin-board").open = true`);
+      const label = await page.locator(".builtin-board .switch:checked").first().getAttribute("aria-label");
+      const sw = page.getByRole("switch", { name: label ?? "", exact: true });
+      await sw.click();
+      await page.waitForTimeout(150);
+      if (await sw.isChecked()) failures.push(`settings-rules-switch: ${label} stays on until the desk answers`);
+    },
+    after: drop,
+  },
+  // Deleting takes it off at once; the desk (here never) answers after.
+  {
+    name: "settings-criteria-delete",
+    sizes: ["wide"],
+    go: async (page) => {
+      await page.route("**/api/criteria/*", async (route) => {
+        if (route.request().method() === "DELETE") stall(route);
+        else await route.fallback();
+      });
+      await at("#/settings/criteria")(page);
+      const rows = await page.locator("#s-criteria .cr-row").count();
+      await page.locator("#s-criteria .cr-name").first().click();
+      await page.locator("#s-criteria .au-editor").getByRole("button", { name: "Delete" }).click();
+      await page.waitForTimeout(150);
+      const left = await page.locator("#s-criteria .cr-row").count();
+      if (left !== rows - 1 || (await page.locator("#s-criteria .au-editor").count()))
+        failures.push(`settings-criteria-delete: ${left} of ${rows} rows and the editor still open until the desk answers`);
+    },
+    after: drop,
+  },
+  {
+    name: "settings-automations-delete",
+    sizes: ["wide"],
+    go: async (page) => {
+      await page.route("**/api/automations/*", async (route) => {
+        if (route.request().method() === "DELETE") stall(route);
+        else await route.fallback();
+      });
+      await at("#/settings/automations")(page);
+      const rows = await page.locator("#s-automations .au-row").count();
+      await page.locator("#s-automations .s-name").first().click();
+      await page.locator(".s-view:not([hidden]) .au-view .actions").getByRole("button", { name: "Edit" }).click();
+      await page.locator(".s-view:not([hidden]) .au-editor .au-delete").click();
+      await page.waitForTimeout(400);
+      const hash = await page.evaluate<string>("location.hash");
+      const left = await page.locator("#s-automations .au-row").count();
+      if (hash !== "#/settings/automations" || left !== rows - 1)
+        failures.push(`settings-automations-delete: at ${hash} with ${left} of ${rows} rows until the desk answers`);
+    },
+    after: drop,
   },
   {
     // Settings' Automations tab, on its own: a row each, its name, when it runs and its last run, Run now and its switch on the

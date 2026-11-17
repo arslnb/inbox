@@ -480,6 +480,7 @@ No tabs. In Settings the sidebar lists its parts in place of the pages, under **
 - Each part is a route, `#/settings/<part>`, drawn alone, its name in the head. No intro text.
 - Settings are rows on one sheet: label and help on the left, the control on the right edge. A number has its unit after it ("[14] days"). A prompt or path takes the row's width. On a narrow sheet controls go under their words; switches stay beside them.
 - Clicking a label flips its switch.
+- A switch on a list (an automation, a criterion, a built-in rule) flips at once, as does Run now ("Running…") and a delete (the row goes). If the desk refuses, it's put back and a bubble says why; a refused delete reopens its editor with your words.
 - Under the control: "Saved" (green, briefly), "Not saved: …" (red, your input kept), or **Reset to default** on a changed setting (the default in its tooltip).
 - Tuning sits at the sheet's end in its own section, **More <part> settings**, always open.
 - A row that would do nothing here isn't drawn (`SHOWN`); one that waits on another is greyed (`DISABLED`). `desk settings` and settings.json still set every one.
