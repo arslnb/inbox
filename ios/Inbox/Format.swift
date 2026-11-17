@@ -683,8 +683,8 @@ enum Filter {
     return words.isEmpty || (n.text ?? "").lowercased().contains(words)
   }
 
-  // Who the filter can suggest: everyone on these rows, most rows first, and whether they wrote any of them. A bot
-  // that wrote its own PR is left out.
+  // Who the filter can suggest: you first (PeopleFilter.tsx's), then everyone on these rows, most rows first, and
+  // whether they wrote any of them. A bot that wrote its own PR is left out.
   static func people(_ cards: [Card], me: String) -> [Person] {
     var seen: [String: (n: Int, author: Bool)] = [:]
     for c in cards {
@@ -695,8 +695,10 @@ enum Filter {
         seen[p] = (s.n + 1, s.author || p == by || p == c.author)
       }
     }
-    return seen.sorted { $0.value.n != $1.value.n ? $0.value.n > $1.value.n : $0.key.localizedStandardCompare($1.key) == .orderedAscending }
+    let others = seen.filter { $0.key != me }
+      .sorted { $0.value.n != $1.value.n ? $0.value.n > $1.value.n : $0.key.localizedStandardCompare($1.key) == .orderedAscending }
       .map { Person(login: $0.key, author: $0.value.author) }
+    return (me.isEmpty ? [] : [Person(login: me, author: true)]) + others
   }
 
   // Every row the desk holds, whatever page it's on: who the filter suggests is the same on each.

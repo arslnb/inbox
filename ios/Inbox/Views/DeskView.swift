@@ -45,8 +45,8 @@ struct ListPage: View {
       }
     }
     .background(Theme.sheet)
-    // Merging has no filter, as the window's.
-    .safeAreaInset(edge: .top, spacing: 0) { if store.page != .merging { FilterBar() } }
+    // One filter for the four pages, as the window's search.
+    .safeAreaInset(edge: .top, spacing: 0) { FilterBar() }
     // An opened page has them above its own bar.
     .safeAreaInset(edge: .bottom, spacing: 0) { NoticeStack() }
     // Whether your latest ask still waits, for the menu's line: read once, then again only while one waits. Free.
@@ -55,7 +55,7 @@ struct ListPage: View {
     }
     .navigationTitle(store.page.name)
     .navigationBarTitleDisplayMode(.inline)
-    .toolbarBackground(Theme.paper, for: .navigationBar)
+    .toolbarBackground(Theme.side, for: .navigationBar)
     .toolbarBackground(.visible, for: .navigationBar)
     .toolbar {
       // The page's name is the menu at the leading edge; the title itself only names the way back from an opened item.
@@ -87,7 +87,10 @@ struct ListPage: View {
             Mark().fill(Theme.accentInk).frame(width: 24, height: 24)
             Text(store.page.name).sans(16, 650, tracking: -0.01).foregroundStyle(Theme.ink)
             if store.page == .inbox, store.inboxCount > 0 {
-              Text("\(store.inboxCount)").sans(13, 450, tabular: true).foregroundStyle(Theme.pencil)
+              // White on the brand's purple, as the sidebar's count.
+              Text("\(store.inboxCount)").sans(11.5, 600, tabular: true).foregroundStyle(.white)
+                .padding(.horizontal, 6).frame(minWidth: 18, minHeight: 18)
+                .background(Theme.pill, in: Capsule())
             }
             Image(systemName: "chevron.down").font(.system(size: 10, weight: .semibold)).foregroundStyle(Theme.pencil)
           }
@@ -132,7 +135,8 @@ extension View {
 
   func deskList() -> some View {
     listStyle(.plain)
-      .listSectionSpacing(8)  // with a heading's own 44pt, the window's 24 above its words
+      .contentMargins(.top, 0, for: .scrollContent)
+      .listSectionSpacing(0)  // a heading's band follows the rows above it, as the window's
       .scrollContentBackground(.hidden)
       .background(Theme.sheet)
       .environment(\.defaultMinListRowHeight, 1)
@@ -159,7 +163,7 @@ struct CardLine: View {
     Button {
       store.path.append(.item(card.id))
     } label: {
-      CardRow(card: card, variant: variant, now: store.now)
+      CardRow(card: card, variant: variant, now: store.now, me: store.me)
         .padding(.leading, CGFloat(min(guides.count, TreeGuides.most)) * TreeGuides.step)
         .overlay(alignment: .topLeading) { if !guides.isEmpty { TreeGuides(guides: guides).padding(.leading, Theme.pad) } }
     }
@@ -551,13 +555,14 @@ struct MergingList: View {
   var body: some View {
     Group {
       if let view = store.inflight {
-        let live = view.live
-        let landed = view.landed
+        let shown = Set(store.shown((view.live + view.landed).map(\.card)).map(\.id))
+        let live = view.live.filter { shown.contains($0.card.id) }
+        let landed = view.landed.filter { shown.contains($0.card.id) }
         ScrollViewReader { proxy in
         List {
           if let c = view.coordinator { agentLine(c).deskLine() }
           if live.isEmpty {
-            QuietLine(text: "Nothing in Merging yet: hand off one of your PRs for merge when you're done with it.").deskLine()
+            QuietLine(text: store.filtering ? "No matches." : "Nothing in Merging yet: hand off one of your PRs for merge when you're done with it.").deskLine()
           }
           ForEach(parts(live), id: \.first?.id) { part in
             // The desk sends a stack's rows together, bottom first: two or more sit under one quiet line.

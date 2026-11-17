@@ -1,7 +1,8 @@
 import SwiftUI
 
-// The window's two-line row (CardRow's `compact`, web/src/styles.css `.c-row`): the title, at most two lines; then one
-// line of facts with a dot between them, the row's call to action as accent text, and its age at the right.
+// The window's two-line row (CardRow's `compact`, web/src/styles.css `.c-row`): what it is as an icon and the title, at
+// most two lines; then one line of facts with a dot between them, and on its right the call to action as a tinted
+// button, a PR's signal, who it's from as their picture, and its age.
 
 // A row's facts on one line. When they don't fit, a long repo name gives way first, down to a few letters; then who
 // it's by goes, then its stage, each whole (a floor of 0: "waiting…" says nothing); the why, which is what the row is
@@ -71,6 +72,8 @@ extension View {
 struct Avatar: View {
   let login: String
   var size: CGFloat = 14
+  var trailing: CGFloat = 4  // its room before the name beside it
+  var scales = true  // with the text size; a row's picture keeps its slot
   @ScaledMetric(relativeTo: .body) private var scale: CGFloat = 100
   @MainActor static var failed: Set<String> = []
 
@@ -84,13 +87,13 @@ struct Avatar: View {
 
   var body: some View {
     if !Avatar.failed.contains(login), let url = Avatar.url(login) {
-      let side = min(size * scale / 100, size * 1.6)
+      let side = scales ? min(size * scale / 100, size * 1.6) : size
       AsyncImage(url: url) { phase in
         switch phase {
         case .success(let image):
           image.resizable().scaledToFill().frame(width: side, height: side).clipShape(Circle())
             .alignmentGuide(.firstTextBaseline) { $0[.bottom] - side * 0.18 }
-            .padding(.trailing, 4)
+            .padding(.trailing, trailing)
         case .failure:
           Color.clear.frame(width: 0, height: 0).onAppear { Avatar.failed.insert(login) }
         default:
@@ -106,16 +109,14 @@ struct Avatar: View {
 struct Fact: Identifiable {
   enum Tone { case pencil, ink2, amber }
   let text: String
-  var lead: String?  // "by": the word before a person's picture and name
-  var face: String?  // whose picture goes before the text
   var tone: Tone = .pencil
   var shrink: (order: Int, floor: CGFloat)?
   var id: String { text }
 }
 
-// The two lines every row shares. `kind` is the small label (PR, Issue, Question, Session, Note); none on Merging.
+// The two lines every row shares. `kind` leads it as an icon; none on Merging.
 struct RowLines: View {
-  var kind: String?
+  var kind: Glyph?
   var quick: String?
   let title: String
   var dim = false
@@ -125,32 +126,30 @@ struct RowLines: View {
   var stackSays: String?
   var facts: [Fact] = []
   var cta: String?
+  var signal: [Signal.Fact]?  // a PR's
+  var face: RowFace?
   var age: String
   var under: String?  // a line of its own under the facts: why it's blocked, your agent's note
   var underInk = false  // that line in ink: a job of your agent's that failed
 
+  private var indent: CGFloat { kind == nil ? 0 : 24 }  // the icon's 16 and its gap: the facts start under the title
+
   var body: some View {
     VStack(alignment: .leading, spacing: 4) {
-      Text(title)
-        .sans(15, dim ? 400 : 500, tracking: -0.008)
-        .foregroundStyle(dim ? Theme.ink2 : Theme.ink)
-        .lineLimit(2)
-        .lineSpacing(1.5)
-        .frame(maxWidth: .infinity, alignment: .leading)
+      HStack(alignment: .firstTextBaseline, spacing: 8) {
+        if let kind { GlyphView(glyph: kind).alignmentGuide(.firstTextBaseline) { $0.height / 2 + 5 } }
+        Text(title)
+          .sans(14, dim ? 400 : 500, tracking: -0.006)
+          .foregroundStyle(dim ? Theme.ink2 : Theme.ink)
+          .lineLimit(2)
+          .lineSpacing(1.5)
+          .frame(maxWidth: .infinity, alignment: .leading)
+      }
       // No ref and no facts (your agent's work on a question): no line of its own for the age alone.
-      let bare = kind == nil && quick == nil && repo == nil && number == nil && facts.isEmpty && cta == nil && !(under ?? "").isEmpty
+      let bare = quick == nil && repo == nil && number == nil && facts.isEmpty && cta == nil && signal == nil && face == nil && !(under ?? "").isEmpty
       if !bare {
-        HStack(alignment: .firstTextBaseline, spacing: 0) {
+        HStack(alignment: .firstTextBaseline, spacing: 8) {
           MetaLine {
-            if let kind {
-              Text(kind).sans(11.5, 600, tracking: 0.02).padding(.trailing, quick == nil ? 8 : 4)
-            }
-            if let quick {
-              Bolt().fill(Theme.accentInk).frame(width: 14, height: 14)
-                .alignmentGuide(.firstTextBaseline) { $0[.bottom] - 2 }
-                .padding(.trailing, 8)
-                .accessibilityLabel(quick)
-            }
             if let repo {
               Text(repo).lineLimit(1).truncationMode(.tail).shrinks(0, floor: 44)
             }
@@ -162,24 +161,40 @@ struct RowLines: View {
               factText(fact, dot: i > 0 || repo != nil || number != nil, last: i == facts.count - 1)
             }
           }
-          .sans(13, tabular: true)
+          .sans(12.5, tabular: true)
           .foregroundStyle(Theme.pencil)
           .frame(maxWidth: .infinity, alignment: .leading)
           .clipped()
           if let cta {
-            Text(cta).sans(13, 600).foregroundStyle(Theme.accentInk).fixedSize().padding(.leading, 10)
+            // Tinted, as the window's row: a press on the row opens its page, whose bar has it.
+            Text(cta).sans(12, 600).foregroundStyle(Theme.accentInk).fixedSize()
+              .padding(.horizontal, 8).frame(height: 22)
+              .background(Theme.accentWash, in: RoundedRectangle(cornerRadius: 6))
+              .padding(.vertical, -3.5)
           }
-          Text(age).sans(13, tabular: true).foregroundStyle(Theme.pencil).fixedSize().padding(.leading, cta == nil ? 10 : 8)
+          if quick != nil || signal != nil {
+            HStack(spacing: 6) {
+              if let quick {
+                Bolt().fill(Theme.accentInk).frame(width: 14, height: 14).accessibilityElement().accessibilityLabel(quick)
+              }
+              if let signal { Signal(lit: Signal.lit(signal), said: Signal.said(signal)) }
+            }
+            .alignmentGuide(.firstTextBaseline) { $0.height / 2 + 4.5 }
+          }
+          if let face { face.alignmentGuide(.firstTextBaseline) { $0.height / 2 + 4.5 } }
+          Text(age).sans(12.5, tabular: true).foregroundStyle(Theme.pencil).fixedSize()
         }
+        .padding(.leading, indent)
         // One line with parts that never shrink: past the largest standard size they'd push the facts off the row. The title keeps growing.
         .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
       }
       if let under, !under.isEmpty {
         HStack(alignment: .firstTextBaseline, spacing: 0) {
-          Text(under).sans(13).foregroundStyle(underInk ? Theme.ink2 : Theme.pencil).lineLimit(2).lineSpacing(1.5)
+          Text(under).sans(12.5).foregroundStyle(underInk ? Theme.ink2 : Theme.pencil).lineLimit(2).lineSpacing(1.5)
             .frame(maxWidth: .infinity, alignment: .leading)
-          if bare { Text(age).sans(13, tabular: true).foregroundStyle(Theme.pencil).fixedSize().padding(.leading, 10) }
+          if bare { Text(age).sans(12.5, tabular: true).foregroundStyle(Theme.pencil).fixedSize().padding(.leading, 10) }
         }
+        .padding(.leading, indent)
       }
     }
     .padding(.init(top: 10, leading: Theme.pad, bottom: 11, trailing: Theme.pad))
@@ -192,8 +207,6 @@ struct RowLines: View {
   private func factText(_ fact: Fact, dot: Bool, last: Bool) -> some View {
     let text = HStack(alignment: .firstTextBaseline, spacing: 0) {
       if dot { Text("·").foregroundStyle(Theme.faint).padding(.horizontal, 6).fixedSize() }
-      if let lead = fact.lead { Text(lead + " ").fixedSize() }
-      if let face = fact.face { Avatar(login: face) }
       Text(fact.text).lineLimit(1).truncationMode(.tail)
         .foregroundStyle(fact.tone == .amber ? Theme.amber : fact.tone == .ink2 ? Theme.ink2 : Theme.pencil)
     }
@@ -218,10 +231,11 @@ struct CardRow: View {
   let card: Card
   let variant: RowVariant
   let now: Date
+  var me = ""  // your login, for your picture
 
   var body: some View {
     RowLines(
-      kind: card.isPR ? "PR" : "Issue",
+      kind: card.isPR ? .pr : .issue,
       quick: card.quick,
       title: card.title,
       dim: dim,
@@ -231,10 +245,16 @@ struct CardRow: View {
       stackSays: card.stack.map { "\($0.pos ?? 0) of \($0.size ?? 0) open PRs in its stack" },
       facts: facts,
       cta: cta,
+      signal: card.isPR ? Signal.facts(card, stage: active) : nil,
+      face: face,
       age: Words.age(since, now: now),
       under: under
     )
     .accessibilityElement(children: .combine)
+  }
+
+  private var active: Bool {
+    if case .active = variant { true } else { false }
   }
 
   private var dim: Bool {
@@ -248,7 +268,7 @@ struct CardRow: View {
   }
 
   private var cta: String? {
-    guard case .active = variant, let cta = card.cta else { return nil }
+    guard active, let cta = card.cta else { return nil }
     return Words.cta[cta]
   }
 
@@ -256,31 +276,26 @@ struct CardRow: View {
     if case .blocked = variant { card.why } else { nil }
   }
 
+  // Who it's from is their picture alone: yours, theirs, or a robot for a bot's own PR.
+  private var face: RowFace? {
+    guard let by = card.by, !by.isEmpty else { return nil }
+    let said = "by \(by)"
+    if card.mine { return RowFace(who: .person(me), said: said) }
+    return RowFace(who: card.face.map { .person($0) } ?? .glyph(.agent), said: said)
+  }
+
   private var facts: [Fact] {
-    var out: [Fact] = []
     // Amber only on yours, where it's work for you.
     let amber = card.stage == "changes requested" && card.mine
-    // A stage the why already says ("Your draft", "Handed back: …") isn't said twice; the why takes its colour.
-    let said = Words.says(card.reason ?? "", card.stage ?? "")
     switch variant {
     case .active:
-      if let reason = card.reason, !reason.isEmpty {
-        out.append(Fact(text: Words.capitalized(reason), tone: said && amber ? .amber : .pencil, shrink: (3, 70)))
-      }
+      guard let reason = card.reason, !reason.isEmpty else { return [] }
+      return [Fact(text: Words.capitalized(reason), tone: amber ? .amber : .pencil, shrink: (3, 70))]
     case .note(let note):
-      if !note.isEmpty { out.append(Fact(text: note, shrink: (3, 70))) }
-    case .blocked: break
+      return note.isEmpty ? [] : [Fact(text: note, shrink: (3, 70))]
+    case .blocked:
+      return []
     }
-    // A call to action says the row is yours: there "by you" goes, so its stage keeps its room.
-    // Nor where the why already names them ("Priya waits on your review").
-    let named = !card.mine && (card.reason ?? "").lowercased().contains((card.by ?? "").lowercased())
-    if let by = card.by, !(cta != nil && card.mine), !named {
-      out.append(Fact(text: by, lead: "by", face: card.face, tone: card.mine ? .ink2 : .pencil, shrink: out.isEmpty ? nil : (1, 0)))
-    }
-    if case .active = variant, let stage = card.stage, !said {
-      out.append(Fact(text: stage, tone: amber ? .amber : .pencil, shrink: (2, 0)))
-    }
-    return out
   }
 }
 
@@ -290,8 +305,8 @@ struct InquiryRow: View {
 
   var body: some View {
     RowLines(
-      kind: "Question", title: q.question ?? "", facts: [Fact(text: "by \(Words.fromName(q.from, start: false))")],
-      cta: "Answer", age: Words.age(q.at, now: now)
+      kind: .question, title: q.question ?? "", cta: "Answer",
+      face: RowFace(who: .glyph(.agent), said: "by \(Words.fromName(q.from, start: false))"), age: Words.age(q.at, now: now)
     )
     .accessibilityElement(children: .combine)
   }
@@ -305,26 +320,26 @@ struct SessionRow: View {
     let folder = (s.cwd ?? "").split(whereSeparator: { $0 == "/" || $0 == "\\" }).last.map(String.init) ?? (s.cwd ?? "")
     // Only what this phone can press: Open and the attach command are for the desk's computer.
     let first = s.actions?.first { $0 == "kick" || $0 == "resume" }
-    // At a phone's width the reason stays and the kind goes, as the window's narrow table has it.
     RowLines(
-      kind: "Session", title: s.name ?? "", repo: folder, facts: [Fact(text: s.reason ?? "")],
+      kind: .session, title: s.name ?? "", repo: folder, facts: [Fact(text: s.reason ?? "")],
       cta: first.flatMap { Words.sessionAction[$0] }, age: Words.age(s.since, now: now)
     )
     .accessibilityElement(children: .combine)
   }
 }
 
-// A note to yourself: Note, its words, Done, when it reminds (or reminded) you where a PR's author goes, its age.
+// A note to yourself: Note, its words, Done, and a clock where a PR's picture goes when it reminds (or reminded) you.
 struct NoteRow: View {
   let n: Note
   let now: Date
 
   var body: some View {
     let later = Words.date(n.remindAt).map { $0 > now } ?? false
+    let at = n.remindAt != nil ? "at \(Words.when(n.remindAt, now: now))" : nil
     RowLines(
-      kind: "Note", title: n.text ?? "",
-      facts: [Fact(text: n.remindAt != nil ? "at \(Words.when(n.remindAt, now: now))" : "by you")],
-      cta: "Done", age: Words.age(n.remindAt != nil && !later ? n.remindAt : n.at, now: now)
+      kind: .note, title: n.text ?? "", facts: at.map { [Fact(text: $0)] } ?? [], cta: "Done",
+      face: at.map { _ in RowFace(who: .glyph(.clock), said: later ? "Reminds you" : "Reminded you") },
+      age: Words.age(n.remindAt != nil && !later ? n.remindAt : n.at, now: now)
     )
     .accessibilityElement(children: .combine)
   }
@@ -374,7 +389,7 @@ struct TreeGuides: View {
     func path(in rect: CGRect) -> Path {
       var p = Path()
       let x: CGFloat = 7.5
-      let mid: CGFloat = 20.5  // the title's first line
+      let mid: CGFloat = 19  // the title's first line
       switch guide {
       case .gap: break
       case .rail:
@@ -395,7 +410,7 @@ struct TreeGuides: View {
   }
 }
 
-// A section's heading: its name and its count on one baseline; a tap folds it.
+// A section's heading: its name and its count on one baseline, a small band on the paper's colour; a tap folds it.
 struct GroupHead: View {
   let label: String
   let count: String  // "12", or "3 of 12" while filtering
@@ -404,15 +419,14 @@ struct GroupHead: View {
 
   var body: some View {
     let head = HStack(alignment: .firstTextBaseline, spacing: 10) {
-      Text(label).sans(15, 650, tracking: -0.01).foregroundStyle(open ? Theme.ink : Theme.pencil)
-      Text(count).sans(13, 450, tabular: true).foregroundStyle(Theme.pencil)
+      Text(label).sans(13, 650, tracking: -0.01).foregroundStyle(open ? Theme.ink : Theme.pencil)
+      Text(count).sans(12, 450, tabular: true).foregroundStyle(Theme.pencil)
       Spacer(minLength: 0)
     }
-    // On the sheet, as the heading of the window's two-line list. One that folds takes a finger, so it's 44pt tall with
-    // its words at the foot: a List gives a heading no touch outside its own frame.
-    .padding(.init(top: 4, leading: Theme.pad, bottom: 8, trailing: Theme.pad))
-    .frame(maxWidth: .infinity, minHeight: 44, alignment: .bottomLeading)
-    .background(Theme.sheet)
+    // One that folds takes a finger, so it's 44pt tall: a List gives a heading no touch outside its own frame.
+    .padding(.horizontal, Theme.pad)
+    .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+    .background(Theme.paper)
     .contentShape(Rectangle())
     .accessibilityElement(children: .combine)
     .accessibilityAddTraits(.isHeader)

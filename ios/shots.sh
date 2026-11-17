@@ -109,6 +109,7 @@ wanted note-new && shot note-new -deskURL "$DESK" -note new
 wanted note-edit && shot note-edit -deskURL "$DESK" -note n3
 wanted blocked && shot blocked -deskURL "$DESK" -page blocked
 wanted merging && shot merging -deskURL "$DESK" -page merging
+wanted merging-filter && shot merging-filter -deskURL "$DESK" -page merging -filter "planner"
 # Merging's "<agent>'s work": two reviews being written, your ask, a review that failed three times (Try again), an answer nobody read.
 wanted merging-work && shot merging-work -deskURL "$DESK" -page merging -scrollTo work
 wanted archive && shot archive -deskURL "$DESK" -page archive

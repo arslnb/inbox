@@ -192,6 +192,14 @@ struct Card: Decodable, Identifiable, Sendable {
   var placedBy: String?  // "hard" | "pin" | "claude" | "automation": whose its place is (Words.placedBy)
   var section: String?  // "urgent" | "standard" | "fyi": where it is on the Inbox; absent off it
   var size: Size?  // a PR's lines added and removed
+  var verdict: String?  // the AI review of its current commit: "look" | "skim" | "skip"
+  var preflight: Preflight?
+
+  struct Preflight: Decodable, Sendable {
+    var state: String?
+    var verdict: String?
+    var risk: String?  // "low" | "medium" | "high"
+  }
 
   struct Size: Decodable, Sendable {
     var add: Int?

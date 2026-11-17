@@ -207,9 +207,9 @@ final class FormatTests: XCTestCase {
     XCTAssertEqual(
       Filter.people(rows, me: "me"),
       [
-        Filter.Person(login: "dana", author: true), Filter.Person(login: "priya", author: true), Filter.Person(login: "marco", author: false),
-        Filter.Person(login: "me", author: true),
-      ])
+        Filter.Person(login: "me", author: true), Filter.Person(login: "dana", author: true), Filter.Person(login: "priya", author: true),
+        Filter.Person(login: "marco", author: false),
+      ], "you first, as PeopleFilter.tsx's")
 
     let note = try DeskJSON.decoder().decode(Note.self, from: Data(#"{"id":"n1","text":"Ask Priya about the planner"}"#.utf8))
     XCTAssertTrue(Filter.matches(note, " PRIYA "))

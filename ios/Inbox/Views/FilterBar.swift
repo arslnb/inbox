@@ -3,7 +3,7 @@ import UIKit
 
 // A list's filter, under its page's name: words match a row's title, repo or author; author:dana and involves:dana pick
 // people, each a pill once finished, suggested as rows under the box while you type (Filter.tsx). One filter for the
-// Inbox, Blocked and the Archive, as the window's.
+// four pages, as the window's search.
 struct FilterBar: View {
   @Environment(Store.self) private var store
   @State private var focused = false
@@ -65,7 +65,7 @@ struct FilterBar: View {
     }
     // One line with a box in it: past the largest standard size a pill would leave the box no room. The rows below it grow on.
     .dynamicTypeSize(...DynamicTypeSize.xxxLarge)
-    .background(Theme.paper)
+    .background(Theme.side)
     .overlay(alignment: .bottom) { Theme.rule.frame(height: 1) }
     .onChange(of: focused) { _, now in if now { open = true } }
   }
@@ -76,7 +76,7 @@ struct FilterBar: View {
     return Button(action: drop) {
       HStack(alignment: .firstTextBaseline, spacing: 0) {
         Text((Filter.label[t.key] ?? t.key) + " ").foregroundStyle(Theme.pencil).fixedSize()
-        if !you { Avatar(login: t.who) }
+        Avatar(login: you ? store.me : t.who)
         Text(you ? "you" : t.who).sans(14, 550).foregroundStyle(Theme.ink).lineLimit(1).layoutPriority(1)
         Text(" ×").foregroundStyle(Theme.pencil).fixedSize()
       }
@@ -89,8 +89,9 @@ struct FilterBar: View {
   }
 
   private func suggestion(_ p: Filter.Pick) -> some View {
-    Button {
-      store.filter = Filter.picked(p, in: store.filter)
+    let you = !p.login.isEmpty && p.login == store.me
+    return Button {
+      store.filter = Filter.picked(you ? Filter.Pick(key: p.key, login: "you") : p, in: store.filter)
       open = p.login.isEmpty
     } label: {
       HStack(alignment: .firstTextBaseline, spacing: 0) {
@@ -98,8 +99,8 @@ struct FilterBar: View {
         if p.login.isEmpty {
           Text(Filter.help[p.key] ?? "").sans(14).foregroundStyle(Theme.ink2).lineLimit(2).multilineTextAlignment(.leading)
         } else {
-          if p.login != store.me { Avatar(login: p.login, size: 16) }
-          Text(p.login).sans(14, 500).foregroundStyle(Theme.ink).lineLimit(1)
+          Avatar(login: p.login, size: 16)
+          Text(you ? "you" : p.login).sans(14, 500).foregroundStyle(Theme.ink).lineLimit(1)
         }
         Spacer(minLength: 0)
       }

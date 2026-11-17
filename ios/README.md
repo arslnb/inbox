@@ -94,7 +94,7 @@ It builds, installs on the booted simulator, starts the mock on port 47841 (and 
 `ios/.shots/<state>-<light|dark>.png` for: `connect` (in the Simulator, Scan the code is off and says why), `connect-error`, `connect-scan-wrong` (a QR that isn't a desk's), `connect-scanned` (a desk's link read: its address, said before Connect), `inbox`, `inbox-scrolled`, `inbox-empty`,
 `inbox-filter` (the filter's box with the cursor in it: Filter by person), `inbox-filter-author` (a pill and what it
 keeps), `inbox-filter-large` (the same at an accessibility text size), `inbox-fyi` (FYI's first five and Show 3 more),
-`blocked` (its tree's guides), `blocked-filter` (flat, "4 of 11"), `merging` (your agent's line with Wake it),
+`blocked` (its tree's guides), `blocked-filter` (flat, "4 of 11"), `merging` (your agent's line with Wake it), `merging-filter` (its rows a filter keeps),
 `merging-work` (Claude's work: two reviews being written, your ask, a failed review with Try again, an answer nobody
 picked up), `chat` (Ask your agent: Claude Code's name and mark, your asks and its answers, what it's said so far and
 what it's on under the last, how it runs by Send), `chat-item` (about a PR: its ref and ×, your agent's open question
@@ -272,15 +272,24 @@ merge, where Snooze does); More is its three dots only where it doesn't fit even
   under its name. Its row's menu: Done, Snooze (a time: a session has no activity to wait on, and its toast says only
   the time), then Kick or Resume when that's its first action.
 - **The lists.** As the window's, in the desk's order.
-  - **The filter**, on the Inbox, Blocked and the Archive (one filter for the three; Merging has none): a box under the
+  - **A row**, as the window's two-line row: what it is as an icon (a PR, an issue, a question, a session, a note), then
+    its title; under it its ref and why, and on the right its call to action as a small tinted button (a press on the
+    row opens its page, whose bar has it), the quick bolt, a PR's signal, who it's from as their picture alone (yours
+    too; a small robot for a bot's own PR or an agent's question, a clock for a note's reminder) and its age. The
+    signal is four bars (`Views/Signal.swift`, RowIcons.tsx's `Signal` and `factsOf()`): one lit for each of its stage
+    (on the Inbox), CI, the AI review's risk and its size with nothing against it, all lit in one colour by how many
+    (one red, two orange, three yellow, four green). A phone has no hover: VoiceOver reads its facts ("Approved. CI
+    passing. Low risk, skip it. Tiny change").
+  - **The filter**, on all four pages (one filter, as the window's search): a box under the
     page's name. Words match a row's title, repo, author or ref. `author:dana` keeps who opened it (a bot's PR counts
     as the person it was opened for; `author:you`, yours) and `involves:dana` anyone on it. A term followed by a space
     is a pill, drawn as words ("Author dana ×"): a press on it, or Backspace at the box's start, takes it off; Clear
     empties the box. With the cursor in an empty box, "Filter by person" offers Author and Involves; a typed name
     offers up to four people as Author (if they wrote a row) and as Involves; after `author:` or `involves:`, up to
-    eight people, most rows first. While filtering: a group with a match opens (its heading is no toggle until the
+    eight people, you first (picked as `you`), then most rows first. While filtering: a group with a match opens (its heading is no toggle until the
     filter clears), Blocked lies flat, Blocked and the Archive count "3 of 12", FYI shows all, the first-pass line
-    hides, a note is kept by its words, and nothing left reads "No matches." Questions and sessions always show.
+    hides, a note is kept by its words, and nothing left reads "No matches." Questions and sessions always show, and so
+    do your agent's line and Claude's work on Merging, whose rows and Merged are filtered.
   - **FYI** shows its first five when it has seven or more, then **Show N more**: a press shows the rest until you
     leave the page. Its heading counts them all.
   - **A row's menu** (long press), in the window's order: Done (or Back on the desk), Snooze, Move to Urgent, Standard
@@ -338,9 +347,10 @@ merge, where Snooze does); More is its three dots only where it doesn't fit even
   drops its reminder), Snooze (a time, which becomes its reminder), Change note (its box) and Copy text. **New note**
   is in the page's menu. A refusal keeps your words in the box with the desk's own. Notes are the desk's: nothing on
   GitHub.
-- **People's pictures.** A person's GitHub picture before their name: a row's "by", who said what in a conversation
-  or a thread on a line, the reviewers' list, the filter's pills and suggestions. None for you, a bot or a team
-  (docs/ui.md; the window's code draws yours). Nothing is drawn, and no room kept, while one loads or when it doesn't,
+- **People's pictures.** A person's GitHub picture before their name: who said what in a conversation or a thread on a
+  line, the reviewers' list, the filter's pills and suggestions (yours too, as `you`). A row shows who it's from as
+  the picture alone, yours too, in a slot that keeps its room. None for a bot or a team, or for you elsewhere
+  (docs/ui.md). Nothing is drawn, and no room kept, while one loads or when it doesn't,
   and a login that failed isn't asked for again. **This request goes from the phone straight to GitHub**
   (`avatars.githubusercontent.com/<login>?s=40`), not through the desk, with no token: it carries only the login.
 
@@ -446,7 +456,7 @@ Not built at all: notifications, an iPad layout.
 | State, loading, the live stream, acting     | `Inbox/Store.swift` (one `@Observable` store; the launch arguments too)                |
 | The window's words (ages, snooze, bubbles)  | `Inbox/Format.swift`, kept in step with `web/src/format.ts`, `view.ts`, `notices.ts`   |
 | Colours, faces, the mark                    | `Inbox/Theme.swift` (the default theme's tokens from `web/src/styles.css`; SF Pro and SF Mono, as the window's) |
-| A row                                       | `Inbox/Views/Rows.swift` (the window's two-line row, `.c-row`)                         |
+| A row                                       | `Inbox/Views/Rows.swift` (the window's two-line row, `.c-row`); its icons and picture in `Views/RowIcons.swift`; a PR's signal in `Views/Signal.swift` |
 | The pages and their lists, a row's menu     | `Inbox/Views/DeskView.swift` (`CardMenu`, `NoteLine`, `SessionLine`; Merging's agent line and `wake()`) |
 | The filter                                  | `Filter` in `Inbox/Format.swift` (`parse()`, `matches()`, `people()`, `suggest()`, `picked()`, `dropped()`: view.ts's and Filter.tsx's); the box and its suggestions in `Inbox/Views/FilterBar.swift`; `Store.filter`, `shown()` |
 | FYI's five, a row's moves, Blocked's tree   | `Lists.fyiCut()`, `moves()`, `treeGuides()` in `Format.swift`; `TreeGuides` in `Rows.swift` |
