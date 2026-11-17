@@ -1150,8 +1150,10 @@ html::-webkit-scrollbar-corner,
   font-size: 13.5px;
 }
 
+/* Focused, the box is yours to type in: its placeholder goes. */
+.search input:focus::placeholder,
 .side-search .search:focus-within input::placeholder {
-  color: var(--pencil);
+  color: transparent;
 }
 
 .search {
