@@ -2,7 +2,7 @@
     "inquiries": [
         {
             "id": "q1c0ffee",
-            "at": "2026-11-13T06:58:37.843Z",
+            "at": "2026-11-17T00:15:10.100Z",
             "from": "Inbox coordinator",
             "question": "Compact tombstones in #12, or ship #12 and compact them in a follow-up?",
             "context": "azulus asked on #12 why tombstones never go away: every sync ships the whole list, and on a long-lived notebook it only grows. They're right. Nothing in #12 or on main prunes it; `syncTombstones()` in src/sync/merge.ts:88 sends it whole on every pull.\n\nCompacting is safe once every device has synced past a tombstone. The server already keeps each device's last full sync (`devices.last_full_sync`), so merge() can drop the ones older than the oldest of those. It's about 40 lines and a test.\n\npriya wants #12 before Thursday's mobile freeze. #12 is green, and kai approved it before azulus's comment. I'd do it in #12: it's small, and shipping the growth to every phone first means a second migration later.",
@@ -39,7 +39,7 @@
         },
         {
             "id": "q2bead00",
-            "at": "2026-11-13T05:52:37.843Z",
+            "at": "2026-11-16T23:09:10.100Z",
             "from": "sentry: ViewerContext rollout",
             "question": "Which PR in the stack should land first after the deploy freeze lifts?",
             "context": "The freeze lifts Monday. #129146 is the core change: it adds the actor to ViewerContext, and the eight per-team PRs read it. Each per-team PR could ship behind its own flag, so they don't strictly wait on the core one, but without it their flags do nothing.\n\nLanding the core first is the safe order; landing a team's first would let that team test its flag earlier. Tell me the order you want.",
@@ -62,27 +62,29 @@
         "due": [
             {
                 "id": "n1",
-                "at": "2026-11-12T05:22:37.843Z",
+                "at": "2026-11-15T22:39:10.100Z",
                 "text": "Ask Priya whether the planner change needs a migration note",
-                "remind_at": "2026-11-13T07:10:37.843Z",
-                "reminded_at": "2026-11-13T07:10:37.843Z"
+                "remind_at": "2026-11-17T00:27:10.100Z",
+                "reminded_at": "2026-11-17T00:27:10.100Z"
             }
         ],
+        "urgent": [],
         "open": [
             {
                 "id": "n2",
-                "at": "2026-11-13T04:22:37.843Z",
+                "at": "2026-11-16T21:39:10.100Z",
                 "text": "Write up the tombstone compaction idea for the sync design doc",
                 "remind_at": null,
                 "reminded_at": null
             }
         ],
+        "fyi": [],
         "later": [
             {
                 "id": "n3",
-                "at": "2026-11-13T06:22:37.843Z",
+                "at": "2026-11-16T23:39:10.100Z",
                 "text": "Check the p95 dashboard after the search deploy",
-                "remind_at": "2026-11-14T01:22:37.850Z",
+                "remind_at": "2026-11-17T18:39:10.107Z",
                 "reminded_at": null
             }
         ]
@@ -97,7 +99,7 @@
             "branch": "fix/upload-flake",
             "state": "blocked",
             "reason": "needs permission: Bash",
-            "since": "2026-11-13T07:04:37.843Z",
+            "since": "2026-11-17T00:21:10.100Z",
             "excerpt": "Bash: Run the upload tests 20 times with retries off",
             "resets_at": null,
             "alive": true,
@@ -117,10 +119,10 @@
             "cwd": "/Users/you/code/worker",
             "branch": "store-sqlite",
             "state": "stalled",
-            "reason": "rate limited until 00:22",
-            "since": "2026-11-13T05:46:37.843Z",
+            "reason": "rate limited until 17:39",
+            "since": "2026-11-16T23:03:10.100Z",
             "excerpt": "API Error: Rate limit reached for your five-hour window",
-            "resets_at": "2026-11-13T08:22:37.843Z",
+            "resets_at": "2026-11-17T01:39:10.100Z",
             "alive": false,
             "actions": [
                 "kick"
@@ -157,13 +159,17 @@
                     "CI red",
                     "+70 \u22128"
                 ],
+                "size": {
+                    "add": 70,
+                    "del": 8
+                },
                 "ci": "red",
                 "review": "required",
                 "draft": false,
-                "created_at": "2026-11-12T05:22:37.843Z",
-                "updated_at": "2026-11-12T11:22:37.843Z",
-                "activity_at": "2026-11-12T11:22:37.843Z",
-                "waiting_since": "2026-11-12T05:22:37.843Z",
+                "created_at": "2026-11-15T22:39:10.100Z",
+                "updated_at": "2026-11-16T04:39:10.100Z",
+                "activity_at": "2026-11-16T04:39:10.100Z",
+                "waiting_since": "2026-11-15T22:39:10.100Z",
                 "new": false,
                 "pinned": false,
                 "status": "active",
@@ -211,13 +217,17 @@
                 "chips": [
                     "+310 \u221245"
                 ],
+                "size": {
+                    "add": 310,
+                    "del": 45
+                },
                 "ci": "green",
                 "review": "required",
                 "draft": false,
-                "created_at": "2026-11-12T01:22:37.843Z",
-                "updated_at": "2026-11-12T01:22:37.843Z",
-                "activity_at": "2026-11-12T01:22:37.843Z",
-                "waiting_since": "2026-11-12T02:22:37.843Z",
+                "created_at": "2026-11-15T18:39:10.100Z",
+                "updated_at": "2026-11-15T18:39:10.100Z",
+                "activity_at": "2026-11-15T18:39:10.100Z",
+                "waiting_since": "2026-11-15T19:39:10.100Z",
                 "new": false,
                 "pinned": false,
                 "status": "active",
@@ -271,13 +281,17 @@
                 "chips": [
                     "+96 \u221212"
                 ],
+                "size": {
+                    "add": 96,
+                    "del": 12
+                },
                 "ci": "green",
                 "review": "required",
                 "draft": false,
-                "created_at": "2026-11-12T01:22:37.843Z",
-                "updated_at": "2026-11-12T01:22:37.843Z",
-                "activity_at": "2026-11-12T01:22:37.843Z",
-                "waiting_since": "2026-11-12T05:22:37.843Z",
+                "created_at": "2026-11-15T18:39:10.100Z",
+                "updated_at": "2026-11-15T18:39:10.100Z",
+                "activity_at": "2026-11-15T18:39:10.100Z",
+                "waiting_since": "2026-11-15T22:39:10.100Z",
                 "new": false,
                 "pinned": false,
                 "status": "active",
@@ -332,13 +346,17 @@
                 "chips": [
                     "+62 \u22127"
                 ],
+                "size": {
+                    "add": 62,
+                    "del": 7
+                },
                 "ci": "green",
                 "review": "required",
                 "draft": false,
-                "created_at": "2026-11-13T01:22:37.843Z",
-                "updated_at": "2026-11-13T01:22:37.843Z",
-                "activity_at": "2026-11-13T01:22:37.843Z",
-                "waiting_since": "2026-11-13T04:22:37.843Z",
+                "created_at": "2026-11-16T18:39:10.100Z",
+                "updated_at": "2026-11-16T18:39:10.100Z",
+                "activity_at": "2026-11-16T18:39:10.100Z",
+                "waiting_since": "2026-11-16T21:39:10.100Z",
                 "new": true,
                 "pinned": false,
                 "status": "active",
@@ -398,13 +416,17 @@
                     "2 unresolved",
                     "+341 \u2212802"
                 ],
+                "size": {
+                    "add": 341,
+                    "del": 802
+                },
                 "ci": "green",
                 "review": "changes_requested",
                 "draft": false,
-                "created_at": "2026-11-08T07:22:37.843Z",
-                "updated_at": "2026-11-12T23:22:37.843Z",
-                "activity_at": "2026-11-12T23:22:37.843Z",
-                "waiting_since": "2026-11-08T17:22:37.843Z",
+                "created_at": "2026-11-12T00:39:10.100Z",
+                "updated_at": "2026-11-16T16:39:10.100Z",
+                "activity_at": "2026-11-16T16:39:10.100Z",
+                "waiting_since": "2026-11-12T10:39:10.100Z",
                 "new": true,
                 "pinned": false,
                 "status": "active",
@@ -459,13 +481,17 @@
                     "approved",
                     "+180 \u221222"
                 ],
+                "size": {
+                    "add": 180,
+                    "del": 22
+                },
                 "ci": "green",
                 "review": "approved",
                 "draft": false,
-                "created_at": "2026-11-11T05:22:37.843Z",
-                "updated_at": "2026-11-13T04:22:37.843Z",
-                "activity_at": "2026-11-13T04:22:37.843Z",
-                "waiting_since": "2026-11-11T05:22:37.843Z",
+                "created_at": "2026-11-14T22:39:10.100Z",
+                "updated_at": "2026-11-16T21:39:10.100Z",
+                "activity_at": "2026-11-16T21:39:10.100Z",
+                "waiting_since": "2026-11-14T22:39:10.100Z",
                 "new": false,
                 "pinned": true,
                 "status": "active",
@@ -512,13 +538,17 @@
                     "3 unresolved",
                     "+420 \u221266"
                 ],
+                "size": {
+                    "add": 420,
+                    "del": 66
+                },
                 "ci": "green",
                 "review": "required",
                 "draft": false,
-                "created_at": "2026-11-09T13:22:37.843Z",
-                "updated_at": "2026-11-13T01:22:37.843Z",
-                "activity_at": "2026-11-13T01:22:37.843Z",
-                "waiting_since": "2026-11-09T13:22:37.843Z",
+                "created_at": "2026-11-13T06:39:10.100Z",
+                "updated_at": "2026-11-16T18:39:10.100Z",
+                "activity_at": "2026-11-16T18:39:10.100Z",
+                "waiting_since": "2026-11-13T06:39:10.100Z",
                 "new": true,
                 "pinned": false,
                 "status": "active",
@@ -569,13 +599,17 @@
                     "2 unresolved",
                     "+172 \u221232"
                 ],
+                "size": {
+                    "add": 172,
+                    "del": 32
+                },
                 "ci": "green",
                 "review": "changes_requested",
                 "draft": false,
-                "created_at": "2026-11-10T07:22:37.843Z",
-                "updated_at": "2026-11-13T01:22:37.843Z",
-                "activity_at": "2026-11-13T01:22:37.843Z",
-                "waiting_since": "2026-11-10T07:22:37.843Z",
+                "created_at": "2026-11-14T00:39:10.100Z",
+                "updated_at": "2026-11-16T18:39:10.100Z",
+                "activity_at": "2026-11-16T18:39:10.100Z",
+                "waiting_since": "2026-11-14T00:39:10.100Z",
                 "new": true,
                 "pinned": false,
                 "status": "active",
@@ -635,10 +669,10 @@
                 "ci": "none",
                 "review": "none",
                 "draft": false,
-                "created_at": "2026-11-11T07:22:37.843Z",
-                "updated_at": "2026-11-12T21:22:37.843Z",
-                "activity_at": "2026-11-12T21:22:37.843Z",
-                "waiting_since": "2026-11-11T07:22:37.843Z",
+                "created_at": "2026-11-15T00:39:10.100Z",
+                "updated_at": "2026-11-16T14:39:10.100Z",
+                "activity_at": "2026-11-16T14:39:10.100Z",
+                "waiting_since": "2026-11-15T00:39:10.100Z",
                 "new": false,
                 "pinned": false,
                 "status": "active",
@@ -681,13 +715,17 @@
                 "chips": [
                     "+58 \u22129"
                 ],
+                "size": {
+                    "add": 58,
+                    "del": 9
+                },
                 "ci": "green",
                 "review": "required",
                 "draft": false,
-                "created_at": "2026-11-12T11:22:37.843Z",
-                "updated_at": "2026-11-12T11:22:37.843Z",
-                "activity_at": "2026-11-12T11:22:37.843Z",
-                "waiting_since": "2026-11-12T13:22:37.843Z",
+                "created_at": "2026-11-16T04:39:10.100Z",
+                "updated_at": "2026-11-16T04:39:10.100Z",
+                "activity_at": "2026-11-16T04:39:10.100Z",
+                "waiting_since": "2026-11-16T06:39:10.100Z",
                 "new": false,
                 "pinned": false,
                 "status": "active",
@@ -741,13 +779,17 @@
                 "chips": [
                     "+1880 \u22121210"
                 ],
+                "size": {
+                    "add": 1880,
+                    "del": 1210
+                },
                 "ci": "green",
                 "review": "required",
                 "draft": false,
-                "created_at": "2026-10-31T19:22:37.843Z",
-                "updated_at": "2026-10-31T19:22:37.843Z",
-                "activity_at": "2026-10-31T19:22:37.843Z",
-                "waiting_since": "2026-11-01T05:22:37.843Z",
+                "created_at": "2026-11-04T12:39:10.100Z",
+                "updated_at": "2026-11-04T12:39:10.100Z",
+                "activity_at": "2026-11-04T12:39:10.100Z",
+                "waiting_since": "2026-11-04T22:39:10.100Z",
                 "new": false,
                 "pinned": false,
                 "status": "active",
@@ -803,13 +845,17 @@
                     "4 unresolved",
                     "+1102 \u2212138"
                 ],
+                "size": {
+                    "add": 1102,
+                    "del": 138
+                },
                 "ci": "green",
                 "review": "required",
                 "draft": false,
-                "created_at": "2026-11-10T04:22:37.843Z",
-                "updated_at": "2026-11-13T05:22:37.843Z",
-                "activity_at": "2026-11-13T05:22:37.843Z",
-                "waiting_since": "2026-11-10T09:22:37.843Z",
+                "created_at": "2026-11-13T21:39:10.100Z",
+                "updated_at": "2026-11-16T22:39:10.100Z",
+                "activity_at": "2026-11-16T22:39:10.100Z",
+                "waiting_since": "2026-11-14T02:39:10.100Z",
                 "new": true,
                 "pinned": false,
                 "status": "active",
@@ -863,13 +909,17 @@
                 "chips": [
                     "+420 \u2212180"
                 ],
+                "size": {
+                    "add": 420,
+                    "del": 180
+                },
                 "ci": "pending",
                 "review": "required",
                 "draft": false,
-                "created_at": "2026-11-11T03:22:37.843Z",
-                "updated_at": "2026-11-11T03:22:37.843Z",
-                "activity_at": "2026-11-11T03:22:37.843Z",
-                "waiting_since": "2026-11-11T05:22:37.843Z",
+                "created_at": "2026-11-14T20:39:10.100Z",
+                "updated_at": "2026-11-14T20:39:10.100Z",
+                "activity_at": "2026-11-14T20:39:10.100Z",
+                "waiting_since": "2026-11-14T22:39:10.100Z",
                 "new": false,
                 "pinned": false,
                 "status": "active",
@@ -918,13 +968,17 @@
                 "chips": [
                     "+120 \u22128"
                 ],
+                "size": {
+                    "add": 120,
+                    "del": 8
+                },
                 "ci": "green",
                 "review": "required",
                 "draft": false,
-                "created_at": "2026-11-12T01:22:37.843Z",
-                "updated_at": "2026-11-12T01:22:37.843Z",
-                "activity_at": "2026-11-12T01:22:37.843Z",
-                "waiting_since": "2026-11-13T02:22:37.843Z",
+                "created_at": "2026-11-15T18:39:10.100Z",
+                "updated_at": "2026-11-15T18:39:10.100Z",
+                "activity_at": "2026-11-15T18:39:10.100Z",
+                "waiting_since": "2026-11-16T19:39:10.100Z",
                 "new": false,
                 "pinned": false,
                 "status": "active",
@@ -980,10 +1034,10 @@
                 "ci": "none",
                 "review": "none",
                 "draft": false,
-                "created_at": "2026-11-09T03:22:37.843Z",
-                "updated_at": "2026-11-13T03:22:37.843Z",
-                "activity_at": "2026-11-13T03:22:37.843Z",
-                "waiting_since": "2026-11-09T03:22:37.843Z",
+                "created_at": "2026-11-12T20:39:10.100Z",
+                "updated_at": "2026-11-16T20:39:10.100Z",
+                "activity_at": "2026-11-16T20:39:10.100Z",
+                "waiting_since": "2026-11-12T20:39:10.100Z",
                 "new": true,
                 "pinned": false,
                 "status": "active",
@@ -1024,13 +1078,17 @@
                     "1 unresolved",
                     "+214 \u221238"
                 ],
+                "size": {
+                    "add": 214,
+                    "del": 38
+                },
                 "ci": "green",
                 "review": "required",
                 "draft": false,
-                "created_at": "2026-11-10T09:22:37.843Z",
-                "updated_at": "2026-11-13T02:22:37.843Z",
-                "activity_at": "2026-11-13T02:22:37.843Z",
-                "waiting_since": "2026-11-10T09:22:37.843Z",
+                "created_at": "2026-11-14T02:39:10.100Z",
+                "updated_at": "2026-11-16T19:39:10.100Z",
+                "activity_at": "2026-11-16T19:39:10.100Z",
+                "waiting_since": "2026-11-14T02:39:10.100Z",
                 "new": false,
                 "pinned": false,
                 "status": "active",
@@ -1087,13 +1145,17 @@
                 "chips": [
                     "+180 \u2212140"
                 ],
+                "size": {
+                    "add": 180,
+                    "del": 140
+                },
                 "ci": "green",
                 "review": "required",
                 "draft": false,
-                "created_at": "2026-11-11T11:22:37.843Z",
-                "updated_at": "2026-11-11T11:22:37.843Z",
-                "activity_at": "2026-11-11T11:22:37.843Z",
-                "waiting_since": "2026-11-11T11:22:37.843Z",
+                "created_at": "2026-11-15T04:39:10.100Z",
+                "updated_at": "2026-11-15T04:39:10.100Z",
+                "activity_at": "2026-11-15T04:39:10.100Z",
+                "waiting_since": "2026-11-15T04:39:10.100Z",
                 "new": false,
                 "pinned": false,
                 "status": "active",
@@ -1153,13 +1215,17 @@
                     "draft",
                     "+96 \u221212"
                 ],
+                "size": {
+                    "add": 96,
+                    "del": 12
+                },
                 "ci": "green",
                 "review": "required",
                 "draft": true,
-                "created_at": "2026-11-12T01:22:37.843Z",
-                "updated_at": "2026-11-13T04:22:37.843Z",
-                "activity_at": "2026-11-13T04:22:37.843Z",
-                "waiting_since": "2026-11-12T01:22:37.843Z",
+                "created_at": "2026-11-15T18:39:10.100Z",
+                "updated_at": "2026-11-16T21:39:10.100Z",
+                "activity_at": "2026-11-16T21:39:10.100Z",
+                "waiting_since": "2026-11-15T18:39:10.100Z",
                 "new": false,
                 "pinned": false,
                 "status": "active",
@@ -1207,13 +1273,17 @@
                     "CI red",
                     "+25 \u221212"
                 ],
+                "size": {
+                    "add": 25,
+                    "del": 12
+                },
                 "ci": "red",
                 "review": "required",
                 "draft": false,
-                "created_at": "2026-11-12T01:22:37.843Z",
-                "updated_at": "2026-11-13T01:22:37.843Z",
-                "activity_at": "2026-11-13T01:22:37.843Z",
-                "waiting_since": "2026-11-12T01:22:37.843Z",
+                "created_at": "2026-11-15T18:39:10.100Z",
+                "updated_at": "2026-11-16T18:39:10.100Z",
+                "activity_at": "2026-11-16T18:39:10.100Z",
+                "waiting_since": "2026-11-15T18:39:10.100Z",
                 "new": false,
                 "pinned": false,
                 "status": "active",
@@ -1261,13 +1331,17 @@
                     "CI red",
                     "+26 \u221212"
                 ],
+                "size": {
+                    "add": 26,
+                    "del": 12
+                },
                 "ci": "red",
                 "review": "required",
                 "draft": false,
-                "created_at": "2026-11-12T01:22:37.843Z",
-                "updated_at": "2026-11-13T00:22:37.843Z",
-                "activity_at": "2026-11-13T00:22:37.843Z",
-                "waiting_since": "2026-11-12T01:22:37.843Z",
+                "created_at": "2026-11-15T18:39:10.100Z",
+                "updated_at": "2026-11-16T17:39:10.100Z",
+                "activity_at": "2026-11-16T17:39:10.100Z",
+                "waiting_since": "2026-11-15T18:39:10.100Z",
                 "new": false,
                 "pinned": false,
                 "status": "active",
@@ -1315,13 +1389,17 @@
                     "CI red",
                     "+27 \u221212"
                 ],
+                "size": {
+                    "add": 27,
+                    "del": 12
+                },
                 "ci": "red",
                 "review": "required",
                 "draft": false,
-                "created_at": "2026-11-12T01:22:37.843Z",
-                "updated_at": "2026-11-12T23:22:37.843Z",
-                "activity_at": "2026-11-12T23:22:37.843Z",
-                "waiting_since": "2026-11-12T01:22:37.843Z",
+                "created_at": "2026-11-15T18:39:10.100Z",
+                "updated_at": "2026-11-16T16:39:10.100Z",
+                "activity_at": "2026-11-16T16:39:10.100Z",
+                "waiting_since": "2026-11-15T18:39:10.100Z",
                 "new": false,
                 "pinned": false,
                 "status": "active",
@@ -1369,13 +1447,17 @@
                 "chips": [
                     "+132 \u221220"
                 ],
+                "size": {
+                    "add": 132,
+                    "del": 20
+                },
                 "ci": "pending",
                 "review": "required",
                 "draft": false,
-                "created_at": "2026-11-12T22:22:37.843Z",
-                "updated_at": "2026-11-12T22:22:37.843Z",
-                "activity_at": "2026-11-12T22:22:37.843Z",
-                "waiting_since": "2026-11-12T22:22:37.843Z",
+                "created_at": "2026-11-16T15:39:10.100Z",
+                "updated_at": "2026-11-16T15:39:10.100Z",
+                "activity_at": "2026-11-16T15:39:10.100Z",
+                "waiting_since": "2026-11-16T15:39:10.100Z",
                 "new": false,
                 "pinned": false,
                 "status": "active",
@@ -1429,13 +1511,17 @@
                 "chips": [
                     "+240 \u221212"
                 ],
+                "size": {
+                    "add": 240,
+                    "del": 12
+                },
                 "ci": "green",
                 "review": "required",
                 "draft": false,
-                "created_at": "2026-11-13T00:22:37.843Z",
-                "updated_at": "2026-11-13T00:22:37.843Z",
-                "activity_at": "2026-11-13T00:22:37.843Z",
-                "waiting_since": "2026-11-13T01:22:37.843Z",
+                "created_at": "2026-11-16T17:39:10.100Z",
+                "updated_at": "2026-11-16T17:39:10.100Z",
+                "activity_at": "2026-11-16T17:39:10.100Z",
+                "waiting_since": "2026-11-16T18:39:10.100Z",
                 "new": false,
                 "pinned": false,
                 "status": "active",
@@ -1481,13 +1567,17 @@
                     "draft",
                     "+48 \u22126"
                 ],
+                "size": {
+                    "add": 48,
+                    "del": 6
+                },
                 "ci": "green",
                 "review": "required",
                 "draft": true,
-                "created_at": "2026-11-13T02:22:37.843Z",
-                "updated_at": "2026-11-13T05:22:37.843Z",
-                "activity_at": "2026-11-13T05:22:37.843Z",
-                "waiting_since": "2026-11-13T02:22:37.843Z",
+                "created_at": "2026-11-16T19:39:10.100Z",
+                "updated_at": "2026-11-16T22:39:10.100Z",
+                "activity_at": "2026-11-16T22:39:10.100Z",
+                "waiting_since": "2026-11-16T19:39:10.100Z",
                 "new": false,
                 "pinned": false,
                 "status": "active",
@@ -1538,13 +1628,17 @@
                     "approved",
                     "+66 \u22129"
                 ],
+                "size": {
+                    "add": 66,
+                    "del": 9
+                },
                 "ci": "green",
                 "review": "approved",
                 "draft": false,
-                "created_at": "2026-11-10T19:22:37.843Z",
-                "updated_at": "2026-11-12T23:52:37.843Z",
-                "activity_at": "2026-11-12T23:52:37.843Z",
-                "waiting_since": "2026-11-10T19:22:37.843Z",
+                "created_at": "2026-11-14T12:39:10.100Z",
+                "updated_at": "2026-11-16T17:09:10.100Z",
+                "activity_at": "2026-11-16T17:09:10.100Z",
+                "waiting_since": "2026-11-14T12:39:10.100Z",
                 "new": false,
                 "pinned": false,
                 "status": "active",
@@ -1595,13 +1689,17 @@
                     "approved",
                     "+79 \u221210"
                 ],
+                "size": {
+                    "add": 79,
+                    "del": 10
+                },
                 "ci": "green",
                 "review": "approved",
                 "draft": false,
-                "created_at": "2026-11-10T23:22:37.843Z",
-                "updated_at": "2026-11-13T00:22:37.843Z",
-                "activity_at": "2026-11-13T00:22:37.843Z",
-                "waiting_since": "2026-11-10T23:22:37.843Z",
+                "created_at": "2026-11-14T16:39:10.100Z",
+                "updated_at": "2026-11-16T17:39:10.100Z",
+                "activity_at": "2026-11-16T17:39:10.100Z",
+                "waiting_since": "2026-11-14T16:39:10.100Z",
                 "new": false,
                 "pinned": false,
                 "status": "active",
@@ -1650,13 +1748,17 @@
                 "chips": [
                     "+92 \u22126"
                 ],
+                "size": {
+                    "add": 92,
+                    "del": 6
+                },
                 "ci": "green",
                 "review": "required",
                 "draft": false,
-                "created_at": "2026-11-11T11:22:37.843Z",
-                "updated_at": "2026-11-13T01:52:37.843Z",
-                "activity_at": "2026-11-13T01:52:37.843Z",
-                "waiting_since": "2026-11-11T11:22:37.843Z",
+                "created_at": "2026-11-15T04:39:10.100Z",
+                "updated_at": "2026-11-16T19:09:10.100Z",
+                "activity_at": "2026-11-16T19:09:10.100Z",
+                "waiting_since": "2026-11-15T04:39:10.100Z",
                 "new": false,
                 "pinned": false,
                 "status": "active",
@@ -1711,13 +1813,17 @@
                     "approved",
                     "+118 \u22128"
                 ],
+                "size": {
+                    "add": 118,
+                    "del": 8
+                },
                 "ci": "green",
                 "review": "approved",
                 "draft": false,
-                "created_at": "2026-11-12T11:22:37.843Z",
-                "updated_at": "2026-11-13T04:52:37.843Z",
-                "activity_at": "2026-11-13T04:52:37.843Z",
-                "waiting_since": "2026-11-12T11:22:37.843Z",
+                "created_at": "2026-11-16T04:39:10.100Z",
+                "updated_at": "2026-11-16T22:09:10.100Z",
+                "activity_at": "2026-11-16T22:09:10.100Z",
+                "waiting_since": "2026-11-16T04:39:10.100Z",
                 "new": false,
                 "pinned": false,
                 "status": "active",
@@ -1772,13 +1878,17 @@
                     "approved",
                     "+40 \u22129"
                 ],
+                "size": {
+                    "add": 40,
+                    "del": 9
+                },
                 "ci": "green",
                 "review": "approved",
                 "draft": false,
-                "created_at": "2026-11-12T15:22:37.843Z",
-                "updated_at": "2026-11-13T05:22:37.843Z",
-                "activity_at": "2026-11-13T05:22:37.843Z",
-                "waiting_since": "2026-11-12T15:22:37.843Z",
+                "created_at": "2026-11-16T08:39:10.100Z",
+                "updated_at": "2026-11-16T22:39:10.100Z",
+                "activity_at": "2026-11-16T22:39:10.100Z",
+                "waiting_since": "2026-11-16T08:39:10.100Z",
                 "new": false,
                 "pinned": false,
                 "status": "active",
@@ -1831,13 +1941,17 @@
                     "approved",
                     "+105 \u22127"
                 ],
+                "size": {
+                    "add": 105,
+                    "del": 7
+                },
                 "ci": "green",
                 "review": "approved",
                 "draft": false,
-                "created_at": "2026-11-11T21:22:37.843Z",
-                "updated_at": "2026-11-11T23:22:37.843Z",
-                "activity_at": "2026-11-11T23:22:37.843Z",
-                "waiting_since": "2026-11-11T21:22:37.843Z",
+                "created_at": "2026-11-15T14:39:10.100Z",
+                "updated_at": "2026-11-15T16:39:10.100Z",
+                "activity_at": "2026-11-15T16:39:10.100Z",
+                "waiting_since": "2026-11-15T14:39:10.100Z",
                 "new": false,
                 "pinned": false,
                 "status": "active",
@@ -1881,13 +1995,17 @@
                 "chips": [
                     "+140 \u221222"
                 ],
+                "size": {
+                    "add": 140,
+                    "del": 22
+                },
                 "ci": "green",
                 "review": "required",
                 "draft": false,
-                "created_at": "2026-11-12T05:22:37.843Z",
-                "updated_at": "2026-11-12T05:22:37.843Z",
-                "activity_at": "2026-11-12T05:22:37.843Z",
-                "waiting_since": "2026-11-12T11:22:37.843Z",
+                "created_at": "2026-11-15T22:39:10.100Z",
+                "updated_at": "2026-11-15T22:39:10.100Z",
+                "activity_at": "2026-11-15T22:39:10.100Z",
+                "waiting_since": "2026-11-16T04:39:10.100Z",
                 "new": false,
                 "pinned": false,
                 "status": "active",
@@ -1937,13 +2055,17 @@
                 "chips": [
                     "+48 \u221210"
                 ],
+                "size": {
+                    "add": 48,
+                    "del": 10
+                },
                 "ci": "green",
                 "review": "required",
                 "draft": false,
-                "created_at": "2026-11-11T15:22:37.843Z",
-                "updated_at": "2026-11-12T21:22:37.843Z",
-                "activity_at": "2026-11-12T21:22:37.843Z",
-                "waiting_since": "2026-11-12T21:22:37.843Z",
+                "created_at": "2026-11-15T08:39:10.100Z",
+                "updated_at": "2026-11-16T14:39:10.100Z",
+                "activity_at": "2026-11-16T14:39:10.100Z",
+                "waiting_since": "2026-11-16T14:39:10.100Z",
                 "new": false,
                 "pinned": false,
                 "status": "active",
@@ -1991,13 +2113,17 @@
                     "approved",
                     "+52 \u22124"
                 ],
+                "size": {
+                    "add": 52,
+                    "del": 4
+                },
                 "ci": "green",
                 "review": "approved",
                 "draft": false,
-                "created_at": "2026-11-12T22:22:37.843Z",
-                "updated_at": "2026-11-13T02:52:37.843Z",
-                "activity_at": "2026-11-13T02:52:37.843Z",
-                "waiting_since": "2026-11-12T22:22:37.843Z",
+                "created_at": "2026-11-16T15:39:10.100Z",
+                "updated_at": "2026-11-16T20:09:10.100Z",
+                "activity_at": "2026-11-16T20:09:10.100Z",
+                "waiting_since": "2026-11-16T15:39:10.100Z",
                 "new": false,
                 "pinned": false,
                 "status": "active",
@@ -2052,13 +2178,17 @@
                     "approved",
                     "+63 \u22125"
                 ],
+                "size": {
+                    "add": 63,
+                    "del": 5
+                },
                 "ci": "green",
                 "review": "approved",
                 "draft": false,
-                "created_at": "2026-11-12T23:22:37.843Z",
-                "updated_at": "2026-11-13T03:22:37.843Z",
-                "activity_at": "2026-11-13T03:22:37.843Z",
-                "waiting_since": "2026-11-12T23:22:37.843Z",
+                "created_at": "2026-11-16T16:39:10.100Z",
+                "updated_at": "2026-11-16T20:39:10.100Z",
+                "activity_at": "2026-11-16T20:39:10.100Z",
+                "waiting_since": "2026-11-16T16:39:10.100Z",
                 "new": false,
                 "pinned": false,
                 "status": "active",
@@ -2113,13 +2243,17 @@
                     "approved",
                     "+74 \u22126"
                 ],
+                "size": {
+                    "add": 74,
+                    "del": 6
+                },
                 "ci": "green",
                 "review": "approved",
                 "draft": false,
-                "created_at": "2026-11-13T01:22:37.843Z",
-                "updated_at": "2026-11-13T04:22:37.843Z",
-                "activity_at": "2026-11-13T04:22:37.843Z",
-                "waiting_since": "2026-11-13T01:22:37.843Z",
+                "created_at": "2026-11-16T18:39:10.100Z",
+                "updated_at": "2026-11-16T21:39:10.100Z",
+                "activity_at": "2026-11-16T21:39:10.100Z",
+                "waiting_since": "2026-11-16T18:39:10.100Z",
                 "new": false,
                 "pinned": false,
                 "status": "active",
@@ -2175,13 +2309,17 @@
                     "conflict",
                     "+210 \u221295"
                 ],
+                "size": {
+                    "add": 210,
+                    "del": 95
+                },
                 "ci": "green",
                 "review": "required",
                 "draft": false,
-                "created_at": "2026-10-10T07:22:37.843Z",
-                "updated_at": "2026-10-24T07:22:37.843Z",
-                "activity_at": "2026-10-24T07:22:37.843Z",
-                "waiting_since": "2026-10-10T07:22:37.843Z",
+                "created_at": "2026-10-14T00:39:10.100Z",
+                "updated_at": "2026-10-28T00:39:10.100Z",
+                "activity_at": "2026-10-28T00:39:10.100Z",
+                "waiting_since": "2026-10-14T00:39:10.100Z",
                 "new": false,
                 "pinned": false,
                 "status": "active",
@@ -2225,13 +2363,17 @@
                     "draft",
                     "+64 \u221210"
                 ],
+                "size": {
+                    "add": 64,
+                    "del": 10
+                },
                 "ci": "none",
                 "review": "required",
                 "draft": true,
-                "created_at": "2026-11-04T03:22:37.843Z",
-                "updated_at": "2026-11-04T23:22:37.843Z",
-                "activity_at": "2026-11-04T23:22:37.843Z",
-                "waiting_since": "2026-11-04T03:22:37.843Z",
+                "created_at": "2026-11-07T20:39:10.100Z",
+                "updated_at": "2026-11-08T16:39:10.100Z",
+                "activity_at": "2026-11-08T16:39:10.100Z",
+                "waiting_since": "2026-11-07T20:39:10.100Z",
                 "new": false,
                 "pinned": false,
                 "status": "active",
@@ -2275,13 +2417,17 @@
                 "chips": [
                     "+90 \u221215"
                 ],
+                "size": {
+                    "add": 90,
+                    "del": 15
+                },
                 "ci": "green",
                 "review": "required",
                 "draft": false,
-                "created_at": "2026-11-11T00:22:37.843Z",
-                "updated_at": "2026-11-11T00:22:37.843Z",
-                "activity_at": "2026-11-11T00:22:37.843Z",
-                "waiting_since": "2026-11-11T05:22:37.843Z",
+                "created_at": "2026-11-14T17:39:10.100Z",
+                "updated_at": "2026-11-14T17:39:10.100Z",
+                "activity_at": "2026-11-14T17:39:10.100Z",
+                "waiting_since": "2026-11-14T22:39:10.100Z",
                 "new": false,
                 "pinned": false,
                 "status": "active",
@@ -2324,13 +2470,17 @@
                     "CI red",
                     "+512 \u2212498"
                 ],
+                "size": {
+                    "add": 512,
+                    "del": 498
+                },
                 "ci": "red",
                 "review": "required",
                 "draft": false,
-                "created_at": "2026-11-11T15:22:37.843Z",
-                "updated_at": "2026-11-11T15:22:37.843Z",
-                "activity_at": "2026-11-11T15:22:37.843Z",
-                "waiting_since": "2026-11-11T17:22:37.843Z",
+                "created_at": "2026-11-15T08:39:10.100Z",
+                "updated_at": "2026-11-15T08:39:10.100Z",
+                "activity_at": "2026-11-15T08:39:10.100Z",
+                "waiting_since": "2026-11-15T10:39:10.100Z",
                 "new": false,
                 "pinned": false,
                 "status": "active",
@@ -2373,13 +2523,17 @@
                 "chips": [
                     "+12 \u2212240"
                 ],
+                "size": {
+                    "add": 12,
+                    "del": 240
+                },
                 "ci": "green",
                 "review": "required",
                 "draft": false,
-                "created_at": "2026-11-12T17:22:37.843Z",
-                "updated_at": "2026-11-12T17:22:37.843Z",
-                "activity_at": "2026-11-12T17:22:37.843Z",
-                "waiting_since": "2026-11-12T17:22:37.843Z",
+                "created_at": "2026-11-16T10:39:10.100Z",
+                "updated_at": "2026-11-16T10:39:10.100Z",
+                "activity_at": "2026-11-16T10:39:10.100Z",
+                "waiting_since": "2026-11-16T10:39:10.100Z",
                 "new": false,
                 "pinned": false,
                 "status": "active",
@@ -2424,13 +2578,17 @@
                     "draft",
                     "+88 \u22120"
                 ],
+                "size": {
+                    "add": 88,
+                    "del": 0
+                },
                 "ci": "green",
                 "review": "required",
                 "draft": true,
-                "created_at": "2026-11-06T15:22:37.843Z",
-                "updated_at": "2026-11-06T15:22:37.843Z",
-                "activity_at": "2026-11-06T15:22:37.843Z",
-                "waiting_since": "2026-11-07T01:22:37.843Z",
+                "created_at": "2026-11-10T08:39:10.100Z",
+                "updated_at": "2026-11-10T08:39:10.100Z",
+                "activity_at": "2026-11-10T08:39:10.100Z",
+                "waiting_since": "2026-11-10T18:39:10.100Z",
                 "new": false,
                 "pinned": false,
                 "status": "active",
@@ -2472,13 +2630,17 @@
                 "chips": [
                     "+30 \u221252"
                 ],
+                "size": {
+                    "add": 30,
+                    "del": 52
+                },
                 "ci": "green",
                 "review": "required",
                 "draft": false,
-                "created_at": "2026-11-07T11:22:37.843Z",
-                "updated_at": "2026-11-09T03:22:37.843Z",
-                "activity_at": "2026-11-09T03:22:37.843Z",
-                "waiting_since": "2026-11-07T11:22:37.843Z",
+                "created_at": "2026-11-11T04:39:10.100Z",
+                "updated_at": "2026-11-12T20:39:10.100Z",
+                "activity_at": "2026-11-12T20:39:10.100Z",
+                "waiting_since": "2026-11-11T04:39:10.100Z",
                 "new": false,
                 "pinned": false,
                 "status": "active",
@@ -2523,13 +2685,17 @@
             "chips": [
                 "+14 \u221214"
             ],
+            "size": {
+                "add": 14,
+                "del": 14
+            },
             "ci": "green",
             "review": "required",
             "draft": false,
-            "created_at": "2026-11-10T07:22:37.843Z",
-            "updated_at": "2026-11-10T07:22:37.843Z",
-            "activity_at": "2026-11-10T07:22:37.843Z",
-            "waiting_since": "2026-11-10T07:22:37.843Z",
+            "created_at": "2026-11-14T00:39:10.100Z",
+            "updated_at": "2026-11-14T00:39:10.100Z",
+            "activity_at": "2026-11-14T00:39:10.100Z",
+            "waiting_since": "2026-11-14T00:39:10.100Z",
             "new": false,
             "pinned": false,
             "status": "active",
@@ -2573,17 +2739,21 @@
             "chips": [
                 "+3 \u2212410"
             ],
+            "size": {
+                "add": 3,
+                "del": 410
+            },
             "ci": "green",
             "review": "required",
             "draft": false,
-            "created_at": "2026-11-04T23:22:37.843Z",
-            "updated_at": "2026-11-04T23:22:37.843Z",
-            "activity_at": "2026-11-04T23:22:37.843Z",
-            "waiting_since": "2026-11-05T09:22:37.843Z",
+            "created_at": "2026-11-08T16:39:10.100Z",
+            "updated_at": "2026-11-08T16:39:10.100Z",
+            "activity_at": "2026-11-08T16:39:10.100Z",
+            "waiting_since": "2026-11-09T02:39:10.100Z",
             "new": false,
             "pinned": false,
             "status": "snoozed",
-            "snooze_until": "2026-11-14T03:22:37.843Z",
+            "snooze_until": "2026-11-17T20:39:10.100Z",
             "snooze_when": null,
             "wake_on": [
                 "push"
@@ -2621,13 +2791,17 @@
             "chips": [
                 "+2 \u22122"
             ],
+            "size": {
+                "add": 2,
+                "del": 2
+            },
             "ci": "green",
             "review": "required",
             "draft": false,
-            "created_at": "2026-11-10T09:22:37.843Z",
-            "updated_at": "2026-11-10T09:22:37.843Z",
-            "activity_at": "2026-11-10T09:22:37.843Z",
-            "waiting_since": "2026-11-10T09:22:37.843Z",
+            "created_at": "2026-11-14T02:39:10.100Z",
+            "updated_at": "2026-11-14T02:39:10.100Z",
+            "activity_at": "2026-11-14T02:39:10.100Z",
+            "waiting_since": "2026-11-14T02:39:10.100Z",
             "new": false,
             "pinned": false,
             "status": "muted",
@@ -2669,17 +2843,21 @@
             "chips": [
                 "+77 \u221231"
             ],
+            "size": {
+                "add": 77,
+                "del": 31
+            },
             "ci": "green",
             "review": "required",
             "draft": false,
-            "created_at": "2026-11-10T19:22:37.843Z",
-            "updated_at": "2026-11-10T19:22:37.843Z",
-            "activity_at": "2026-11-10T19:22:37.843Z",
-            "waiting_since": "2026-11-10T19:22:37.843Z",
+            "created_at": "2026-11-14T12:39:10.100Z",
+            "updated_at": "2026-11-14T12:39:10.100Z",
+            "activity_at": "2026-11-14T12:39:10.100Z",
+            "waiting_since": "2026-11-14T12:39:10.100Z",
             "new": false,
             "pinned": false,
             "status": "snoozed",
-            "snooze_until": "2026-11-13T17:00:00.000Z",
+            "snooze_until": "2026-11-17T17:00:00.000Z",
             "snooze_when": null,
             "wake_on": [
                 "push"
@@ -2717,17 +2895,21 @@
             "chips": [
                 "+140 \u221212"
             ],
+            "size": {
+                "add": 140,
+                "del": 12
+            },
             "ci": "green",
             "review": "required",
             "draft": false,
-            "created_at": "2026-11-11T05:22:37.843Z",
-            "updated_at": "2026-11-11T05:22:37.843Z",
-            "activity_at": "2026-11-11T05:22:37.843Z",
-            "waiting_since": "2026-11-11T07:22:37.843Z",
+            "created_at": "2026-11-14T22:39:10.100Z",
+            "updated_at": "2026-11-14T22:39:10.100Z",
+            "activity_at": "2026-11-14T22:39:10.100Z",
+            "waiting_since": "2026-11-15T00:39:10.100Z",
             "new": false,
             "pinned": false,
             "status": "snoozed",
-            "snooze_until": "2026-11-14T03:22:37.843Z",
+            "snooze_until": "2026-11-17T20:39:10.100Z",
             "snooze_when": null,
             "wake_on": [
                 "push"
@@ -2770,17 +2952,21 @@
             "chips": [
                 "+96 \u22128"
             ],
+            "size": {
+                "add": 96,
+                "del": 8
+            },
             "ci": "green",
             "review": "required",
             "draft": false,
-            "created_at": "2026-11-11T05:22:37.843Z",
-            "updated_at": "2026-11-11T05:22:37.843Z",
-            "activity_at": "2026-11-11T05:22:37.843Z",
-            "waiting_since": "2026-11-11T07:22:37.843Z",
+            "created_at": "2026-11-14T22:39:10.100Z",
+            "updated_at": "2026-11-14T22:39:10.100Z",
+            "activity_at": "2026-11-14T22:39:10.100Z",
+            "waiting_since": "2026-11-15T00:39:10.100Z",
             "new": false,
             "pinned": false,
             "status": "snoozed",
-            "snooze_until": "2026-11-14T03:22:37.843Z",
+            "snooze_until": "2026-11-17T20:39:10.100Z",
             "snooze_when": null,
             "wake_on": [
                 "push"
@@ -2823,17 +3009,21 @@
             "chips": [
                 "+18 \u221218"
             ],
+            "size": {
+                "add": 18,
+                "del": 18
+            },
             "ci": "green",
             "review": "required",
             "draft": false,
-            "created_at": "2026-11-12T03:22:37.843Z",
-            "updated_at": "2026-11-12T03:22:37.843Z",
-            "activity_at": "2026-11-12T03:22:37.843Z",
-            "waiting_since": "2026-11-12T03:22:37.843Z",
+            "created_at": "2026-11-15T20:39:10.100Z",
+            "updated_at": "2026-11-15T20:39:10.100Z",
+            "activity_at": "2026-11-15T20:39:10.100Z",
+            "waiting_since": "2026-11-15T20:39:10.100Z",
             "new": false,
             "pinned": false,
             "status": "snoozed",
-            "snooze_until": "2026-11-13T17:00:00.000Z",
+            "snooze_until": "2026-11-17T17:00:00.000Z",
             "snooze_when": null,
             "wake_on": [
                 "push"
@@ -2872,13 +3062,17 @@
                 "CI red",
                 "+140 \u2212210"
             ],
+            "size": {
+                "add": 140,
+                "del": 210
+            },
             "ci": "red",
             "review": "required",
             "draft": false,
-            "created_at": "2026-11-12T01:22:37.843Z",
-            "updated_at": "2026-11-12T01:22:37.843Z",
-            "activity_at": "2026-11-12T01:22:37.843Z",
-            "waiting_since": "2026-11-12T05:22:37.843Z",
+            "created_at": "2026-11-15T18:39:10.100Z",
+            "updated_at": "2026-11-15T18:39:10.100Z",
+            "activity_at": "2026-11-15T18:39:10.100Z",
+            "waiting_since": "2026-11-15T22:39:10.100Z",
             "new": false,
             "pinned": false,
             "status": "snoozed",
@@ -2921,17 +3115,21 @@
             "chips": [
                 "+34 \u22124"
             ],
+            "size": {
+                "add": 34,
+                "del": 4
+            },
             "ci": "green",
             "review": "required",
             "draft": false,
-            "created_at": "2026-11-12T11:22:37.843Z",
-            "updated_at": "2026-11-12T11:22:37.843Z",
-            "activity_at": "2026-11-12T11:22:37.843Z",
-            "waiting_since": "2026-11-12T12:22:37.843Z",
+            "created_at": "2026-11-16T04:39:10.100Z",
+            "updated_at": "2026-11-16T04:39:10.100Z",
+            "activity_at": "2026-11-16T04:39:10.100Z",
+            "waiting_since": "2026-11-16T05:39:10.100Z",
             "new": false,
             "pinned": false,
             "status": "snoozed",
-            "snooze_until": "2026-11-13T17:00:00.000Z",
+            "snooze_until": "2026-11-17T17:00:00.000Z",
             "snooze_when": null,
             "wake_on": [
                 "push"
@@ -2969,13 +3167,17 @@
             "chips": [
                 "+22 \u22124"
             ],
+            "size": {
+                "add": 22,
+                "del": 4
+            },
             "ci": "green",
             "review": "required",
             "draft": false,
-            "created_at": "2026-11-13T05:22:37.843Z",
-            "updated_at": "2026-11-13T05:22:37.843Z",
-            "activity_at": "2026-11-13T05:22:37.843Z",
-            "waiting_since": "2026-11-13T05:22:37.843Z",
+            "created_at": "2026-11-16T22:39:10.100Z",
+            "updated_at": "2026-11-16T22:39:10.100Z",
+            "activity_at": "2026-11-16T22:39:10.100Z",
+            "waiting_since": "2026-11-16T22:39:10.100Z",
             "new": false,
             "pinned": false,
             "status": "done",
@@ -2984,7 +3186,7 @@
             "wake_on": [
                 "push"
             ],
-            "done_at": "2026-11-13T06:22:37.843Z",
+            "done_at": "2026-11-16T23:39:10.100Z",
             "verdict": null,
             "resolved": null,
             "resolved_at": null,
@@ -3018,17 +3220,21 @@
             "chips": [
                 "+150 \u221230"
             ],
+            "size": {
+                "add": 150,
+                "del": 30
+            },
             "ci": "green",
             "review": "required",
             "draft": false,
-            "created_at": "2026-11-09T23:22:37.843Z",
-            "updated_at": "2026-11-12T01:22:37.843Z",
-            "activity_at": "2026-11-12T01:22:37.843Z",
-            "waiting_since": "2026-11-09T23:22:37.843Z",
+            "created_at": "2026-11-13T16:39:10.100Z",
+            "updated_at": "2026-11-15T18:39:10.100Z",
+            "activity_at": "2026-11-15T18:39:10.100Z",
+            "waiting_since": "2026-11-13T16:39:10.100Z",
             "new": false,
             "pinned": false,
             "status": "snoozed",
-            "snooze_until": "2026-11-13T17:00:00.000Z",
+            "snooze_until": "2026-11-17T17:00:00.000Z",
             "snooze_when": null,
             "wake_on": [
                 "push"
@@ -3071,13 +3277,17 @@
                 "approved",
                 "+24 \u22126"
             ],
+            "size": {
+                "add": 24,
+                "del": 6
+            },
             "ci": "red",
             "review": "approved",
             "draft": false,
-            "created_at": "2026-11-12T01:22:37.843Z",
-            "updated_at": "2026-11-13T06:22:37.843Z",
-            "activity_at": "2026-11-13T06:22:37.843Z",
-            "waiting_since": "2026-11-12T03:22:37.843Z",
+            "created_at": "2026-11-15T18:39:10.100Z",
+            "updated_at": "2026-11-16T23:39:10.100Z",
+            "activity_at": "2026-11-16T23:39:10.100Z",
+            "waiting_since": "2026-11-15T20:39:10.100Z",
             "new": false,
             "pinned": false,
             "status": "active",
@@ -3089,7 +3299,7 @@
             ],
             "verdict": null,
             "resolved": "merged",
-            "resolved_at": "2026-11-13T06:22:37.843Z",
+            "resolved_at": "2026-11-16T23:39:10.100Z",
             "inflight": false,
             "placed_by": "claude"
         },
@@ -3117,13 +3327,17 @@
             "chips": [
                 "+48 \u221220"
             ],
+            "size": {
+                "add": 48,
+                "del": 20
+            },
             "ci": "green",
             "review": "required",
             "draft": false,
-            "created_at": "2026-11-12T05:22:37.843Z",
-            "updated_at": "2026-11-13T05:22:37.843Z",
-            "activity_at": "2026-11-13T05:22:37.843Z",
-            "waiting_since": "2026-11-12T07:22:37.843Z",
+            "created_at": "2026-11-15T22:39:10.100Z",
+            "updated_at": "2026-11-16T22:39:10.100Z",
+            "activity_at": "2026-11-16T22:39:10.100Z",
+            "waiting_since": "2026-11-16T00:39:10.100Z",
             "new": false,
             "pinned": false,
             "status": "active",
@@ -3134,7 +3348,7 @@
             ],
             "verdict": null,
             "resolved": "you approved",
-            "resolved_at": "2026-11-13T05:22:37.843Z",
+            "resolved_at": "2026-11-16T22:39:10.100Z",
             "inflight": false,
             "actions": [
                 "request_changes",
@@ -3165,13 +3379,17 @@
             "chips": [
                 "+12 \u2212340"
             ],
+            "size": {
+                "add": 12,
+                "del": 340
+            },
             "ci": "green",
             "review": "required",
             "draft": false,
-            "created_at": "2026-11-11T05:22:37.843Z",
-            "updated_at": "2026-11-13T01:22:37.843Z",
-            "activity_at": "2026-11-13T01:22:37.843Z",
-            "waiting_since": "2026-11-11T07:22:37.843Z",
+            "created_at": "2026-11-14T22:39:10.100Z",
+            "updated_at": "2026-11-16T18:39:10.100Z",
+            "activity_at": "2026-11-16T18:39:10.100Z",
+            "waiting_since": "2026-11-15T00:39:10.100Z",
             "new": false,
             "pinned": false,
             "status": "active",
@@ -3182,7 +3400,7 @@
             ],
             "verdict": null,
             "resolved": "no longer requested",
-            "resolved_at": "2026-11-13T01:22:37.843Z",
+            "resolved_at": "2026-11-16T18:39:10.100Z",
             "inflight": false,
             "actions": [
                 "request_changes"
@@ -3520,13 +3738,17 @@
                 "chips": [
                     "+62 \u22127"
                 ],
+                "size": {
+                    "add": 62,
+                    "del": 7
+                },
                 "ci": "green",
                 "review": "required",
                 "draft": false,
-                "created_at": "2026-11-13T01:22:37.843Z",
-                "updated_at": "2026-11-13T01:22:37.843Z",
-                "activity_at": "2026-11-13T01:22:37.843Z",
-                "waiting_since": "2026-11-13T04:22:37.843Z",
+                "created_at": "2026-11-16T18:39:10.100Z",
+                "updated_at": "2026-11-16T18:39:10.100Z",
+                "activity_at": "2026-11-16T18:39:10.100Z",
+                "waiting_since": "2026-11-16T21:39:10.100Z",
                 "new": true,
                 "pinned": false,
                 "status": "active",
@@ -3585,13 +3807,17 @@
                 "chips": [
                     "+310 \u221245"
                 ],
+                "size": {
+                    "add": 310,
+                    "del": 45
+                },
                 "ci": "green",
                 "review": "required",
                 "draft": false,
-                "created_at": "2026-11-12T01:22:37.843Z",
-                "updated_at": "2026-11-12T01:22:37.843Z",
-                "activity_at": "2026-11-12T01:22:37.843Z",
-                "waiting_since": "2026-11-12T02:22:37.843Z",
+                "created_at": "2026-11-15T18:39:10.100Z",
+                "updated_at": "2026-11-15T18:39:10.100Z",
+                "activity_at": "2026-11-15T18:39:10.100Z",
+                "waiting_since": "2026-11-15T19:39:10.100Z",
                 "new": false,
                 "pinned": false,
                 "status": "active",
@@ -3649,13 +3875,17 @@
                 "chips": [
                     "+96 \u221212"
                 ],
+                "size": {
+                    "add": 96,
+                    "del": 12
+                },
                 "ci": "green",
                 "review": "required",
                 "draft": false,
-                "created_at": "2026-11-12T01:22:37.843Z",
-                "updated_at": "2026-11-12T01:22:37.843Z",
-                "activity_at": "2026-11-12T01:22:37.843Z",
-                "waiting_since": "2026-11-12T05:22:37.843Z",
+                "created_at": "2026-11-15T18:39:10.100Z",
+                "updated_at": "2026-11-15T18:39:10.100Z",
+                "activity_at": "2026-11-15T18:39:10.100Z",
+                "waiting_since": "2026-11-15T22:39:10.100Z",
                 "new": false,
                 "pinned": false,
                 "status": "active",
@@ -3712,13 +3942,17 @@
                 "chips": [
                     "+58 \u22129"
                 ],
+                "size": {
+                    "add": 58,
+                    "del": 9
+                },
                 "ci": "green",
                 "review": "required",
                 "draft": false,
-                "created_at": "2026-11-12T11:22:37.843Z",
-                "updated_at": "2026-11-12T11:22:37.843Z",
-                "activity_at": "2026-11-12T11:22:37.843Z",
-                "waiting_since": "2026-11-12T13:22:37.843Z",
+                "created_at": "2026-11-16T04:39:10.100Z",
+                "updated_at": "2026-11-16T04:39:10.100Z",
+                "activity_at": "2026-11-16T04:39:10.100Z",
+                "waiting_since": "2026-11-16T06:39:10.100Z",
                 "new": false,
                 "pinned": false,
                 "status": "active",
@@ -3774,13 +4008,17 @@
                     "approved",
                     "+180 \u221222"
                 ],
+                "size": {
+                    "add": 180,
+                    "del": 22
+                },
                 "ci": "green",
                 "review": "approved",
                 "draft": false,
-                "created_at": "2026-11-11T05:22:37.843Z",
-                "updated_at": "2026-11-13T04:22:37.843Z",
-                "activity_at": "2026-11-13T04:22:37.843Z",
-                "waiting_since": "2026-11-11T05:22:37.843Z",
+                "created_at": "2026-11-14T22:39:10.100Z",
+                "updated_at": "2026-11-16T21:39:10.100Z",
+                "activity_at": "2026-11-16T21:39:10.100Z",
+                "waiting_since": "2026-11-14T22:39:10.100Z",
                 "new": false,
                 "pinned": true,
                 "status": "active",
@@ -3830,13 +4068,17 @@
                     "3 unresolved",
                     "+420 \u221266"
                 ],
+                "size": {
+                    "add": 420,
+                    "del": 66
+                },
                 "ci": "green",
                 "review": "required",
                 "draft": false,
-                "created_at": "2026-11-09T13:22:37.843Z",
-                "updated_at": "2026-11-13T01:22:37.843Z",
-                "activity_at": "2026-11-13T01:22:37.843Z",
-                "waiting_since": "2026-11-09T13:22:37.843Z",
+                "created_at": "2026-11-13T06:39:10.100Z",
+                "updated_at": "2026-11-16T18:39:10.100Z",
+                "activity_at": "2026-11-16T18:39:10.100Z",
+                "waiting_since": "2026-11-13T06:39:10.100Z",
                 "new": true,
                 "pinned": false,
                 "status": "active",
@@ -3889,13 +4131,17 @@
                     "1 unresolved",
                     "+214 \u221238"
                 ],
+                "size": {
+                    "add": 214,
+                    "del": 38
+                },
                 "ci": "green",
                 "review": "required",
                 "draft": false,
-                "created_at": "2026-11-10T09:22:37.843Z",
-                "updated_at": "2026-11-13T02:22:37.843Z",
-                "activity_at": "2026-11-13T02:22:37.843Z",
-                "waiting_since": "2026-11-10T09:22:37.843Z",
+                "created_at": "2026-11-14T02:39:10.100Z",
+                "updated_at": "2026-11-16T19:39:10.100Z",
+                "activity_at": "2026-11-16T19:39:10.100Z",
+                "waiting_since": "2026-11-14T02:39:10.100Z",
                 "new": false,
                 "pinned": false,
                 "status": "active",
@@ -3956,13 +4202,17 @@
                     "CI red",
                     "+70 \u22128"
                 ],
+                "size": {
+                    "add": 70,
+                    "del": 8
+                },
                 "ci": "red",
                 "review": "required",
                 "draft": false,
-                "created_at": "2026-11-12T05:22:37.843Z",
-                "updated_at": "2026-11-12T11:22:37.843Z",
-                "activity_at": "2026-11-12T11:22:37.843Z",
-                "waiting_since": "2026-11-12T05:22:37.843Z",
+                "created_at": "2026-11-15T22:39:10.100Z",
+                "updated_at": "2026-11-16T04:39:10.100Z",
+                "activity_at": "2026-11-16T04:39:10.100Z",
+                "waiting_since": "2026-11-15T22:39:10.100Z",
                 "new": false,
                 "pinned": false,
                 "status": "active",
@@ -4013,13 +4263,17 @@
                     "draft",
                     "+96 \u221212"
                 ],
+                "size": {
+                    "add": 96,
+                    "del": 12
+                },
                 "ci": "green",
                 "review": "required",
                 "draft": true,
-                "created_at": "2026-11-12T01:22:37.843Z",
-                "updated_at": "2026-11-13T04:22:37.843Z",
-                "activity_at": "2026-11-13T04:22:37.843Z",
-                "waiting_since": "2026-11-12T01:22:37.843Z",
+                "created_at": "2026-11-15T18:39:10.100Z",
+                "updated_at": "2026-11-16T21:39:10.100Z",
+                "activity_at": "2026-11-16T21:39:10.100Z",
+                "waiting_since": "2026-11-15T18:39:10.100Z",
                 "new": false,
                 "pinned": false,
                 "status": "active",
@@ -4070,13 +4324,17 @@
                     "draft",
                     "+48 \u22126"
                 ],
+                "size": {
+                    "add": 48,
+                    "del": 6
+                },
                 "ci": "green",
                 "review": "required",
                 "draft": true,
-                "created_at": "2026-11-13T02:22:37.843Z",
-                "updated_at": "2026-11-13T05:22:37.843Z",
-                "activity_at": "2026-11-13T05:22:37.843Z",
-                "waiting_since": "2026-11-13T02:22:37.843Z",
+                "created_at": "2026-11-16T19:39:10.100Z",
+                "updated_at": "2026-11-16T22:39:10.100Z",
+                "activity_at": "2026-11-16T22:39:10.100Z",
+                "waiting_since": "2026-11-16T19:39:10.100Z",
                 "new": false,
                 "pinned": false,
                 "status": "active",
@@ -4131,13 +4389,17 @@
                     "2 unresolved",
                     "+341 \u2212802"
                 ],
+                "size": {
+                    "add": 341,
+                    "del": 802
+                },
                 "ci": "green",
                 "review": "changes_requested",
                 "draft": false,
-                "created_at": "2026-11-08T07:22:37.843Z",
-                "updated_at": "2026-11-12T23:22:37.843Z",
-                "activity_at": "2026-11-12T23:22:37.843Z",
-                "waiting_since": "2026-11-08T17:22:37.843Z",
+                "created_at": "2026-11-12T00:39:10.100Z",
+                "updated_at": "2026-11-16T16:39:10.100Z",
+                "activity_at": "2026-11-16T16:39:10.100Z",
+                "waiting_since": "2026-11-12T10:39:10.100Z",
                 "new": true,
                 "pinned": false,
                 "status": "active",
@@ -4194,13 +4456,17 @@
                     "draft",
                     "+64 \u221210"
                 ],
+                "size": {
+                    "add": 64,
+                    "del": 10
+                },
                 "ci": "none",
                 "review": "required",
                 "draft": true,
-                "created_at": "2026-11-04T03:22:37.843Z",
-                "updated_at": "2026-11-04T23:22:37.843Z",
-                "activity_at": "2026-11-04T23:22:37.843Z",
-                "waiting_since": "2026-11-04T03:22:37.843Z",
+                "created_at": "2026-11-07T20:39:10.100Z",
+                "updated_at": "2026-11-08T16:39:10.100Z",
+                "activity_at": "2026-11-08T16:39:10.100Z",
+                "waiting_since": "2026-11-07T20:39:10.100Z",
                 "new": false,
                 "pinned": false,
                 "status": "active",
@@ -4250,13 +4516,17 @@
                 "chips": [
                     "+420 \u2212180"
                 ],
+                "size": {
+                    "add": 420,
+                    "del": 180
+                },
                 "ci": "pending",
                 "review": "required",
                 "draft": false,
-                "created_at": "2026-11-11T03:22:37.843Z",
-                "updated_at": "2026-11-11T03:22:37.843Z",
-                "activity_at": "2026-11-11T03:22:37.843Z",
-                "waiting_since": "2026-11-11T05:22:37.843Z",
+                "created_at": "2026-11-14T20:39:10.100Z",
+                "updated_at": "2026-11-14T20:39:10.100Z",
+                "activity_at": "2026-11-14T20:39:10.100Z",
+                "waiting_since": "2026-11-14T22:39:10.100Z",
                 "new": false,
                 "pinned": false,
                 "status": "active",
@@ -4308,13 +4578,17 @@
                 "chips": [
                     "+120 \u22128"
                 ],
+                "size": {
+                    "add": 120,
+                    "del": 8
+                },
                 "ci": "green",
                 "review": "required",
                 "draft": false,
-                "created_at": "2026-11-12T01:22:37.843Z",
-                "updated_at": "2026-11-12T01:22:37.843Z",
-                "activity_at": "2026-11-12T01:22:37.843Z",
-                "waiting_since": "2026-11-13T02:22:37.843Z",
+                "created_at": "2026-11-15T18:39:10.100Z",
+                "updated_at": "2026-11-15T18:39:10.100Z",
+                "activity_at": "2026-11-15T18:39:10.100Z",
+                "waiting_since": "2026-11-16T19:39:10.100Z",
                 "new": false,
                 "pinned": false,
                 "status": "active",
@@ -4374,10 +4648,10 @@
                 "ci": "none",
                 "review": "none",
                 "draft": false,
-                "created_at": "2026-11-11T07:22:37.843Z",
-                "updated_at": "2026-11-12T21:22:37.843Z",
-                "activity_at": "2026-11-12T21:22:37.843Z",
-                "waiting_since": "2026-11-11T07:22:37.843Z",
+                "created_at": "2026-11-15T00:39:10.100Z",
+                "updated_at": "2026-11-16T14:39:10.100Z",
+                "activity_at": "2026-11-16T14:39:10.100Z",
+                "waiting_since": "2026-11-15T00:39:10.100Z",
                 "new": false,
                 "pinned": false,
                 "status": "active",
@@ -4425,13 +4699,17 @@
                     "2 unresolved",
                     "+172 \u221232"
                 ],
+                "size": {
+                    "add": 172,
+                    "del": 32
+                },
                 "ci": "green",
                 "review": "changes_requested",
                 "draft": false,
-                "created_at": "2026-11-10T07:22:37.843Z",
-                "updated_at": "2026-11-13T01:22:37.843Z",
-                "activity_at": "2026-11-13T01:22:37.843Z",
-                "waiting_since": "2026-11-10T07:22:37.843Z",
+                "created_at": "2026-11-14T00:39:10.100Z",
+                "updated_at": "2026-11-16T18:39:10.100Z",
+                "activity_at": "2026-11-16T18:39:10.100Z",
+                "waiting_since": "2026-11-14T00:39:10.100Z",
                 "new": true,
                 "pinned": false,
                 "status": "active",
@@ -4492,13 +4770,17 @@
                 "chips": [
                     "+1880 \u22121210"
                 ],
+                "size": {
+                    "add": 1880,
+                    "del": 1210
+                },
                 "ci": "green",
                 "review": "required",
                 "draft": false,
-                "created_at": "2026-10-31T19:22:37.843Z",
-                "updated_at": "2026-10-31T19:22:37.843Z",
-                "activity_at": "2026-10-31T19:22:37.843Z",
-                "waiting_since": "2026-11-01T05:22:37.843Z",
+                "created_at": "2026-11-04T12:39:10.100Z",
+                "updated_at": "2026-11-04T12:39:10.100Z",
+                "activity_at": "2026-11-04T12:39:10.100Z",
+                "waiting_since": "2026-11-04T22:39:10.100Z",
                 "new": false,
                 "pinned": false,
                 "status": "active",
@@ -4557,13 +4839,17 @@
                     "4 unresolved",
                     "+1102 \u2212138"
                 ],
+                "size": {
+                    "add": 1102,
+                    "del": 138
+                },
                 "ci": "green",
                 "review": "required",
                 "draft": false,
-                "created_at": "2026-11-10T04:22:37.843Z",
-                "updated_at": "2026-11-13T05:22:37.843Z",
-                "activity_at": "2026-11-13T05:22:37.843Z",
-                "waiting_since": "2026-11-10T09:22:37.843Z",
+                "created_at": "2026-11-13T21:39:10.100Z",
+                "updated_at": "2026-11-16T22:39:10.100Z",
+                "activity_at": "2026-11-16T22:39:10.100Z",
+                "waiting_since": "2026-11-14T02:39:10.100Z",
                 "new": true,
                 "pinned": false,
                 "status": "active",
@@ -4619,13 +4905,17 @@
                 "chips": [
                     "+132 \u221220"
                 ],
+                "size": {
+                    "add": 132,
+                    "del": 20
+                },
                 "ci": "pending",
                 "review": "required",
                 "draft": false,
-                "created_at": "2026-11-12T22:22:37.843Z",
-                "updated_at": "2026-11-12T22:22:37.843Z",
-                "activity_at": "2026-11-12T22:22:37.843Z",
-                "waiting_since": "2026-11-12T22:22:37.843Z",
+                "created_at": "2026-11-16T15:39:10.100Z",
+                "updated_at": "2026-11-16T15:39:10.100Z",
+                "activity_at": "2026-11-16T15:39:10.100Z",
+                "waiting_since": "2026-11-16T15:39:10.100Z",
                 "new": false,
                 "pinned": false,
                 "status": "active",
@@ -4682,13 +4972,17 @@
                 "chips": [
                     "+240 \u221212"
                 ],
+                "size": {
+                    "add": 240,
+                    "del": 12
+                },
                 "ci": "green",
                 "review": "required",
                 "draft": false,
-                "created_at": "2026-11-13T00:22:37.843Z",
-                "updated_at": "2026-11-13T00:22:37.843Z",
-                "activity_at": "2026-11-13T00:22:37.843Z",
-                "waiting_since": "2026-11-13T01:22:37.843Z",
+                "created_at": "2026-11-16T17:39:10.100Z",
+                "updated_at": "2026-11-16T17:39:10.100Z",
+                "activity_at": "2026-11-16T17:39:10.100Z",
+                "waiting_since": "2026-11-16T18:39:10.100Z",
                 "new": false,
                 "pinned": false,
                 "status": "active",
@@ -4738,10 +5032,10 @@
                 "ci": "none",
                 "review": "none",
                 "draft": false,
-                "created_at": "2026-11-09T03:22:37.843Z",
-                "updated_at": "2026-11-13T03:22:37.843Z",
-                "activity_at": "2026-11-13T03:22:37.843Z",
-                "waiting_since": "2026-11-09T03:22:37.843Z",
+                "created_at": "2026-11-12T20:39:10.100Z",
+                "updated_at": "2026-11-16T20:39:10.100Z",
+                "activity_at": "2026-11-16T20:39:10.100Z",
+                "waiting_since": "2026-11-12T20:39:10.100Z",
                 "new": true,
                 "pinned": false,
                 "status": "active",
@@ -4783,13 +5077,17 @@
                 "chips": [
                     "+180 \u2212140"
                 ],
+                "size": {
+                    "add": 180,
+                    "del": 140
+                },
                 "ci": "green",
                 "review": "required",
                 "draft": false,
-                "created_at": "2026-11-11T11:22:37.843Z",
-                "updated_at": "2026-11-11T11:22:37.843Z",
-                "activity_at": "2026-11-11T11:22:37.843Z",
-                "waiting_since": "2026-11-11T11:22:37.843Z",
+                "created_at": "2026-11-15T04:39:10.100Z",
+                "updated_at": "2026-11-15T04:39:10.100Z",
+                "activity_at": "2026-11-15T04:39:10.100Z",
+                "waiting_since": "2026-11-15T04:39:10.100Z",
                 "new": false,
                 "pinned": false,
                 "status": "active",
@@ -4852,13 +5150,17 @@
                     "CI red",
                     "+25 \u221212"
                 ],
+                "size": {
+                    "add": 25,
+                    "del": 12
+                },
                 "ci": "red",
                 "review": "required",
                 "draft": false,
-                "created_at": "2026-11-12T01:22:37.843Z",
-                "updated_at": "2026-11-13T01:22:37.843Z",
-                "activity_at": "2026-11-13T01:22:37.843Z",
-                "waiting_since": "2026-11-12T01:22:37.843Z",
+                "created_at": "2026-11-15T18:39:10.100Z",
+                "updated_at": "2026-11-16T18:39:10.100Z",
+                "activity_at": "2026-11-16T18:39:10.100Z",
+                "waiting_since": "2026-11-15T18:39:10.100Z",
                 "new": false,
                 "pinned": false,
                 "status": "active",
@@ -4909,13 +5211,17 @@
                     "CI red",
                     "+26 \u221212"
                 ],
+                "size": {
+                    "add": 26,
+                    "del": 12
+                },
                 "ci": "red",
                 "review": "required",
                 "draft": false,
-                "created_at": "2026-11-12T01:22:37.843Z",
-                "updated_at": "2026-11-13T00:22:37.843Z",
-                "activity_at": "2026-11-13T00:22:37.843Z",
-                "waiting_since": "2026-11-12T01:22:37.843Z",
+                "created_at": "2026-11-15T18:39:10.100Z",
+                "updated_at": "2026-11-16T17:39:10.100Z",
+                "activity_at": "2026-11-16T17:39:10.100Z",
+                "waiting_since": "2026-11-15T18:39:10.100Z",
                 "new": false,
                 "pinned": false,
                 "status": "active",
@@ -4966,13 +5272,17 @@
                     "CI red",
                     "+27 \u221212"
                 ],
+                "size": {
+                    "add": 27,
+                    "del": 12
+                },
                 "ci": "red",
                 "review": "required",
                 "draft": false,
-                "created_at": "2026-11-12T01:22:37.843Z",
-                "updated_at": "2026-11-12T23:22:37.843Z",
-                "activity_at": "2026-11-12T23:22:37.843Z",
-                "waiting_since": "2026-11-12T01:22:37.843Z",
+                "created_at": "2026-11-15T18:39:10.100Z",
+                "updated_at": "2026-11-16T16:39:10.100Z",
+                "activity_at": "2026-11-16T16:39:10.100Z",
+                "waiting_since": "2026-11-15T18:39:10.100Z",
                 "new": false,
                 "pinned": false,
                 "status": "active",
@@ -5026,13 +5336,17 @@
                     "conflict",
                     "+210 \u221295"
                 ],
+                "size": {
+                    "add": 210,
+                    "del": 95
+                },
                 "ci": "green",
                 "review": "required",
                 "draft": false,
-                "created_at": "2026-10-10T07:22:37.843Z",
-                "updated_at": "2026-10-24T07:22:37.843Z",
-                "activity_at": "2026-10-24T07:22:37.843Z",
-                "waiting_since": "2026-10-10T07:22:37.843Z",
+                "created_at": "2026-10-14T00:39:10.100Z",
+                "updated_at": "2026-10-28T00:39:10.100Z",
+                "activity_at": "2026-10-28T00:39:10.100Z",
+                "waiting_since": "2026-10-14T00:39:10.100Z",
                 "new": false,
                 "pinned": false,
                 "status": "active",
@@ -5079,13 +5393,17 @@
                 "chips": [
                     "+90 \u221215"
                 ],
+                "size": {
+                    "add": 90,
+                    "del": 15
+                },
                 "ci": "green",
                 "review": "required",
                 "draft": false,
-                "created_at": "2026-11-11T00:22:37.843Z",
-                "updated_at": "2026-11-11T00:22:37.843Z",
-                "activity_at": "2026-11-11T00:22:37.843Z",
-                "waiting_since": "2026-11-11T05:22:37.843Z",
+                "created_at": "2026-11-14T17:39:10.100Z",
+                "updated_at": "2026-11-14T17:39:10.100Z",
+                "activity_at": "2026-11-14T17:39:10.100Z",
+                "waiting_since": "2026-11-14T22:39:10.100Z",
                 "new": false,
                 "pinned": false,
                 "status": "active",
@@ -5131,13 +5449,17 @@
                     "CI red",
                     "+512 \u2212498"
                 ],
+                "size": {
+                    "add": 512,
+                    "del": 498
+                },
                 "ci": "red",
                 "review": "required",
                 "draft": false,
-                "created_at": "2026-11-11T15:22:37.843Z",
-                "updated_at": "2026-11-11T15:22:37.843Z",
-                "activity_at": "2026-11-11T15:22:37.843Z",
-                "waiting_since": "2026-11-11T17:22:37.843Z",
+                "created_at": "2026-11-15T08:39:10.100Z",
+                "updated_at": "2026-11-15T08:39:10.100Z",
+                "activity_at": "2026-11-15T08:39:10.100Z",
+                "waiting_since": "2026-11-15T10:39:10.100Z",
                 "new": false,
                 "pinned": false,
                 "status": "active",
@@ -5183,13 +5505,17 @@
                 "chips": [
                     "+12 \u2212240"
                 ],
+                "size": {
+                    "add": 12,
+                    "del": 240
+                },
                 "ci": "green",
                 "review": "required",
                 "draft": false,
-                "created_at": "2026-11-12T17:22:37.843Z",
-                "updated_at": "2026-11-12T17:22:37.843Z",
-                "activity_at": "2026-11-12T17:22:37.843Z",
-                "waiting_since": "2026-11-12T17:22:37.843Z",
+                "created_at": "2026-11-16T10:39:10.100Z",
+                "updated_at": "2026-11-16T10:39:10.100Z",
+                "activity_at": "2026-11-16T10:39:10.100Z",
+                "waiting_since": "2026-11-16T10:39:10.100Z",
                 "new": false,
                 "pinned": false,
                 "status": "active",
@@ -5235,13 +5561,17 @@
                     "draft",
                     "+88 \u22120"
                 ],
+                "size": {
+                    "add": 88,
+                    "del": 0
+                },
                 "ci": "green",
                 "review": "required",
                 "draft": true,
-                "created_at": "2026-11-06T15:22:37.843Z",
-                "updated_at": "2026-11-06T15:22:37.843Z",
-                "activity_at": "2026-11-06T15:22:37.843Z",
-                "waiting_since": "2026-11-07T01:22:37.843Z",
+                "created_at": "2026-11-10T08:39:10.100Z",
+                "updated_at": "2026-11-10T08:39:10.100Z",
+                "activity_at": "2026-11-10T08:39:10.100Z",
+                "waiting_since": "2026-11-10T18:39:10.100Z",
                 "new": false,
                 "pinned": false,
                 "status": "active",
@@ -5286,13 +5616,17 @@
                 "chips": [
                     "+30 \u221252"
                 ],
+                "size": {
+                    "add": 30,
+                    "del": 52
+                },
                 "ci": "green",
                 "review": "required",
                 "draft": false,
-                "created_at": "2026-11-07T11:22:37.843Z",
-                "updated_at": "2026-11-09T03:22:37.843Z",
-                "activity_at": "2026-11-09T03:22:37.843Z",
-                "waiting_since": "2026-11-07T11:22:37.843Z",
+                "created_at": "2026-11-11T04:39:10.100Z",
+                "updated_at": "2026-11-12T20:39:10.100Z",
+                "activity_at": "2026-11-12T20:39:10.100Z",
+                "waiting_since": "2026-11-11T04:39:10.100Z",
                 "new": false,
                 "pinned": false,
                 "status": "active",

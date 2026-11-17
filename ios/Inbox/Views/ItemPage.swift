@@ -200,9 +200,8 @@ struct ItemPage: View {
       let flagged = detail?.issueAi?.injection != nil && detail?.blockedAuthor != true
       let main = detail?.fixable == true && !fixAsked ? "fix" : flagged ? "block" : c.act(open: open)
       let name = main == "block" ? "Block @\(detail?.issueAi?.injection?.who ?? "")" : main.flatMap { Words.act[$0] }
-      // Approve needs the desk's say and, as Merge, the commit it's pinned to; Reply needs what was said.
-      let notYet =
-        (main == "approve" && (read == nil || review?.cantApprove != nil)) || (main == "merge" && read == nil) || (main == "reply" && waiting.isEmpty)
+      // Approve needs the desk's say and the commit it's pinned to; Reply needs what was said.
+      let notYet = (main == "approve" && (read == nil || review?.cantApprove != nil)) || (main == "reply" && waiting.isEmpty)
       BottomBar(
         cta: name, go: main == "approve" || main == "handoff", off: store.busy(c.id) || notYet, press: { if let main { press(main, c) } }, quiet: quiet(c),
         hasMore: true

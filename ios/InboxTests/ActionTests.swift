@@ -98,8 +98,8 @@ final class WriteTests: XCTestCase {
     XCTAssertEqual(r.author, "nina")
     try sent("\(to)/unblock", [:])
 
-    var e = await refusal("\(at)/fix", 409, "your agent is off: Settings → Local Agent Integration") { try await self.client().fixIssue(id) }
-    XCTAssertEqual(e, .refused(status: 409, message: "your agent is off: Settings → Local Agent Integration"))
+    var e = await refusal("\(at)/fix", 409, "your agent is off: Settings → Agent") { try await self.client().fixIssue(id) }
+    XCTAssertEqual(e, .refused(status: 409, message: "your agent is off: Settings → Agent"))
     // Paired as a machine (an older pairing): the desk keeps these for its window.
     e = await refusal("\(at)/block", 403, "block an author from the desk's window", tag: "Forbidden") { try await self.client().blockAuthor(id, true) }
     XCTAssertEqual(e, .refused(status: 403, message: "block an author from the desk's window"))
@@ -213,6 +213,12 @@ final class WriteTests: XCTestCase {
     StubProtocol.reset(["/api/notes/n2": Answer(body: #"{"ok":true,"note":\#(note)}"#)])
     _ = try await client().saveNote("n2", text: "Write it up today", remind: "3h")
     try sent("/api/notes/n2", ["text": "Write it up today", "remind": "3h"])
+    // Where it goes on the Inbox, when picked: a move, a new note's In.
+    for section in ["urgent", "standard", "fyi"] {
+      StubProtocol.reset(["/api/notes/n2": Answer(body: #"{"ok":true,"note":\#(note)}"#)])
+      _ = try await client().saveNote("n2", text: "Write it up", remind: "", section: section)
+      try sent("/api/notes/n2", ["text": "Write it up", "remind": "", "section": section])
+    }
     StubProtocol.reset(["/api/notes/n2/done": Answer(body: #"{"ok":true}"#)])
     try await client().doneNote("n2")
     try sent("/api/notes/n2/done", [:])
@@ -223,6 +229,47 @@ final class WriteTests: XCTestCase {
     XCTAssertEqual(e, .refused(status: 404, message: #"no note "gone""#))
     e = await refusal("/api/notes/gone/done", 404, #"no note "gone""#, tag: "NotFound") { try await self.client().doneNote("gone") }
     XCTAssertEqual(e?.words, #"no note "gone""#)
+  }
+
+  // A file's Viewed: its hunks' marks, on or off. One reviewer of your PR: off it, or asked again.
+  func testViewedAndOneReviewer() async throws {
+    StubProtocol.reset(["/api/review/acme/api#4127/viewed": Answer(body: #"{"ok":true}"#)])
+    try await client().viewed(pr, marks: ["9d5a955ca51aa5b7", "f00d"], viewed: true)
+    try sent("/api/review/acme%2Fapi%234127/viewed", ["marks": ["9d5a955ca51aa5b7", "f00d"], "viewed": true])
+    StubProtocol.reset(["/api/review/acme/api#4127/viewed": Answer(body: #"{"ok":true}"#)])
+    try await client().viewed(pr, marks: ["f00d"], viewed: false)
+    try sent("/api/review/acme%2Fapi%234127/viewed", ["marks": ["f00d"], "viewed": false])
+    var e = await refusal("/api/review/acme/api#4127/viewed", 400, "need { marks: the hunks' marks, viewed: true or false }", tag: "BadRequest") {
+      try await self.client().viewed(self.pr, marks: [], viewed: true)
+    }
+    XCTAssertEqual(e, .refused(status: 400, message: "need { marks: the hunks' marks, viewed: true or false }"))
+
+    for act in ["remove", "rerequest"] {
+      StubProtocol.reset(["/api/review/me/notes-app#12/reviewer": Answer(body: #"{"ok":true}"#)])
+      try await client().reviewer("me/notes-app#12", login: "kai", act: act)
+      try sent("/api/review/me%2Fnotes-app%2312/reviewer", ["login": "kai", "act": act])
+    }
+    e = await refusal("/api/review/me/notes-app#12/reviewer", 403, "change a reviewer from the PR's review in the desk's window", tag: "Forbidden") {
+      try await self.client().reviewer("me/notes-app#12", login: "kai", act: "remove")
+    }
+    XCTAssertEqual(e?.words, "change a reviewer from the PR's review in the desk's window")
+  }
+
+  // How your agent runs, from the chat: one setting, PUT as Settings writes it.
+  func testAnAgentOption() async throws {
+    StubProtocol.reset(["/api/settings": Answer(body: #"{"ok":true,"errors":[],"settings":{}}"#)])
+    let r = try await client().setting("agent.coordinator_bypass", .flag(false))
+    XCTAssertEqual(r.ok, true)
+    StubProtocol.reset(["/api/settings": Answer(body: #"{"ok":false,"errors":[{"path":"agent.coordinator_model","message":"not a model"}],"settings":{}}"#)])
+    let no = try await client().setting("agent.coordinator_model", .text("opus"))
+    XCTAssertEqual(no.ok, false)
+    XCTAssertEqual(no.errors.first?.message, "not a model")
+    let req = try XCTUnwrap(StubProtocol.requests().first)
+    XCTAssertEqual(req.httpMethod, "PUT")
+    XCTAssertEqual(req.url?.absoluteString, root + "/api/settings")
+    XCTAssertEqual(req.value(forHTTPHeaderField: "Authorization"), "Bearer inbox_test")
+    let json = try JSONSerialization.jsonObject(with: try XCTUnwrap(req.sentBody)) as? NSDictionary
+    XCTAssertEqual(json, ["set": ["agent.coordinator_model": "opus"]])
   }
 
   func testAnsweringAQuestion() async throws {
@@ -861,6 +908,21 @@ final class StoreWriteTests: XCTestCase {
     }
   }
 
+  // A note's menu: a move saves it there with its reminder dropped, a snooze makes the time its reminder.
+  func testANotesMoveAndSnooze() async throws {
+    let open = try XCTUnwrap(store.queue?.notes?.open.first)
+    let answer = Answer(body: #"{"ok":true,"note":{"id":"\#(open.id)","at":"2026-11-13T04:22:37.843Z","text":"t","remind_at":null,"reminded_at":null,"section":"fyi"}}"#)
+    try desk(["/api/notes/\(open.id)": answer])
+    var took = await store.saveNote(open, text: open.text ?? "", remind: "", section: "fyi")
+    XCTAssertTrue(took)
+    XCTAssertEqual(store.toast?.text, "Note changed")
+    XCTAssertEqual(try sentBody("/api/notes/\(open.id)"), ["text": open.text ?? "", "remind": "", "section": "fyi"])
+    try desk(["/api/notes/\(open.id)": answer])
+    took = await store.saveNote(open, text: open.text ?? "", remind: "3h")
+    XCTAssertTrue(took)
+    XCTAssertEqual(try sentBody("/api/notes/\(open.id)"), ["text": open.text ?? "", "remind": "3h"], "a snooze leaves its section alone")
+  }
+
   // Merging's Wake it, Start it now and Try again are one route; what it says depends on whether your agent was running.
   func testWakingYourAgent() async throws {
     let inflight = String(decoding: try Fixture.data("inflight"), as: UTF8.self)
@@ -891,7 +953,7 @@ final class StoreWriteTests: XCTestCase {
       XCTAssertEqual(store.toast?.text, "Started your agent.")
     }
     // The desk's refusals are bubbles in its words.
-    for (status, words) in [(409, "your agent is off: Settings → Local Agent Integration"), (502, "Your agent didn't start: claude exited 1")] {
+    for (status, words) in [(409, "your agent is off: Settings → Agent"), (502, "Your agent didn't start: claude exited 1")] {
       try desk(["/api/inflight": Answer(body: inflight), "/api/coordinator/wake": no(status, words)])
       took = await store.wake()
       XCTAssertFalse(took)
@@ -910,6 +972,36 @@ final class StoreWriteTests: XCTestCase {
     XCTAssertFalse(second)
     XCTAssertEqual(StubProtocol.requests().filter { $0.url?.path == "/api/coordinator/wake" }.count, 1)
     first.cancel()
+  }
+
+  // The chat's Wake hands an ask to your agent, a session apart from Merging's coordinator: one on its way doesn't hold the other.
+  func testTheChatsWakeAndMergingsAreApart() async throws {
+    try desk(["/api/coordinator/wake": Answer(hangs: true)])
+    let chat = Task { await self.store.wake(ask: "b7d3e410", toast: false) }
+    for _ in 0..<150 where StubProtocol.requests().isEmpty { try await Task.sleep(for: .milliseconds(20)) }
+    XCTAssertTrue(store.busy(Store.agentWake))
+    XCTAssertFalse(store.busy(Store.coordinator))
+    let merging = Task { await self.store.wake() }
+    for _ in 0..<150 where StubProtocol.requests().filter({ $0.url?.path == "/api/coordinator/wake" }).count < 2 { try await Task.sleep(for: .milliseconds(20)) }
+    XCTAssertEqual(StubProtocol.requests().filter { $0.url?.path == "/api/coordinator/wake" }.count, 2)
+    chat.cancel()
+    merging.cancel()
+  }
+
+  // How your agent runs, from the chat: saved as one setting, the chat read again; a refusal is the desk's own words.
+  func testSettingAnAgentOption() async throws {
+    let asks = Answer(body: String(decoding: try Fixture.data("asks"), as: UTF8.self))
+    try desk(["/api/settings": Answer(body: #"{"ok":true,"errors":[],"settings":{}}"#), "/api/asks": asks])
+    var took = await store.setAgentOption("agent.coordinator_bypass", .flag(false))
+    XCTAssertTrue(took)
+    XCTAssertNil(store.toast)
+    XCTAssertEqual(paths().filter { $0.hasPrefix("PUT") }, ["PUT /api/settings"])
+    XCTAssertTrue(paths().contains("GET /api/asks"), "the chat is read again")
+    XCTAssertEqual(store.asks?.options?.agent, "claude-code")
+    try desk(["/api/settings": Answer(body: #"{"ok":false,"errors":[{"path":"settings.json","message":"can't write settings.json"}],"settings":{}}"#), "/api/asks": asks])
+    took = await store.setAgentOption("agent.coordinator_model", .text("opus"))
+    XCTAssertFalse(took)
+    XCTAssertEqual(store.whyNot, "can't write settings.json")
   }
 
   // A session's Done, Snooze and Mute are /api/act's, by its id; its snooze says only the time (it has no activity to wake on).
@@ -1028,11 +1120,11 @@ final class StoreWriteTests: XCTestCase {
   func testARefusedPreReviewPressKeepsThePage() async throws {
     let c = try card("acme/worker#860")
     let at = "/api/issue/acme/worker#860"
-    try desk(["\(at)/fix": no(409, "your agent is off: Settings → Local Agent Integration")])
+    try desk(["\(at)/fix": no(409, "your agent is off: Settings → Agent")])
     var took = await store.fixIssue(c)
     XCTAssertFalse(took)
     XCTAssertNil(store.toast)
-    XCTAssertEqual(store.notices.last?.title, "your agent is off: Settings → Local Agent Integration")
+    XCTAssertEqual(store.notices.last?.title, "your agent is off: Settings → Agent")
     XCTAssertTrue(store.leaving.isEmpty)
     XCTAssertNotNil(store.card(c.id))
 
@@ -1207,7 +1299,7 @@ final class StoreWriteTests: XCTestCase {
     await store.readAsks()
     store.path = [.chat(ChatAbout(item: "acme/api#4127"))]
     for (status, words) in [
-      (409, "your agent is off: Settings → Local Agent Integration"), (400, "thread_url must be a GitHub URL"),
+      (409, "your agent is off: Settings → Agent"), (400, "thread_url must be a GitHub URL"),
       (400, "lines need head: the 40-character commit they were read at"), (403, "ask your agent from the desk's window"),
     ] {
       try desk(["/api/ask": no(status, words)])
@@ -1317,7 +1409,7 @@ final class StoreWriteTests: XCTestCase {
     XCTAssertFalse(paths().contains("POST /api/ask"), "the desk made the ask itself: nothing more is sent")
     // Refused: the page stays.
     store.path = [.item(c.id)]
-    try desk(["/api/issue/acme/worker#860/fix": no(409, "your agent is off: Settings → Local Agent Integration")])
+    try desk(["/api/issue/acme/worker#860/fix": no(409, "your agent is off: Settings → Agent")])
     let again = await store.fixIssue(c)
     XCTAssertFalse(again)
     XCTAssertEqual(store.path, [.item(c.id)])
@@ -1335,10 +1427,10 @@ final class StoreWriteTests: XCTestCase {
     XCTAssertEqual(posts.map { $0.url?.path }, ["/api/coordinator/wake"], "once")
     XCTAssertEqual(try json(posts.first), ["ask": "b7d3e410"])
     // From Merging its refusal is a bubble, in the desk's words.
-    try desk(["/api/coordinator/wake": no(409, "your agent is off: Settings → Local Agent Integration")])
+    try desk(["/api/coordinator/wake": no(409, "your agent is off: Settings → Agent")])
     let again = await store.wake(ask: "b7d3e410", toast: true)
     XCTAssertFalse(again)
-    XCTAssertEqual(store.notices.last?.title, "your agent is off: Settings → Local Agent Integration")
+    XCTAssertEqual(store.notices.last?.title, "your agent is off: Settings → Agent")
   }
 
   // A failed review is asked for again by its PR's id alone: one request that waits as long as a review takes, its

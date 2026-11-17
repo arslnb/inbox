@@ -606,7 +606,7 @@ struct MergingList: View {
   private func agentLine(_ c: InflightView.Coordinator) -> some View {
     Group {
       if c.on != true {
-        Text("Your agent is off in Settings → Local Agent Integration.").foregroundStyle(Theme.pencil)
+        Text("Your agent is off in Settings → Agent.").foregroundStyle(Theme.pencil)
       } else if let error = c.error, !error.isEmpty {
         VStack(alignment: .leading, spacing: 6) {
           Lead(label: "Your agent can't run:", text: error, labelColor: Theme.red)
@@ -694,7 +694,7 @@ struct WorkLine: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .disabled(w.kind == "ask" ? store.busy(Store.coordinator) : store.asking.contains(w.key))
+        .disabled(w.kind == "ask" ? store.busy(Store.agentWake) : store.asking.contains(w.key))
       }
     }
     .deskRow()

@@ -27,7 +27,9 @@ enum Words {
     // Rounded before the switch, so 47.6h and 48.3h both read "2d".
     let h = Int((Double(m) / 60).rounded())
     if h < 48 { return "\(h)h" }
-    return "\(Int((Double(m) / 1440).rounded()))d"
+    let d = Int((Double(m) / 1440).rounded())
+    // Months past 45 days, as "mo": "m" is minutes.
+    return d <= 45 ? "\(d)d" : "\(d / 30)mo"
   }
 
   // "just now" in the first minute, then as age(): for a single time on its own.
@@ -62,8 +64,9 @@ enum Words {
     return "\(f.string(from: d)) \(time)"
   }
 
+  // Either of the desk's own sessions, the coordinator or your agent, under any name it has gone by (types.ts's isCoordinator).
   static func isCoordinator(_ from: String?) -> Bool {
-    from == "Inbox coordinator" || from == "Review Desk coordinator"
+    from == "Inbox coordinator" || from == "Review Desk coordinator" || from == "Inbox agent"
   }
 
   // Who asks: the coordinator is "your agent"; every other session goes by the name it gave itself.
@@ -87,6 +90,13 @@ enum Words {
   // A sentence of the desk's own words: a capital first, and a full stop unless it ends itself.
   static func sentence(_ s: String) -> String {
     capitalized(s) + (s.last.map { ".?!".contains($0) } == true ? "" : ".")
+  }
+
+  // A PR's size by the lines it changes, as format.ts's sizeOf(): its bars and what they say.
+  static func sizeOf(add: Int, del: Int) -> (bars: Int, label: String) {
+    let n = add + del
+    let (bars, word) = n < 30 ? (1, "Tiny") : n < 200 ? (2, "Small") : n < 600 ? (3, "Medium") : (4, "Large")
+    return (bars, "\(word) change: +\(add) \u{2212}\(del)")
   }
 
   static func plural(_ n: Int, _ word: String) -> String {
@@ -777,7 +787,15 @@ enum Lists {
   static let sectionName = ["urgent": "Urgent", "standard": "Standard", "fyi": "FYI"]
   static func moves(_ c: Card) -> [String] {
     guard c.status == "active", c.inflight != true else { return [] }
-    return ["urgent": ["standard"], "standard": ["urgent", "fyi"], "fyi": ["standard"]][c.section ?? ""] ?? []
+    return sectionMoves[c.section ?? ""] ?? []
+  }
+  static let sectionMoves = ["urgent": ["standard"], "standard": ["urgent", "fyi"], "fyi": ["standard"]]
+  static let sections = ["urgent", "standard", "fyi"]
+
+  // A note's moves, as NoteMenu's: one section up or down from where it is; a due reminder leads Urgent whatever its section.
+  static func moves(_ n: Note, now: Date) -> [String] {
+    let due = Words.date(n.remindAt).map { $0 <= now } ?? false
+    return sectionMoves[due ? "urgent" : (n.section ?? "standard")] ?? []
   }
 
   // FYI shows its first rows (Queue.tsx's FYI_SHOWN): the rest wait behind Show more until you ask, filter, or leave

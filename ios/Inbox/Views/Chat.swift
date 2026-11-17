@@ -179,7 +179,7 @@ struct ChatPage: View {
           Task { woke = await store.wake(ask: a.id, toast: false) ? "Asked it again" : Words.sentence(store.whyNot ?? "It wasn't sent") }
         }
         .buttonStyle(PlainAct())
-        .disabled(store.busy(Store.coordinator))
+        .disabled(store.busy(Store.agentWake))
       }
       if let says = wait.link, let watch {
         Button {

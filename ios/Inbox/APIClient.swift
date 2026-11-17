@@ -210,7 +210,22 @@ struct APIClient: Sendable {
     let _: Ok = try await post("/api/review/\(APIClient.segment(id))/reviewers", json: Asked(users: users, teams: teams, keep: keep ? true : nil))
   }
 
-  // The More menu's writes and the row's Merge: close, draft, merge, reopen, request_changes (head and body), rerequest, unrequest.
+  private struct Viewed: Encodable {
+    var marks: [String]
+    var viewed: Bool
+  }
+
+  // Hunks of a PR (ReviewHunk.mark, or a file's own) marked viewed, or not. Nothing on GitHub.
+  func viewed(_ id: String, marks: [String], viewed: Bool) async throws {
+    let _: Ok = try await post("/api/review/\(APIClient.segment(id))/viewed", json: Viewed(marks: marks, viewed: viewed))
+  }
+
+  // One reviewer of your open PR: `act` "remove" takes them off it, "rerequest" asks them again.
+  func reviewer(_ id: String, login: String, act: String) async throws {
+    let _: Ok = try await post("/api/review/\(APIClient.segment(id))/reviewer", ["login": login, "act": act])
+  }
+
+  // The More menu's writes: close, draft, merge, reopen, request_changes (head and body), rerequest, unrequest.
   func github(_ id: String, _ action: String, head: String? = nil, body: String? = nil) async throws -> Wrote {
     var b = ["id": id, "action": action]
     if let head { b["head_oid"] = head }
@@ -272,8 +287,11 @@ struct APIClient: Sendable {
   }
 
   // A note to yourself, written (no id) or changed. `remind`: "" for none, "1h", "3h", "tomorrow", "monday" or an ISO time.
-  func saveNote(_ id: String?, text: String, remind: String) async throws -> NoteAnswer {
-    try await post("/api/notes" + (id.map { "/\(APIClient.segment($0))" } ?? ""), ["text": text, "remind": remind])
+  // `section`: "urgent", "standard" or "fyi"; none keeps where it was (a new note's is Standard).
+  func saveNote(_ id: String?, text: String, remind: String, section: String? = nil) async throws -> NoteAnswer {
+    var b = ["text": text, "remind": remind]
+    if let section { b["section"] = section }
+    return try await post("/api/notes" + (id.map { "/\(APIClient.segment($0))" } ?? ""), b)
   }
 
   // Done: the note leaves your desk for good.
@@ -323,6 +341,14 @@ struct APIClient: Sendable {
       }
     }
     return try await post("/api/ask", json: b, wait: APIClient.agentWait)
+  }
+
+  // One setting, as Settings and the chat's own controls write it: PUT /api/settings { set: { key: value } }.
+  func setting(_ key: String, _ value: SettingValue) async throws -> SettingsAnswer {
+    var req = request("PUT", "/api/settings")
+    req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    req.httpBody = try? JSONEncoder().encode(["set": [key: value]])
+    return try await send(req)
   }
 
   // done, snooze (with `until`), mute, unmute, restore, seen; and inflight (Hand off for merge) and takeback (Back to desk).

@@ -25,7 +25,7 @@ final class DecodingTests: XCTestCase {
     let q: QueueView = try Fixture.decode("queue")
     XCTAssertEqual(q.inquiries.count, 2)
     XCTAssertEqual(q.sessions.count, 2)
-    XCTAssertEqual([q.notes?.due.count, q.notes?.open.count, q.notes?.later.count], [1, 1, 1])
+    XCTAssertEqual([q.notes?.due.count, q.notes?.urgent.count, q.notes?.open.count, q.notes?.fyi.count, q.notes?.later.count], [1, 0, 1, 0, 1])
     XCTAssertEqual([q.inbox?.urgent.count, q.inbox?.standard.count, q.inbox?.fyi.count], [12, 13, 6])
     XCTAssertEqual(q.sections?.blocked.count, 11)
     XCTAssertEqual([q.hidden.count, q.cleared.count, q.resolved.count], [1, 10, 3])
@@ -41,8 +41,9 @@ final class DecodingTests: XCTestCase {
     XCTAssertEqual(first.reason, "priya waits on your review; the planner's partial results")
     XCTAssertEqual(first.wakeOn, ["push"])
     XCTAssertEqual(first.new, true)
-    XCTAssertEqual(first.waitingSince, "2026-11-13T04:22:37.843Z")
+    XCTAssertEqual(first.waitingSince, "2026-11-16T21:39:10.100Z")
     XCTAssertNil(first.cta)
+    XCTAssertEqual([first.size?.add, first.size?.del], [62, 7])
 
     // An issue has no stage key at all.
     let issue = try XCTUnwrap(q.inbox?.standard.first { $0.kind == "issue" })
@@ -59,6 +60,19 @@ final class DecodingTests: XCTestCase {
     XCTAssertEqual(q.sessions.map(\.status), ["active", "active"])
     XCTAssertEqual(q.sessions[0].actions, ["open"])
     XCTAssertEqual(q.stacks?["acme/api#4150"]?.line.count, 8)
+  }
+
+  // Notes in each section, as a desk places them: a due reminder, Urgent's, Standard's (open), FYI's, and those to come.
+  func testNotesInEachSection() throws {
+    let note = { (id: String, more: String) in #"{"id":"\#(id)","at":"2026-11-16T09:00:00.000Z","text":"t","remind_at":null,"reminded_at":null\#(more)}"# }
+    let json = #"{"due":[\#(note("d", #","remind_at":"2026-11-16T10:00:00.000Z""#))],"urgent":[\#(note("u", #","section":"urgent""#))],"#
+      + #""open":[\#(note("s", ""))],"fyi":[\#(note("f", #","section":"fyi""#))],"later":[]}"#
+    let v = try DeskJSON.decoder().decode(NotesView.self, from: Data(json.utf8))
+    XCTAssertEqual(v.all.map(\.id), ["d", "u", "s", "f"])
+    XCTAssertEqual(v.all.map(\.section), [nil, "urgent", nil, "fyi"])
+    // A desk from before sections sends neither.
+    let old = try DeskJSON.decoder().decode(NotesView.self, from: Data(#"{"due":[],"open":[\#(note("s", ""))],"later":[]}"#.utf8))
+    XCTAssertEqual([old.urgent.count, old.fyi.count, old.open.count], [0, 0, 1])
   }
 
   func testInflight() throws {
@@ -308,7 +322,10 @@ final class DecodingTests: XCTestCase {
     XCTAssertEqual(r.aiStale, false)
     XCTAssertEqual(r.generating, false)
     XCTAssertEqual(r.approve?.ok, true)
+    XCTAssertNil(r.approve?.approved)
     XCTAssertNil(r.cantApprove)
+    XCTAssertEqual(r.viewed, [])
+    XCTAssertEqual(r.order?.chunks.first?.mark, "9d5a955ca51aa5b7")
     XCTAssertEqual(r.activity.first?.kind, "reviewed")
     XCTAssertNil(r.stack)
     XCTAssertTrue(r.asks.isEmpty)
@@ -430,6 +447,18 @@ final class DecodingTests: XCTestCase {
     XCTAssertEqual(steps.order?.steps?.count, 4)
     XCTAssertTrue(steps.ai?.diagrams.isEmpty == true)
     XCTAssertNil(steps.ai?.intent, "a review written before its newer parts")
+  }
+
+  // Approve once you approved its head: the desk's reason, and that it's you; what you marked viewed, by mark.
+  func testApprovedAndViewed() throws {
+    let json = #"{"approve":{"ok":false,"reason":"you approved this commit","approved":true},"viewed":["m1","m2"],"#
+      + #""order":{"chunks":[{"id":"h1","mark":"m1"}],"rest":[{"path":"a.png","why":"no text diff","hunks":[],"mark":"m2"}]}}"#
+    let r = try DeskJSON.decoder().decode(ReviewView.self, from: Data(json.utf8))
+    XCTAssertEqual(r.approve?.approved, true)
+    XCTAssertEqual(r.cantApprove, "Can't approve: you approved this commit.")
+    XCTAssertEqual(r.viewed, ["m1", "m2"])
+    XCTAssertEqual(r.order?.chunks.first?.mark, "m1")
+    XCTAssertEqual(r.order?.rest.first?.mark, "m2")
   }
 
   // A desk that lacks what's optional, or sends what this app doesn't know: the page still reads, less only that part.
@@ -583,6 +612,10 @@ final class DecodingTests: XCTestCase {
     XCTAssertEqual(v.coordinator?.queued, [])
     XCTAssertEqual(v.coordinator?.activity?.count, 5)
     XCTAssertEqual(v.coordinator?.activity?.last, "Searched for idempotency_key")
+    XCTAssertEqual(v.coordinator?.saying?.hasPrefix("The retry wraps the whole handler"), true)
+    XCTAssertEqual(v.options?.agent, "claude-code")
+    XCTAssertEqual([v.options?.bypass], [true])
+    XCTAssertEqual([v.options?.model, v.options?.effort], ["", ""])
   }
 
   // An older desk sends a coordinator without status, queued or activity, and an ask's lines may be a range.

@@ -24,6 +24,9 @@ final class FormatTests: XCTestCase {
     XCTAssertEqual(Words.age("2026-10-27T11:00:20Z", now: now), "1h")
     XCTAssertEqual(Words.age("2026-10-27T11:00:40.000Z", now: now), "59m")
     XCTAssertEqual(Words.age(nil, now: now), "")
+    XCTAssertEqual(Words.age(back(45 * 24), now: now), "45d")
+    XCTAssertEqual(Words.age(back(46 * 24), now: now), "1mo", "past 45 days, months")
+    XCTAssertEqual(Words.age(back(200 * 24), now: now), "6mo")
   }
 
   // web/test/view.test.ts: "checks: shards of one check are one row with its worst dot, what's wrong first; one alone keeps its whole name".
@@ -90,6 +93,11 @@ final class FormatTests: XCTestCase {
     XCTAssertEqual(Words.fromName("Inbox coordinator", start: false), "your agent")
     XCTAssertEqual(Words.fromName("Review Desk coordinator"), "Your agent", "its name before the rename to Inbox")
     XCTAssertEqual(Words.fromName("sentry: rollout"), "sentry: rollout")
+    // Your agent, the session asks go to, is the desk's own too (types.ts's AGENT_NAME).
+    XCTAssertTrue(Words.isCoordinator("Inbox agent"))
+    XCTAssertEqual(Words.fromName("Inbox agent"), "Your agent")
+    XCTAssertFalse(Words.isCoordinator("Inbox agents"))
+    XCTAssertFalse(Words.isCoordinator(nil))
     XCTAssertEqual(Words.capitalized("asked by name"), "Asked by name")
     XCTAssertEqual(Words.plural(1, "comment"), "1 comment")
     XCTAssertEqual(Words.plural(4, "comment"), "4 comments")
@@ -280,6 +288,29 @@ final class FormatTests: XCTestCase {
     var utc = Calendar(identifier: .gregorian)
     utc.timeZone = try XCTUnwrap(TimeZone(identifier: "UTC"))
     XCTAssertEqual(Remind.nextHour(try XCTUnwrap(Words.date("2026-11-16T09:30:10.000Z")), calendar: utc), Words.date("2026-11-16T10:00:00.000Z"))
+  }
+
+  // A note's menu moves it one section up or down; a due reminder counts as Urgent (RowMenu.tsx's NoteMenu).
+  func testANotesMoves() throws {
+    let now = try XCTUnwrap(Words.date("2026-11-16T12:00:00Z"))
+    let note = { (more: String) in try DeskJSON.decoder().decode(Note.self, from: Data(#"{"id":"n1","text":"t"\#(more)}"#.utf8)) }
+    XCTAssertEqual(Lists.moves(try note(""), now: now), ["urgent", "fyi"], "none is Standard")
+    XCTAssertEqual(Lists.moves(try note(#","section":"standard""#), now: now), ["urgent", "fyi"])
+    XCTAssertEqual(Lists.moves(try note(#","section":"urgent""#), now: now), ["standard"])
+    XCTAssertEqual(Lists.moves(try note(#","section":"fyi""#), now: now), ["standard"])
+    XCTAssertEqual(Lists.moves(try note(#","section":"fyi","remind_at":"2026-11-16T11:00:00Z""#), now: now), ["standard"], "due: it leads Urgent")
+    XCTAssertEqual(Lists.moves(try note(#","section":"fyi","remind_at":"2026-11-16T13:00:00Z""#), now: now), ["standard"], "to come: where it's put")
+    XCTAssertEqual(Lists.moves(try note(#","remind_at":"2026-11-16T11:00:00Z""#), now: now), ["standard"])
+  }
+
+  // format.ts's sizeOf(): a PR's size by the lines it changes.
+  func testAPRsSize() {
+    XCTAssertEqual(Words.sizeOf(add: 20, del: 9).bars, 1)
+    XCTAssertEqual(Words.sizeOf(add: 20, del: 10).bars, 2)
+    XCTAssertEqual(Words.sizeOf(add: 62, del: 7).label, "Small change: +62 \u{2212}7")
+    XCTAssertEqual(Words.sizeOf(add: 400, del: 199).label, "Medium change: +400 \u{2212}199")
+    XCTAssertEqual(Words.sizeOf(add: 600, del: 0).label, "Large change: +600 \u{2212}0")
+    XCTAssertEqual(Words.sizeOf(add: 0, del: 0).label, "Tiny change: +0 \u{2212}0")
   }
 
   // format.ts's issueUrl(): what a question is about, when the desk doesn't hold its card. Nothing for what isn't an id.
@@ -496,8 +527,15 @@ final class FormatTests: XCTestCase {
     let resolved = try XCTUnwrap(queue.resolved.first { $0.isPR && !$0.mine && $0.resolved == "no longer requested" })
     XCTAssertEqual(resolved.act(open: true), "approve", resolved.resolved ?? "")
     XCTAssertNil(resolved.act(open: false))
-    for key in ["ready", "reviewers", "reply", "merge", "approve", "comment", "handoff"] { XCTAssertNotNil(Words.act[key], key) }
+    for key in ["ready", "reviewers", "reply", "approve", "comment", "handoff"] { XCTAssertNotNil(Words.act[key], key) }
     XCTAssertEqual(Words.act["ready"], Words.cta["ready"], "a row's call to action keeps the row's words")
+    // Your ready PR's row asks to hand it off; a cta this app doesn't know falls back to what the item is there for.
+    let row = { (cta: String) in
+      try DeskJSON.decoder().decode(Card.self, from: Data(#"{"id":"me/a#1","kind":"pr","repo":"me/a","number":1,"title":"t","by":"you","review":"approved","cta":"\#(cta)"}"#.utf8))
+    }
+    XCTAssertEqual(try row("handoff").act(open: true), "handoff")
+    XCTAssertEqual(Words.act["handoff"], "Hand off for merge")
+    XCTAssertEqual(try row("merge").act(open: true), "handoff", "an older desk's merge: Hand off for merge")
   }
 
   // An issue's page: what kind its pre-review says it is, who placed it and how you were asked (Detail.tsx).
@@ -645,7 +683,7 @@ final class FormatTests: XCTestCase {
     XCTAssertEqual(Asking.shortId("me/notes-app#12"), "notes-app#12")
     XCTAssertEqual(Asking.empty("acme/api#4127"), "Ask or tell it something about api#4127: it answers here.")
     XCTAssertEqual(Asking.empty(nil), "Ask or tell it something: it answers here.")
-    XCTAssertEqual(Asking.off, "Your agent is off in Settings → Local Agent Integration, so nothing is sent.")
+    XCTAssertEqual(Asking.off, "Your agent is off in Settings → Agent, so nothing is sent.")
   }
 
   // What an ask from a conversation or a line carries, and the x's one step wider.

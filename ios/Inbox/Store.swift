@@ -77,7 +77,7 @@ final class Store {
   private(set) var leaving: Set<String> = []
   private(set) var sending: Set<String> = []  // what has a write on its way: an item's, question's or session's id
   private(set) var asking: Set<String> = []  // the PRs whose AI review was asked for from here and hasn't answered yet
-  private(set) var pins: [String: String] = [:]  // an opened PR's commit, as its review last drew it: what Approve and Merge send
+  private(set) var pins: [String: String] = [:]  // an opened PR's commit, as its review last drew it: what Approve and Merge now send
   private(set) var toast: Toast?
   private(set) var failures: [Notice] = []
   private(set) var deskVersion: String?
@@ -535,7 +535,25 @@ final class Store {
     }
   }
 
-  // The row's Merge and the More menu: one of Card.actions (Words.more names them). Merge and request_changes are pinned
+  // Hunks of a PR marked viewed, or not (ReviewHunk.mark, or a file's own): the desk keeps them, nothing on GitHub. No toast.
+  @discardableResult
+  func markViewed(_ c: Card, marks: [String], viewed: Bool) async -> Bool {
+    await write("viewed:\(c.id)") { client in
+      try await client.viewed(c.id, marks: marks, viewed: viewed)
+      return nil
+    }
+  }
+
+  // One reviewer of your open PR, from its State: "remove" (asked, not reviewed yet) or "rerequest" (reviewed). The PR stays.
+  @discardableResult
+  func reviewer(_ c: Card, login: String, act: String) async -> Bool {
+    await write(c.id) { client in
+      try await client.reviewer(c.id, login: login, act: act)
+      return Toast(text: act == "remove" ? "Removed \(login) as a reviewer of \(c.shortRef) on GitHub" : "Asked \(login) to review \(c.shortRef) again on GitHub")
+    }
+  }
+
+  // The More menu: one of Card.actions (Words.more names them). Merge and request_changes are pinned
   // to the commit its review last drew (request_changes needs it, and `body`: what needs to change). "ready" goes the way of ready().
   // Close, merge, request changes and unrequest take it off the desk at once; the toast's Undo reopens a closed PR and
   // makes a converted draft ready again.
@@ -586,9 +604,9 @@ final class Store {
   // A note to yourself, new (nil) or changed: on the desk only, nothing on GitHub. What it says is the window's.
   static func noteKey(_ id: String) -> String { "note:\(id)" }  // a note's row in `leaving` and `sending`
   @discardableResult
-  func saveNote(_ n: Note?, text: String, remind: String) async -> Bool {
+  func saveNote(_ n: Note?, text: String, remind: String, section: String? = nil) async -> Bool {
     await write(Store.noteKey(n?.id ?? "new")) { client in
-      let saved = try await client.saveNote(n?.id, text: text, remind: remind).note
+      let saved = try await client.saveNote(n?.id, text: text, remind: remind, section: section).note
       if n == nil { self.noteDraft = "" }
       if let at = saved?.remindAt { return Toast(text: "I'll remind you \(Words.when(at, now: self.now))") }
       return Toast(text: n != nil ? "Note changed" : "Noted: it's on your Inbox")
@@ -687,12 +705,26 @@ final class Store {
 
   // Wake it under an ask your agent stopped on, and Try again on a failed ask in its work: it's handed that ask again.
   // A turn of your agent. The chat says how it went itself (`toast` false); Merging's row says it in a toast.
+  static let agentWake = "agent"  // asks go to your agent, a session apart from Merging's coordinator
   @discardableResult
   func wake(ask id: String, toast: Bool) async -> Bool {
-    await write(Store.coordinator, still: "Still asking your agent.", bubble: toast) { client in
+    await write(Store.agentWake, still: "Still asking your agent.", bubble: toast) { client in
       try await client.wake(ask: id)
       return toast ? Toast(text: "Asked your agent again.") : nil
     }
+  }
+
+  // How your agent runs, from the chat's own controls: one of AsksView.options' settings (agent.coordinator_bypass,
+  // _model, _effort). The desk's own words when it doesn't take; the chat reads again either way.
+  @discardableResult
+  func setAgentOption(_ key: String, _ value: SettingValue) async -> Bool {
+    let took = await write("setting:\(key)") { client in
+      let r = try await client.setting(key, value)
+      if r.ok != true { throw APIError.refused(status: 409, message: r.errors.first?.message ?? "Not saved") }
+      return nil
+    }
+    await readAsks()
+    return took
   }
 
   // Block or Unblock its author on the desk: their items are muted and no agent reads them. Nothing on GitHub.
@@ -944,7 +976,7 @@ final class Store {
     func openDebugNote() {
       guard let which = debugNote, let notes = queue?.notes else { return }
       debugNote = nil
-      noting = which == "new" ? Noting() : (notes.due + notes.open + notes.later).first { $0.id == which }.map { Noting(note: $0) }
+      noting = which == "new" ? Noting() : notes.all.first { $0.id == which }.map { Noting(note: $0) }
     }
   #endif
 }

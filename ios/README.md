@@ -31,7 +31,8 @@ project with the change.
 
 `npm run check` neither builds nor tests this folder (Prettier skips `ios/` too): the commands above are its check. The
 tests (`InboxTests`) decode every response the app reads from saved copies of the mock desk's answers
-(`InboxTests/Fixtures`), hold the wording to the window's (`web/src/format.ts`, `notices.ts`), and run the client against
+(`InboxTests/Fixtures`: each the mock's answer to the read it's named for, saved with `curl` and indented four spaces;
+`review-lean.json` is written by hand), hold the wording to the window's (`web/src/format.ts`, `notices.ts`), and run the client against
 the desk's exact refusals through a stubbed `URLProtocol`. They never touch the network.
 
 ## Run it in the Simulator
@@ -168,7 +169,7 @@ Approve and Hand off for merge are filled green, as the window's; every other ca
 don't fit on one line Snooze, then Done, fold into More (at the default size only beside the longest name, Hand off for
 merge, where Snooze does); More is its three dots only where it doesn't fit even alone beside the call to action.
 
-- **A PR or an issue.** The row's own call to action (Ready for review, Add reviewers, Reply, Merge); else Approve on
+- **A PR or an issue.** The row's own call to action (Ready for review, Add reviewers, Reply, Hand off for merge); else Approve on
   someone else's PR, Comment on an issue, Hand off for merge on yours once it's through review (`Card.act(open:)`). Open
   means open on GitHub, as the window's review: a PR the desk resolved while it's still open ("approved by alice", "no
   longer requested"), opened from the Archive, can still be approved and commented on. In
@@ -365,7 +366,7 @@ Left out on purpose, each said here once.
   session's page says so where its button would be.
 - **Copy attach command** (a session's and Merging's): a command to run on the desk's computer. Cheap to copy, but
   only useful with Universal Clipboard.
-- **A bubble's "Fix rules" and "Open Settings → Local Agent Integration"**: they lead into Settings, which isn't
+- **A bubble's "Fix rules" and "Open Settings → Agent"**: they lead into Settings, which isn't
   here; the bubble's words still show.
 - **The "Restarting the desk" and "The desk stopped" bubbles**: they come from the desktop app's own bridge, not the
   API.
@@ -373,8 +374,8 @@ Left out on purpose, each said here once.
   agent from the phone turns out to matter.
 - **Pin**: it isn't in the window either. Its only trace is a `p` key in `App.tsx` that no button, link or menu
   reaches, and no row shows a pin.
-- **A row's call to action acting from the list** (the window's Ready for review and Merge in one press): here a
-  press on a row always opens its page, whose bar has the action, so a scroll can't merge.
+- **A row's call to action acting from the list** (the window's Ready for review and Hand off for merge in one press):
+  here a press on a row always opens its page, whose bar has the action, so a scroll can't act.
 - **Only the window's header on a PR's page**: the window's review says nothing of why the PR is on your desk, its
   stage or its age, since its row is beside it; a phone's page has no list beside it, so the row's why, stage, age,
   comment count and labels lead the page. The rest is the window's: "Resolved: merged by li-wei", no Recent activity

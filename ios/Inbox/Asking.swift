@@ -105,7 +105,7 @@ enum Asking {
     card.isPR || (landed && card.resolved == nil && blockedAuthor != true)
   }
 
-  static let off = "Your agent is off in Settings → Local Agent Integration, so nothing is sent."
+  static let off = "Your agent is off in Settings → Agent, so nothing is sent."
 
   // "api#4127": an id without its owner (format.ts's shortId).
   static func shortId(_ id: String) -> String {

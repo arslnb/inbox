@@ -191,6 +191,12 @@ struct Card: Decodable, Identifiable, Sendable {
   var quick: String?
   var placedBy: String?  // "hard" | "pin" | "claude" | "automation": whose its place is (Words.placedBy)
   var section: String?  // "urgent" | "standard" | "fyi": where it is on the Inbox; absent off it
+  var size: Size?  // a PR's lines added and removed
+
+  struct Size: Decodable, Sendable {
+    var add: Int?
+    var del: Int?
+  }
 
   struct Handoff: Decodable, Sendable {
     var why: String?
@@ -325,16 +331,22 @@ struct Note: Decodable, Identifiable, Sendable {
   var at: String?
   var text: String?
   var remindAt: String?
+  var section: String?  // "urgent" | "standard" | "fyi" where you put it; none: Standard
 }
 
 struct NoteAnswer: Decodable, Sendable {
   var note: Note?
 }
 
+// Placed by the desk: due reminders lead Urgent, notes without one lead the section you put them in, the rest wait.
 struct NotesView: Decodable, Sendable {
   @Lossy var due: [Note]
-  @Lossy var open: [Note]
+  @Lossy var urgent: [Note]
+  @Lossy var open: [Note]  // Standard's
+  @Lossy var fyi: [Note]
   @Lossy var later: [Note]
+
+  var all: [Note] { due + urgent + open + fyi + later }
 }
 
 // MARK: Merging
@@ -371,6 +383,7 @@ struct InflightView: Decodable, Sendable {
     var status: String?  // "busy" | "shell" | "waiting" | "idle" | "stopped"; none before its first turn
     var queued: [String]?  // your asks it hasn't been handed yet
     var activity: [String]?  // its latest steps, oldest first: the session's own words, so text
+    var saying: String?  // what it's said so far this turn, whole messages; "" when nothing yet. The session's, so text
   }
 }
 
@@ -398,6 +411,15 @@ struct AsksView: Decodable, Sendable {
   var on: Bool?  // the coordinator setting: off, nothing is sent
   @Lossy var asks: [Ask]
   var coordinator: InflightView.Coordinator?
+  var options: AgentOptions?
+
+  // How your agent runs, as the chat's own controls set it (Settings → Agent's settings).
+  struct AgentOptions: Decodable, Sendable {
+    var agent: String?  // "claude-code" | "codex" | "opencode"
+    var bypass: Bool?  // agent.coordinator_bypass
+    var model: String?  // agent.coordinator_model; "" is the agent's own default
+    var effort: String?  // agent.coordinator_effort; "" is its own default
+  }
 }
 
 #if DEBUG
@@ -424,6 +446,26 @@ struct AsksView: Decodable, Sendable {
     }
   }
 #endif
+
+// A setting's value as PUT /api/settings takes it: a switch or words.
+enum SettingValue: Encodable, Sendable, Equatable {
+  case flag(Bool)
+  case text(String)
+
+  func encode(to encoder: Encoder) throws {
+    var c = encoder.singleValueContainer()
+    switch self {
+    case .flag(let b): try c.encode(b)
+    case .text(let t): try c.encode(t)
+    }
+  }
+}
+
+// PUT /api/settings' answer: ok false with the settings' own errors when it didn't take.
+struct SettingsAnswer: Decodable, Sendable {
+  var ok: Bool?
+  @Lossy var errors: [Overview.ConfigError]
+}
 
 // POST /api/ask's answer.
 struct AskAnswer: Decodable, Sendable {
@@ -784,10 +826,12 @@ struct ReviewView: Decodable, Sendable {
   var conversationError: String?  // it couldn't be fetched
   var reading: Bool?  // your agent is reading the ones waiting on you
   var readingError: String?
+  @Lossy var viewed: [String]  // the marks of hunks (or of files without one) you marked viewed
 
   struct Allowance: Decodable, Sendable {
     var ok: Bool?
     var reason: String?  // why not: "it's your PR", "you approved this commit"
+    var approved: Bool?  // you approved its head
   }
 
   // Why Approve is off, as the window says it; nil when the desk allows it.
@@ -824,6 +868,7 @@ struct ReviewOrder: Decodable, Sendable {
     var why: String?
     @Lossy var hunks: [ReviewHunk]
     var notes: [Int]?
+    var mark: String?  // the file's own, for one with no hunks to carry them
   }
 
   struct Step: Decodable, Sendable {
@@ -842,6 +887,7 @@ struct ReviewHunk: Decodable, Identifiable, Sendable {
   var file: Int?  // index in ReviewView.files
   var header: String?  // its @@ line
   var patch: String?  // its own lines, the @@ line first
+  var mark: String?  // what it changes: the same after a rebase that only moves it, new once a push rewrites its lines
   var additions: Int?
   var deletions: Int?
   var level: String?  // "look" | "skim" | "skip" | "unread"; nil: no ranking for this commit
