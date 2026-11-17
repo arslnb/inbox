@@ -201,7 +201,8 @@ struct AgentKind: Equatable, Sendable {
     case "opencode": AgentKind(name: "OpenCode", run: ["Refuse what asks", "Approve what asks"], models: [], efforts: [])
     default:
       AgentKind(
-        name: "Claude Code", run: ["Ask first", "Bypass permissions"], models: ["fable", "opus", "sonnet", "haiku"],
+        name: "Claude Code", run: ["Ask first", "Bypass permissions"],
+        models: ["claude-fable-5-2", "claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5"],
         efforts: ["low", "medium", "high", "xhigh", "max"])
     }
   }
@@ -214,7 +215,16 @@ struct AgentKind: Equatable, Sendable {
   // A menu's choices: its own default ("") first, then what it lists, then the value in force if it lists none such.
   static func choices(_ known: [String], current: String, none: String) -> [Choice] {
     let values = known + (current.isEmpty || known.contains(current) ? [] : [current])
-    return [Choice(value: "", label: none)] + values.map { Choice(value: $0, label: known.contains($0) ? $0.prefix(1).uppercased() + $0.dropFirst() : $0) }
+    return [Choice(value: "", label: none)]
+      + values.map { Choice(value: $0, label: known.contains($0) ? label($0) : $0) }
+  }
+
+  // Claude Code's models by version, as the desk's Settings names them (CLAUDE_VERSIONS in src/settings.ts); an effort, capitalized.
+  static let versions = [
+    "claude-fable-5-2": "Fable 5.2", "claude-opus-5-5": "Opus 5.5", "claude-sonnet-5-5": "Sonnet 5.5", "claude-haiku-5-5": "Haiku 5.5",
+  ]
+  static func label(_ value: String) -> String {
+    versions[value] ?? value.prefix(1).uppercased() + value.dropFirst()
   }
 
   // What a trigger says: the pick's label, or a word for the agent's own default, so the three fit a narrow line.

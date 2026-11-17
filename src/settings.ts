@@ -294,7 +294,7 @@ export const SETTINGS = [
     label: "Light model",
     type: "string",
     default: "",
-    placeholder: "Haiku, the cheapest",
+    placeholder: "Haiku 5.5, the cheapest",
     pattern: "^[\\w.:/@-]{1,80}$",
     pattern_hint: "a model's name as your agent's own command takes it, like haiku",
     help: "Sorts, scores, answers your rules' questions and reads small facts, like who a bot's PR is for. Small costs less.",
@@ -442,10 +442,21 @@ const BYPASS = {
   OpenCode:
     "Approves what your OpenCode config asks about; off, that's refused. OpenCode has no sandbox either way. Its deny rules still hold.",
 };
+// Claude Code's models by version, as its picker lists them; its --model aliases (opus) name whichever is latest, so a
+// setting saved as one reads as the version it is now.
+export const CLAUDE_VERSIONS: readonly { value: string; label: string; alias: string }[] = [
+  { value: "claude-fable-5-2", label: "Fable 5.2", alias: "fable" },
+  { value: "claude-opus-5-5", label: "Opus 5.5", alias: "opus" },
+  { value: "claude-sonnet-5-5", label: "Sonnet 5.5", alias: "sonnet" },
+  { value: "claude-haiku-5-5", label: "Haiku 5.5", alias: "haiku" },
+];
+const VERSIONED = new Map(CLAUDE_VERSIONS.map((v) => [v.alias, v.value]));
+const MODEL_KEYS = new Set(["agent.coordinator_model", "agent.light_model"]);
+
 // Each subscription's cheap tier: the light model when its settings are empty (lightModel() in src/light.ts). OpenCode
 // names no cheapest model, so it's its own default, and takes no effort.
 export const TIERS: Record<string, { model: string; effort: string; label: string }> = {
-  "claude-code": { model: "haiku", effort: "low", label: "Haiku, the cheapest" },
+  "claude-code": { model: "claude-haiku-5-5", effort: "low", label: "Haiku 5.5, the cheapest" },
   codex: { model: "gpt-5.6-luna", effort: "low", label: "GPT-5.6 Luna, the cheapest" },
 };
 
@@ -568,7 +579,7 @@ function settingsFrom(text: string): SettingsFile {
     if (k !== was && k in raw) continue; // the new name wins
     const err = checkSetting(k, v);
     if (err) errors.push({ path: was, message: err });
-    else if (isSettingValue(v)) overrides[k] = v;
+    else if (isSettingValue(v)) overrides[k] = MODEL_KEYS.has(k) && typeof v === "string" ? (VERSIONED.get(v) ?? v) : v;
   }
   return { overrides, errors, raw, text };
 }

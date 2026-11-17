@@ -285,8 +285,8 @@ test(
   "a model and an effort are passed at its start; changing one makes a copy that runs with it, and wakes stay flag-free",
   posix,
   async (c) => {
-    const t = await coordinated(c, { "agent.coordinator_model": "opus", "agent.coordinator_effort": "high" });
-    assert.deepEqual(t.desk.coordinator.options(), { agent: "claude-code", bypass: false, model: "opus", effort: "high" });
+    const t = await coordinated(c, { "agent.coordinator_model": "opus", "agent.coordinator_effort": "high" }); // an alias: read as the version it is
+    assert.deepEqual(t.desk.coordinator.options(), { agent: "claude-code", bypass: false, model: "claude-opus-5-5", effort: "high" });
     runSync(t.desk.act("web#3", "inflight"));
     await until(() => t.said().length === 1 && runSync(t.desk.inflight()).coordinator.url !== null);
     await t.desk.coordinator.flushing;
@@ -297,20 +297,20 @@ test(
       "--remote-control",
       NAME,
       "--model",
-      "opus",
+      "claude-opus-5-5",
       "--effort",
       "high",
     ]);
-    assert.equal(t.desk.coordinator.saved()?.runs, "opus|high");
+    assert.equal(t.desk.coordinator.saved()?.runs, "claude-opus-5-5|high");
     t.event(3, "commented");
     await until(() => t.said().length === 2);
     assert.deepEqual(resumes(t.fake.calls()), [
       ["--resume", "c0ffee01-1111-2222", "--bg", "In Merging: acme/web#3 (https://github.com/acme/web/pull/3): new comment."],
     ]);
     runSync(t.desk.putSettings({ set: { "agent.coordinator_model": "sonnet" } }));
-    await until(() => t.desk.coordinator.saved()?.runs === "sonnet|high");
+    await until(() => t.desk.coordinator.saved()?.runs === "claude-sonnet-5-5|high");
     const copy = resumes(t.fake.calls()).at(-1)!;
-    assert.deepEqual(copy.slice(copy.indexOf("--model")), ["--model", "sonnet", "--effort", "high"]);
+    assert.deepEqual(copy.slice(copy.indexOf("--model")), ["--model", "claude-sonnet-5-5", "--effort", "high"]);
   },
 );
 

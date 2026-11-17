@@ -90,7 +90,7 @@ test(
     const f = fakes(c);
     await run(light(f.dir, { "agent.harness": "claude-code" }).ask("hi", SCHEMA));
     const [claude] = f.claudeCalls();
-    assert.deepEqual([after(claude!, "--model"), after(claude!, "--effort")], ["haiku", "low"]);
+    assert.deepEqual([after(claude!, "--model"), after(claude!, "--effort")], ["claude-haiku-5-5", "low"]);
 
     await run(
       light(f.dir, { "agent.harness": "claude-code", "agent.light_model": "sonnet", "agent.light_effort": "medium" }).ask("hi", SCHEMA),
@@ -128,7 +128,7 @@ test("a tier model your agent doesn't have gives way to its own default, at the 
 test("agent.rules_model is read as the light model, saved under its new name on start, and kept per agent under either name", async (c) => {
   const t = await setup([], { settings: { "agent.rules_model": "sonnet" } });
   c.after(t.cleanup);
-  assert.equal(t.desk.settings["agent.light_model"], "sonnet");
+  assert.equal(t.desk.settings["agent.light_model"], "claude-sonnet-5-5", "Claude Code's alias, read as the version it is now");
   const file = JSON.parse(fs.readFileSync(path.join(t.home, "settings.json"), "utf8")) as Record<string, unknown>;
   assert.deepEqual([file["agent.light_model"], "agent.rules_model" in file], ["sonnet", false]);
 
@@ -137,5 +137,5 @@ test("agent.rules_model is read as the light model, saved under its new name on 
   await run(t.desk.putSettings({ set: { "agent.harness": "codex" } }));
   assert.equal(t.desk.settings["agent.light_model"], "gpt-5.5");
   await run(t.desk.putSettings({ set: { "agent.harness": "claude-code" } }));
-  assert.equal(t.desk.settings["agent.light_model"], "sonnet");
+  assert.equal(t.desk.settings["agent.light_model"], "claude-sonnet-5-5");
 });

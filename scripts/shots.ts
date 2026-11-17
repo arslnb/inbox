@@ -4411,7 +4411,7 @@ const SHOTS: Shot[] = [
       const light = await page.evaluate<string[]>(
         `["agent.light_model", "agent.light_effort"].map((k) => document.getElementById("setting-" + k)?.selectedOptions?.[0]?.textContent ?? "none")`,
       );
-      if (light[0] !== "Haiku, the cheapest" || light[1] !== "Low")
+      if (light[0] !== "Haiku 5.5, the cheapest" || light[1] !== "Low")
         failures.push(`settings-agent-more: the light model's rows read ${JSON.stringify(light)}`);
       await page.locator('[id="row-agent.light_effort"]').scrollIntoViewIfNeeded();
       await page.waitForTimeout(200);

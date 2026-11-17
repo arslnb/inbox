@@ -4,6 +4,7 @@
 import { Effect, Result } from "effect";
 import { claudeSpawn, codexCommand, codexMissing, opencodeCommand, opencodeMissing, runCommand } from "./review.ts";
 import { field, isRecord, str } from "./narrow.ts";
+import { CLAUDE_VERSIONS } from "./settings.ts";
 
 export interface Choice {
   value: string;
@@ -27,9 +28,9 @@ const LEVEL: Record<string, string> = {
 };
 const levels = (names: string[]) => names.map((n) => choice(n, LEVEL[n] ?? n));
 
-// Claude Code lists no models; its --model takes these aliases for the latest of each, and --effort these levels.
+// Claude Code lists no models: these, by version (its --model takes their ids), and --effort these levels.
 export const CLAUDE_MODELS: AgentModels = {
-  models: [choice("fable", "Fable"), choice("opus", "Opus"), choice("sonnet", "Sonnet"), choice("haiku", "Haiku")],
+  models: CLAUDE_VERSIONS.map((v) => choice(v.value, v.label)),
   efforts: levels(["low", "medium", "high", "xhigh", "max"]),
 };
 

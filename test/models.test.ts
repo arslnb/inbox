@@ -75,7 +75,7 @@ test("your agent's model and effort settings offer what it takes as choices, and
   const def = (key: string, defs = agentDefs("claude-code", CLAUDE_MODELS)) => defs.find((d) => d.key === key)!;
   assert.deepEqual(
     def("agent.coordinator_model").choices?.map((x) => x.value),
-    ["fable", "opus", "sonnet", "haiku"],
+    ["claude-fable-5-2", "claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5"],
   );
   assert.deepEqual(
     def("agent.coordinator_effort").choices?.map((x) => x.value),
@@ -106,11 +106,11 @@ test("each agent keeps its own model and effort: switching agents puts one's awa
   assert.deepEqual(now(), ["codex", "", ""], "Codex's first time: its own defaults, not Claude's opus");
   await run(t.desk.putSettings({ set: { "agent.coordinator_model": "gpt-6", "agent.coordinator_effort": "ultra" } }));
   await run(t.desk.putSettings({ set: { "agent.harness": "claude-code" } }));
-  assert.deepEqual(now(), ["claude-code", "opus", "high"], "Claude Code's come back");
+  assert.deepEqual(now(), ["claude-code", "claude-opus-5-5", "high"], "Claude Code's come back, its alias as the version it is");
   await run(t.desk.putSettings({ set: { "agent.harness": "codex" } }));
   assert.deepEqual(now(), ["codex", "gpt-6", "ultra"], "and Codex's");
   await run(t.desk.putSettings({ set: { "agent.harness": "claude-code", "agent.coordinator_model": "sonnet" } }));
-  assert.deepEqual(now(), ["claude-code", "sonnet", "high"], "a model set with the switch wins");
+  assert.deepEqual(now(), ["claude-code", "claude-sonnet-5-5", "high"], "a model set with the switch wins");
 });
 
 test("the light model is your subscription's cheap tier at low effort, or what you set; OpenCode takes its own default and no effort", () => {
@@ -120,7 +120,7 @@ test("the light model is your subscription's cheap tier at low effort, or what y
     "agent.light_model": model,
     "agent.light_effort": effort,
   });
-  assert.deepEqual(lightModel(s("claude-code")), { model: "haiku", effort: "low" });
+  assert.deepEqual(lightModel(s("claude-code")), { model: "claude-haiku-5-5", effort: "low" });
   assert.deepEqual(lightModel(s("codex")), { model: "gpt-5.6-luna", effort: "low" });
   assert.deepEqual(lightModel(s("opencode")), {});
   assert.deepEqual(lightModel(s("claude-code", "sonnet")), { model: "sonnet", effort: "low" }, "your model, the tier's effort");

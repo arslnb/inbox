@@ -695,8 +695,9 @@ final class FormatTests: XCTestCase {
     XCTAssertEqual(claude.name, "Claude Code")
     XCTAssertEqual(claude.run, ["Ask first", "Bypass permissions"])
     XCTAssertEqual(claude.models(""), [
-      .init(value: "", label: "Default model"), .init(value: "fable", label: "Fable"), .init(value: "opus", label: "Opus"),
-      .init(value: "sonnet", label: "Sonnet"), .init(value: "haiku", label: "Haiku"),
+      .init(value: "", label: "Default model"), .init(value: "claude-fable-5-2", label: "Fable 5.2"),
+      .init(value: "claude-opus-5-5", label: "Opus 5.5"), .init(value: "claude-sonnet-5-5", label: "Sonnet 5.5"),
+      .init(value: "claude-haiku-5-5", label: "Haiku 5.5"),
     ])
     XCTAssertEqual(claude.efforts("").map(\.label), ["Default effort", "Low", "Medium", "High", "Xhigh", "Max"])
     XCTAssertEqual(AgentKind.of(nil), claude, "an older desk names none: Claude Code")
@@ -711,7 +712,7 @@ final class FormatTests: XCTestCase {
     let typed = claude.models("claude-opus-4-5")
     XCTAssertEqual(typed.last, .init(value: "claude-opus-4-5", label: "claude-opus-4-5"))
     XCTAssertEqual(AgentKind.said(typed, value: "claude-opus-4-5", none: "Model"), "claude-opus-4-5")
-    XCTAssertEqual(AgentKind.said(typed, value: "opus", none: "Model"), "Opus")
+    XCTAssertEqual(AgentKind.said(typed, value: "claude-opus-5-5", none: "Model"), "Opus 5.5")
     XCTAssertEqual(AgentKind.said(typed, value: "", none: "Model"), "Model")
     XCTAssertEqual(AgentKind.said(codex.efforts("high"), value: "high", none: "Effort"), "High")
   }

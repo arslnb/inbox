@@ -887,7 +887,7 @@ test(
     for (const a of ["-p", "--strict-mcp-config", "--no-session-persistence"]) assert.ok(args.includes(a), a);
     assert.equal(args[args.indexOf("--tools") + 1], "");
     assert.ok(!args.includes("--restricted"), "your own settings");
-    assert.equal(args[args.indexOf("--model") + 1], "haiku", "the rules model: the cheapest, as nothing's set");
+    assert.equal(args[args.indexOf("--model") + 1], "claude-haiku-5-5", "the rules model: the cheapest, as nothing's set");
     assert.deepEqual(JSON.parse(args[args.indexOf("--json-schema") + 1]!), JUDGE_SCHEMA);
     const prompt = t.fake.stdin(1);
     assert.match(prompt, /- id: acme\/api#1\n/);
