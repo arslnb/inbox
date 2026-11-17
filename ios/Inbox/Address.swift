@@ -8,6 +8,7 @@ struct DeskAddress: Equatable, Sendable {
   var host: String { url.host() ?? "" }
   var isLocal: Bool { ["localhost", "127.0.0.1", "::1"].contains(host.lowercased()) }
   var text: String { url.absoluteString }
+  var isDemo: Bool { self == DemoDesk.address }  // test mode's made-up desk (Demo.swift)
 
   enum Unreadable: Error, Equatable {
     case empty, notAnAddress, plainHTTP, notAPairingLink

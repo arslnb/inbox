@@ -101,7 +101,11 @@ final class Store {
   init(defaults: UserDefaults = .standard, session: URLSession = APIClient.plain) {
     self.defaults = defaults
     self.session = session
-    if let saved = defaults.string(forKey: Store.addressKey), case .success(let parsed) = DeskAddress.parse(saved) {
+    if let saved = defaults.string(forKey: Store.addressKey), case .success(let parsed) = DeskAddress.parse(saved), parsed.address.isDemo {
+      address = parsed.address
+      client = APIClient(address: parsed.address, token: nil, session: DemoDesk.session)
+      Avatar.off = true
+    } else if let saved = defaults.string(forKey: Store.addressKey), case .success(let parsed) = DeskAddress.parse(saved) {
       let token = Keychain.read(for: parsed.address.text)
       if !parsed.address.isLocal, token != nil, !defaults.bool(forKey: Store.phoneKey) {
         Keychain.delete(for: parsed.address.text)
@@ -160,6 +164,15 @@ final class Store {
     return nil
   }
 
+  // Test mode: the made-up desk in Demo.swift, to see the app without a desk of your own. Nothing leaves the phone.
+  func testMode() {
+    DemoDesk.reset()
+    defaults.set(DemoDesk.address.text, forKey: Store.addressKey)
+    defaults.removeObject(forKey: Store.deviceKey)
+    defaults.removeObject(forKey: Store.phoneKey)
+    adopt(DemoDesk.address, device: nil, client: APIClient(address: DemoDesk.address, token: nil, session: DemoDesk.session))
+  }
+
   private static func localWords(_ e: APIError, _ address: DeskAddress) -> String {
     switch e {
     case .unreachable: "Nothing answers at \(address.text). Start the desk with desk serve, or open the desktop app."
@@ -172,6 +185,7 @@ final class Store {
     self.address = address
     deviceName = device
     self.client = client
+    Avatar.off = address.isDemo  // its people are made up: no one's real picture beside their name
     connectNote = nil
     reset()
     startLive()
@@ -216,6 +230,7 @@ final class Store {
     address = nil
     client = nil
     deviceName = nil
+    Avatar.off = false
     reset()
     connectNote = note
   }
@@ -781,7 +796,9 @@ final class Store {
 
   func flash(_ text: String, undo: Int? = nil, revert: Toast.Revert? = nil) {
     toastTimer?.cancel()
-    toast = Toast(text: text, undo: undo, revert: revert)
+    // Test mode writes nothing anywhere, so it never says GitHub was told.
+    let said = address?.isDemo == true ? text.replacingOccurrences(of: " on GitHub", with: " in test mode") : text
+    toast = Toast(text: said, undo: undo, revert: revert)
     toastTimer = Task { [weak self] in
       try? await Task.sleep(for: .seconds(6))
       if !Task.isCancelled { self?.toast = nil }
@@ -929,10 +946,11 @@ final class Store {
       lastAddress = args.string(forKey: "connectAddress") ?? ""
       debugScan = args.string(forKey: "scan")
       guard !flags.contains("-connect"), let typed = args.string(forKey: "deskURL"), case .success(let parsed) = DeskAddress.parse(typed),
-        parsed.address.isLocal
+        parsed.address.isLocal || parsed.address.isDemo
       else { return }
       address = parsed.address
-      client = APIClient(address: parsed.address, token: nil, session: session)
+      client = APIClient(address: parsed.address, token: nil, session: parsed.address.isDemo ? DemoDesk.session : session)
+      Avatar.off = parsed.address.isDemo
       debugEmpty = flags.contains("-empty")
       page = Page(rawValue: args.string(forKey: "page") ?? "") ?? .inbox
       if let open = args.string(forKey: "open") {

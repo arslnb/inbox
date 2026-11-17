@@ -195,6 +195,9 @@ wanted item-issue-large && shot item-issue-large -deskURL "$DESK" -open "acme/ap
 wanted item-largest && shot item-largest -deskURL "$DESK" -open "acme/worker#875" \
   -UIPreferredContentSizeCategoryName UICTContentSizeCategoryAccessibilityXXXL
 wanted settings && shot settings -deskURL "$DESK" -settings
+# Test mode: the made-up desk inside the app (Demo.swift), with no mock behind it.
+wanted test-mode && shot test-mode -deskURL https://test-mode.invalid
+wanted test-mode-settings && shot test-mode-settings -deskURL https://test-mode.invalid -settings
 # A desk that isn't there: nothing listens on port 9.
 wanted offline && shot offline -deskURL "http://localhost:9"
 

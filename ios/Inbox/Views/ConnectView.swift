@@ -96,6 +96,19 @@ struct ConnectView: View {
         .buttonStyle(FilledButton())
         .disabled(busy || typed.trimmingCharacters(in: .whitespaces).isEmpty)
         .padding(.top, 24)
+
+        Theme.rule.frame(height: 1).padding(.top, 32)
+        Text("No desk yet?").sans(15, 600).foregroundStyle(Theme.ink).padding(.top, 24)
+        Text("Test mode shows the app with made-up pull requests, issues and questions. Nothing you do there leaves this phone.")
+          .sans(13).foregroundStyle(Theme.pencil).lineSpacing(2).padding(.top, 6)
+        Button("Try test mode") {
+          focus = nil
+          store.testMode()
+        }
+        .buttonStyle(PlainAct())
+        .disabled(busy)
+        .padding(.top, 14)
+        .accessibilityIdentifier("test-mode")
       }
       .padding(.horizontal, 24)
       .padding(.top, 56)

@@ -295,24 +295,31 @@ struct SessionPage: View {
 struct SettingsSheet: View {
   @Environment(Store.self) private var store
   @Environment(\.dismiss) private var dismiss
+  private var demo: Bool { store.address?.isDemo == true }
 
   var body: some View {
     NavigationStack {
       ScrollView {
         VStack(alignment: .leading, spacing: 0) {
-          row("Desk", store.address?.text ?? "")
-          row("This device", store.address?.isLocal == true ? "On the desk's own computer: not paired" : (store.deviceName ?? "Paired"))
+          if demo {
+            row("Desk", "Test mode: made-up items, and nothing you do leaves this phone")
+          } else {
+            row("Desk", store.address?.text ?? "")
+            row("This device", store.address?.isLocal == true ? "On the desk's own computer: not paired" : (store.deviceName ?? "Paired"))
+          }
           row("App version", Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "")
-          Button("Disconnect") {
+          Button(demo ? "Leave test mode" : "Disconnect") {
             dismiss()
             store.disconnect()
           }
           .buttonStyle(PlainAct())
           .padding(.top, 20)
           Text(
-            store.address?.isLocal == true
-              ? "Disconnect forgets this desk's address on this phone."
-              : "Disconnect forgets this phone's token. The device stays listed on the desk until you revoke it on the desk's computer: Settings → Network."
+            demo
+              ? "Leave test mode to connect this phone to your own desk."
+              : store.address?.isLocal == true
+                ? "Disconnect forgets this desk's address on this phone."
+                : "Disconnect forgets this phone's token. The device stays listed on the desk until you revoke it on the desk's computer: Settings → Network."
           )
           .sans(13).foregroundStyle(Theme.pencil).lineSpacing(3).padding(.top, 10)
         }

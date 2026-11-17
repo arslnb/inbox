@@ -76,6 +76,7 @@ struct Avatar: View {
   var scales = true  // with the text size; a row's picture keeps its slot
   @ScaledMetric(relativeTo: .body) private var scale: CGFloat = 100
   @MainActor static var failed: Set<String> = []
+  @MainActor static var off = false  // test mode: its logins are made up, so nobody real's picture is asked for
 
   static func url(_ login: String) -> URL? {
     let name = login.hasPrefix("@") ? String(login.dropFirst()) : login
@@ -86,7 +87,7 @@ struct Avatar: View {
   }
 
   var body: some View {
-    if !Avatar.failed.contains(login), let url = Avatar.url(login) {
+    if !Avatar.off, !Avatar.failed.contains(login), let url = Avatar.url(login) {
       let side = scales ? min(size * scale / 100, size * 1.6) : size
       AsyncImage(url: url) { phase in
         switch phase {

@@ -52,6 +52,7 @@
     "check": "npm run format:check && npm run lint && npm run lint:css && npm run typecheck && npm run knip && npm test",
     "prepare": "simple-git-hooks",
     "shots": "node --disable-warning=ExperimentalWarning scripts/shots.ts",
+    "ios:demo": "node --disable-warning=ExperimentalWarning scripts/ios-demo.ts",
     "release": "node --disable-warning=ExperimentalWarning scripts/release.ts",
     "prepack": "rm -rf lib && tsc -p tsconfig.build.json && npm run build",
     "release:publish": "bash scripts/release-publish.sh"

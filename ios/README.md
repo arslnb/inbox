@@ -128,6 +128,18 @@ menu, Show more, a pick from the filter's suggestions and Backspace on a pill, t
 Wake it, a write and its toast or refusal, the toast's Undo, pull to refresh, and the swipe back from the left edge on each opened page, which
 `Views/Acting.swift` keeps alive with the bar hidden), try by hand against the mock.
 
+## Test mode
+
+**Try test mode**, under Connect on the connect screen, shows the app with no desk: made-up pull requests, issues,
+questions, sessions and notes, the mock desk's (`web/mock/server.ts`), recorded into `Inbox/Demo.json`. It's what App
+Review sees. Every request goes to `DemoDesk` (`Inbox/Demo.swift`), a `URLProtocol` on its own session for the address
+`https://test-mode.invalid`, so nothing leaves the phone. Its times move on to now; a write (Approve, Done, Merge, an
+answer, Hand off) takes the item off the lists, Undo puts it back, a note shows in its section, and an ask is answered
+at once with a line saying no agent runs here. Toasts say "in test mode" where they'd say "on GitHub", and nobody's
+GitHub picture is asked for. Settings → **Leave test mode** goes back to the connect screen; a fresh launch starts the
+made-up desk afresh. After the mock's data changes, record it again with `npm run ios:demo`. Shots: `test-mode`,
+`test-mode-settings` (`-deskURL https://test-mode.invalid`).
+
 ## On a real phone
 
 Not tried on a phone yet: v0 has only run in the Simulator, and the project has no signing team set. When you do:
@@ -510,5 +522,6 @@ Not built at all: notifications, an iPad layout.
 | A question, a session, Settings, bubbles    | `Inbox/Views/Pages.swift`                                                              |
 | An opened page's bar, the boxes that write  | `Inbox/Views/Acting.swift` (`BottomBar`, `WriteSheet`, `ReviewersSheet`, the swipe back) |
 | The connect screen                          | `Inbox/Views/ConnectView.swift`                                                        |
+| Test mode (no desk; App Review)             | `Inbox/Demo.swift` (`DemoDesk`); its answers `Inbox/Demo.json`, from `npm run ios:demo` (`scripts/ios-demo.ts`); `Store.testMode()`; `DeskAddress.isDemo` |
 | Scan the code (the camera, the QR it reads) | `Inbox/Views/ScanView.swift`; what counts as a desk's link: `DeskAddress.scanned()`    |
 | The app icon                                | `Inbox/Assets.xcassets/AppIcon.appiconset` (the mark, full-bleed on petrol)            |
