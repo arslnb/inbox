@@ -93,6 +93,13 @@ test("approvals that don't count: before the ask, yours, a bot's, or taken back"
   );
 });
 
+test("your team asked after someone approved: settled while GitHub still counts the approval; you by name: not", () => {
+  const reviews = [review("carol", "approved", hoursAgo(20))];
+  assert.equal(resolve(teamAsked({ reviews })), "approved by carol");
+  assert.equal(resolve(teamAsked({ reviews, review_decision: "required" })), null, "more reviews needed: maybe your team's");
+  assert.equal(resolve(asked({ reviews })), null);
+});
+
 test("asked again after the approval: back", () => {
   const it = asked({ request_events: [ask(hoursAgo(10)), ask(hoursAgo(1))], reviews: [review("carol", "approved", hoursAgo(3))] });
   assert.equal(resolve(it), null);

@@ -37,7 +37,9 @@ export function resolution(item: Item, s: Signals, settings: ResolveSettings, te
   const blocked = s.me.review_state === "changes_requested" || item.review_decision === "required";
   if ((mode === "always" || (mode === "team_only" && viaTeam)) && !blocked) {
     const isBot = botCheck(settings["github.bots"]);
-    const since = lastAsk?.at ?? "";
+    // An ask of your team is settled by an approval GitHub still counts, one from before the ask too (CODEOWNERS add the
+    // team on a later push); one of you by name needs an approval after it.
+    const since = viaTeam ? "" : (lastAsk?.at ?? "");
     // Each reviewer's latest verdict: a later change request or dismissal takes an approval back.
     const verdicts = new Map<string, Item["reviews"][number]>();
     for (const r of item.reviews) if (r.state !== "commented" && r.state !== "pending") verdicts.set(lc(r.author), r);
