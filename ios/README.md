@@ -310,10 +310,15 @@ merge, where Snooze does); More is its three dots only where it doesn't fit even
   line's box, a row of your agent's work, and after Make PR with fix. Opening it only reads (`GET /api/asks`, again
   on each of the desk's updates, no timer); **Send and Wake it each spend a turn of your agent on your own Claude**,
   so only a press sends one, and a second press while one is on its way sends nothing.
-- **Notes.** A note's row (Note, its words, Done, "at Tue 9:00" or "by you") opens its box: your words, **Remind me**
-  (No reminder, In 1 hour, In 3 hours, Tomorrow 9:00, Monday 9:00, or Pick a time…, not before now), Save, Done (it
-  leaves your desk for good, no Undo, as the window) and Close. A swipe on the row is Done too. **New note** is in the
-  page's menu. A refusal keeps your words in the box with the desk's own. Notes are the desk's: nothing on GitHub.
+- **Notes.** A note leads the section you put it in: a due reminder, then Urgent's notes, lead Urgent (after the
+  questions and sessions), Standard's lead Standard and FYI's lead FYI, each counted in its heading. Its row (Note, its
+  words, Done, "at Tue 9:00" or "by you") opens its box: your words, **In** (Urgent, Standard or FYI; Standard for a
+  new note), **Remind me** (No reminder, In 1 hour, In 3 hours, Tomorrow 9:00, Monday 9:00, or Pick a time…, not before
+  now), Save, Done (it leaves your desk for good, no Undo, as the window) and Close. A swipe on the row is Done too. Its
+  menu (long press), as the window's: Done, Move to the section one up or down (a due note counts as Urgent; a move
+  drops its reminder), Snooze (a time, which becomes its reminder), Change note (its box) and Copy text. **New note**
+  is in the page's menu. A refusal keeps your words in the box with the desk's own. Notes are the desk's: nothing on
+  GitHub.
 - **People's pictures.** A person's GitHub picture before their name: a row's "by", who said what in a conversation
   or a thread on a line, the reviewers' list, the filter's pills and suggestions. None for you, a bot or a team
   (docs/ui.md; the window's code draws yours). Nothing is drawn, and no room kept, while one loads or when it doesn't,
@@ -421,7 +426,7 @@ Not built at all: notifications, an iPad layout.
 | The pages and their lists, a row's menu     | `Inbox/Views/DeskView.swift` (`CardMenu`, `NoteLine`, `SessionLine`; Merging's agent line and `wake()`) |
 | The filter                                  | `Filter` in `Inbox/Format.swift` (`parse()`, `matches()`, `people()`, `suggest()`, `picked()`, `dropped()`: view.ts's and Filter.tsx's); the box and its suggestions in `Inbox/Views/FilterBar.swift`; `Store.filter`, `shown()` |
 | FYI's five, a row's moves, Blocked's tree   | `Lists.fyiCut()`, `moves()`, `treeGuides()` in `Format.swift`; `TreeGuides` in `Rows.swift` |
-| Notes                                       | `Inbox/Views/NoteSheet.swift`; `Remind` in `Format.swift`; `Store.saveNote()`, `doneNote()`, `noting` |
+| Notes                                       | `Inbox/Views/NoteSheet.swift`; their places in `InboxList` and their menu in `NoteLine` (`DeskView.swift`); `Remind`, `Lists.moves(_:now:)` in `Format.swift`; `Store.saveNote()`, `doneNote()`, `noting` |
 | People's pictures                           | `Avatar` in `Inbox/Views/Rows.swift`; whose: `Card.face`, `Standings.Standing.face`, `WhoLine` |
 | Wake it                                     | `Store.wake()`, `APIClient.wake()`                                                     |
 | Ask your agent (the chat)                   | `Inbox/Views/Chat.swift` (`ChatPage`); what it's about, its words and the waiting line: `ChatAbout`, `Wait`, `Asking` in `Inbox/Asking.swift` (Chat.tsx's); `Store.asks`, `readAsks()`, `ask()`, `wake(ask:toast:)`, `openChat()`, `askDrafts`; `APIClient.asks()`, `ask()`; `AsksView` in `Models.swift`; the route is `Route.chat` |

@@ -256,11 +256,13 @@ struct InboxList: View {
       let urgent = store.shown(view.inbox?.urgent ?? [])
       let standard = store.shown(view.inbox?.standard ?? [])
       let fyi = store.shown(view.inbox?.fyi ?? [])
-      let due = store.shown(view.notes?.due)
+      // Your notes lead their sections: due reminders then urgent ones in Urgent, the rest in Standard and FYI.
+      let urgentNotes = store.shown(view.notes?.due) + store.shown(view.notes?.urgent)
       let open = store.shown(view.notes?.open)
+      let fyiNotes = store.shown(view.notes?.fyi)
       let asked = view.inquiries.filter { !store.leaving.contains($0.id) }
-      let lead = asked.count + active.count + due.count
-      let any = lead + urgent.count + open.count + standard.count + fyi.count > 0
+      let lead = asked.count + active.count + urgentNotes.count
+      let any = lead + urgent.count + open.count + standard.count + fyiNotes.count + fyi.count > 0
       // A new desk's first minutes, in the desk's words; not while filtering.
       let first = filtering ? nil : view.firstPass?.line
       ScrollViewReader { proxy in
@@ -283,7 +285,7 @@ struct InboxList: View {
                 }
               }
               ForEach(active) { s in SessionLine(s: s) }
-              ForEach(due) { n in NoteLine(n: n) }
+              ForEach(urgentNotes) { n in NoteLine(n: n) }
               ForEach(urgent) { c in CardLine(card: c, variant: .active) }
             }
           }
@@ -293,9 +295,10 @@ struct InboxList: View {
               ForEach(standard) { c in CardLine(card: c, variant: .active) }
             }
           }
-          if !fyi.isEmpty {
+          if fyiNotes.count + fyi.count > 0 {
             let cut = Lists.fyiCut(fyi.count, all: allFyi, filtering: filtering)
-            section("fyi", "FYI", total(view.inbox?.fyi), matched: fyi.count) {
+            section("fyi", "FYI", fyiNotes.count + total(view.inbox?.fyi), matched: fyi.count) {
+              ForEach(fyiNotes) { n in NoteLine(n: n) }
               ForEach(cut.map { Array(fyi.prefix($0)) } ?? fyi) { c in CardLine(card: c, variant: .active) }
               if let cut {
                 Button {
@@ -375,10 +378,12 @@ struct Waiting: View {
   }
 }
 
-// A note's row: a tap opens it in the note box to change it; a swipe is Done, as a card's.
+// A note's row: a tap opens it in the note box to change it; a swipe is Done, as a card's. Its menu is NoteMenu's.
 struct NoteLine: View {
   @Environment(Store.self) private var store
   let n: Note
+
+  private var text: String { n.text ?? "" }
 
   var body: some View {
     Button {
@@ -390,6 +395,25 @@ struct NoteLine: View {
     .deskRow()
     .swipeActions(edge: .trailing, allowsFullSwipe: true) {
       Button("Done") { Task { await store.doneNote(n) } }.tint(Theme.swipeAccent)
+    }
+    .contextMenu {
+      Button("Done") { Task { await store.doneNote(n) } }
+      // There now: a reminder it had is dropped.
+      ForEach(Lists.moves(n, now: store.now), id: \.self) { to in
+        Button("Move to \(Lists.sectionName[to] ?? to)") { Task { await store.saveNote(n, text: text, remind: "", section: to) } }
+      }
+      // A note has no activity to wait on: the time becomes its reminder.
+      Menu("Snooze") {
+        ForEach(SnoozeOption.times) { option in
+          Button(option.label) { Task { await store.saveNote(n, text: text, remind: option.until) } }
+        }
+      }
+      Divider()
+      Button("Change note") { store.noting = Noting(note: n) }
+      Button("Copy text") {
+        UIPasteboard.general.string = text
+        store.flash("Copied the note")
+      }
     }
   }
 }
