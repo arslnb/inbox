@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, test } from "node:test";
@@ -35,8 +35,15 @@ afterEach(() => {
 });
 
 function fake(name: string) {
-  writeFileSync(join(bin, name), `#!/bin/sh\nprintf '%s\\n' "$@" >> "$HOME/${name}-args"\n`);
+  // A file per call, so two calls at once don't interleave their lines.
+  writeFileSync(join(bin, name), `#!/bin/sh\nprintf '%s\\n' "$@" > "$HOME/${name}-args.$$"\n`);
   chmodSync(join(bin, name), 0o755);
+}
+
+function calls(name: string): string[] {
+  return readdirSync(home)
+    .filter((f) => f.startsWith(`${name}-args.`))
+    .map((f) => readFileSync(join(home, f), "utf8"));
 }
 
 const signedOut = () => Effect.fail(new GitHubAuthError({ reason: "no_token", message: "no GitHub token: run `gh auth login`" }));
@@ -114,8 +121,8 @@ test("picking a ready agent sets it, connects it like Settings' Connect, and the
     assert.deepEqual([s.needed, s.agent], [false, "codex"]);
     assert.equal(t.desk.settings["agent.harness"], "codex");
     // Settings' model list asks `codex debug models` too, at any point
-    const args = readFileSync(join(home, "codex-args"), "utf8").replace("debug\nmodels\n", "");
-    assert.match(args, /^mcp\nadd\ninbox\n--url\nhttp:\/\/localhost:47823\/mcp\n$/);
+    const args = calls("codex").filter((a) => a !== "debug\nmodels\n");
+    assert.deepEqual(args, ["mcp\nadd\ninbox\n--url\nhttp://localhost:47823/mcp\n"]);
     assert.ok(existsSync(join(home, ".agents", "skills", "inbox", "SKILL.md")));
   } finally {
     t.desk.stop();
@@ -134,7 +141,7 @@ test("GitHub not connected: the agent is picked and connected, and the page fini
   try {
     const s = await run(t.desk.chooseAgent("claude-code", MCP));
     assert.deepEqual([s.needed, s.picked], [true, "claude-code"]);
-    assert.match(readFileSync(join(home, "claude-args"), "utf8"), /^mcp\nadd\n--transport\nhttp\n--scope\nuser\ninbox\n/);
+    assert.match(calls("claude").find((a) => a.startsWith("mcp\n")) ?? "", /^mcp\nadd\n--transport\nhttp\n--scope\nuser\ninbox\n/);
     assert.ok(existsSync(join(home, ".claude", "skills", "inbox", "SKILL.md")));
     t.signIn();
     const after = await run(t.desk.checkSetup());
