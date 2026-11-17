@@ -474,6 +474,27 @@ export const UNTIL: Record<Until, string> = {
   conflict: "the merge conflict is fixed",
 };
 
+// A snooze's or reminder's time ("3h", "2d", "tomorrow", "monday", a date, an ISO time); null when it can't be read or is past.
+export function untilTime(until: string, now: Date): Date | null {
+  const rel = /^(\d+)([hd])$/.exec(until);
+  if (rel && Number(rel[1]) > 0) return new Date(now.getTime() + Number(rel[1]) * (rel[2] === "h" ? 1 : 24) * 3_600_000);
+  if (until === "tomorrow" || until === "monday") {
+    const d = new Date(now);
+    d.setHours(9, 0, 0, 0);
+    // After midnight, "tomorrow" still means the coming morning; on a Monday before 09:00, "monday" means today.
+    if (until === "tomorrow" && now.getHours() >= 5) d.setDate(d.getDate() + 1);
+    if (until === "monday" && !(now.getDay() === 1 && now.getHours() < 9)) d.setDate(d.getDate() + ((8 - d.getDay()) % 7 || 7));
+    return d;
+  }
+  const day = /^(\d{4})-(\d{2})-(\d{2})$/.exec(until);
+  const t = day
+    ? new Date(Number(day[1]), Number(day[2]) - 1, Number(day[3]), 9).getTime()
+    : /^\d{4}-\d{2}-\d{2}T/.test(until)
+      ? Date.parse(until)
+      : NaN;
+  return Number.isNaN(t) || t <= now.getTime() ? null : new Date(t);
+}
+
 // ---------------------------------------------------------------------------
 // Classification
 
@@ -1263,6 +1284,20 @@ export interface NotesView {
   open: Note[]; // Standard's, newest first
   fyi: Note[]; // newest first
   later: Note[]; // soonest first
+}
+
+// Where the desk puts your notes at `now` (ISO); the window places its own writes the same way.
+export function placeNotes(all: readonly Note[], now: string): NotesView {
+  const soonest = (a: Note, b: Note) => (a.remind_at ?? "").localeCompare(b.remind_at ?? "");
+  const waiting = (s: InboxSection) =>
+    all.filter((n) => !n.remind_at && (n.section ?? "standard") === s).toSorted((a, b) => b.at.localeCompare(a.at));
+  return {
+    due: all.filter((n) => n.remind_at && n.remind_at <= now).toSorted(soonest),
+    urgent: waiting("urgent"),
+    open: waiting("standard"),
+    fyi: waiting("fyi"),
+    later: all.filter((n) => n.remind_at && n.remind_at > now).toSorted(soonest),
+  };
 }
 
 // GET /api/inquiries/:id: with the card of the PR or issue it's about, when the desk holds it.

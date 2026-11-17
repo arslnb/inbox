@@ -21,7 +21,7 @@ import type {
 } from "../../src/types.ts";
 import { permalink } from "../../src/links.ts";
 import { parseJson } from "../../src/narrow.ts";
-import { isCoordinator } from "../../src/types.ts";
+import { isCoordinator, untilTime } from "../../src/types.ts";
 import { api, DeskUnreachable, runUi, type ApiError, type ClipboardUnavailable, type DeskConfigBroken, type DeskStarting } from "./api.ts";
 import { cls, copyText, fromName, MAC, shortId, shortRef, SNOOZE, snoozeOptions, aiName, setAiName, when } from "./format.ts";
 import { restOn } from "./reviews.ts";
@@ -29,6 +29,7 @@ import { holdKeys, keysHeld } from "./drafts.ts";
 import { adoptTheme, desktop, loadOmarchy, OmarchyAnswer, omarchyIs } from "./theme.ts";
 import { getStored, setStored } from "./storage.ts";
 import { useKeyed } from "./keyed.ts";
+import { dropKey, settleNoteEdits, withNoteEdits, type NoteEdits } from "./pending.ts";
 import {
   attachCommand,
   beside,
@@ -169,6 +170,8 @@ export function App() {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [details, setDetails] = useState<Record<string, ItemDetail | string>>({});
   const [noting, setNoting] = useState<Note | "new" | null>(null); // the note tray: a new note, or one you opened
+  const [noteEdits, setNoteEdits] = useState<NoteEdits>({});
+  const newNotes = useRef(0);
   const noteClose = useRef<(() => void) | null>(null); // the open tray's way out, for Esc
   const setNoteClose = useCallback((leave: (() => void) | null) => {
     noteClose.current = leave;
@@ -573,10 +576,23 @@ export function App() {
       (s) => s.status === "active" && !leaving.has(s.id) && (!f || [s.name, s.reason, s.cwd].some((x) => x.toLowerCase().includes(f))),
     );
   }, [view, leaving, filter, listPage]);
+  // The queue with your note writes on it until the desk's view has them.
+  const queueView = useMemo(
+    () =>
+      view &&
+      (Object.keys(noteEdits).length ? { ...view, notes: withNoteEdits(view.notes, noteEdits, new Date(now).toISOString()) } : view),
+    [view, noteEdits, now],
+  );
+  useEffect(() => {
+    if (view) setNoteEdits((e) => settleNoteEdits(view.notes, e));
+  }, [view]);
   // Your notes, wherever their rows are (the Inbox, or the Archive while a reminder waits): each has a right-click menu.
   const notes = useMemo(
-    () => (view ? [...view.notes.due, ...view.notes.urgent, ...view.notes.open, ...view.notes.fyi, ...view.notes.later] : []),
-    [view],
+    () =>
+      queueView
+        ? [...queueView.notes.due, ...queueView.notes.urgent, ...queueView.notes.open, ...queueView.notes.fyi, ...queueView.notes.later]
+        : [],
+    [queueView],
   );
   const cursor = useMemo(() => [...inquiries.map((q) => inquiryOf(q.id)), ...stops(page, leaving)], [inquiries, page, leaving]);
   const current = flat.find((c) => c.id === selected) ?? null;
@@ -891,23 +907,42 @@ export function App() {
     });
   }
 
-  // A note to yourself, new or changed; true once the desk has it.
+  // A note to yourself, new or changed: drawn at once, put back if the desk refuses it; true once the desk has it.
   function saveNote(n: Note | null, text: string, remind: string, put?: InboxSection): Effect.Effect<boolean> {
-    return api.saveNote(n?.id ?? null, { text, remind, ...(put && { section: put }) }).pipe(
-      Effect.match({
-        onSuccess: ({ note }) => {
-          flash(note.remind_at ? `I'll remind you ${when(note.remind_at)}` : n ? "Note changed" : "Noted: it's on your Inbox");
-          return true;
-        },
-        onFailure: (e) => {
-          flash(e.message, true);
-          return false;
-        },
-      }),
-      Effect.tap(refreshNow),
-    );
+    return Effect.suspend(() => {
+      const at = new Date();
+      const key = n?.id ?? `new-${++newNotes.current}`;
+      const remind_at = remind ? (untilTime(remind, at)?.toISOString() ?? null) : null;
+      const where = put ?? n?.section;
+      const drawn: Note = {
+        ...n,
+        id: key,
+        at: n?.at ?? at.toISOString(),
+        text: text.trim(),
+        remind_at,
+        reminded_at: n && remind_at === n.remind_at ? n.reminded_at : null,
+        ...(where && { section: where }),
+      };
+      setNoteEdits((e) => ({ ...e, [key]: drawn }));
+      return api.saveNote(n?.id ?? null, { text, remind, ...(put && { section: put }) }).pipe(
+        Effect.match({
+          onSuccess: ({ note }) => {
+            setNoteEdits((e) => ({ ...dropKey(e, key), [note.id]: note }));
+            flash(note.remind_at ? `I'll remind you ${when(note.remind_at)}` : n ? "Note changed" : "Noted: it's on your Inbox");
+            return true;
+          },
+          onFailure: (e) => {
+            setNoteEdits((x) => dropKey(x, key));
+            flash(e.message, true);
+            return false;
+          },
+        }),
+        Effect.tap(refreshNow),
+      );
+    });
   }
   function doneNote(n: Note) {
+    setNoteEdits((e) => ({ ...e, [n.id]: null }));
     runUi(
       api.doneNote(n.id).pipe(
         Effect.match({
@@ -915,6 +950,7 @@ export function App() {
             flash("Note done");
           },
           onFailure: (e) => {
+            setNoteEdits((x) => dropKey(x, n.id));
             flash(e.message, true);
           },
         }),
@@ -1180,23 +1216,25 @@ export function App() {
     runUi(finish(c, `Asking ${names} to review ${shortRef(c)}…`, { what: `Asked ${names}`, where: "archive" }, write));
   }
 
-  // One reviewer's icon in the review's sidebar: off your PR, or asked again; the PR stays where it is.
-  function changeReviewer(c: Card, login: string, how: "remove" | "rerequest") {
+  // One reviewer's icon in the review's sidebar: off your PR, or asked again; the PR stays where it is. False when GitHub says no.
+  function changeReviewer(c: Card, login: string, how: "remove" | "rerequest"): Effect.Effect<boolean> {
     const [doing, done] = how === "remove" ? ["Removing", "Removed"] : ["Asking", "Asked"];
-    flash(`${doing} ${login}${how === "remove" ? ` from ${shortRef(c)}` : ` to review ${shortRef(c)} again`}…`);
-    runUi(
-      api.reviewer(c.id, login, how).pipe(
+    return Effect.suspend(() => {
+      flash(`${doing} ${login}${how === "remove" ? ` from ${shortRef(c)}` : ` to review ${shortRef(c)} again`}…`);
+      return api.reviewer(c.id, login, how).pipe(
         Effect.match({
           onSuccess: () => {
             flash(`${done} ${login}${how === "remove" ? ` as a reviewer of ${shortRef(c)}` : ` to review ${shortRef(c)} again`} on GitHub`);
+            return true;
           },
           onFailure: (e) => {
             flash(`Couldn't ${how === "remove" ? "remove" : "ask"} ${login}: ${e.message}`, true);
+            return false;
           },
         }),
         Effect.tap(refreshNow),
-      ),
-    );
+      );
+    });
   }
 
   // One reviewer picked in the review's sidebar: asked at once, and the PR stays where it is. False when GitHub says no.
@@ -1692,7 +1730,7 @@ export function App() {
   const besideRows =
     side !== "open" || !listPage ? null : listPage === "queue" ? (
       <Queue
-        view={view}
+        view={queueView}
         overview={overview}
         groups={groups}
         ctx={compact}
@@ -1719,7 +1757,7 @@ export function App() {
       />
     ) : (
       <Later
-        view={view}
+        view={queueView}
         groups={groups}
         keys={PAGE_GROUPS[listPage]}
         empty={EMPTY[listPage]}
@@ -1786,7 +1824,7 @@ export function App() {
         <main className="main">
           {route.name === "queue" && !broken && (
             <Queue
-              view={view}
+              view={queueView}
               overview={overview}
               groups={groups}
               ctx={ctx}
@@ -1801,7 +1839,7 @@ export function App() {
           )}
           {route.name === "blocked" && !broken && (
             <Later
-              view={view}
+              view={queueView}
               groups={groups}
               keys={PAGE_GROUPS.blocked}
               empty={EMPTY.blocked}
@@ -1812,7 +1850,7 @@ export function App() {
           )}
           {route.name === "archive" && !broken && (
             <Later
-              view={view}
+              view={queueView}
               groups={groups}
               keys={PAGE_GROUPS.archive}
               empty={EMPTY.archive}

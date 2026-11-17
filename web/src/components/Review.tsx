@@ -29,6 +29,7 @@ import { RISK_BARS, Signal } from "./RowIcons.tsx";
 import { age, cls, handoffLabel, MOD, modelName, sinceText, shortRef, when, aiName } from "../format.ts";
 import { blocks, inline, lead, unlinked, urlPlace } from "../../../src/prose.ts";
 import { reviewOf } from "../reviews.ts";
+import { dropKey, settleReviewerAsks, withReviewerAsks, type ReviewerAsks } from "../pending.ts";
 import {
   boxBack,
   boxGone,
@@ -198,7 +199,7 @@ export function Review({
   onReady: (c: Card, picked: Reviewer[]) => void;
   onAskReviewers: (c: Card, picked: Reviewer[]) => void; // your ready PR nobody's asked to review: ask who you picked
   onAddReviewer: (c: Card, r: Reviewer) => Effect.Effect<boolean>; // one picked in the sidebar: asked at once
-  onReviewer: (c: Card, login: string, act: "remove" | "rerequest") => void; // a reviewer's icon in the sidebar
+  onReviewer: (c: Card, login: string, act: "remove" | "rerequest") => Effect.Effect<boolean>; // a reviewer's icon in the sidebar
   onComment: (c: Card, body: string) => Effect.Effect<boolean>; // your comment on the PR; true once GitHub has it
   onBack: () => void;
   chat: boolean; // your chat with your agent is open: it takes the sidebar's place
@@ -244,6 +245,7 @@ export function Review({
   const [sent, setSent] = useState<Sent[]>([]);
   const [said, setSaid] = useState<Said[]>([]);
   const [poke, setPoke] = useState(0); // a read again while what you sent isn't back yet
+  const [asks, setAsks] = useState<ReviewerAsks>({}); // reviewers you added, removed or asked again, until the read has it
   const draftText = useRef(keptDraft(id)?.text ?? ""); // here, so a box Pierre redraws keeps your words without a render per keystroke
   const drafts = useRef(1);
   const alive = useRef(true);
@@ -330,7 +332,7 @@ export function Review({
       view.conversation.some((c) =>
         c.comments.some((k) => (s.url && k.url === s.url) || (k.author.toLowerCase() === me_ && k.body.trim() === s.body)),
       );
-    return [...sent, ...said].filter((s) => !back(s)).length;
+    return [...sent, ...said].filter((s) => !back(s)).length + Object.keys(asks).length;
   })();
   const tries = useRef(0);
   useKeyed(unread && tries.current < 10 ? `${unread} ${poke}` : null, () => {
@@ -342,6 +344,25 @@ export function Review({
       clearTimeout(t);
     };
   });
+
+  useEffect(() => {
+    if (v) setAsks((a) => settleReviewerAsks(v.item.review_requests, a));
+  }, [v]);
+  // A reviewer change shows at once and is read back until the review has it; a refusal puts it back.
+  function askReviewer(who: string, how: "asked" | "removed", write: Effect.Effect<boolean>) {
+    const key = who.toLowerCase();
+    tries.current = 0;
+    setAsks((a) => ({ ...a, [key]: how }));
+    runUi(
+      write.pipe(
+        Effect.tap((ok) =>
+          Effect.sync(() => {
+            if (!ok) setAsks((a) => dropKey(a, key));
+          }),
+        ),
+      ),
+    );
+  }
 
   function addReviewers() {
     if (!showSide) toggleSide();
@@ -814,6 +835,7 @@ export function Review({
     );
   const pending = sent.filter((s) => !back(s));
   const saying = said.filter((s) => !back(s));
+  const reviewers = withReviewerAsks(view.reviewers.list, asks);
   // Pierre's "more lines" around a hunk: the file at the PR's head, and before it the same file run back through its patch.
   const wholeFile = (f: ReviewFile): Promise<FileDiffLoadedFiles> => {
     const key = `${view.diff_head ?? ""}:${f.path}`;
@@ -1265,10 +1287,11 @@ export function Review({
             <SidePart
               id="reviewers"
               name="Reviewers"
-              line={view.reviewers.list.length ? "" : view.reviewers.line}
+              line={reviewers.length ? "" : Object.keys(asks).length ? "Nobody's asked" : view.reviewers.line}
               bad={view.reviewers.changes ? "t-warn" : ""}
               tone={calm(card)}
-              rows={view.reviewers.list.map((r) => {
+              // oxlint-disable-next-line no-map-spread -- each row is a new object with optional fields, not a reviewer copied
+              rows={reviewers.map((r) => {
                 const person = r.who !== "you" && !r.who.startsWith("@"); // a team's ask is the team's
                 const yours = card.by === "you" && item.state === "open" && !acted;
                 const remove = yours && person && r.state === "asked";
@@ -1286,7 +1309,7 @@ export function Review({
                         title={remove ? `Remove ${r.who} as a reviewer` : `Ask ${r.who} to review again`}
                         aria-label={remove ? `Remove ${r.who} as a reviewer` : `Ask ${r.who} to review again`}
                         onClick={() => {
-                          onReviewer(card, r.who, remove ? "remove" : "rerequest");
+                          askReviewer(r.who, remove ? "removed" : "asked", onReviewer(card, r.who, remove ? "remove" : "rerequest"));
                         }}
                       >
                         <svg className="i" viewBox="0 0 16 16" aria-hidden="true">
@@ -1311,7 +1334,9 @@ export function Review({
                     unasked={false}
                     compact
                     onPick={(r) => {
-                      runUi(
+                      askReviewer(
+                        r.team ? `@${r.login}` : r.login,
+                        "asked",
                         onAddReviewer(card, r).pipe(
                           Effect.tap((ok) =>
                             Effect.sync(() => {

@@ -917,6 +917,31 @@ const SHOTS: Shot[] = [
     },
   },
   {
+    // A note's Done, Move to and Save show on the Inbox at once, before the desk answers (it never does here).
+    name: "queue-notes-show",
+    go: async (page) => {
+      await page.route("**/api/notes**", stall);
+      await at("#/")(page);
+      const memo = (sel: string, text: string) => page.locator(`${sel} .line.memo`, { hasText: text });
+      const within = (l: ReturnType<typeof memo>, state: "attached" | "detached" = "attached") =>
+        l.waitFor({ state, timeout: 1000 }).then(
+          () => true,
+          () => false,
+        );
+      await rowMenuPick(page, '.line.memo:has-text("tombstone")', "Done");
+      if (!(await within(memo("", "tombstone"), "detached"))) failures.push("queue-notes-show: a done note stays until the desk answers");
+      await rowMenuPick(page, '.line.memo:has-text("Priya")', "Move to Standard");
+      if (!(await within(memo(".g-standard", "Priya"))))
+        failures.push("queue-notes-show: a moved note isn't in Standard until the desk answers");
+      await page.keyboard.press(`${process.platform === "darwin" ? "Meta" : "Control"}+n`);
+      await page.locator(".note-tray textarea").fill("Book the design review room");
+      await page.locator(".note-tray .note-acts .act", { hasText: "Save note" }).click();
+      if (!(await within(memo(".g-standard", "design review room"))))
+        failures.push("queue-notes-show: a new note isn't on the Inbox until the desk answers");
+    },
+    after: drop,
+  },
+  {
     // Change with your agent on a criterion: your words go to your agent told which tool to use, and its chat opens.
     name: "settings-criteria-ask",
     go: async (page) => {
@@ -2537,6 +2562,43 @@ const SHOTS: Shot[] = [
     after: async (page) => {
       await fresh(page);
     },
+  },
+  // Removing, asking again and adding a reviewer show in the sidebar at once, before GitHub answers (it never does here).
+  {
+    name: "review-reviewers-show",
+    go: async (page) => {
+      await reviewAs((v) => {
+        if (v.item.id !== "acme/api#4154") return;
+        v.reviewers.list.push({ who: "kofi", state: "asked" });
+        v.item.review_requests.push({ reviewer: "kofi", type: "user", codeowner: false });
+      })(page);
+      await page.route(/\/api\/review\/[^/]+\/reviewers?$/, async (r) => {
+        if (r.request().method() === "POST") stall(r);
+        else await r.fallback();
+      });
+      await review("acme/api#4154")(page);
+      if (!(await page.locator(".rv-side").isVisible())) await page.locator(".rv-side-show").click();
+      const part = page.locator("[data-part=reviewers]");
+      const rows = () =>
+        page.evaluate<string[]>(
+          `[...document.querySelectorAll("[data-part=reviewers] li")].map((li) => li.querySelector(".rv-part-name").textContent.trim() + ": " + li.querySelector(".rv-part-state").textContent.trim())`,
+        );
+      const after = async (what: string, ok: (rs: string[]) => boolean) => {
+        await page.waitForTimeout(300);
+        const rs = await rows();
+        if (!ok(rs)) failures.push(`review-reviewers-show: ${what} doesn't show before GitHub answers: ${rs.join(" | ")}`);
+      };
+      await part.locator(".rv-rev-tool[title='Remove kofi as a reviewer']").click();
+      await after("removing kofi", (rs) => !rs.some((r) => r.startsWith("kofi:")));
+      await part.locator(".rv-rev-tool[title='Ask sam to review again']").click();
+      await after("asking sam again", (rs) => rs.includes("sam: asked"));
+      await part.locator(".rv-part-more", { hasText: "Add reviewers" }).click();
+      await part.locator(".rv-reviewers-input").fill("dana");
+      await page.waitForTimeout(400);
+      await page.keyboard.press("Enter");
+      await after("adding dana", (rs) => rs.includes("dana: asked"));
+    },
+    after: drop,
   },
   // Your PR where reviewers wait on you: a card each, those waiting first with Claude's read, a reply row in every one.
   {

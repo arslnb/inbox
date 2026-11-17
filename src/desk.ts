@@ -103,7 +103,19 @@ import type {
   UpdateView,
   Work,
 } from "./types.ts";
-import { AGENT_NAME, BUCKETS, byPart, INBOX_SECTIONS, isCoordinator, isSessionRef, RANK, SECRET_SET, UNTIL } from "./types.ts";
+import {
+  AGENT_NAME,
+  BUCKETS,
+  byPart,
+  INBOX_SECTIONS,
+  isCoordinator,
+  isSessionRef,
+  placeNotes,
+  RANK,
+  SECRET_SET,
+  UNTIL,
+  untilTime,
+} from "./types.ts";
 import { decodeEach, field, isKeyOf, isRecord, keysOf, oneOf, schemaOf, str, strings } from "./narrow.ts";
 import { detached, report, webSentry } from "./sentry.ts";
 import { Runner } from "./runner.ts";
@@ -4247,18 +4259,7 @@ export class Desk {
   }
 
   notesView(): NotesView {
-    const now = this.now().toISOString();
-    const all = this.notes();
-    const soonest = (a: Note, b: Note) => a.remind_at!.localeCompare(b.remind_at!);
-    const waiting = (s: Note["section"]) =>
-      all.filter((n) => !n.remind_at && (n.section ?? "standard") === s).sort((a, b) => b.at.localeCompare(a.at));
-    return {
-      due: all.filter((n) => n.remind_at && n.remind_at <= now).sort(soonest),
-      urgent: waiting("urgent"),
-      open: waiting("standard"),
-      fyi: waiting("fyi"),
-      later: all.filter((n) => n.remind_at && n.remind_at > now).sort(soonest),
-    };
+    return placeNotes(this.notes(), this.now().toISOString());
   }
 
   // POST /api/notes and /api/notes/:id: a note to yourself, written or changed. Its reminder is a time ("1h", "tomorrow",
@@ -4795,25 +4796,10 @@ function shortRef(c: { repo: string; number: number }): string {
 }
 
 export function parseUntil(until: string, now: Date): Effect.Effect<Date, BadRequest> {
-  const rel = /^(\d+)([hd])$/.exec(until);
-  if (rel && Number(rel[1]) > 0) return Effect.succeed(new Date(now.getTime() + Number(rel[1]) * (rel[2] === "h" ? HOUR : 24 * HOUR)));
-  if (until === "tomorrow" || until === "monday") {
-    const d = new Date(now);
-    d.setHours(9, 0, 0, 0);
-    // After midnight, "tomorrow" still means the coming morning; on a Monday before 09:00, "monday" means today.
-    if (until === "tomorrow" && now.getHours() >= 5) d.setDate(d.getDate() + 1);
-    if (until === "monday" && !(now.getDay() === 1 && now.getHours() < 9)) d.setDate(d.getDate() + ((8 - d.getDay()) % 7 || 7));
-    return Effect.succeed(d);
-  }
-  const day = /^(\d{4})-(\d{2})-(\d{2})$/.exec(until);
-  const t = day
-    ? new Date(Number(day[1]), Number(day[2]) - 1, Number(day[3]), 9).getTime()
-    : /^\d{4}-\d{2}-\d{2}T/.test(until)
-      ? Date.parse(until)
-      : NaN;
-  if (Number.isNaN(t) || t <= now.getTime())
-    return Effect.fail(
-      new BadRequest({ message: `can't read snooze time "${until}"; use 1h, 3h, 2d, tomorrow, monday, activity or a future ISO time` }),
-    );
-  return Effect.succeed(new Date(t));
+  const t = untilTime(until, now);
+  return t
+    ? Effect.succeed(t)
+    : Effect.fail(
+        new BadRequest({ message: `can't read snooze time "${until}"; use 1h, 3h, 2d, tomorrow, monday, activity or a future ISO time` }),
+      );
 }
