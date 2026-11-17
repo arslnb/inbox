@@ -186,7 +186,9 @@ app forgets it and asks to pair again (revoke the old pairing in Settings → Ne
 TestFlight once Apple has processed it. The build number is main's commit count; the version testers see is
 `MARKETING_VERSION` in `project.yml`. `ONLY_ARCHIVE=1` signs an `.ipa` into `.build/testflight/` and sends nothing.
 
-Once, before the first upload:
+Done for this app: the record is **Inbox Review Desk** (`it.pstrucha.inbox`), its TestFlight internal group Team gets
+each upload by itself, and Test Information holds the review notes below. For another team, once, before the first
+upload:
 
 1. **The app's record.** App Store Connect → Apps → + → New App: iOS, a name (shown on the App Store and in TestFlight;
    "Inbox" alone is likely taken), the bundle ID `it.pstrucha.inbox` (the first `ONLY_ARCHIVE=1 ios/testflight.sh`
