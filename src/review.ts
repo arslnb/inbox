@@ -65,7 +65,7 @@ const MAX_LOOK_LINES = 15;
 const FACTORS = ["data", "security", "contract", "concurrency", "deploy", "irreversible", "reach", "untested", "other"] as const;
 const FITS = ["matches", "partial", "differs", "undescribed"] as const;
 const KINDS = ["function", "type", "endpoint", "schema", "config", "event", "cli", "permission", "other"] as const;
-const TIMEOUT = 10 * 60_000; // a large PR at a high effort takes Codex past 5 minutes
+const TIMEOUT = 30 * 60_000; // a large PR at a high effort takes Codex well past 5 minutes; a slow review beats a failed one
 const MAX_OUTPUT = 64 * 1024 * 1024;
 // Lockfiles and snapshots eat the budget and say nothing a reviewer reads.
 const NOISE =
