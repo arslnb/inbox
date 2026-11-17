@@ -1,6 +1,6 @@
 // Who a bot's PR was opened for, when its description has no line that says and it isn't Copilot's: the light model reads
 // its title and description's start (docs/api.md → Opened for you). Kept per PR and description in kv `attribution:<id>`,
-// asked once for each, in the background, a batch at a time and at most PER_HOUR PRs an hour, only for bot PRs on your desk.
+// asked once for each, in the background, a batch at a time and at most PER_HOUR PRs an hour, hidden ones too: bot-pr hides only those it finds no one for.
 import { randomBytes } from "node:crypto";
 import { Effect, Result, Schema } from "effect";
 import type { Desk } from "./desk.ts";
@@ -94,7 +94,7 @@ export class Attributions {
     return (Array.isArray(kept) ? kept : []).filter((t): t is number => typeof t === "number" && t > cutoff);
   }
 
-  // Open bot PRs on your desk (not hidden) that nothing deterministic attributes and the model hasn't read as they are now.
+  // Open bot PRs the desk holds that nothing deterministic attributes and the model hasn't read as they are now.
   due(): Item[] {
     const desk = this.desk;
     if (!desk.loaded) return [];
@@ -104,8 +104,7 @@ export class Attributions {
     for (const e of snap.entries.values()) {
       const it = e.item;
       if (e.analysis.attribution?.source !== "none" || it.state !== "open" || !it.body?.trim()) continue;
-      const shown = e.inflight || (e.status === "active" && (snap.best.get(it.id)?.bucket ?? "hide") !== "hide");
-      if (shown && this.readOf(it, reads) === undefined) out.push(it);
+      if ((e.inflight || e.status === "active") && this.readOf(it, reads) === undefined) out.push(it);
     }
     return out;
   }

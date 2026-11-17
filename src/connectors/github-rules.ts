@@ -55,7 +55,7 @@ export const GITHUB_RULES: Readonly<Record<string, BuiltInRules>> = {
       },
       {
         id: "team-waited",
-        when: "me.requested && !me.requested_direct && (!author.bot || author.via != '') && (author.close || pr.my_area) && me.requested_hours >= 24",
+        when: "me.requested && !me.requested_direct && (!author.bot || author.person != '') && (author.close || pr.my_area) && me.requested_hours >= 24",
         bucket: "today",
         why: "asked of @{me.requested_team} a day ago, and nobody took it",
         weight: 5,
@@ -68,7 +68,7 @@ export const GITHUB_RULES: Readonly<Record<string, BuiltInRules>> = {
         weight: 3,
       },
       { id: "your-repo", when: "repo.mine", bucket: "today", why: "your repo", weight: 5 },
-      { id: "bot-pr", when: "author.bot && author.via == ''", bucket: "hide", why: "bot PR", weight: 8 },
+      { id: "bot-pr", when: "author.bot && author.person == ''", bucket: "hide", why: "bot PR", weight: 8 },
       { id: "added-by-bot", when: "me.requested_by_bot", bucket: "later", why: "added by {me.requested_by} (bot)", weight: 4 },
       {
         id: "codeowners-your-area",

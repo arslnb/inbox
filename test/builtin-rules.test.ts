@@ -262,8 +262,8 @@ test("migrating a copy of GitHub's rules keeps what's yours and places every ite
   const edited = old
     // Changed: GitHub's bot PR rule, made FYI.
     .replace(
-      `{ when = "author.bot && author.via == ''", bucket = "hide", why = "bot PR" }`,
-      `{ when = "author.bot && author.via == ''", bucket = "fyi", why = "bot PR" }`,
+      `{ when = "author.bot && author.person == ''", bucket = "hide", why = "bot PR" }`,
+      `{ when = "author.bot && author.person == ''", bucket = "fyi", why = "bot PR" }`,
     )
     // Gone: your repo.
     .replace(`  { when = "repo.mine", bucket = "today", why = "your repo" },\n`, "")
@@ -280,7 +280,7 @@ test("migrating a copy of GitHub's rules keeps what's yours and places every ite
   assert.ok(next);
   assert.match(
     next,
-    /# mine\nbuiltin = "review"\noff = \["your-repo"\]\nrules = \[\n {2}\{ when = "'ml-team' in item.labels", bucket = "now", why = "ML" \},\n {2}\{ id = "bot-pr", when = "author.bot && author.via == ''", bucket = "fyi", why = "bot PR" \},\n\]\n/,
+    /# mine\nbuiltin = "review"\noff = \["your-repo"\]\nrules = \[\n {2}\{ when = "'ml-team' in item.labels", bucket = "now", why = "ML" \},\n {2}\{ id = "bot-pr", when = "author.bot && author.person == ''", bucket = "fyi", why = "bot PR" \},\n\]\n/,
   );
   assert.match(
     next,
@@ -320,13 +320,13 @@ test("a config shaped as the owner's migrates losslessly", () => {
   assert.deepEqual(
     boards.map((b) => [b.id, b.builtin ?? null, b.off ?? [], b.rules.filter((r) => r.own !== undefined).length]),
     [
-      // Rules added since the copy are off, so nothing moves; its hard asks and its older draft rule stand in GitHub's place.
-      ["acme-review", "review", ["team-taken", "team-waited", "team-your-area", "team"], 2],
+      // Rules added since the copy are off, so nothing moves; its hard asks and its older draft and bot PR rules stand in GitHub's place.
+      ["acme-review", "review", ["team-taken", "team-waited", "team-your-area", "team"], 3],
       ["acme-mine", "mine", ["no-review-ready"], 1],
       ["acme-mentions", "mentions", [], 0],
       ["acme-collaborators", "collaborators", [], 0],
       ["acme-watching", null, [], 0],
-      ["personal-review", "review", ["team-taken", "team-waited", "team-your-area", "team"], 2],
+      ["personal-review", "review", ["team-taken", "team-waited", "team-your-area", "team"], 3],
       ["personal-mine", "mine", ["no-review-ready"], 1],
       ["personal-mentions", "issues", [], 0],
     ],

@@ -6,7 +6,7 @@ import os from "node:os";
 import path from "node:path";
 import { personOf } from "../src/attribution.ts";
 import type { Item } from "../src/types.ts";
-import { idle, reviewAsk, setup } from "./helpers/desk.ts";
+import { idle, reviewAsk, setup, teamPing } from "./helpers/desk.ts";
 import { hoursAgo } from "./helpers/items.ts";
 import { run, runSync } from "./helpers/run.ts";
 
@@ -88,6 +88,26 @@ test("a bot's PR with no line is read by the light model once per description; o
   assert.equal(fake.calls(), 2);
   assert.deepEqual(card("acme/api#1").attribution, { person: "", agent: "claude[bot]", source: "none" });
   assert.equal(card("acme/api#1").by, "claude[bot]");
+});
+
+test("a bot's PR the bot-pr rule hides is read too, and stays hidden only when nobody asked for it", posix, async (c) => {
+  const fake = fakeClaude(c);
+  fake.say([
+    { id: "acme/api#3", person: "Dana Quinn" },
+    { id: "acme/api#4", person: "" },
+  ]);
+  const ping = (n: number, body: string) => ({ ...teamPing(n), author: "claude[bot]", author_bot: true, body });
+  const t = await setup([ping(3, "Fixes the flaky login test.\nAsked for by Dana Quinn."), ping(4, "Bumps lodash.")], {
+    settings: QUIET,
+    builtIns: true,
+  });
+  c.after(t.cleanup);
+  await run(t.desk.sync());
+  await settled(t);
+  assert.equal(fake.calls(), 1);
+  const bucket = (id: string) => t.desk.snapshot().best.get(id)?.bucket;
+  assert.notEqual(bucket("acme/api#3"), "hide", "someone asked for it: shown as a person's would be");
+  assert.equal(bucket("acme/api#4"), "hide");
 });
 
 test("what the light model answers is a login or a name, never a sentence", () => {

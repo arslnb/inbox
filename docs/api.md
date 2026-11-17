@@ -1087,14 +1087,14 @@ Your agent triages everything that reaches the desk, after the rules.
 
 A rule's `weight` is 0 to 10, 5 when unset (`RULE_WEIGHT`): 9 or 10 is your firm default, 6 to 8 strong, 3 to 5 a lean, under 3 a hint. GitHub's rules carry the weights that once were its starter prose:
 
-| Weight | GitHub's rules                                                                                                                        |
-| ------ | ------------------------------------------------------------------------------------------------------------------------------------- |
-| 9, 8   | a review asked of you by name (a person's ask 9, a bot's 8); a bot's PR (hide); your PR with changes requested, or approved and green |
-| 7      | a team ask someone else has (FYI); your PR others wait on, ready with no review needed, or stacked                                    |
-| 6      | a CODEOWNERS ping (FYI); new replies; new commits after you asked for changes; your drafts; your PR opened by a bot                   |
-| 5      | a team ask (FYI), or one in your area nobody took in a day; your repo; your PR quiet, or needing a closed PR                          |
-| 4      | new commits since your review; a bot added you; CI red or new activity on your PR; unresolved threads; mentions                       |
-| 3, 2   | a close collaborator; a CODEOWNERS or team ask in your area; your own issue; a collaborator's new PR                                  |
+| Weight | GitHub's rules                                                                                                                                                          |
+| ------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 9, 8   | a review asked of you by name (a person's ask 9, a bot's 8); a bot's PR nobody is found to have asked for (hide); your PR with changes requested, or approved and green |
+| 7      | a team ask someone else has (FYI); your PR others wait on, ready with no review needed, or stacked                                                                      |
+| 6      | a CODEOWNERS ping (FYI); new replies; new commits after you asked for changes; your drafts; your PR opened by a bot                                                     |
+| 5      | a team ask (FYI), or one in your area nobody took in a day; your repo; your PR quiet, or needing a closed PR                                                            |
+| 4      | new commits since your review; a bot added you; CI red or new activity on your PR; unresolved threads; mentions                                                         |
+| 3, 2   | a close collaborator; a CODEOWNERS or team ask in your area; your own issue; a collaborator's new PR                                                                    |
 
 A review asked of you by name is a heavy default, not a forced push: the judge can still make the call, and so can the scorer ([Urgency](#urgency)).
 
@@ -1623,7 +1623,7 @@ A PR an agent's bot opened for you is yours wherever the desk decides "mine" (`m
 
 1. `line`: the agent's line, `requesterOf()` below (`Item.requester`; on an item stored before the desk read requesters, its `via` line).
 2. `assignee`: Copilot's PR with one person assigned.
-3. `model`: [the light model](#the-light-model)'s read of its title and the first 600 characters of its description (`Attributions` in `src/attribution.ts`). Only when 1 and 2 find nothing, only for an open bot PR on your desk (not hidden, or in Merging), in the background through the desk's runner, ten a call, at most 60 PRs an hour, once per PR and description: kept in kv `attribution:<id>` keyed on a hash of the description, asked again only when it changes. Its prompt fences the text as untrusted and asks only who asked for the PR, never someone it mentions in passing; an answer that isn't a `@login` or a short name, or an item it leaves out, is `""`. A failed call waits 10 minutes.
+3. `model`: [the light model](#the-light-model)'s read of its title and the first 600 characters of its description (`Attributions` in `src/attribution.ts`). Only when 1 and 2 find nothing, for any open bot PR the desk holds (hidden ones too: GitHub's `bot-pr` rule, `author.bot && author.person == ''`, hides only a bot PR nobody is found for, so one the model attributes shows as that person's would), in the background through the desk's runner, ten a call, at most 60 PRs an hour, once per PR and description: kept in kv `attribution:<id>` keyed on a hash of the description, asked again only when it changes. Its prompt fences the text as untrusted and asks only who asked for the PR, never someone it mentions in passing; an answer that isn't a `@login` or a short name, or an item it leaves out, is `""`. A failed call waits 10 minutes.
 4. `none`: nothing says; `person` is `""`.
 
 Rows and the review say it as "dana via sentry-junior" (`by` is `dana`), and "sentry-junior" when `person` is `""`. Rules read `author.person` and `author.agent`.
