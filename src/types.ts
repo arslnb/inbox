@@ -198,6 +198,8 @@ export interface Signals {
     login: string;
     bot: boolean;
     via: string; // who a bot's PR was opened for, "" if none
+    person: string; // its attribution's person: "@login", a name, or "" (a person's PR, or none known)
+    agent: string; // its attribution's agent: the bot's login, "" for a person's PR
     me: boolean;
     engaged_90d: number;
     close: boolean; // engaged_90d >= signals.close_collaborator_min
@@ -567,6 +569,13 @@ const QUEUE_GROUPS: readonly QueueGroup[] = ["back", "review", "other", "mine"];
 export const byPart = (cards: Card[]): Card[] =>
   cards.toSorted((a, b) => QUEUE_GROUPS.indexOf(a.group ?? "other") - QUEUE_GROUPS.indexOf(b.group ?? "other"));
 
+// Who a bot's PR was opened for, and by which agent (docs/api.md → Opened for you): on every bot-authored PR, absent on a person's.
+export interface Attribution {
+  person: string; // who asked: "@login", a name, or "" when nothing says
+  agent: string; // the bot's login
+  source: "line" | "assignee" | "model" | "none"; // an agent's line, Copilot's one human assignee, the light model's read, or none
+}
+
 export interface Card {
   id: string;
   kind: "pr" | "issue";
@@ -577,6 +586,7 @@ export interface Card {
   author: string;
   author_bot: boolean;
   by: string; // as its row says who it's from: "you" (yours, or a bot's for you), the person a bot opened it for, else its author
+  attribution?: Attribution; // a bot's PR: who it was opened for, and the bot ("dana via sentry-junior")
   people?: string[]; // everyone it involves (peopleOf()), for the filter's involves:
   stage?: Stage; // a PR's, from stage() in src/stage.ts, or that your agent handed it back; an issue has none
   bucket: Bucket;

@@ -12,7 +12,7 @@ The CLI, `desk mcp` and the web UI are all clients of it. Types live in [src/typ
 ## Contents
 
 - **Reference:** [The first run](#the-first-run) · [Connect an agent](#connect-an-agent) · [MCP tools](#mcp-tools) · [HTTP routes](#http-routes) · [Main types](#main-types) · [Events](#events)
-- **Agents and models:** [Your own agent](#your-own-agent) · [The decision model](#the-decision-model-openrouter)
+- **Agents and models:** [Your own agent](#your-own-agent) · [The light model](#the-light-model) · [The decision model](#the-decision-model-openrouter)
 - **Reviews:** [The AI review](#the-ai-review) · [What reviewers said](#what-reviewers-said)
 - **Sorting:** [Rules: built in and your own](#rules-built-in-and-your-own) · [The judge](#the-judge) · [Your areas](#your-areas) · [Urgency](#urgency)
 - **Working for you:** [The coordinator](#the-coordinator) · [Asks](#asks) · [Sessions](#sessions) · [Automations](#automations)
@@ -37,7 +37,7 @@ Settings → Agent is where you change it afterwards.
 
 ### Your agent (Settings → Agent)
 
-`agent.harness` picks your agent: `claude-code` (the default), `codex` or `opencode`. Every agent run the desk makes follows it ([Your own agent](#your-own-agent)), and so does Connect (`driverOf()` in `src/agents.ts`). `agent.coordinator_model`, `agent.coordinator_effort` and `agent.rules_model` belong to the agent: a `PUT /api/settings` that changes `agent.harness` keeps the outgoing agent's in the store (`agent_models`) and sets the incoming one's (empty the first time), unless the same request sets them.
+`agent.harness` picks your agent: `claude-code` (the default), `codex` or `opencode`. Every agent run the desk makes follows it ([Your own agent](#your-own-agent)), and so does Connect (`driverOf()` in `src/agents.ts`). `agent.coordinator_model`, `agent.coordinator_effort`, `agent.light_model` and `agent.light_effort` belong to the agent: a `PUT /api/settings` that changes `agent.harness` keeps the outgoing agent's in the store (`agent_models`) and sets the incoming one's (empty the first time), unless the same request sets them.
 
 Settings → Agent shows a row when your agent lacks the desk's MCP tools or the Inbox skill ([skills/inbox/SKILL.md](../skills/inbox/SKILL.md)). **Connect &lt;agent&gt;** installs what's missing (`POST /api/agents/connect`); **Update the skill** shows when only the skill is out of date. When both are in place the row is gone. From a terminal:
 
@@ -795,7 +795,7 @@ interface AutomationView extends Automation {
 
 ### Your own agent
 
-Settings → Agent (`agent.harness`) picks who sorts and reviews: Claude Code (the default), Codex or OpenCode. It is always your own CLI from PATH, on your own login and config, and sets no API key. Your model runs everything but what applies your rules: the judge's sort, the Inbox's score, and the criteria's and automations' questions the decision model doesn't answer run on the rules model (`agent.rules_model`, `rulesModel()` in `src/settings.ts`), passed as `--model`. Empty, it's `haiku` on Claude Code (`CHEAP`) and your own default on Codex and OpenCode, which name no cheapest model to pick. (`DESK_CLAUDE`, `DESK_CODEX` and `DESK_OPENCODE` only point tests at fakes.)
+Settings → Agent (`agent.harness`) picks who sorts and reviews: Claude Code (the default), Codex or OpenCode. It is always your own CLI from PATH, on your own login and config, and sets no API key. Your model runs everything but the small, frequent asks, which run on [the light model](#the-light-model). (`DESK_CLAUDE`, `DESK_CODEX` and `DESK_OPENCODE` only point tests at fakes.)
 
 There are two kinds of runs:
 
@@ -809,7 +809,7 @@ The only model the desk calls that isn't your agent is [the decision model](#the
 #### Claude Code
 
 - **Command:** `claude -p --json-schema … --tools "" --strict-mcp-config --no-session-persistence`, prompt on stdin.
-- **Yours:** no `--model` but the rules model's, no `--agents`, `--system-prompt` or `--bare`, and no `ANTHROPIC_API_KEY` set (one in the desk's own environment would reach it, as it would your own `claude -p`). Your model, effort and plugins apply.
+- **Yours:** no `--model` or `--effort` but the light model's, no `--agents`, `--system-prompt` or `--bare`, and no `ANTHROPIC_API_KEY` set (one in the desk's own environment would reach it, as it would your own `claude -p`). Your model, effort and plugins apply.
 - **Fenced:** no tools, and `--strict-mcp-config` loads none of your MCP servers (Slack, Linear, GitHub, …).
 - **Stopping:** each run is its own process group (`taskkill /T` on Windows), so stopping it stops what it started. When the desk closes it stops every run (SIGTERM, SIGKILL 2 s later) and waits for them, so a restart under `node --watch` leaves none behind.
 - **Logged out:** a 401 reads ``Claude Code isn't logged in. Run `claude auth login` in a terminal.``; desk.log keeps Claude's own words.
@@ -824,7 +824,7 @@ The only model the desk calls that isn't your agent is [the decision model](#the
   - `--output-schema <file> -o <file> -`, prompt on stdin.
 - **Fenced:** Codex has no "no tools" switch, so this turns off everything that can run, reach out or act, and the read-only sandbox refuses writes.
 - **MCP servers off:** overriding the whole `mcp_servers` table would merge with yours, so the desk first asks `codex <the same --disable flags> mcp list --json` (kept 5 minutes, asked again when you switch agents) and turns each enabled one off by name. `--disable plugins` drops plugins' servers. If the list fails, the call doesn't run: `CodexServersUnknown` ("Couldn't confirm Codex's MCP servers are off, so it didn't run: …"), held like a logged-out agent.
-- **Yours:** no `--model` but the rules model's (when set), no `--profile` or `--ignore-user-config`; your `config.toml` stays in charge.
+- **Yours:** no `--model` or `-c model_reasoning_effort` but the light model's, no `--profile` or `--ignore-user-config`; your `config.toml` stays in charge.
 - **Files:** the schema and the last message go through two files in `~/.inbox/agent/`, removed after the run.
 - **Answer:** the last message. With none, the turn's failure is the error: a login pauses the desk in Codex's words (``Codex isn't logged in. Run `codex login` in a terminal.``); a usage or rate limit holds what asked without spending a try.
 - **Login check:** `codex login status`, or a `model_provider` in `config.toml` (as for OpenRouter) whose `env_key` is set in the desk's environment.
@@ -838,10 +838,27 @@ The only model the desk calls that isn't your agent is [the decision model](#the
   - `mcp.<name>.enabled: false` for each MCP server `opencode debug config --pure` lists enabled (kept 5 minutes; if it can't be read, the call is refused);
   - `share: "disabled"`.
 - `--pure` leaves out external plugins, which run code in the process whatever the permissions say.
-- **Yours:** no `--model` but the rules model's (when set), so otherwise your default model runs it.
+- **Yours:** no `--model` but the light model's (when set), so otherwise your default model runs it. It takes no effort.
 - **Answer:** the last text part. Reviews say `opencode`. The session is deleted after it's read (`opencode session delete <id>`).
 - **Errors:** status 401 (or a message about logging in) pauses the desk (``OpenCode isn't logged in. Run `opencode auth login` in a terminal.``); 429 or 402 holds what asked; anything else keeps its words. A provider with no key fails with OpenCode's "Unexpected server error", which the desk can't tell apart.
 - **Login check:** `opencode auth list` counts a stored credential or a provider key set in the environment.
+
+### The light model
+
+One role for the small, frequent asks: the judge's sort, the Inbox's score, the criteria's and automations' questions, and short reads such as [who a bot's PR is for](#opened-for-you). Each goes down a chain (`Light` in `src/light.ts`, `desk.light`):
+
+1. **An external provider**, when you configured one and it takes that kind of ask. Today that's [the decision model](#the-decision-model-openrouter), which answers the criteria's and automations' yes-or-no and pick-one questions and the Inbox's score (`Provider.decide`), not the judge or a read. Another (a Cloudflare AI Gateway endpoint, say) would be one more entry in `Light.providers()`, with the kinds it takes.
+2. **Your subscription's light model**, through [your own agent](#your-own-agent), with no tools (`Light.ask()`). `lightModel()` picks the model and effort: Settings → Agent → More's **Light model** (`agent.light_model`) and **Light model's effort** (`agent.light_effort`), or, where empty, your subscription's cheap tier (`TIERS` in `src/settings.ts`):
+
+| Agent       | Model          | Effort                                    |
+| ----------- | -------------- | ----------------------------------------- |
+| Claude Code | `haiku`        | `low` (`--effort low`)                    |
+| Codex       | `gpt-5.6-luna` | `low` (`-c model_reasoning_effort="low"`) |
+| OpenCode    | its default    | none (it takes none)                      |
+
+A provider that's down, out of credits or rate limited (`DecisionModelDown`) passes that call on to the next, and the log says so; the next call asks it again. What fails on your subscription is the call's, as before (a login pauses the desk; a limit holds what asked). A tier model your agent says it doesn't have ("… is not a valid model ID", an account without Luna) gives way to your agent's own default at the same effort, for the rest of the desk's run; a model you set fails as itself.
+
+Both settings are kept per agent, like your agent's model. `agent.rules_model`, the old name for the light model, is still read, and the desk saves it under the new name on start (`RENAMED`, `Desk.migrateRenamed()`).
 
 ### The decision model (OpenRouter)
 
@@ -867,7 +884,7 @@ It leaves out the AI review's first sentence and the directories the PR touches.
 **Failures:**
 
 - `DecisionModelError`, the run's error: a missing or mistyped answer, or any other 4xx.
-- `DecisionModelDown`: 401, 402, 429, a 5xx, or no answer (unreachable, or nothing in 30 s); e.g. "OpenRouter refused the decision model's key (401). Check it in Settings → Agent.". It holds the run like a logged-out agent: not spent, nothing in it acted on (one item's failure holds the whole run), its events kept. It asks again in 30 minutes, or at once when you save another key or model.
+- `DecisionModelDown`: 401, 402, 429, a 5xx, or no answer (unreachable, or nothing in 30 s); e.g. "OpenRouter refused the decision model's key (401). Check it in Settings → Agent.". One item's failure passes the whole call (every item in it) to your subscription's light model ([The light model](#the-light-model)), so nothing waits on OpenRouter; the run's summary names who answered. Only when that fails too does the run wait like a logged-out agent: not spent, nothing in it acted on, its events kept, asked again in 30 minutes, or at once when you save another key or model.
 
 **The key** is a `secret` setting:
 
@@ -1184,14 +1201,14 @@ GitHub's are rule-only, so a fresh desk sections from its first sync:
 **Outcomes.** A `when` alone is evaluated every time the desk computes its view. A question's answer is kept per item (kv `said:<id>`), keyed on the item (`sortKey()`, less the pin) and the question, so a model is asked again only when either changes; until then the item keeps its earlier answer (no, before the first). Questions go in the background, before scores:
 
 - on the decision model when `agent.decision_key` is set (one request an item, a `noul` per question, yes at 0.8 or above);
-- else one tool-less call of 20 items on your agent (`askAgent()`), the questions in your words, the items fenced.
+- else, or when it's down for that call, one tool-less call of 20 items on [the light model](#the-light-model), the questions in your words, the items fenced.
 
 A model that can't answer holds every question and score for 30 minutes (`Urgency.held`, shown in Settings → Automations → Urgency), and the Inbox uses what it has. Another key, model or agent, the agent working again, or saving a criterion asks at once.
 
 **Score**, 0 to 10, for each Inbox item. The scorer gets the item as the judge's `describe()` words it, where the rules placed it and why, and each criterion's outcome by name; it answers a score and a one-line why.
 
 - On the decision model when its key is set: a `choice` of 0 to 10; the score is the probabilities' mean, with no why.
-- Else on your agent, 20 items a call, one call at a time, after the judge answered for the item.
+- Else, or when it's down for that call, on [the light model](#the-light-model), 20 items a call, one call at a time, after the judge answered for the item.
 - Kept in kv `score:<id>`, keyed on the item, its placement, the outcomes and the scorer, and held while the item stays in the bucket it was scored in.
 - With `agent.score` off, or no score yet, the desk's own: the bucket's (now 7, today 6, later 3, fyi 1) plus each yes's weight, at most 10. Asked by name's 3 takes an ask in Now or Today to Urgent and one in Later to Standard; a model's score can still put it in Standard.
 
@@ -1418,7 +1435,7 @@ A plugin comes with automations of its own (`Connector.automations`, `BuiltInAut
 `decide` (`WAYS`), cheapest first:
 
 - **`rule`**: no model. Every item its check passed gets the fixed action `rule: { do, why, until? }`. `until` is a snooze's, in words that mean the same every time: `1h`, `2d`, `tomorrow`, `monday`, `activity`, `ci`, `push`, `approved`, `ready`, `conflict`. It has no instruction (`prompt` is `""`).
-- **`ask`**: one tool-less call over up to 20 items, the judge's mechanism, in `<home>/agent`. The prompt has the instruction between `<instruction-<random>>` tags, what each of its `can` verbs does, and the items fenced. The answer is `{ items: [{ ref, do, why, until? }] }`; with `agent.decision_key` set, [the decision model](#the-decision-model-openrouter) answers instead, one request an item. An item it leaves out stays as it is; an answer about an item it wasn't asked about, or a second one, is dropped. The summary is the desk's ("Asked Claude about 3 items; it left 1 as it is.").
+- **`ask`**: one tool-less call over up to 20 items, the judge's mechanism, in `<home>/agent`. The prompt has the instruction between `<instruction-<random>>` tags, what each of its `can` verbs does, and the items fenced. The answer is `{ items: [{ ref, do, why, until? }] }`; on [the light model](#the-light-model): with `agent.decision_key` set, [the decision model](#the-decision-model-openrouter) answers first, one request an item, and your subscription's light model when it's down. An item it leaves out stays as it is; an answer about an item it wasn't asked about, or a second one, is dropped. The summary is the desk's ("Asked Claude about 3 items; it left 1 as it is.").
 - **`agent`** (the default): a run with tools ([below](#the-agent-run)).
 
 A rule or an ask is about items, so on a schedule it needs `when` (400 otherwise). Run now of one with only events records that there's nothing to run it on.
@@ -1427,7 +1444,7 @@ A rule or an ask is about items, so on a schedule it needs `when` (400 otherwise
 
 **A rule or an ask adds once.** No agent remembers what a rule's or an ask's last run added, so the desk does: `pushed:<id>.once[<automation id>]` is the item's `sortKey()` (less the pin) when that automation added it. `Desk.push()` adds an item once for what it is, including one you'd marked done (restored, in the same undo step as its pin; snoozed, muted or in Merging is `left`). While the key is the same it answers `left`, so after Done or Unpin it's back only once the item changes. A scheduled rule whose action is `add` also checks the open items you marked done, since nothing else would bring one back.
 
-**When the model can't answer** (`agentDown()`: not logged in, at its limit, or not installed; or `DecisionModelDown`), an ask's run is held, not spent: it's dropped from `automation_runs`, its events stay unread, `AutomationView.waiting` says why and when it asks again (30 minutes; `automations.held`, in memory), one notification says so, and neither schedule nor events start it before then. Saving the automation, or another key or model, ends the wait at once. An agent run that fails the same way is a failed run.
+**When the model can't answer** (`agentDown()`: not logged in, at its limit, or not installed, after the decision model, if any, was down too), an ask's run is held, not spent: it's dropped from `automation_runs`, its events stay unread, `AutomationView.waiting` says why and when it asks again (30 minutes; `automations.held`, in memory), one notification says so, and neither schedule nor events start it before then. Saving the automation, or another key or model, ends the wait at once. An agent run that fails the same way is a failed run.
 
 #### The agent run
 
@@ -1601,7 +1618,16 @@ An item that drops out of every search gets one refresh, so the desk learns why.
 
 A PR an agent's bot opened for you is yours wherever the desk decides "mine" (`me.author`): your PRs' boards and rules, its stage and who it's from ("you"), Ready for review, Add reviewers, Reply, the More menu's writes on your PR, Hand off for merge and Merging, the coordinator's "my PR" and the branch it may push, and the AI review it skips as yours. A review the bot asked of you on it (Junior often adds whoever asked as a reviewer) isn't one: `me.requested` and the rest read false, so rules about PRs to review never take it.
 
-`requesterOf()` in `src/github/behalf.ts` reads who a PR's description names when the desk reads its details (`Item.requester`: `"@login"` or a name; `""` when none, or when two lines disagree). `onBehalf()` decides, in `analyze()` and in the connector, which then reads the PR as deeply and as often as your own. No model is asked. It takes all of:
+**Attribution.** Every bot-authored PR the desk holds has one (`Attribution` in `src/types.ts`: `{ person, agent, source }`, on `Card.attribution` and `Analysis.attribution`; a person's PR has none). `person` is who asked (`"@login"`, a name, or `""`), `agent` the bot's login, and `source` where it came from, first that says, by `attributionOf()` in `src/github/behalf.ts`:
+
+1. `line`: the agent's line, `requesterOf()` below (`Item.requester`; on an item stored before the desk read requesters, its `via` line).
+2. `assignee`: Copilot's PR with one person assigned.
+3. `model`: [the light model](#the-light-model)'s read of its title and the first 600 characters of its description (`Attributions` in `src/attribution.ts`). Only when 1 and 2 find nothing, only for an open bot PR on your desk (not hidden, or in Merging), in the background through the desk's runner, ten a call, at most 60 PRs an hour, once per PR and description: kept in kv `attribution:<id>` keyed on a hash of the description, asked again only when it changes. Its prompt fences the text as untrusted and asks only who asked for the PR, never someone it mentions in passing; an answer that isn't a `@login` or a short name, or an item it leaves out, is `""`. A failed call waits 10 minutes.
+4. `none`: nothing says; `person` is `""`.
+
+Rows and the review say it as "dana via sentry-junior" (`by` is `dana`), and "sentry-junior" when `person` is `""`. Rules read `author.person` and `author.agent`.
+
+`requesterOf()` reads who a PR's description names when the desk reads its details (`Item.requester`: `"@login"` or a name; `""` when none, or when two lines disagree). `onBehalf()` decides, in `analyze()` and in the connector, which then reads the PR as deeply and as often as your own. It takes the deterministic attribution (a line, Copilot's assignee), and the light model's read only as it takes a line: a login that also assigns you, or a name you gave. It takes all of:
 
 - **A bot opened it:** a GitHub App (`[bot]`, GraphQL's `Bot`), or a login under Settings → GitHub → Also treat as bots (`github.bots`), which is how another agent's account counts. A person's PR is only ever its author's, whatever it says.
 - **It names you** in a line the agent writes, as a whole line or Junior's block, never a mention in passing:
@@ -1614,7 +1640,7 @@ A PR an agent's bot opened for you is yours wherever the desk decides "mine" (`m
 | Any bot                                 | a line of its own: `via @gricha.`, `Requested by @gricha`, `On behalf of @gricha`, maybe in `_` or `*`                                           | you're assigned too                                                                                                                                                             |
 | GitHub Copilot coding agent (`Copilot`) | nothing                                                                                                                                          | you're its PR's only person assigned, as Copilot assigns whoever asked it                                                                                                       |
 
-**Why each is safe.** Anyone with write access can edit a description, and so an assignee. So the desk takes a login only when both say it (an edit to one alone makes nothing yours), a name only when it's your profile name or one you gave, Copilot's assignee only alone, and never a person's PR. A PR that names you but doesn't assign you stays someone else's, as does one whose `via` line (`author.via`, still who a bot's PR shows it's from) names you.
+**Why each is safe.** Anyone with write access can edit a description, and so an assignee. So the desk takes a login only when both say it (the light model's read included) (an edit to one alone makes nothing yours), a name only when it's your profile name or one you gave, Copilot's assignee only alone, and never a person's PR. A PR that names you but doesn't assign you stays someone else's, as does one whose `via` line (`author.via`, still who a bot's PR shows it's from) names you.
 
 **Not recognized**, for want of a marker that names a GitHub account:
 

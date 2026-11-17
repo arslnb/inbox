@@ -12,10 +12,9 @@ import { decide, type Question } from "./decisions.ts";
 import { compile } from "./expr.ts";
 import { describe, sortKey, textHash } from "./judge.ts";
 import { decodeEach, decodeValues, field, schemaOf, str } from "./narrow.ts";
-import { BadRequest, ClaudeBadOutput, DecisionModelDown, messageOf, NotFound, type FsError } from "./errors.ts";
+import { BadRequest, ClaudeBadOutput, messageOf, NotFound, type FsError } from "./errors.ts";
 import {
   agentDown,
-  askAgent,
   claudeCommand,
   claudeEnvelope,
   claudeMissing,
@@ -23,9 +22,7 @@ import {
   codexRun,
   deskMcp,
   opencodeRun,
-  makeAgentDir,
   runCommand,
-  withModel,
 } from "./review.ts";
 import {
   ACTIVITY_KINDS,
@@ -43,7 +40,7 @@ import {
   type Verb,
 } from "./types.ts";
 import { report } from "./sentry.ts";
-import { agentName, rulesModel, secretsPath } from "./settings.ts";
+import { secretsPath } from "./settings.ts";
 
 const KEY = "automations";
 const RUNS = "automation_runs";
@@ -741,11 +738,7 @@ export class Automations {
     return body.pipe(
       Effect.catchDefect((bug) => failed(bug, messageOf(bug))),
       // Its model can't answer now, which is nothing about these items: the run waits, unspent, and asks again later.
-      Effect.catch((e) =>
-        way === "ask" && (agentDown(e) || e instanceof DecisionModelDown)
-          ? Effect.sync(() => this.hold(a, run, e.message))
-          : failed(e, e.message),
-      ),
+      Effect.catch((e) => (way === "ask" && agentDown(e) ? Effect.sync(() => this.hold(a, run, e.message)) : failed(e, e.message))),
       Effect.map((kept) => {
         if (kept === null) return false;
         if (!kept) return true;
@@ -790,9 +783,7 @@ export class Automations {
   byAsking(a: Automation, run: AutomationRun, passed: string[], batch?: Batch) {
     return Effect.gen({ self: this }, function* () {
       const desk = this.desk;
-      const key = desk.settings["agent.decision_key"];
-      const model = desk.settings["agent.decision_model"];
-      const who = key ? model : agentName(desk.settings["agent.harness"]); // another agent asks again
+      const who = desk.light.first("decide"); // another model asks again
       // On its schedule, what it was asked about and hasn't changed since is no news: it's asked about the rest.
       const fresh = run.trigger === "schedule" ? this.unasked(a, who, passed) : passed;
       if (!fresh.length) {
@@ -801,9 +792,13 @@ export class Automations {
       }
       const asked = fresh.slice(0, ITEMS_MAX);
       const gone: string[] = [];
-      const said = key
-        ? yield* this.askModel(a, asked, batch, { key, model, ...(desk.decisions !== undefined && { url: desk.decisions }) }, gone)
-        : yield* this.askClaude(a, asked, batch);
+      const { answer: said, by } = yield* desk.light.chain(
+        (p) => (p.decide ? this.askModel(a, asked, batch, p.decide, gone) : null),
+        () => {
+          gone.length = 0;
+          return this.askClaude(a, asked, batch);
+        },
+      );
       if (!this.all().some((x) => x.id === a.id)) return false; // deleted while it ran
       this.asked(a, who, asked);
       const seen = new Set<string>();
@@ -814,7 +809,7 @@ export class Automations {
       }
       const left = asked.length - seen.size;
       const n = (k: number) => `${k} ${k === 1 ? "item" : "items"}`;
-      run.summary = `Asked ${who} about ${n(asked.length)}${left ? `; it left ${left} as ${left === 1 ? "it is" : "they are"}` : ""}.`;
+      run.summary = `Asked ${by} about ${n(asked.length)}${left ? `; it left ${left} as ${left === 1 ? "it is" : "they are"}` : ""}.`;
       if (fresh.length > ITEMS_MAX)
         run.summary += ` (${fresh.length} items passed its check; it was asked about the ${ITEMS_MAX} with the latest activity.)`;
       if (fresh.length < passed.length) run.summary += ` (It had asked about ${passed.length - fresh.length} more, unchanged since.)`;
@@ -846,13 +841,10 @@ export class Automations {
   askClaude(a: Automation, asked: string[], batch?: Batch) {
     return Effect.gen({ self: this }, function* () {
       const desk = this.desk;
-      const dir = yield* makeAgentDir(desk.home);
-      const { answer } = yield* askAgent(askPrompt(a, desk.me() || "the owner", this.fence(asked, batch?.happened)), {
-        schema: askSchema(canOf(a)),
-        dir,
-        agent: desk.agent(),
-        ...withModel(rulesModel(desk.settings)),
-      });
+      const { answer } = yield* desk.light.ask(
+        askPrompt(a, desk.me() || "the owner", this.fence(asked, batch?.happened)),
+        askSchema(canOf(a)),
+      );
       const list = field(answer, "items");
       const said: Said[] = [];
       for (const raw of Array.isArray(list) ? list : []) {

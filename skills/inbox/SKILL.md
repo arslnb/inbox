@@ -94,7 +94,7 @@ A `ref` is `owner/repo#123`, `repo#123` when unique, a GitHub URL, or an item's 
 When you set up a rule, criterion or automation, pick the cheapest way that does the job, in this order:
 
 1. **Deterministic, no model:** a rule, a criterion's `when` alone, an automation's `decide: "rule"`. Use it whenever fields settle it: repo, author, labels, CI, size, or words in the title (`contains(item.title, 'viewer context')`).
-2. **A question:** a criterion's `ask`, an automation's `decide: "ask"`. The decision model answers when the user set its key (Settings → Agent → Decision model key); otherwise their agent on its cheap rules model (Settings → Agent → Model for sorting and questions: Haiku on Claude Code unless set). Narrow it with `when` so it's asked of few items.
+2. **A question:** a criterion's `ask`, an automation's `decide: "ask"`. It runs on the light model: the decision model first when the user set its key (Settings → Agent → Decision model key), else (or when it's down) their agent's cheap tier (Settings → Agent → Light model: Haiku on Claude Code, GPT-5.6 Luna on Codex, at low effort, unless set). Narrow it with `when` so it's asked of few items.
 3. **An agent run:** an automation's `decide: "agent"`, only when it must read beyond the item (other repos, other tools).
 
 When a deterministic rule covers most of it and a question would catch the rest, set both and say which one costs a model call.

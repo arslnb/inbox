@@ -28,6 +28,8 @@ import {
 } from "./errors.ts";
 import { Automations, canOf } from "./automations.ts";
 import { Urgency } from "./urgency.ts";
+import { Light } from "./light.ts";
+import { Attributions } from "./attribution.ts";
 import { askOf, GONE, Jobs } from "./jobs.ts";
 import type { GitHub } from "./github/index.ts";
 import type { GitHubWriter, InlineThread } from "./github/write.ts";
@@ -172,6 +174,7 @@ import { modelsOf, type AgentModels } from "./models.ts";
 import {
   checkSetting,
   effective,
+  RENAMED,
   migrateLegacy,
   isSecret,
   readSecrets,
@@ -641,7 +644,7 @@ type PrTextError = Conflict | FetchPrError;
 type AiError = PrTextError | CommandError | ClaudeError;
 type IssueError = Conflict | FetchIssueError | ClaudeError;
 
-const PER_AGENT = ["agent.coordinator_model", "agent.coordinator_effort", "agent.rules_model"] as const;
+const PER_AGENT = ["agent.coordinator_model", "agent.coordinator_effort", "agent.light_model", "agent.light_effort"] as const;
 
 export class Desk {
   store: Store;
@@ -673,6 +676,8 @@ export class Desk {
   opener: (url: string) => Effect.Effect<void, CommandError>;
   automations: Automations;
   urgency: Urgency; // the Inbox's sections and order: criteria and scores
+  light: Light; // the light model: what sorts, scores, answers your rules' questions and reads small facts
+  attributions: Attributions; // the light model's read of whom a bot's PR is for, where no line says
   jobs: Jobs; // the work Claude owes the owner
   updates: Updates; // a newer Inbox than the packaged app running this desk
 
@@ -739,6 +744,8 @@ export class Desk {
     this.jobs = new Jobs(this);
     this.gh = new GitHubConnector(this, opts.github);
     this.connectors = [this.gh];
+    this.light = new Light(this);
+    this.attributions = new Attributions(this);
     this.judge = new Judge(this);
     this.convos = new Conversations(this);
     this.coordinator = new Coordinator(this, MERGING);
@@ -792,6 +799,7 @@ export class Desk {
       if (first) yield* this.connectGitHub();
       else yield* Effect.forEach(this.connectors, (c) => c.init(false), { discard: true });
       yield* this.migrateSettings();
+      yield* this.migrateRenamed();
       yield* this.migrateSecrets();
       this.oldPolicy();
       if (!this.githubError) yield* this.loadConfig();
@@ -879,6 +887,7 @@ export class Desk {
     this.runner.stop();
     for (const c of this.connectors) c.stop();
     this.judge.stop();
+    this.attributions.stop();
     this.convos.stop();
     this.coordinator.close();
     this.yourAgent.close();
@@ -1024,6 +1033,24 @@ export class Desk {
     });
   }
 
+  // A setting saved under its old name (agent.rules_model) is saved again under its new one; read as it either way.
+  migrateRenamed(): Effect.Effect<void, FsError> {
+    return Effect.gen({ self: this }, function* () {
+      const raw = this.settingsRaw;
+      const old = Object.keys(raw ?? {}).filter((k) => k in RENAMED);
+      if (!raw || !old.length) return;
+      const next = { ...raw };
+      for (const k of old) {
+        const to = RENAMED[k]!;
+        if (!(to in next)) next[to] = next[k];
+        delete next[k];
+      }
+      yield* writeSettings(this.settingsPath, next);
+      this.settings = this.readSettings();
+      this.log(`settings.json: ${old.map((k) => `${k} is now ${RENAMED[k]}`).join(", ")}`);
+    });
+  }
+
   // A key saved in settings.json before secrets.json moves there once: settings.json is often a link into a dotfiles repo.
   migrateSecrets(): Effect.Effect<void, FsError> {
     return Effect.gen({ self: this }, function* () {
@@ -1079,6 +1106,7 @@ export class Desk {
       this.pumpAi();
       this.judge.pump();
       this.urgency.pump();
+      this.attributions.pump();
     });
   }
 
@@ -1299,7 +1327,9 @@ export class Desk {
         });
         for (const k of PER_AGENT) {
           if (patch.set && k in patch.set) continue;
-          const back = str(field(field(kept, to), k)) ?? "";
+          const theirs = field(kept, to);
+          const was = Object.keys(RENAMED).find((o) => RENAMED[o] === k);
+          const back = str(field(theirs, k)) ?? (was === undefined ? undefined : str(field(theirs, was))) ?? "";
           if (back && !checkSetting(k, back)) next[k] = back;
           else delete next[k];
         }
@@ -1440,6 +1470,7 @@ export class Desk {
     this.store.pruneKv("take:", kept);
     this.store.pruneKv("said:", kept);
     this.store.pruneKv("score:", kept);
+    this.store.pruneKv("attribution:", kept);
     this.store.pruneKv("brief:", new Set()); // the AI review replaced briefs
     if (this.loaded) {
       const top = this.top(this.snapshot(), new Set());
@@ -1449,6 +1480,7 @@ export class Desk {
     this.runner.fork("warm", this.warmReviews());
     this.judge.pump();
     this.urgency.pump();
+    this.attributions.pump();
   }
 
   // The main page's PRs' diffs and conversations, fetched ahead (only what changed: both are kept) so opening one doesn't
@@ -1545,7 +1577,12 @@ export class Desk {
   resolutionOf(item: Item): Resolution | null {
     if (!this.loaded) return null;
     const ctx = this.ctx ?? NO_CONTEXT;
-    return resolution(item, analyze(item, ctx, this.loaded.config, this.now()).signals, this.settings, ctx.teams);
+    return resolution(
+      item,
+      analyze(item, ctx, this.loaded.config, this.now(), this.attributions.readOf(item)).signals,
+      this.settings,
+      ctx.teams,
+    );
   }
 
   isResolved(id: string): boolean {
@@ -1669,8 +1706,9 @@ export class Desk {
     const deps = dependencies(items, stacks);
     const merging = this.store.prefixed("sitter:", MergingSchema);
     const blocked = this.blockedAuthors();
+    const reads = this.attributions.reads();
     for (const item of items) {
-      const analysis = analyze(item, ctx, loaded.config, now);
+      const analysis = analyze(item, ctx, loaded.config, now, this.attributions.readOf(item, reads));
       let state = states.get(item.id) ?? emptyState(item.id);
       // Once it happens the snooze is over, so CI going red again later doesn't snooze it again.
       if (state.snooze_when && happened(state.snooze_when, analysis.signals, item, ctx.me)) {
@@ -1936,7 +1974,7 @@ export class Desk {
     const by = p && !e.inflight ? placedBy(p) : undefined; // your PR in Merging is the coordinator's
     const stack = stackRef(snap.stacks, it.id);
     const actions = this.actions(e);
-    const via = e.analysis.signals.author.via.replace(/^@/, "");
+    const attribution = e.analysis.attribution;
     const sig = e.analysis.signals.pr;
     const st = stage(it, me.author ? this.me() : it.author);
     // Back on top of your desk; your agent's hand-back says so where its stage would be, as no heading over its row does.
@@ -1960,7 +1998,8 @@ export class Desk {
       url: it.url,
       author: it.author,
       author_bot: e.analysis.signals.author.bot,
-      by: me.author ? "you" : via || it.author,
+      by: me.author ? "you" : attribution?.person ? attribution.person.replace(/^@/, "") : it.author,
+      ...(attribution && { attribution }),
       people: peopleOf(it),
       ...(shown && { stage: shown }),
       bucket: p?.bucket ?? "fyi",

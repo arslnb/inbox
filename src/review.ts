@@ -622,11 +622,9 @@ export interface AskOpts {
   dir: string; // agentDir(): claude keeps a ~/.claude/projects entry per directory it runs in
   schema?: object;
   agent?: DriverId; // agent.harness: Claude Code unless it says Codex or OpenCode
-  model?: string; // a model its CLI takes (the rules model); none, your agent's own default
+  model?: string; // a model its CLI takes (the light model's); none, your agent's own default
+  effort?: string; // how hard it thinks (the light model's): Claude Code's --effort, Codex's reasoning effort; OpenCode takes none
 }
-
-// A run's model, when one is named: optional fields stay out rather than undefined.
-export const withModel = (model: string | undefined): { model?: string } => (model ? { model } : {});
 
 export const claudeMissing = (command: string) => `${command} not found: install Claude Code so claude runs from your PATH`;
 
@@ -658,6 +656,7 @@ export const askClaude = Effect.fn("askClaude")(function* (
     "--json-schema",
     JSON.stringify(opts.schema ?? SCHEMA),
     ...(opts.model ? ["--model", opts.model] : []),
+    ...(opts.effort ? ["--effort", opts.effort] : []),
   ];
   const spawnAs = yield* claudeSpawn(command, args);
   const out = yield* runCommand(spawnAs, {
@@ -697,9 +696,18 @@ const CODEX_OFF = [
   "memories",
 ];
 const codexOff = CODEX_OFF.flatMap((f) => ["--disable", f]);
-const codexArgs = (dir: string, schema: string, out: string, mcp: string[], persist: boolean, model?: string): string[] => [
+const codexArgs = (
+  dir: string,
+  schema: string,
+  out: string,
+  mcp: string[],
+  persist: boolean,
+  model?: string,
+  effort?: string,
+): string[] => [
   "exec",
   ...(model ? ["--model", model] : []),
+  ...(effort ? ["-c", `model_reasoning_effort="${effort}"`] : []),
   "--json",
   "--sandbox",
   "read-only",
@@ -822,7 +830,7 @@ export const codexRun = Effect.fn("codexRun")(function* (
     // The agent's own directory, made by the desk: failing to write in it is a defect.
     const mcp = yield* codexMcp(command, opts.dir, opts.desk);
     fs.writeFileSync(schema, JSON.stringify(strictSchema(opts.schema ?? SCHEMA)));
-    const spawnAs = yield* claudeSpawn(command, codexArgs(opts.dir, schema, out, mcp, !!opts.desk, opts.model));
+    const spawnAs = yield* claudeSpawn(command, codexArgs(opts.dir, schema, out, mcp, !!opts.desk, opts.model, opts.effort));
     const events = yield* runCommand(spawnAs, {
       input: prompt,
       cwd: opts.dir,

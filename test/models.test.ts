@@ -4,7 +4,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { CLAUDE_MODELS, codexModels, opencodeModels } from "../src/models.ts";
-import { agentDefs, DEFAULTS, rulesModel } from "../src/settings.ts";
+import { lightModel } from "../src/light.ts";
+import { agentDefs, DEFAULTS } from "../src/settings.ts";
 import { run } from "./helpers/run.ts";
 
 const posix = { skip: process.platform === "win32" };
@@ -112,10 +113,17 @@ test("each agent keeps its own model and effort: switching agents puts one's awa
   assert.deepEqual(now(), ["claude-code", "sonnet", "high"], "a model set with the switch wins");
 });
 
-test("rules are applied on the cheapest model: Haiku on Claude Code, your own default where your agent names none, or what you set", () => {
-  const s = (harness: string, set = "") => ({ ...DEFAULTS, "agent.harness": harness, "agent.rules_model": set });
-  assert.equal(rulesModel(s("claude-code")), "haiku");
-  assert.equal(rulesModel(s("codex")), undefined);
-  assert.equal(rulesModel(s("opencode")), undefined);
-  assert.equal(rulesModel(s("codex", "gpt-5.6-luna")), "gpt-5.6-luna");
+test("the light model is your subscription's cheap tier at low effort, or what you set; OpenCode takes its own default and no effort", () => {
+  const s = (harness: string, model = "", effort = "") => ({
+    ...DEFAULTS,
+    "agent.harness": harness,
+    "agent.light_model": model,
+    "agent.light_effort": effort,
+  });
+  assert.deepEqual(lightModel(s("claude-code")), { model: "haiku", effort: "low" });
+  assert.deepEqual(lightModel(s("codex")), { model: "gpt-5.6-luna", effort: "low" });
+  assert.deepEqual(lightModel(s("opencode")), {});
+  assert.deepEqual(lightModel(s("claude-code", "sonnet")), { model: "sonnet", effort: "low" }, "your model, the tier's effort");
+  assert.deepEqual(lightModel(s("codex", "gpt-5.5", "medium")), { model: "gpt-5.5", effort: "medium" });
+  assert.deepEqual(lightModel(s("opencode", "openrouter/x", "high")), { model: "openrouter/x" }, "OpenCode takes no effort");
 });

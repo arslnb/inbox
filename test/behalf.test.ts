@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { onBehalf, requesterOf } from "../src/github/behalf.ts";
+import { attributionOf, onBehalf, requesterOf } from "../src/github/behalf.ts";
 import { normalize, type RawNode } from "../src/github/normalize.ts";
 import { botCheck } from "../src/signals.ts";
 import { makeItem, NOW } from "./helpers/items.ts";
@@ -59,6 +59,52 @@ test("a bot's PR is yours only when it names you and assigns you, names a name y
     false,
     "only Copilot goes by its assignee alone",
   );
+});
+
+test("every bot's PR has an attribution: its agent's line, Copilot's one person, the light model's read, or none; a person's PR has none", () => {
+  const isBot = botCheck(["acme-agent"]);
+  const of = (o: Parameters<typeof makeItem>[0], read?: string) => attributionOf(makeItem(o), isBot, read);
+  const jr = { author: "sentry-junior", author_bot: true };
+  assert.deepEqual(of({ ...jr, requester: "@dana" }), { person: "@dana", agent: "sentry-junior", source: "line" });
+  assert.deepEqual(
+    of({ ...jr, requester: "Dana Q" }, "@sam"),
+    { person: "Dana Q", agent: "sentry-junior", source: "line" },
+    "a line beats the model",
+  );
+  assert.deepEqual(
+    of({ ...jr, via: "@dana" }),
+    { person: "@dana", agent: "sentry-junior", source: "line" },
+    "stored before requesters: its via line",
+  );
+  assert.deepEqual(of({ author: "Copilot", author_bot: true, assignees: ["dana", "Copilot"] }), {
+    person: "@dana",
+    agent: "Copilot",
+    source: "assignee",
+  });
+  assert.deepEqual(of({ author: "Copilot", author_bot: true, assignees: ["dana", "sam"] })?.source, "none", "two people: nobody");
+  assert.deepEqual(
+    of({ author: "acme-agent", requester: "" }, "@sam"),
+    { person: "@sam", agent: "acme-agent", source: "model" },
+    "a login listed as a bot",
+  );
+  assert.deepEqual(of({ ...jr, requester: "" }), { person: "", agent: "sentry-junior", source: "none" });
+  assert.deepEqual(of({ ...jr, requester: "" }, ""), { person: "", agent: "sentry-junior", source: "none" }, "the model read nobody");
+  assert.equal(of({ author: "carol", requester: "@dana" }), undefined, "a person's PR");
+  assert.equal(of({ ...jr, kind: "issue", requester: "@dana" }), undefined, "an issue");
+});
+
+test("the light model's read makes a bot's PR yours as a line would: your login and your assignment, or a name you gave", () => {
+  const isBot = botCheck([]);
+  const bot = { author: "claude[bot]", author_bot: true, requester: "" };
+  const yours = (o: Parameters<typeof makeItem>[0], read: string | undefined, names: string[] = []) =>
+    onBehalf(makeItem({ ...bot, ...o }), "me", names, isBot, read);
+  assert.equal(yours({ assignees: ["me"] }, "@me"), true, "names and assigns you");
+  assert.equal(yours({}, "@me"), false, "names you, assigns nobody");
+  assert.equal(yours({}, "Greg Pstrucha", ["greg.pstrucha"]), true, "a name you gave");
+  assert.equal(yours({}, "Greg Pstrucha"), false, "a name you didn't");
+  assert.equal(yours({ assignees: ["me"] }, "@dana"), false, "someone else");
+  assert.equal(onBehalf(makeItem({ ...bot, assignees: ["me"] }), "me", [], isBot), false, "not read yet: no line, no model");
+  assert.equal(yours({ requester: "@dana", assignees: ["me"] }, "@me"), false, "a line wins over the model");
 });
 
 test("a PR's requester is read from its markdown description, not the text GitHub renders without Junior's markers", () => {

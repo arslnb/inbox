@@ -226,52 +226,78 @@ test("the score orders each section and says why on the row; a model's score can
   assert.deepEqual(fake.calls(), ["ask", "score"]);
 });
 
-test("with the decision model down, its questions wait and the Inbox uses what it has", posix, async (c) => {
-  let down = false;
-  const api = await fakeDecisions((call) =>
-    down
-      ? { status: 503, json: { error: { message: "overloaded" } } }
-      : {
-          json: {
-            answers: Object.fromEntries(
-              Object.keys(call.body.questions ?? {}).map((k) => [
-                k,
-                { type: "noul", noul: call.body.state?.item?.[1]?.includes("Service") ? 0.95 : 0.1 },
-              ]),
-            ),
+test(
+  "with the decision model down, your agent's light model answers that call; with both down, questions wait and the Inbox uses what it has",
+  posix,
+  async (c) => {
+    const fake = fakeClaude(c);
+    fake.say("ask", [{ id: "acme/api#2", yes: ["svc"] }]);
+    let down = false;
+    const api = await fakeDecisions((call) =>
+      down
+        ? { status: 503, json: { error: { message: "overloaded" } } }
+        : {
+            json: {
+              answers: Object.fromEntries(
+                Object.keys(call.body.questions ?? {}).map((k) => [
+                  k,
+                  { type: "noul", noul: call.body.state?.item?.[1]?.includes("Service") ? 0.95 : 0.1 },
+                ]),
+              ),
+            },
           },
-        },
-  );
-  c.after(api.close);
-  const t = await setup([reviewAsk(1), svcPr(2)], {
-    settings: { ...QUIET, "agent.decision_key": "sk-or-v1-0000" },
-    desk: { decisions: api.url },
-  });
-  c.after(t.cleanup);
-  runSync(t.desk.urgency.set("svc", SVC, true));
-  await run(t.desk.sync());
-  await settled(t);
-  assert.equal(api.calls.length, 2, "one request an item");
-  assert.equal(api.calls[0]!.body.questions?.svc?.instructions, SVC.ask);
-  assert.equal(where(t, "acme/api#2")![0], "urgent");
+    );
+    c.after(api.close);
+    const t = await setup([reviewAsk(1), svcPr(2)], {
+      settings: { ...QUIET, "agent.decision_key": "sk-or-v1-0000" },
+      desk: { decisions: api.url },
+    });
+    c.after(t.cleanup);
+    runSync(t.desk.urgency.set("svc", SVC, true));
+    await run(t.desk.sync());
+    await settled(t);
+    assert.equal(api.calls.length, 2, "one request an item");
+    assert.equal(api.calls[0]!.body.questions?.svc?.instructions, SVC.ask);
+    assert.equal(where(t, "acme/api#2")![0], "urgent");
+    assert.ok(!fake.calls().includes("ask"), "Claude isn't asked while OpenRouter answers");
 
-  down = true;
-  t.gh.items.set("acme/api#2", { ...svcPr(2), updated_at: hoursAgo(0), head_oid: "pushed" });
-  await run(t.desk.sync());
-  await settled(t);
-  assert.match(t.desk.urgency.held?.why ?? "", /overloaded/);
-  const view = t.desk.urgency.view();
-  assert.equal(view.criteria.find((x) => x.id === "svc")!.waiting, 1);
-  assert.match(view.held?.why ?? "", /overloaded/);
-  assert.equal(where(t, "acme/api#2")![0], "urgent", "its earlier yes holds while the question waits");
-  // Another key or model asks again at once.
-  down = false;
-  const before = api.calls.length;
-  runSync(t.desk.putSettings({ set: { "agent.decision_key": "sk-or-v1-1111" } }));
-  await settled(t);
-  assert.equal(t.desk.urgency.held, null);
-  assert.equal(api.calls.length, before + 1);
-});
+    down = true;
+    t.gh.items.set("acme/api#2", { ...svcPr(2), updated_at: hoursAgo(0), head_oid: "pushed" });
+    await run(t.desk.sync());
+    await settled(t);
+    assert.equal(t.desk.urgency.held, null, "nothing waits");
+    assert.deepEqual(
+      fake.calls().filter((k) => k === "ask"),
+      ["ask"],
+      "Claude answered OpenRouter's call",
+    );
+    assert.match(fake.stdin("ask"), /Is it about service accounts\?/);
+    assert.equal(where(t, "acme/api#2")![0], "urgent");
+
+    // Your agent down too: the question waits, and its earlier yes holds.
+    const was = process.env.DESK_CLAUDE;
+    process.env.DESK_CLAUDE = "/nonexistent/claude";
+    t.gh.items.set("acme/api#2", {
+      ...svcPr(2),
+      updated_at: new Date(Date.parse(hoursAgo(0)) + 60_000).toISOString(),
+      head_oid: "pushed-again",
+    });
+    await run(t.desk.sync());
+    await settled(t);
+    process.env.DESK_CLAUDE = was;
+    assert.match(t.desk.urgency.view().held?.why ?? "", /claude not found/);
+    const view = t.desk.urgency.view();
+    assert.equal(view.criteria.find((x) => x.id === "svc")!.waiting, 1);
+    assert.equal(where(t, "acme/api#2")![0], "urgent", "its earlier yes holds while the question waits");
+    // Another key or model asks again at once.
+    down = false;
+    const before = api.calls.length;
+    runSync(t.desk.putSettings({ set: { "agent.decision_key": "sk-or-v1-1111" } }));
+    await settled(t);
+    assert.equal(t.desk.urgency.held, null);
+    assert.equal(api.calls.length, before + 1);
+  },
+);
 
 test(
   "your PR others wait on is urgent, even when Claude sorted it later; what an automation pinned says so on its row",

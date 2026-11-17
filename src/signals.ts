@@ -1,8 +1,8 @@
 // Turns a GitHub item plus facts about you into the signals rules can test.
 import { areaFiles } from "./areas.ts";
-import { onBehalf } from "./github/behalf.ts";
+import { attributionOf, onBehalf } from "./github/behalf.ts";
 import { approved, owesReply, reviewOptional, waitsOf } from "./stage.ts";
-import type { Config, Context, FieldDoc, Item, ReviewState, Signals, Until } from "./types.ts";
+import type { Attribution, Config, Context, FieldDoc, Item, ReviewState, Signals, Until } from "./types.ts";
 
 export const FIELDS: FieldDoc[] = [
   { path: "item.kind", type: "string", doc: '"pr" or "issue"' },
@@ -147,6 +147,12 @@ export const FIELDS: FieldDoc[] = [
     type: "string",
     doc: 'who a bot\'s PR says it was opened for (its "via …" line, "@login" or a name; untrusted), "" if none',
   },
+  {
+    path: "author.person",
+    type: "string",
+    doc: "who a bot's PR was opened for: \"@login\" or a name from its agent's line, Copilot's one human assignee, or the light model's read of its description (untrusted); \"\" if none or a person's PR",
+  },
+  { path: "author.agent", type: "string", doc: "the bot that opened a bot's PR (its login); \"\" for a person's PR" },
   { path: "author.me", type: "boolean", doc: "you are the author, or a bot opened it for you" },
   { path: "author.engaged_90d", type: "number", doc: "this author's PRs you reviewed or commented on in the last 90 days" },
   { path: "author.close", type: "boolean", doc: "engaged_90d >= signals.close_collaborator_min" },
@@ -157,6 +163,7 @@ export const FIELDS: FieldDoc[] = [
 
 export interface Analysis {
   signals: Signals;
+  attribution?: Attribution; // a bot's PR: who it was opened for (attributionOf())
   activity_at: string; // latest activity by someone else, else created_at
   others_at: string | null; // latest activity by someone else, if any
   waiting_since: string;
@@ -197,7 +204,8 @@ export function plainWhy(why: string): string {
   });
 }
 
-export function analyze(item: Item, ctx: Context, cfg: Config, now: Date): Analysis {
+// `read`: the light model's read of whom a bot's PR is for, when it has one for its description as it is now.
+export function analyze(item: Item, ctx: Context, cfg: Config, now: Date, read?: string): Analysis {
   const me = lc(ctx.me);
   const teams = new Set(ctx.teams.map(lc));
   const isMe = (login: string) => lc(login) === me;
@@ -209,7 +217,8 @@ export function analyze(item: Item, ctx: Context, cfg: Config, now: Date): Analy
 
   const mine = (r: { reviewer: string; type: "user" | "team" }) => (r.type === "user" ? isMe(r.reviewer) : teams.has(lc(r.reviewer)));
   const author = item.author;
-  const yours = isMe(author) || onBehalf(item, ctx.me, [ctx.name ?? "", ...cfg.signals.my_names], isBot);
+  const yours = isMe(author) || onBehalf(item, ctx.me, [ctx.name ?? "", ...cfg.signals.my_names], isBot, read);
+  const attribution = attributionOf(item, isBot, read);
   // A bot that opened your PR often asks you to review it too: it's yours all the same, never a review asked of you.
   const myRequests = yours ? [] : item.review_requests.filter(mine);
   const direct = myRequests.some((r) => r.type === "user");
@@ -368,6 +377,8 @@ export function analyze(item: Item, ctx: Context, cfg: Config, now: Date): Analy
       login: author,
       bot: authorBot,
       via,
+      person: attribution?.person ?? "",
+      agent: attribution?.agent ?? "",
       me: yours,
       engaged_90d: engaged,
       close: !authorBot && !yours && engaged >= cfg.signals.close_collaborator_min,
@@ -387,6 +398,7 @@ export function analyze(item: Item, ctx: Context, cfg: Config, now: Date): Analy
   });
   return {
     signals,
+    ...(attribution && { attribution }),
     activity_at: activity,
     others_at: others,
     waiting_since: requested && requestEvent ? requestEvent.at : item.created_at,

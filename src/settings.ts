@@ -288,16 +288,28 @@ export const SETTINGS = [
     help: "Which of OpenRouter's decision models answers. A pinned one keeps answering the same way.",
   },
   {
-    key: "agent.rules_model",
+    key: "agent.light_model",
     section: "agent",
     more: true,
-    label: "Model for sorting and questions",
+    label: "Light model",
     type: "string",
     default: "",
     placeholder: "Haiku, the cheapest",
     pattern: "^[\\w.:/@-]{1,80}$",
     pattern_hint: "a model's name as your agent's own command takes it, like haiku",
-    help: "Sorts, scores and answers your rules' questions when no decision model does: a small model does it for less.",
+    help: "Sorts, scores, answers your rules' questions and reads small facts, like who a bot's PR is for. Small costs less.",
+  },
+  {
+    key: "agent.light_effort",
+    section: "agent",
+    more: true,
+    label: "Light model's effort",
+    type: "string",
+    default: "",
+    placeholder: "Low",
+    pattern: "^[a-z]{1,12}$",
+    pattern_hint: "a level your agent's own command takes, like low",
+    help: "How hard the light model thinks; empty, low. OpenCode takes none.",
   },
   {
     key: "queue.quiet_days",
@@ -430,10 +442,15 @@ const BYPASS = {
   OpenCode:
     "Approves what your OpenCode config asks about; off, that's refused. OpenCode has no sandbox either way. Its deny rules still hold.",
 };
-// What applies your rules when its setting is empty: the cheapest model your agent names; where it names none to pick from
-// (Codex, OpenCode), its own default.
-const CHEAP: Record<string, string> = { "claude-code": "haiku" };
-export const rulesModel = (s: Settings): string | undefined => s["agent.rules_model"] || CHEAP[s["agent.harness"]];
+// Each subscription's cheap tier: the light model when its settings are empty (lightModel() in src/light.ts). OpenCode
+// names no cheapest model, so it's its own default, and takes no effort.
+export const TIERS: Record<string, { model: string; effort: string; label: string }> = {
+  "claude-code": { model: "haiku", effort: "low", label: "Haiku, the cheapest" },
+  codex: { model: "gpt-5.6-luna", effort: "low", label: "GPT-5.6 Luna, the cheapest" },
+};
+
+// Settings read under an older name: settingsFrom() reads them as the new one, and the desk moves them on start.
+export const RENAMED: Record<string, string> = { "agent.rules_model": "agent.light_model" };
 
 // models: what your agent takes, for its model and effort dropdowns; none known, they stay text fields.
 export function agentDefs(harness: string, models?: AgentModels): SettingDef[] {
@@ -442,8 +459,9 @@ export function agentDefs(harness: string, models?: AgentModels): SettingDef[] {
   return SETTINGS.map((d: SettingDef) => {
     if (d.key === "agent.coordinator_model" && models?.models.length) return { ...d, choices: models.models };
     if (d.key === "agent.coordinator_effort" && models?.efforts.length) return { ...d, choices: models.efforts };
-    if (d.key === "agent.rules_model")
-      return { ...d, ...(!CHEAP[harness] && { placeholder: "Its own default" }), ...(models?.models.length && { choices: models.models }) };
+    if (d.key === "agent.light_model")
+      return { ...d, placeholder: TIERS[harness]?.label ?? "Its own default", ...(models?.models.length && { choices: models.models }) };
+    if (d.key === "agent.light_effort") return { ...d, ...(models?.efforts.length && { choices: models.efforts }) };
     if (name === "Claude") return d;
     if (AGENT_WORDED.has(d.key)) return { ...d, label: say(d.label), ...(d.help && { help: say(d.help) }) };
     if (d.key === "agent.coordinator_bypass") return { ...d, help: BYPASS[name] };
@@ -544,10 +562,12 @@ function settingsFrom(text: string): SettingsFile {
   if (!isRecord(raw)) return unusable("must be a JSON object", text);
   const overrides: Record<string, SettingValue> = {};
   const errors: ConfigError[] = [];
-  for (const [k, v] of Object.entries(raw)) {
-    if (REMOVED.has(k)) continue;
+  for (const [was, v] of Object.entries(raw)) {
+    if (REMOVED.has(was)) continue;
+    const k = RENAMED[was] ?? was;
+    if (k !== was && k in raw) continue; // the new name wins
     const err = checkSetting(k, v);
-    if (err) errors.push({ path: k, message: err });
+    if (err) errors.push({ path: was, message: err });
     else if (isSettingValue(v)) overrides[k] = v;
   }
   return { overrides, errors, raw, text };

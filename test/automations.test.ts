@@ -1360,15 +1360,13 @@ test("with a decision model's key, a question goes to it instead of Claude: one 
     "93% for #4, 40% for the rest; one thing to do, so the why is the instruction's own first line",
   );
 
-  // OpenRouter refuses for a reason that isn't the items' (no credits): the run waits, unspent, and says so once.
+  // OpenRouter refuses for a reason that isn't the items' (no credits): your agent answers this call in its place.
   down = 402;
-  const kept = t.desk.automations.runs().length;
-  const held = await t.desk.automations.run(only, "now").p;
-  assert.deepEqual([held.done_at, held.error, t.desk.automations.runs().length], [null, null, kept]);
-  const row = t.desk.automations.view()[0]!;
-  assert.match(row.waiting?.why ?? "", /^OpenRouter says the decision model's key is out of credits \(402\)\./);
-  assert.match(t.notes.at(-1) ?? "", /out of credits/);
-  assert.equal(fake.calls(), 0, "and Claude isn't asked in its place");
+  fake.answer("", []);
+  const fell = await t.desk.automations.run(only, "now").p;
+  assert.deepEqual([fell.error, fell.summary, fake.calls()], [null, "Asked Claude about 4 items; it left 4 as they are.", 1]);
+  assert.equal(t.desk.automations.view()[0]!.waiting, null, "nothing waits");
+  assert.match(logs.join("\n"), /typesafe\/jev-1\.14 can't answer \(OpenRouter says the decision model's key is out of credits \(402\)/);
 
   // The key is in the request's header and nowhere else: not the logs, the run records, the views or a notification.
   const app = createApp(t.desk, 47823);
@@ -1388,7 +1386,7 @@ test("with a decision model's key, a question goes to it instead of Claude: one 
   down = null;
   api.calls.length = 0;
   const claude = await t.desk.automations.run(only, "now").p;
-  assert.deepEqual([fake.calls(), api.calls.length, claude.summary], [1, 0, "Asked Claude about 4 items; it left 4 as they are."]);
+  assert.deepEqual([fake.calls(), api.calls.length, claude.summary], [2, 0, "Asked Claude about 4 items; it left 4 as they are."]);
 });
 
 // Every run the automations started, and the ones those started, ended.
@@ -1589,7 +1587,7 @@ test("an agent on new events doesn't run again for an item its own add brought o
   assert.equal(runsOf(t, "n")[0]!.items[0]?.outcome, "added");
 });
 
-test("a decision model failing on one item holds the run: nothing is acted on, its events wait, and it asks again later", async (c) => {
+test("a decision model failing on one item passes the call to your agent; with that down too, the run waits and asks again later", async (c) => {
   let fail = true;
   const api = await fakeDecisions((call) => {
     const id = /^id: (\S+)$/.exec(call.body.state?.item?.[0] ?? "")?.[1] ?? "";
@@ -1616,7 +1614,11 @@ test("a decision model failing on one item holds the run: nothing is acted on, i
   await settled(t);
   const buckets = () => [4, 5, 6].map((n) => runSync(t.desk.item(`acme/api#${n}`)).card.bucket);
   assert.deepEqual(runsOf(t, "p"), [], "no run is kept");
-  assert.match(t.desk.automations.view()[0]!.waiting?.why ?? "", /provider overloaded/);
+  assert.match(
+    t.desk.automations.view()[0]!.waiting?.why ?? "",
+    /claude not found/,
+    "your agent's words: it was asked in OpenRouter's place",
+  );
   assert.equal((t.desk.store.get("automation_seen") as Record<string, number>).p, from, "its events wait");
   assert.ok(!buckets().includes("hide"));
   fail = false;

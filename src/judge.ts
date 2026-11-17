@@ -6,8 +6,8 @@ import { Effect, Schema, type Fiber } from "effect";
 import { areaFiles, areasFor, touched } from "./areas.ts";
 import type { Desk } from "./desk.ts";
 import { field, oneOf, schemaOf, str } from "./narrow.ts";
-import { askAgent, makeAgentDir, notLoggedIn, withModel } from "./review.ts";
-import { agentName, rulesModel } from "./settings.ts";
+import { notLoggedIn } from "./review.ts";
+import { agentName } from "./settings.ts";
 import { andMore, pushAnswered, pushesOf } from "./stage.ts";
 import {
   BUCKETS,
@@ -198,8 +198,8 @@ function preflight(it: Item, ai: AiReview | null): string | null {
 // Who opened it: a bot's PR opened for a person ("via …") is that person's.
 function opener(it: Item, s: Signals): string {
   const kind = it.kind === "pr" ? "PR" : "issue";
-  if (s.author.bot && s.author.via)
-    return s.me.author ? `their own ${kind}, opened through ${it.author} (bot)` : `${kind} by ${it.author} (bot) for ${s.author.via}`;
+  if (s.author.bot && s.author.person)
+    return s.me.author ? `their own ${kind}, opened through ${it.author} (bot)` : `${kind} by ${it.author} (bot) for ${s.author.person}`;
   return `${kind} by ${it.author}${s.author.bot ? " (bot)" : ""}`;
 }
 
@@ -511,12 +511,8 @@ export class Judge {
     const ids = batch.map((g) => g.item.id);
     return Effect.gen({ self: this }, function* () {
       const prompt = buildJudgePrompt(batch, desk.me() || "the owner", desk.ctx);
-      const dir = yield* makeAgentDir(desk.home);
       const agent = desk.agent();
-      const answers = parseVerdicts(
-        (yield* askAgent(prompt, { schema: JUDGE_SCHEMA, dir, agent, ...withModel(rulesModel(desk.settings)) })).answer,
-        ids,
-      );
+      const answers = parseVerdicts((yield* desk.light.ask(prompt, JUDGE_SCHEMA)).answer, ids);
       // Only answered calls count toward the hour: a failed one (an expired login) mustn't use it up.
       desk.store.set("judge_spent", [...this.spent(), ...batch.map(() => Date.now())]);
       const at = new Date().toISOString();

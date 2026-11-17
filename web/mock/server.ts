@@ -1683,6 +1683,8 @@ function signals(r: Rec): Signals {
       login: s.author,
       bot: isBot(s.author),
       via: "",
+      person: "",
+      agent: isBot(s.author) ? s.author : "",
       me: mine,
       engaged_90d: s.close ?? 0,
       close: (s.close ?? 0) >= config.signals.close_collaborator_min,
