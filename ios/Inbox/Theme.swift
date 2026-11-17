@@ -4,30 +4,33 @@ import UIKit
 
 // The window's default theme, its light and dark token sets exactly (web/src/styles.css, docs/visual.md): the system picks.
 enum Theme {
-  static let paper = Color(light: 0xf5f6f8, dark: 0x14171c)  // the canvas: a page's head, a section heading, an opened item
-  static let sheet = Color(light: 0xffffff, dark: 0x1b1f26)  // a list, a bubble, a field
-  static let wash = Color(light: 0xedeff2, dark: 0x242a33)
-  static let ink = Color(light: 0x20242c, dark: 0xeceff4)
-  static let ink2 = Color(light: 0x3d4450, dark: 0xc9cfd9)
-  static let pencil = Color(light: 0x5c6573, dark: 0xa7b0be)
-  static let faint = Color(light: 0x979eaa, dark: 0x6b7482)
-  static let rule = Color(light: 0xdde1e7, dark: 0x343b46)
-  static let ruleStrong = Color(light: 0xc9ced6, dark: 0x424a57)
+  static let paper = Color(light: 0xeeecf3, dark: 0x0b0911)  // the canvas: a section heading, an opened item
+  static let sheet = Color(light: 0xfaf9fc, dark: 0x120f1a)  // a list, a bubble, a field
+  static let wash = Color(light: 0xe6e3ee, dark: 0x1c1827)
+  static let side = Color(light: 0xe9e6f0, dark: 0x07060b)  // the chrome: the page's bar and its filter
+  static let ink = Color(light: 0x221f2b, dark: 0xeeebf4)
+  static let ink2 = Color(light: 0x3f3a4c, dark: 0xcdc7da)
+  static let pencil = Color(light: 0x5c5570, dark: 0xaca4bd)
+  static let faint = Color(light: 0x9a94aa, dark: 0x6f6782)
+  static let rule = Color(light: 0xdcd8e5, dark: 0x2a2437)
+  static let ruleStrong = Color(light: 0xc8c3d4, dark: 0x383048)
   static let red = Color(light: 0xb42318, dark: 0xffb4ab)
   static let redWash = Color(light: 0xfcebe9, dark: 0x3b2421)
   // A line of a diff that was added or removed: green or red let into the sheet, faint enough to read code on.
-  static let addWash = Color(light: 0xe9f4ee, dark: 0x1e2e29)
-  static let delWash = Color(light: 0xfbeeed, dark: 0x33242a)
+  static let addWash = Color(light: 0xe4eeeb, dark: 0x151e1d)
+  static let delWash = Color(light: 0xf6e8ea, dark: 0x2a141e)
   static let amber = Color(light: 0x8a4b08, dark: 0xebc076)
+  static let amberWash = Color(light: 0xfaefdf, dark: 0x33291b)
   static let green = Color(light: 0x176847, dark: 0x8dceaf)
   static let onGo = Color(light: 0xffffff, dark: 0x0e2419)  // on a button filled green (--go): Approve, Hand off for merge
-  static let accent = Color(light: 0x365d60, dark: 0xa8cacb)
-  static let onAccent = Color(light: 0xffffff, dark: 0x162b2d)
-  static let accentInk = Color(light: 0x365d60, dark: 0xa3c5c7)
-  static let accentWash = Color(light: 0xd5e8e7, dark: 0x243a3d)
-  // A swipe action's label is white whatever the appearance, so its fill stays dark in both: the tile's petrol, and a grey.
-  static let swipeAccent = Color(light: 0x365d60, dark: 0x365d60)
-  static let swipeQuiet = Color(light: 0x5c6573, dark: 0x424a57)
+  static let accent = Color(light: 0x6a3dbd, dark: 0xc4a7f5)
+  static let onAccent = Color(light: 0xffffff, dark: 0x1f1336)
+  static let accentInk = Color(light: 0x6236b3, dark: 0xbfa2f2)
+  static let accentWash = Color(light: 0xe7defa, dark: 0x261d3a)
+  static let pill = Color(light: 0x7d4ed8, dark: 0x874ad1)  // --chrome-pill: the Inbox's count, white on it
+  // A swipe action's label is white whatever the appearance, so its fill stays dark in both: the light accent, and a grey.
+  static let swipeAccent = Color(light: 0x6a3dbd, dark: 0x6a3dbd)
+  static let swipeQuiet = Color(light: 0x5c5570, dark: 0x383048)
 
   static let pad: CGFloat = 16  // a row's side padding, as the two-line row's
 }
@@ -45,28 +48,23 @@ extension Color {
   }
 }
 
-// Instrument Sans for the UI, JetBrains Mono for code: the window's own, bundled as variable fonts, so a weight is a
-// place on the font's weight axis (450, 550 and 650 are real).
+// The system's faces, as the window's (SF Pro, SF Mono). A weight is CSS's, put on SF's weight axis, so 450, 550 and
+// 650 are real.
 enum Typeface {
   case sans, mono
 
-  var name: String { self == .sans ? "InstrumentSans-Regular" : "JetBrainsMono-Regular" }
-
   func font(_ size: CGFloat, weight: CGFloat = 400, tabular: Bool = false) -> UIFont {
+    let base = self == .sans ? UIFont.systemFont(ofSize: size) : UIFont.monospacedSystemFont(ofSize: size, weight: .regular)
     let weightAxis = 0x7767_6874  // 'wght'
     var attributes: [UIFontDescriptor.AttributeName: Any] = [
-      .name: name,
-      UIFontDescriptor.AttributeName(rawValue: kCTFontVariationAttribute as String): [weightAxis: weight],
+      UIFontDescriptor.AttributeName(rawValue: kCTFontVariationAttribute as String): [weightAxis: weight]
     ]
-    var features: [[UIFontDescriptor.FeatureKey: Int]] = []
-    if tabular { features.append([.type: kNumberSpacingType, .selector: kMonospacedNumbersSelector]) }
-    if self == .mono { features.append([.type: kContextualAlternatesType, .selector: kContextualAlternatesOffSelector]) }  // no ligatures
-    if !features.isEmpty { attributes[.featureSettings] = features }
-    return UIFont(descriptor: UIFontDescriptor(fontAttributes: attributes), size: size)
+    if tabular { attributes[.featureSettings] = [[UIFontDescriptor.FeatureKey.type: kNumberSpacingType, .selector: kMonospacedNumbersSelector]] }
+    return UIFont(descriptor: base.fontDescriptor.addingAttributes(attributes), size: size)
   }
 }
 
-// The window's sizes (15 a title, 13 a row's facts) as the default, scaling with Dynamic Type.
+// The window's sizes (14 a row's title, 12.5 its facts) as the default, scaling with Dynamic Type.
 private struct Typo: ViewModifier {
   @ScaledMetric private var size: CGFloat
   let face: Typeface

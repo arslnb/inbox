@@ -297,10 +297,15 @@ final class DecodingTests: XCTestCase {
     XCTAssertNil(Words.date(nil))
   }
 
-  func testTheFontsAreBundled() {
-    XCTAssertNotNil(UIFont(name: Typeface.sans.name, size: 12), "Instrument Sans is registered (UIAppFonts)")
-    XCTAssertNotNil(UIFont(name: Typeface.mono.name, size: 12), "JetBrains Mono is registered (UIAppFonts)")
-    XCTAssertEqual(Typeface.sans.font(15, weight: 650).familyName, "Instrument Sans")
+  func testTheSystemFaces() {
+    let width = { (face: Typeface, weight: CGFloat) in
+      ("Planner: hash join stage" as NSString).size(withAttributes: [.font: face.font(14, weight: weight)]).width
+    }
+    XCTAssertEqual(Typeface.sans.font(14).familyName, UIFont.systemFont(ofSize: 14).familyName, "SF Pro, as the window's")
+    XCTAssertTrue(Typeface.mono.font(12).fontDescriptor.symbolicTraits.contains(.traitMonoSpace), "SF Mono for code")
+    XCTAssertLessThan(width(.sans, 400), width(.sans, 450), "450 is a weight of its own")
+    XCTAssertLessThan(width(.sans, 450), width(.sans, 550))
+    XCTAssertLessThan(width(.sans, 550), width(.sans, 650))
   }
 
   // GET /api/review/:id, whole: someone's PR with a walk-through, diagrams and every newer part of the AI review.

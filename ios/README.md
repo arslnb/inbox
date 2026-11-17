@@ -445,7 +445,7 @@ Not built at all: notifications, an iPad layout.
 | What it asks the desk, and errors           | `Inbox/APIClient.swift`; an address or a pairing link in `Inbox/Address.swift`         |
 | State, loading, the live stream, acting     | `Inbox/Store.swift` (one `@Observable` store; the launch arguments too)                |
 | The window's words (ages, snooze, bubbles)  | `Inbox/Format.swift`, kept in step with `web/src/format.ts`, `view.ts`, `notices.ts`   |
-| Colours, fonts, the mark                    | `Inbox/Theme.swift` (the default theme's tokens from `web/src/styles.css`)             |
+| Colours, faces, the mark                    | `Inbox/Theme.swift` (the default theme's tokens from `web/src/styles.css`; SF Pro and SF Mono, as the window's) |
 | A row                                       | `Inbox/Views/Rows.swift` (the window's two-line row, `.c-row`)                         |
 | The pages and their lists, a row's menu     | `Inbox/Views/DeskView.swift` (`CardMenu`, `NoteLine`, `SessionLine`; Merging's agent line and `wake()`) |
 | The filter                                  | `Filter` in `Inbox/Format.swift` (`parse()`, `matches()`, `people()`, `suggest()`, `picked()`, `dropped()`: view.ts's and Filter.tsx's); the box and its suggestions in `Inbox/Views/FilterBar.swift`; `Store.filter`, `shown()` |
@@ -472,5 +472,4 @@ Not built at all: notifications, an iPad layout.
 | An opened page's bar, the boxes that write  | `Inbox/Views/Acting.swift` (`BottomBar`, `WriteSheet`, `ReviewersSheet`, the swipe back) |
 | The connect screen                          | `Inbox/Views/ConnectView.swift`                                                        |
 | Scan the code (the camera, the QR it reads) | `Inbox/Views/ScanView.swift`; what counts as a desk's link: `DeskAddress.scanned()`    |
-| The fonts                                   | `Inbox/Fonts/` (copies of `web/src/fonts`, see its README)                             |
 | The app icon                                | `Inbox/Assets.xcassets/AppIcon.appiconset` (the mark, full-bleed on petrol)            |

@@ -33,9 +33,6 @@ targets:
           UIColorName: Paper
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
-        UIAppFonts:
-          - instrument-sans-latin-standard-normal.ttf
-          - jetbrains-mono-latin-wght-normal.ttf
         NSCameraUsageDescription: To scan the pairing code your desk shows.
         # Plain http only to this machine: the Simulator on the desk's own Mac, and the mock.
         NSAppTransportSecurity:
