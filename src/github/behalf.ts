@@ -2,10 +2,10 @@
 import type { Attribution, Item } from "../types.ts";
 
 const LABEL = String.raw`(@[A-Za-z0-9][A-Za-z0-9_-]{0,38}|\*\*(?:\\\*|[^*\n]){1,60}\*\*)`;
-// Junior's runtime-owned block: "via A, B." (once "Requested by A."), A being who asked first.
-const JUNIOR = new RegExp(
-  String.raw`<!-- junior-request-attribution:start -->\s*(?:via|Requested by)\s+${LABEL}[^\n]*\s*<!-- junior-request-attribution:end -->`,
-);
+// Junior's runtime-owned block: "via A, B." (once "Requested by A."), A being who asked first; an automation's run
+// names its link and run ID before the person ("via [automation …](…) · Run ID `…`, @login.").
+const JUNIOR = /<!-- junior-request-attribution:start -->\s*(?:via|Requested by)\s([^\n]*)\s*<!-- junior-request-attribution:end -->/;
+const FIRST = new RegExp(LABEL);
 // A whole line of its own: Devin's "Requested by: @login", or "via @login.", "On behalf of @login", maybe in _ or *.
 const LINE = new RegExp(String.raw`^[ \t]*[_*]?(?:requested by:?|on behalf of|via)[ \t]+${LABEL}\.?[_*]?[ \t]*$`, "gim");
 // GitHub's Copilot coding agent writes no line: whoever asked it is its PR's human assignee.
@@ -16,7 +16,8 @@ const unbold = (label: string) => (label.startsWith("@") ? label : label.slice(2
 // Who a PR's description says it was opened for: "@login", a name, or "" when none or when its lines disagree.
 export function requesterOf(markdown: string): string {
   const block = JUNIOR.exec(markdown)?.[1];
-  if (block) return unbold(block);
+  const first = block && FIRST.exec(block.replaceAll(/\[[^\]\n]*\]\([^)\n]*\)|`[^`\n]*`/g, ""))?.[1];
+  if (first) return unbold(first);
   const named = new Set([...markdown.matchAll(LINE)].map((m) => unbold(m[1]!)));
   return named.size === 1 ? [...named][0]! : "";
 }

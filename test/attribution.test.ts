@@ -96,8 +96,8 @@ test("a bot's PR the bot-pr rule hides is read too, and stays hidden only when n
     { id: "acme/api#3", person: "Dana Quinn" },
     { id: "acme/api#4", person: "" },
   ]);
-  const ping = (n: number, body: string) => ({ ...teamPing(n), author: "claude[bot]", author_bot: true, body });
-  const t = await setup([ping(3, "Fixes the flaky login test.\nAsked for by Dana Quinn."), ping(4, "Bumps lodash.")], {
+  const ping = (n: number, body: string, tail = "") => ({ ...teamPing(n), author: "claude[bot]", author_bot: true, body, tail });
+  const t = await setup([ping(3, "Fixes the flaky login test.", "Asked for by Dana Quinn."), ping(4, "Bumps lodash.")], {
     settings: QUIET,
     builtIns: true,
   });
@@ -105,6 +105,7 @@ test("a bot's PR the bot-pr rule hides is read too, and stays hidden only when n
   await run(t.desk.sync());
   await settled(t);
   assert.equal(fake.calls(), 1);
+  assert.match(fake.stdin(1), /description's end: Asked for by Dana Quinn\./, "where agents sign who asked");
   const bucket = (id: string) => t.desk.snapshot().best.get(id)?.bucket;
   assert.notEqual(bucket("acme/api#3"), "hide", "someone asked for it: shown as a person's would be");
   assert.equal(bucket("acme/api#4"), "hide");

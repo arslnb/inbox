@@ -16,6 +16,18 @@ test("a PR stored without requires lacks it; one with [] doesn't", () => {
   store.close();
 });
 
+test("a bot's PR stored without its description's end lacks it, and is fetched again for it", () => {
+  const store = new Store(":memory:");
+  const { tail: _, ...old } = makeItem({ number: 1, author: "sentry-junior", author_bot: true });
+  store.putItems([old, makeItem({ number: 2, author: "sentry-junior", author_bot: true }), makeItem({ number: 3 })], NOW.toISOString());
+  const meta = store.itemMeta();
+  assert.deepEqual(
+    ["acme/api#1", "acme/api#2", "acme/api#3"].map((id) => meta.get(id)?.lacks),
+    [true, false, false],
+  );
+  store.close();
+});
+
 test("pruning one source's rows leaves the others'", () => {
   const store = new Store(":memory:");
   const at = NOW.toISOString();

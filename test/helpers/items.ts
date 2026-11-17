@@ -50,6 +50,7 @@ export function makeItem(o: Partial<Item> & { repo?: string; number?: number } =
     thread_last: [],
     requires: [],
     detail_at: hoursAgo(0),
+    ...(o.author_bot && (o.kind ?? "pr") === "pr" && { tail: "" }),
     ...o,
   };
 }

@@ -250,6 +250,10 @@ export function normalize(n: RawNode, now = new Date().toISOString()): Item {
       commit: r.commit?.oid ?? "",
     });
   }
+  const plain = n.bodyText
+    .replaceAll(/\s*\n\s*/g, "\n")
+    .replaceAll(/[^\S\n]+/g, " ")
+    .trim();
 
   return {
     ...toHit(n),
@@ -265,11 +269,8 @@ export function normalize(n: RawNode, now = new Date().toISOString()): Item {
     assignees: n.assignees.nodes.map((a) => a.login),
     created_at: n.createdAt,
     closed_at: n.closedAt ?? null,
-    body: n.bodyText
-      .replaceAll(/\s*\n\s*/g, "\n")
-      .replaceAll(/[^\S\n]+/g, " ")
-      .trim()
-      .slice(0, 600),
+    body: plain.slice(0, 600),
+    ...(n.__typename === "PullRequest" && isBot(n.author) && { tail: plain.length > 600 ? plain.slice(-400) : "" }),
     ...(n.__typename === "PullRequest" && {
       requires: requiresOf(n.body ?? "", n.repository.nameWithOwner, n.number),
       requester: requesterOf(n.body ?? ""),

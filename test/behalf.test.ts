@@ -20,7 +20,16 @@ test("who a PR's description says it was opened for, in each agent's format", ()
     ["Devin", "Fixes the race.\n\nLink to Devin session: https://app.devin.ai/sessions/1\nRequested by: @me", "@me"],
     ["a line of its own", "Bumps the parser.\n\n_On behalf of @me._", "@me"],
     ["Requested by, no colon", "Bumps the parser.\nRequested by @me", "@me"],
-    ["Junior's automation run names nobody", junior("via [automation `sched_1`](https://junior.example/a) · Run ID `sched_1:2`."), ""],
+    [
+      "Junior's automation run with nobody after it names nobody",
+      junior("via [automation `sched_1`](https://junior.example/a) · Run ID `sched_1:2`."),
+      "",
+    ],
+    [
+      "Junior's automation run, the person after its link",
+      junior("via [automation `evt_9`](https://junior.example/a) · Run ID `dispatch_e9`, @skaasten."),
+      "@skaasten",
+    ],
     ["Claude's Slack line isn't a line of its own", "_Requested by **Henri Lemoine** · [Slack thread](https://x.slack.com/a)_", ""],
     ["a passing mention", "Thanks @me for the idea; requested by @me in standup, via @me's branch.", ""],
     ["prose about a queue", "It goes via the queue.\n", ""],

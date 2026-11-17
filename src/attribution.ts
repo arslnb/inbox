@@ -1,5 +1,5 @@
 // Who a bot's PR was opened for, when its description has no line that says and it isn't Copilot's: the light model reads
-// its title and description's start (docs/api.md → Opened for you). Kept per PR and description in kv `attribution:<id>`,
+// its title and its description's start and end (docs/api.md → Opened for you). Kept per PR and description in kv `attribution:<id>`,
 // asked once for each, in the background, a batch at a time and at most PER_HOUR PRs an hour, hidden ones too: bot-pr hides only those it finds no one for.
 import { randomBytes } from "node:crypto";
 import { Effect, Result, Schema } from "effect";
@@ -58,6 +58,7 @@ function readPrompt(items: Item[], me: string): string {
       `  bot: ${it.author}`,
       `  title: ${it.title}`,
       `  description: ${(it.body ?? "").replaceAll("\n", " / ")}`,
+      ...(it.tail ? [`  description's end: ${it.tail.replaceAll("\n", " / ")}`] : []),
     ]),
     `</items-${tag}>`,
   ].join("\n");
@@ -74,7 +75,7 @@ export class Attributions {
   }
 
   key(it: Item): string {
-    return textHash(it.body ?? "");
+    return textHash(`${it.body ?? ""}\n${it.tail ?? ""}`);
   }
 
   // Every kept read, by item id.
@@ -94,19 +95,22 @@ export class Attributions {
     return (Array.isArray(kept) ? kept : []).filter((t): t is number => typeof t === "number" && t > cutoff);
   }
 
-  // Open bot PRs the desk holds that nothing deterministic attributes and the model hasn't read as they are now.
+  // Open bot PRs the desk holds that nothing deterministic attributes and the model hasn't read as they are now, those
+  // on your Inbox first.
   due(): Item[] {
     const desk = this.desk;
     if (!desk.loaded) return [];
     const snap = desk.snapshot();
     const reads = this.reads();
-    const out: Item[] = [];
+    const shown: Item[] = [];
+    const hidden: Item[] = [];
     for (const e of snap.entries.values()) {
       const it = e.item;
       if (e.analysis.attribution?.source !== "none" || it.state !== "open" || !it.body?.trim()) continue;
-      if ((e.inflight || e.status === "active") && this.readOf(it, reads) === undefined) out.push(it);
+      if (!(e.inflight || e.status === "active") || this.readOf(it, reads) !== undefined) continue;
+      (e.inflight || (snap.best.get(it.id)?.bucket ?? "hide") !== "hide" ? shown : hidden).push(it);
     }
-    return out;
+    return [...shown, ...hidden];
   }
 
   pump(): void {

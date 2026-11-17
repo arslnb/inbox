@@ -50,6 +50,7 @@ export interface Item extends Head {
   assignees: string[];
   closed_at?: string | null; // merged or closed; absent on items stored before it was fetched
   body?: string; // the description's first 600 characters, one paragraph a line (untrusted); absent on items stored before it was fetched
+  tail?: string; // a bot's PR: its description's last 400 characters, where agents sign who asked (untrusted); absent on others and before
   requires?: string[]; // PR only: the PRs its whole markdown description says must merge first, as owner/repo#N in the case written, at most 10; absent on items stored before it was fetched
   merged_by?: string; // login, "" if unknown
   // PR-only facts; zero values for issues.

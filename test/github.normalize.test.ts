@@ -140,6 +140,16 @@ test("a bot's PR opened for a person says who, from its description's last via l
   assert.equal(normalize(raw, NOW).default_branch, "", "not asked of this one");
 });
 
+test("a bot's PR keeps its description's end, where agents sign who asked; a person's doesn't", () => {
+  const raw = fixture("pr-review");
+  const long = `${"Background. ".repeat(80)}\nRequested by the release automation for Dana.`;
+  const bot = { ...raw, author: { __typename: "Bot", login: "sentry-junior" }, bodyText: long };
+  assert.equal(normalize(bot, NOW).tail?.length, 400);
+  assert.ok(normalize(bot, NOW).tail!.endsWith("for Dana."));
+  assert.equal(normalize({ ...bot, bodyText: "Bumps lodash." }, NOW).tail, "", "all of it is in body");
+  assert.equal(normalize({ ...raw, bodyText: long }, NOW).tail, undefined);
+});
+
 test("issue gets zero values for PR-only fields", () => {
   const it = normalize(fixture("issue"), NOW);
   assert.equal(it.id, "acme/widgets#500");
