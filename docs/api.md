@@ -991,7 +991,7 @@ An open issue on your desk gets a pre-review (`IssueReview` in `ItemDetail.issue
 
 ### What reviewers said
 
-A PR's review view carries its conversations (`ReviewView.conversation`, `src/conversation.ts`): every review thread (resolved or not, outdated or not, with its file, line and comments), the PR's comments and the reviews' bodies. Bots' comments on the PR (status reports) and empty review bodies are left out. The desk reads them once a sync sees the PR updated.
+A PR's review view carries its conversations (`ReviewView.conversation`, `src/conversation.ts`): every review thread (resolved or not, outdated or not, with its file, line and comments), the PR's comments and the reviews' bodies, yours included (they never wait on you). Bots' comments on the PR (status reports) and empty review bodies are left out. The desk reads them once a sync sees the PR updated.
 
 **What waits on you.** A person other than you had the last word:
 

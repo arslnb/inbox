@@ -1715,6 +1715,25 @@ const SHOTS: Shot[] = [
   // leaves it with the words kept; they're still in it, at their size, after stepping to the next item and back; and the
   // platform's send key sends it.
   {
+    // A comment you send shows in the conversation at once, as yours, until the review reads GitHub's copy back.
+    name: "review-comment-shows",
+    go: async (page) => {
+      await page.route("**/comment", (r) => r.fulfill({ json: { ok: true, url: "" } }));
+      await review("acme/api#4127")(page);
+      await talk(page);
+      const text = "Shipping this after the freeze lifts.";
+      await page.locator(".rv-comment-input").fill(text);
+      await page.locator(".rv-comment .cv-send").click();
+      const mine = page.locator(".rv-convo .cv-mine", { hasText: text });
+      await mine.waitFor({ timeout: 2000 }).catch(() => {});
+      if (!(await mine.count())) failures.push("review-comment-shows: the comment you sent isn't in the conversation");
+    },
+    after: async (page) => {
+      await unroute(page);
+      await fresh(page);
+    },
+  },
+  {
     name: "review-comment",
     go: async (page) => {
       type Edge = { left: number; top: number; bottom: number };

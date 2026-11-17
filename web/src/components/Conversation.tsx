@@ -8,6 +8,13 @@ import { Avatar } from "./Avatar.tsx";
 import { SaidText, Words } from "./Prose.tsx";
 import { saidLine } from "../../../src/prose.ts";
 
+// What you said here: a reply to one (convo) or a comment on the PR (null), drawn until the review reads it back.
+export interface Said {
+  convo: string | null;
+  body: string;
+  url: string;
+}
+
 const where = (c: Convo) => (c.path ? `${c.path}${c.line ? `:${c.line}` : ""}${c.outdated ? ", outdated" : ""}` : "on the PR");
 // What an ask to your agent is about: "dana's thread on src/auth.ts:42".
 export const threadOf = (item: string, c: Convo): Thread => ({
@@ -94,9 +101,13 @@ export function Conversation({
   agent,
   onSpot,
   onAsk,
+  saying,
+  onSaid,
   foot,
 }: {
   view: ReviewView;
+  saying: Said[]; // what you said here that GitHub hasn't given back yet, drawn as yours meanwhile
+  onSaid: (s: Said) => void;
   me: string; // your login: your picture by each box
   now: number;
   flash: (text: string, error?: boolean) => void;
@@ -136,8 +147,9 @@ export function Conversation({
     runUi(
       api.reply(view.card.id, c.id, text).pipe(
         Effect.match({
-          onSuccess: () => {
+          onSuccess: ({ url }) => {
             setSent((s) => ({ ...s, [c.id]: c.comments.at(-1)?.id ?? "" }));
+            onSaid({ convo: c.id, body: text.trim(), url });
             setDrafts((d) => ({ ...d, [c.id]: "" }));
             flash(`Sent your reply to ${to}`);
           },
@@ -216,6 +228,11 @@ export function Conversation({
                   </div>
                 </li>
               ))}
+              {saying
+                .filter((s) => s.convo === c.id)
+                .map((s) => (
+                  <Mine key={`said ${s.body}`} me={me} s={s} />
+                ))}
             </ol>
             {/* Your agent's read of one waiting on you: its call in semibold, then why. */}
             {waits(c) && c.take && (
@@ -275,7 +292,44 @@ export function Conversation({
           </article>
         );
       })}
+      {saying.some((s) => !s.convo) && (
+        <article className="cv">
+          <ol className="cv-comments">
+            {saying
+              .filter((s) => !s.convo)
+              .map((s) => (
+                <Mine key={`said ${s.body}`} me={me} s={s} />
+              ))}
+          </ol>
+        </article>
+      )}
       {foot}
     </section>
+  );
+}
+
+// What you just said, as the conversation will show it once GitHub gives it back.
+function Mine({ me, s }: { me: string; s: Said }) {
+  return (
+    <li className="cv-mine">
+      <p className="cv-who">
+        <span className="cv-author">
+          <Avatar login={me} />
+          {me}
+        </span>
+        <span>
+          {s.url ? (
+            <a href={s.url} target="_blank" rel="noreferrer">
+              sent
+            </a>
+          ) : (
+            "sent"
+          )}
+        </span>
+      </p>
+      <div className="cv-body">
+        <SaidText text={s.body} />
+      </div>
+    </li>
   );
 }

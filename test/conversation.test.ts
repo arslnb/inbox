@@ -73,8 +73,9 @@ test("on your PR: what a person said after your last word waits on you; resolved
       ["PRRT_resolved", "thread", false],
       ["PRRT_bot", "thread", false],
       ["r2", "review", false],
+      ["ic3", "comment", false],
     ],
-    "waiting first; your own comments, bots' status comments and empty reviews aren't listed; kai's review is before your Rebased",
+    "waiting first; your own comments listed but never waiting; bots' status comments and empty reviews aren't listed; kai's review is before your Rebased",
   );
   const open = got[0]!;
   assert.deepEqual(
@@ -456,8 +457,8 @@ test("what reviewers said: a failed fetch shows in the review and is tried again
   await until(() => held.length > 0);
   assert.deepEqual(asked, ["PR_acme/web_3", "PR_acme/web_3"], "the failure wasn't kept, and the two views wait on one fetch");
   held[0]!();
-  for (const v of await both) assert.deepEqual([v.conversation_error, v.conversation.length], [null, 7]);
-  assert.equal((await run(t.desk.reviewView("web#3", true))).conversation.length, 7);
+  for (const v of await both) assert.deepEqual([v.conversation_error, v.conversation.length], [null, 8]);
+  assert.equal((await run(t.desk.reviewView("web#3", true))).conversation.length, 8);
   assert.equal(asked.length, 2, "kept once it came back");
 });
 

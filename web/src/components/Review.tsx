@@ -74,7 +74,7 @@ import { diffTheme, omarchyTheme, onOmarchy } from "../theme.ts";
 import { Avatar } from "./Avatar.tsx";
 import { CI, HandButton, ActButton, REVIEW } from "./Detail.tsx";
 import type { Spot } from "./Chat.tsx";
-import { Composer, Conversation, threadOf } from "./Conversation.tsx";
+import { Composer, Conversation, threadOf, type Said } from "./Conversation.tsx";
 import { Diagram } from "./Diagram.tsx";
 import { MoreButton, MoreMenu, WriteBox } from "./More.tsx";
 import { ProseBlocks, SaidText, spans, Words } from "./Prose.tsx";
@@ -242,6 +242,8 @@ export function Review({
   const [shutDirs, setShutDirs] = useState<ReadonlySet<string>>(new Set()); // folders you folded in the sidebar's files
   const [draft, setDraft] = useState<Draft | null>(() => restored(id, 1));
   const [sent, setSent] = useState<Sent[]>([]);
+  const [said, setSaid] = useState<Said[]>([]);
+  const [poke, setPoke] = useState(0); // a read again while what you sent isn't back yet
   const draftText = useRef(keptDraft(id)?.text ?? ""); // here, so a box Pierre redraws keeps your words without a render per keystroke
   const drafts = useRef(1);
   const alive = useRef(true);
@@ -297,7 +299,7 @@ export function Review({
     };
   }, []);
 
-  useKeyed(`${id} ${loads}`, (signal) => {
+  useKeyed(`${id} ${loads} ${poke}`, (signal) => {
     const n = ++seq.current;
     runUi(
       reviewOf(id).pipe(
@@ -318,6 +320,27 @@ export function Review({
       ),
       { signal },
     );
+  });
+
+  // What you sent and GitHub hasn't given back yet: read the review again every 3 seconds, ten times at most.
+  const unread = (() => {
+    if (!view || typeof view !== "object") return 0;
+    const me_ = me.toLowerCase();
+    const back = (s: { body: string; url: string }) =>
+      view.conversation.some((c) =>
+        c.comments.some((k) => (s.url && k.url === s.url) || (k.author.toLowerCase() === me_ && k.body.trim() === s.body)),
+      );
+    return [...sent, ...said].filter((s) => !back(s)).length;
+  })();
+  const tries = useRef(0);
+  useKeyed(unread && tries.current < 10 ? `${unread} ${poke}` : null, () => {
+    const t = setTimeout(() => {
+      tries.current += 1;
+      setPoke((p) => p + 1);
+    }, 3000);
+    return () => {
+      clearTimeout(t);
+    };
   });
 
   function addReviewers() {
@@ -608,6 +631,7 @@ export function Review({
             sendingOn(pr, false);
             flash(d.thread ? `Sent your reply on ${ref} on GitHub` : `Commented on ${lineName(d.at)} on GitHub`);
             if (!alive.current) return; // a review you've left doesn't touch the one you're on
+            tries.current = 0;
             setSent((s) => [...s, { at: d.at, thread: d.thread, body: text.trim(), url }]);
             setDraft((cur) => (cur?.n === d.n ? null : cur));
             if (drafts.current === d.n) {
@@ -784,12 +808,12 @@ export function Review({
   // A box whose line a refresh took off the diff, or put under the closed rest, is drawn above the diff instead.
   const orphanAt = draft ? drawnAt(draft, list, view.conversation, view.diff_head) : 0;
   // Yours from here that the refreshed conversation doesn't have yet.
-  const pending = sent.filter(
-    (s) =>
-      !view.conversation.some((c) =>
-        c.comments.some((k) => (s.url && k.url === s.url) || (k.author.toLowerCase() === me.toLowerCase() && k.body.trim() === s.body)),
-      ),
-  );
+  const back = (s: { body: string; url: string }) =>
+    view.conversation.some((c) =>
+      c.comments.some((k) => (s.url && k.url === s.url) || (k.author.toLowerCase() === me.toLowerCase() && k.body.trim() === s.body)),
+    );
+  const pending = sent.filter((s) => !back(s));
+  const saying = said.filter((s) => !back(s));
   // Pierre's "more lines" around a hunk: the file at the PR's head, and before it the same file run back through its patch.
   const wholeFile = (f: ReviewFile): Promise<FileDiffLoadedFiles> => {
     const key = `${view.diff_head ?? ""}:${f.path}`;
@@ -1079,12 +1103,34 @@ export function Review({
               agent={agent}
               onSpot={onSpot}
               onAsk={onAsk}
+              saying={saying}
+              onSaid={(s) => {
+                tries.current = 0;
+                setSaid((x) => [...x, s]);
+              }}
               foot={
                 // Still there once you've acted, so you can comment on what you did; while Request changes is open its box
                 // is the one you write in, so an empty comment box steps aside.
                 (open || !!comment.trim()) &&
                 !(writing && !comment.trim()) && (
-                  <CommentBox card={card} me={me} body={comment} setBody={writeComment} sending={!!acted?.sending} onComment={onComment} />
+                  <CommentBox
+                    card={card}
+                    me={me}
+                    body={comment}
+                    setBody={writeComment}
+                    sending={!!acted?.sending}
+                    onComment={(c, b) =>
+                      onComment(c, b).pipe(
+                        Effect.tap((ok) =>
+                          Effect.sync(() => {
+                            if (!ok) return;
+                            tries.current = 0;
+                            setSaid((x) => [...x, { convo: null, body: b.trim(), url: "" }]);
+                          }),
+                        ),
+                      )
+                    }
+                  />
                 )
               }
             />

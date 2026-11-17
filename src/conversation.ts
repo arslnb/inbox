@@ -67,21 +67,20 @@ export function conversation(ctx: PrContext, me: string, mine: boolean, pushed: 
     .toSorted((a, b) => a.at.localeCompare(b.at));
   const yours = talk.findLast((c) => isMe(c.author))?.at ?? "";
   const asks = (c: Said) => mine || new RegExp(`@${me}\\b`, "i").test(c.body);
-  const rest = talk
-    .filter((c) => !isMe(c.author))
-    .map((c): Convo => ({
-      id: c.id,
-      kind: c.kind,
-      path: null,
-      line: null,
-      side: null,
-      outdated: false,
-      resolved: false,
-      state: c.state ?? null,
-      comments: [said(c)],
-      waiting_on_you: waitsOnYou(c, me) && c.at > yours && asks(c),
-      url: c.url,
-    }));
+  // Yours are listed too, as the conversation they're part of; only someone else's can wait on you.
+  const rest = talk.map((c): Convo => ({
+    id: c.id,
+    kind: c.kind,
+    path: null,
+    line: null,
+    side: null,
+    outdated: false,
+    resolved: false,
+    state: c.state ?? null,
+    comments: [said(c)],
+    waiting_on_you: !isMe(c.author) && waitsOnYou(c, me) && c.at > yours && asks(c),
+    url: c.url,
+  }));
   return [...threads, ...rest].toSorted((a, b) => Number(b.waiting_on_you) - Number(a.waiting_on_you));
 }
 
