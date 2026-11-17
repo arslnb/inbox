@@ -67,6 +67,7 @@ import { Later, Queue } from "./components/Queue.tsx";
 import type { SessionCtx } from "./components/Session.tsx";
 import { PeopleFilter } from "./components/PeopleFilter.tsx";
 import { Review } from "./components/Review.tsx";
+import { type RuleFocus } from "./components/Rules.tsx";
 import { Settings } from "./components/Settings.tsx";
 import { Setup } from "./components/Setup.tsx";
 import { Filter } from "./components/Filter.tsx";
@@ -225,6 +226,7 @@ export function App() {
   const [section, setSection] = useState(route.name === "settings" ? route.section : "github"); // kept while on the queue
   const [settingsSeen, setSettingsSeen] = useState(route.name === "settings");
   const [loads, setLoads] = useState(0); // bumped on every refresh, so Rules can re-read a file changed on disk
+  const [ruleFocus, setRuleFocus] = useState<RuleFocus | null>(null); // a row's "See the rule that put it here"
   const [tick, setTick] = useState(0); // bumped when an undo's hold on the selection runs out
   const [lane, setLane] = useState<InflightView | null>(null);
   const [laneSel, setLaneSel] = useState<string | null>(null);
@@ -1439,7 +1441,10 @@ export function App() {
     if (k === "enter") openCard(c);
     else if (k === "link") runUi(copyLink(c));
     else if (k === "github-link") runUi(copyLink(c, true));
-    else if (k === "close") setExpanded(null);
+    else if (k === "rule" && c.rule) {
+      setRuleFocus({ ...c.rule, at: Date.now() });
+      go({ name: "settings", section: "rules" });
+    } else if (k === "close") setExpanded(null);
     else if (k === "t") openAsk(c.id);
     else if (k === "b") runUi(back(c));
     else if (k === "analyze" || k === "trust" || k === "fix" || k === "block" || k === "unblock") runUi(issueAct(c, k));
@@ -1967,6 +1972,7 @@ export function App() {
               onAsked={() => {
                 setAsking({ item: null, spot: null });
               }}
+              ruleFocus={ruleFocus}
             />
           )}
         </main>

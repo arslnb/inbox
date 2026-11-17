@@ -578,6 +578,15 @@ export interface Attribution {
   source: "line" | "assignee" | "model" | "none"; // an agent's line, Copilot's one human assignee, the light model's read, or none
 }
 
+// The rule that placed an item, for its row's "See the rule that put it here": yours at `path` in config.toml
+// ("boards[0].rules[2]"), or a built-in rule's `id` on that board.
+export interface PlacingRule {
+  board: string;
+  path?: string;
+  id?: string;
+  why: string;
+}
+
 export interface Card {
   id: string;
   kind: "pr" | "issue";
@@ -624,6 +633,7 @@ export interface Card {
   resolved_at: string | null; // when it resolved (else its last update, when GitHub doesn't say); null while it's open
   inflight: boolean; // your PR, in Merging
   group?: QueueGroup; // a Now or Today card: which part of the main page's order it's in (QUEUE_GROUPS)
+  rule?: PlacingRule; // the rule that placed it, when one did (not the board's default)
   placed_by?: "hard" | "pin" | "claude" | "automation" | "pending" | "unanswered"; // a hard rule, a pin's floor, Claude, an automation's sort, the rules until Claude answers, or since it gave no answer; unset with the judge off and no sort
   team_ask?: string; // a review asked only of your team: "CODEOWNERS ping to @ml-team", so a rule's why can't pass it off as yours
   stack?: StackRef; // an open PR whose line has two or more open

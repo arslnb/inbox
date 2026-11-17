@@ -5569,12 +5569,28 @@ const SHOTS: Shot[] = [
       );
       if (
         JSON.stringify(items[0]) !== JSON.stringify(["Done", "Snooze›"]) ||
+        JSON.stringify(items.at(-2)) !== JSON.stringify(["See the rule that put it here"]) ||
         JSON.stringify(items.at(-1)) !== JSON.stringify(["Copy link", "Copy GitHub link"])
       )
         failures.push(`row-menu: it reads ${JSON.stringify(items)}`);
     },
     after: async (page) => {
       await page.keyboard.press("Escape");
+    },
+  },
+  // A row's "See the rule that put it here": Rules, with that rule marked (a built-in one) or selected in the file (yours).
+  {
+    name: "row-rule",
+    go: async (page) => {
+      await at("#/")(page);
+      await page.locator(".line", { hasText: "Drop the legacy v1 auth" }).locator(".row-main").click({ button: "right" });
+      await page.locator(".ctx-item", { hasText: "See the rule that put it here" }).click();
+      await page.waitForFunction(
+        `!!document.querySelector(".builtin-rules li.lit") || (document.activeElement?.tagName === "TEXTAREA" && document.activeElement.selectionEnd > document.activeElement.selectionStart)`,
+        undefined,
+        { timeout: 5000 },
+      );
+      await page.waitForTimeout(300);
     },
   },
   {

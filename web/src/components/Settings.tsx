@@ -30,7 +30,7 @@ import { useKeyed } from "../keyed.ts";
 import { ago, aiName, cls, copyText, githubTip, MAC, orgsLine } from "../format.ts";
 import { AutomationRows, AutomationView, NewAutomation, useAutomations } from "./Automations.tsx";
 import { Criteria } from "./Criteria.tsx";
-import { Rules } from "./Rules.tsx";
+import { Rules, type RuleFocus } from "./Rules.tsx";
 import { withCode } from "./Review.tsx";
 import { SkLines } from "./Skeleton.tsx";
 import { SourceLine } from "./Source.tsx";
@@ -1136,6 +1136,7 @@ export function Settings({
   onRulesSaved,
   onRulesDirty,
   onAsked,
+  ruleFocus,
 }: {
   active: boolean;
   section: string; // a part's id (automations: yours), or a view's (rules, automations/<id>)
@@ -1148,6 +1149,7 @@ export function Settings({
   onRulesSaved: () => void;
   onRulesDirty: (dirty: boolean) => void;
   onAsked: () => void; // your agent has your words about an automation or a criterion: its chat opens
+  ruleFocus: RuleFocus | null; // a row's "See the rule that put it here": Rules shows that rule
 }) {
   const [live, setLive] = useState<DesktopStatus | null>(null);
   const inView = settingsBack(section) !== null;
@@ -1334,6 +1336,7 @@ export function Settings({
           flash={flash}
           onSaved={onRulesSaved}
           onDirty={onRulesDirty}
+          focus={ruleFocus}
         />
       </section>
       <section className="s-view" hidden={automation === null} aria-labelledby="s-view-automation">

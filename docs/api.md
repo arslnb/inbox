@@ -327,6 +327,7 @@ interface Card {
   resolved_at: string | null;
   inflight: boolean; // your PR, in Merging
   group?: "back" | "review" | "other" | "mine"; // a Now or Today card's part of the main page's order
+  rule?: { board: string; path?: string; id?: string; why: string }; // the rule that placed it: yours at `path` in config.toml ("boards[0].rules[2]"), or a built-in's `id`; absent for the board's default
   placed_by?: "hard" | "pin" | "claude" | "automation" | "pending" | "unanswered";
   team_ask?: string; // asked only of your team: "CODEOWNERS ping to @ml-team"
   stack?: StackRef; // an open PR whose line has two or more open PRs

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { defaultConfigText } from "../src/config.ts";
+import { defaultConfigText, parseConfig } from "../src/config.ts";
 import { Desk, parseUntil } from "../src/desk.ts";
 import type { Card, Context, Item } from "../src/types.ts";
 import { idle, myPr, reviewAsk, setup, teamPing, UNSCORED } from "./helpers/desk.ts";
@@ -145,6 +145,23 @@ test("Searches and rules lists the final rules with the hard ones, in board orde
       ["My PRs (acme)", "blocked", "waits on something", true],
     ],
   );
+});
+
+test("a card names the rule that placed it: a built-in one by its id, yours by its place in config.toml", async (c) => {
+  const t = await setup([reviewAsk(1), teamPing(2)], { settings: { ...UNSCORED, "policy.judge": false } });
+  c.after(t.cleanup);
+  const text = fs.readFileSync(path.join(t.home, "config.toml"), "utf8");
+  const board = parseConfig(text).loaded!.config.boards.findIndex((b) => b.id === "acme-review");
+  const mine = text.replace(
+    /(id = "acme-review"[\s\S]*?\nbuiltin = "review"\n)/,
+    `$1rules = [{ when = "item.number == 2", bucket = "now", why = "the ML team's" }]\n`,
+  );
+  assert.notEqual(mine, text);
+  assert.equal(runSync(t.desk.putConfig(mine)).ok, true);
+  await run(t.desk.sync());
+  const rule = (id: string) => runSync(t.desk.item(id)).card.rule;
+  assert.deepEqual(rule("acme/api#1"), { board: "acme-review", id: "asked-directly", why: "carol asked you directly" });
+  assert.deepEqual(rule("acme/api#2"), { board: "acme-review", path: `boards[${board}].rules[0]`, why: "the ML team's" });
 });
 
 test("preview shows moves without saving; putConfig saves valid text only", async () => {

@@ -74,6 +74,7 @@ import type {
   Mergeable,
   Overview,
   Placement,
+  PlacingRule,
   Preflight,
   PreviewResult,
   Rule,
@@ -1909,7 +1910,19 @@ function chips(r: Rec): string[] {
 let stacksMemo: Stacks | null = null;
 const stacks = () => (stacksMemo ??= buildStacks(recs.map(itemOf)));
 
+// As Desk.placingRule: the rule a placement matched, yours by its path in config.toml, a built-in by its id.
+function placingRule(p: Placement): PlacingRule | undefined {
+  const at = config.boards.findIndex((b) => b.id === p.board);
+  const b = config.boards[at];
+  const rule = b && p.rule !== null ? rulesOf(b)[p.rule] : undefined;
+  if (!b || !rule || p.rule === null) return undefined;
+  if (rule.own !== undefined) return { board: p.board, path: `boards[${at}].rules[${rule.own}]`, why: p.why };
+  if (rule.id !== undefined && b.builtin !== undefined) return { board: p.board, id: rule.id, why: p.why };
+  return { board: p.board, path: `boards[${at}].rules[${p.rule}]`, why: p.why };
+}
+
 function cardOf(r: Rec, p: Placement): Card {
+  const rule = placingRule(p);
   const s = r.seed;
   const sig = signals(r);
   const stack = stackRef(stacks(), r.id);
@@ -1940,6 +1953,7 @@ function cardOf(r: Rec, p: Placement): Card {
     why: s.resolved ?? p.why,
     ...(p.demoted !== undefined && { demoted: p.demoted }),
     board: p.board,
+    ...(rule && { rule }),
     boards: config.boards.filter((b) => place(r, b)).map((b) => b.id),
     chips: chips(r),
     ...(sig.item.kind === "pr" && { size: { add: sig.pr.additions, del: sig.pr.deletions } }),

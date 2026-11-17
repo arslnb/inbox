@@ -8659,6 +8659,13 @@ pre,
   color: var(--faint);
 }
 
+/* The rule a row's "See the rule that put it here" asked for. */
+.builtin-rules li.lit {
+  margin: 0 -8px;
+  padding-inline: 8px;
+  background: var(--sel);
+}
+
 /* The first-run page --------------------------------------------------------- */
 
 /* In the window's place, without the sidebar: GitHub, then your agent, in one calm column. Its top is the drag handle, clear

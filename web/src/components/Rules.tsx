@@ -1,11 +1,14 @@
 import { Effect } from "effect";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { BUCKETS, type ConfigDoc, type ConfigError, type FieldDoc, type PreviewResult } from "../../../src/types.ts";
+import { BUCKETS, type ConfigDoc, type ConfigError, type FieldDoc, type PlacingRule, type PreviewResult } from "../../../src/types.ts";
 import { api, runUi } from "../api.ts";
-import { useKeyed } from "../keyed.ts";
+import { useKeyed, useKeyedLayout } from "../keyed.ts";
 import { BUCKET_LABEL, cls, MOD, shortId, tilde, aiName } from "../format.ts";
 import { lineOf, weightText } from "../view.ts";
 import { ActButton } from "./Detail.tsx";
+
+// A row's "See the rule that put it here": the rule, and when it was asked for, so asking again shows it again.
+export type RuleFocus = PlacingRule & { at: number };
 
 export function Rules({
   active,
@@ -14,6 +17,7 @@ export function Rules({
   flash,
   onSaved,
   onDirty,
+  focus,
 }: {
   active: boolean; // Settings is open: the file loads with it, so the view opens on it
   shown: boolean; // its view is on screen: its keys work
@@ -21,6 +25,7 @@ export function Rules({
   flash: (text: string, error?: boolean) => void;
   onSaved: () => void;
   onDirty: (dirty: boolean) => void;
+  focus: RuleFocus | null;
 }) {
   const [doc, setDoc] = useState<{ path: string; text: string } | null>(null);
   const [loadError, setLoadError] = useState("");
@@ -35,6 +40,7 @@ export function Rules({
   const [fields, setFields] = useState<FieldDoc[]>([]);
   const [query, setQuery] = useState("");
   const [pos, setPos] = useState("1:1");
+  const [lit, setLit] = useState<string | null>(null); // a built-in rule a row asked for, by flipKey, marked until the next
   const ta = useRef<HTMLTextAreaElement>(null);
   const dirty = doc !== null && text !== doc.text;
   const shownBuiltins = builtins.map((b) => ({ ...b, rules: b.rules.map((r) => ({ ...r, on: flipped[flipKey(b.board, r.id)] ?? r.on })) }));
@@ -258,6 +264,16 @@ export function Rules({
     track();
   }
 
+  // A row asked for the rule that put it there: yours is selected in the file, a built-in one marked in its board's list.
+  useKeyedLayout(focus && doc && shown ? focus.at : null, () => {
+    if (!focus) return;
+    setLit(focus.path ? null : focus.id ? flipKey(focus.board, focus.id) : null);
+    if (focus.path) jump(focus.path);
+  });
+  useKeyedLayout(lit, () => {
+    document.querySelector(".builtin-rules li.lit")?.scrollIntoView({ block: "center" });
+  });
+
   const q = query.trim().toLowerCase();
   const listed = q ? fields.filter((f) => f.path.includes(q) || f.doc.toLowerCase().includes(q)) : fields;
   const stale = preview !== null && preview.text !== text;
@@ -404,13 +420,17 @@ export function Rules({
               </p>
               {shownBuiltins.map((b) => (
                 // Open where you've changed something: what's off, or yours in a rule's place.
-                <details key={b.board} className="builtin-board" open={b.rules.some((r) => !r.on || r.yours)}>
+                <details
+                  key={b.board}
+                  className="builtin-board"
+                  open={b.rules.some((r) => !r.on || r.yours || flipKey(b.board, r.id) === lit)}
+                >
                   <summary>
                     {b.name} <span className="quiet">{foldLine(b)}</span>
                   </summary>
                   <ul className="plain builtin-rules">
                     {b.rules.map((r) => (
-                      <li key={r.id} className={cls(!r.on && "off")}>
+                      <li key={r.id} className={cls(!r.on && "off", flipKey(b.board, r.id) === lit && "lit")}>
                         <span className="br-text">
                           <span>
                             {BUCKET_LABEL[r.bucket]}

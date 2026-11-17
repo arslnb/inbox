@@ -92,6 +92,7 @@ import type {
   Overview,
   Paused,
   Placement,
+  PlacingRule,
   Preflight,
   PreviewResult,
   QueueView,
@@ -1957,6 +1958,18 @@ export class Desk {
     };
   }
 
+  // The rule a placement matched, as config.toml has it: yours by its path, a built-in by its id.
+  placingRule(p: Placement): PlacingRule | undefined {
+    const boards = this.loaded?.config.boards ?? [];
+    const at = boards.findIndex((b) => b.id === p.board);
+    const rule = p.rule === null ? undefined : boards[at]?.rules[p.rule];
+    if (!rule || p.rule === null) return undefined;
+    const why = p.why;
+    if (rule.own !== undefined) return { board: p.board, path: `boards[${at}].rules[${rule.own}]`, why };
+    if (rule.id !== undefined && boards[at]!.builtin !== undefined) return { board: p.board, id: rule.id, why };
+    return { board: p.board, path: `boards[${at}].rules[${p.rule}]`, why };
+  }
+
   card(e: Entry, p: Placement | null, snap: Snapshot): Card {
     const it = e.item;
     const boards = [...snap.boards].filter(([, b]) => b.result.placements.has(it.id)).map(([id]) => id);
@@ -1989,6 +2002,7 @@ export class Desk {
           ? "blocked"
           : st;
     const handoff = snap.handed.get(it.id);
+    const rule = p ? this.placingRule(p) : undefined;
     return {
       ...(team && { team_ask: me.requested_codeowner ? `CODEOWNERS ping to @${team}` : `asked @${team}` }),
       id: it.id,
@@ -2008,6 +2022,7 @@ export class Desk {
       ...(handoff && { handoff }),
       ...(p?.demoted !== undefined && { demoted: p.demoted }),
       board: p?.board ?? "",
+      ...(rule && { rule }),
       boards,
       chips,
       ...(it.kind === "pr" && { size: { add: it.additions, del: it.deletions } }),
