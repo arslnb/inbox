@@ -29,6 +29,7 @@ import {
   tilde,
   when,
   sizeOf,
+  byOf,
 } from "../src/format.ts";
 import {
   weightText,
@@ -1417,4 +1418,18 @@ test("a PR's size is one to four bars, and its tip says the lines", () => {
   assert.equal(sizeOf({ add: 20, del: 10 }).bars, 2);
   assert.equal(sizeOf({ add: 150, del: 50 }).bars, 3);
   assert.deepEqual(sizeOf({ add: 900, del: 300 }), { bars: 4, label: "Large change: +900 \u2212300" });
+});
+
+test("who a row is by: the person a bot opened it for, via the bot; the bot alone when nobody's known", () => {
+  const bot = { author: "sentry-junior", author_bot: true };
+  const via = (person: string, source: "line" | "model" | "none" = "line") => ({ person, agent: "sentry-junior", source });
+  assert.deepEqual(byOf({ ...bot, by: "dana", attribution: via("@dana") }, "me"), { who: "dana via sentry-junior", face: "dana" });
+  assert.deepEqual(byOf({ ...bot, by: "Dana Q", attribution: via("Dana Q", "model") }, "me"), {
+    who: "Dana Q via sentry-junior",
+    face: null,
+  });
+  assert.deepEqual(byOf({ ...bot, by: "you", attribution: via("@me") }, "me"), { who: "you via sentry-junior", face: "me" });
+  assert.deepEqual(byOf({ ...bot, by: "sentry-junior", attribution: via("", "none") }, "me"), { who: "sentry-junior", face: null });
+  assert.deepEqual(byOf({ author: "priya", author_bot: false, by: "priya" }, "me"), { who: "priya", face: "priya" });
+  assert.deepEqual(byOf({ author: "renovate[bot]", author_bot: true, by: "renovate[bot]" }, "me"), { who: "renovate[bot]", face: null });
 });

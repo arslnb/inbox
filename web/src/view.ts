@@ -134,6 +134,7 @@ export const SHOWN: Record<string, ((values: Values, app: Shell) => boolean) | u
   "agent.coordinator_bypass": (v) => v["agent.coordinator"] !== false,
   "agent.coordinator_model": (v) => v["agent.coordinator"] !== false,
   "agent.coordinator_effort": (v) => v["agent.coordinator"] !== false && v["agent.harness"] !== "opencode",
+  "agent.light_effort": (v) => v["agent.harness"] !== "opencode",
   "app.hotkey": inApp,
   "app.open_at_login": inApp,
   "app.menu_bar_count": (_, app) => app?.platform === "darwin", // only macOS's tray draws a title beside the icon

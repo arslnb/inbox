@@ -11,6 +11,17 @@ export const handoffLabel = (h: Handoff) => (h.from ? `From ${h.from}:` : "Hande
 // Who asks, as the window says it: the coordinator is "your agent"; every other session goes by the name it gave itself.
 export const fromName = (from: string, start = true) => (isCoordinator(from) ? (start ? "Your agent" : "your agent") : from);
 
+// Who a row or a review says it's by: "dana via sentry-junior" for a bot's PR opened for someone, "you via …" for yours,
+// the bot alone when nobody's known; `face` is whose picture, a login, or null for the bot's mark.
+export function byOf(c: Pick<Card, "by" | "author" | "author_bot" | "attribution">, me: string): { who: string; face: string | null } {
+  const a = c.attribution;
+  if (!a) return { who: c.by, face: c.by === "you" ? me || null : c.author_bot && c.by === c.author ? null : c.by };
+  if (c.by === "you") return { who: `you via ${a.agent}`, face: me || null };
+  if (!a.person) return { who: a.agent, face: null };
+  const login = a.person.startsWith("@") ? a.person.slice(1) : null;
+  return { who: `${login ?? a.person} via ${a.agent}`, face: login };
+}
+
 export const shortRef = (c: { repo: string; number: number }) => `${c.repo.split("/")[1]}#${c.number}`;
 export const shortId = (id: string) => id.replace(/^[^/]+\//, "");
 export const issueUrl = (id: string) => {

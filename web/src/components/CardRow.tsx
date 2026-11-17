@@ -1,5 +1,5 @@
 import type { Card, ItemDetail } from "../../../src/types.ts";
-import { age, clearedText, cls } from "../format.ts";
+import { age, byOf, clearedText, cls } from "../format.ts";
 import type { Guide, Variant } from "../view.ts";
 import { Avatar } from "./Avatar.tsx";
 import { Detail } from "./Detail.tsx";
@@ -73,12 +73,12 @@ export function CardRow({ card, variant, ctx, why, tree }: { card: Card; variant
       {note}
     </span>
   );
-  const person = card.by !== "you" && !(card.author_bot && card.by === card.author);
-  // Who it's from is their picture alone: yours for "you", a mark for a bot.
+  // Who it's from is their picture alone: yours for "you", the person a bot opened it for, a mark for a bot or a name alone.
+  const by = byOf(card, ctx.me);
   const face = (
-    <span className={cls("line-by line-face", card.by === "you" && "mine")} data-tip={`By ${card.by}`}>
-      {card.by === "you" ? ctx.me && <Avatar login={ctx.me} /> : person ? <Avatar login={card.by} /> : <AgentIcon />}
-      <span className="sr">by {card.by}</span>
+    <span className={cls("line-by line-face", card.by === "you" && "mine")} data-tip={`By ${by.who}`}>
+      {card.by === "you" ? ctx.me && <Avatar login={ctx.me} /> : by.face ? <Avatar login={by.face} /> : <AgentIcon />}
+      <span className="sr">by {by.who}</span>
     </span>
   );
   const ageEl = (

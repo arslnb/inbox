@@ -2404,6 +2404,19 @@ const SHOTS: Shot[] = [
   },
   // Your own draft's one call to action is Ready for review; your ready PR's is Hand off for merge.
   { name: "review-draft", go: review("acme/web#2303") },
+  // A bot's PR opened for someone says who and through which bot, on its row and in its review's header.
+  {
+    name: "review-via",
+    go: async (page) => {
+      await review("acme/api#4140")(page);
+      const by = (await page.locator(".rv-by").first().textContent())?.trim();
+      if (by !== "by dana via sentry-junior") failures.push(`review-via: the header reads ${JSON.stringify(by)}`);
+      if (!(await page.locator(".rv-by img.avatar").count())) failures.push("review-via: no picture of dana in the header");
+      const row = page.locator('.line[data-id="acme/web#2318"] .line-by');
+      if ((await row.count()) && (await row.getAttribute("data-tip")) !== "By li-wei via sentry-junior")
+        failures.push(`review-via: the read row's tip is ${JSON.stringify(await row.getAttribute("data-tip"))}`);
+    },
+  },
   // Your ready PR nobody's asked to review: back on top of the queue with Add reviewers.
   {
     name: "queue-unasked",
@@ -4272,7 +4285,13 @@ const SHOTS: Shot[] = [
       const dots = "\u2022".repeat(8);
       if (after.shown !== dots || after.api !== dots || after.onPage || !after.reset)
         failures.push(`settings-agent-more: with a key saved the row is ${JSON.stringify(after)}`);
-      await page.locator("#s-agent .group-head", { hasText: "More Agent settings" }).scrollIntoViewIfNeeded();
+      // The light model's two rows, dropdowns of your agent's models and levels, empty for its cheap tier.
+      const light = await page.evaluate<string[]>(
+        `["agent.light_model", "agent.light_effort"].map((k) => document.getElementById("setting-" + k)?.selectedOptions?.[0]?.textContent ?? "none")`,
+      );
+      if (light[0] !== "Haiku, the cheapest" || light[1] !== "Low")
+        failures.push(`settings-agent-more: the light model's rows read ${JSON.stringify(light)}`);
+      await page.locator('[id="row-agent.light_effort"]').scrollIntoViewIfNeeded();
       await page.waitForTimeout(200);
     },
     after: async (page) => {

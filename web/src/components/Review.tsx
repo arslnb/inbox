@@ -26,7 +26,7 @@ import { andMore } from "../../../src/stage.ts";
 import { api, runUi } from "../api.ts";
 import { useKeyed } from "../keyed.ts";
 import { RISK_BARS, Signal } from "./RowIcons.tsx";
-import { age, cls, handoffLabel, MOD, modelName, sinceText, shortRef, when, aiName } from "../format.ts";
+import { age, byOf, cls, handoffLabel, MOD, modelName, sinceText, shortRef, when, aiName } from "../format.ts";
 import { blocks, inline, lead, unlinked, urlPlace } from "../../../src/prose.ts";
 import { reviewOf } from "../reviews.ts";
 import { dropKey, settleReviewerAsks, withReviewerAsks, type ReviewerAsks } from "../pending.ts";
@@ -1547,6 +1547,7 @@ function Head({
   ai?: AiShown | null; // its verdict, a tag at the metadata's end
 }) {
   const isMine = card.by === "you"; // yours, or a bot's opened for you
+  const by = byOf(card, me);
   // What it waits on and the coordinator's latest note, as Merging says it.
   const lane = row?.state === "open" && (row.waits_on || row.note) ? row : null;
   return (
@@ -1560,9 +1561,9 @@ function Head({
           </span>
         </a>
         <span className="rv-by">
-          by {isMine ? me && <Avatar login={me} /> : !card.author_bot && <Avatar login={card.author} />}
-          {isMine ? "you" : card.author}
-          {card.author_bot ? (isMine ? `, through ${card.author}` : " (bot)") : ""}
+          by {by.face && <Avatar login={by.face} />}
+          {by.who}
+          {card.author_bot && !card.attribution?.person && !isMine ? " (bot)" : ""}
         </span>
         {ai && (
           <span

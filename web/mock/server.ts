@@ -8,7 +8,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import { Effect, Result, Schema } from "effect";
 import { homedir } from "node:os";
 import { areaFiles } from "../../src/areas.ts";
-import { onBehalf } from "../../src/github/behalf.ts";
+import { attributionOf, onBehalf } from "../../src/github/behalf.ts";
 import { plan } from "../../src/agents.ts";
 import { agentView, githubView } from "../../src/setup.ts";
 import { didntText, didText, eventsWords, nextAt, parseSchedule, scheduleWords } from "../../src/automations.ts";
@@ -196,7 +196,7 @@ type Key = keyof typeof W;
 let overrides: Record<string, SettingValue> = {
   "github.poll_seconds": 60,
   "github.close_collaborator_min": 4,
-  "github.bots": ["acme-junior"],
+  "github.bots": ["acme-junior", "sentry-junior"],
   "github.my_repos": ["me/dotfiles", "me/notes-app"],
   "handoff.mine": "Help me move my PR {item.url} forward. Draft replies here; post nothing.",
   "handoff.issue": "Look at {item.url} and draft a reply here; post nothing.",
@@ -349,6 +349,7 @@ interface Seed {
   owner?: boolean;
   assignee?: boolean;
   requester?: string; // a bot's PR: who its description says it was opened for, as Item.requester
+  read?: string; // a bot's PR with no line: who the light model read it was for
   ci?: Ci;
   review?: ReviewDecision;
   mergeable?: Mergeable;
@@ -521,6 +522,37 @@ const SEEDS: Seed[] = [
     fresh: true,
     on: { "work-review": ["close", "owners"] },
     judge: ["today", "your team's scheduler, and kofi waits on you"],
+  },
+  {
+    // Junior's block names who asked: "dana via sentry-junior".
+    repo: "acme/api",
+    n: 4140,
+    title: "Cache the org settings lookup per request",
+    author: "sentry-junior",
+    requester: "@dana",
+    body: "Each request read the org's settings up to four times; it now reads them once and keeps them on the request.\nvia @dana.",
+    age: 9,
+    wait: 8,
+    by: "sentry-junior",
+    direct: true,
+    size: [38, 9, 3],
+    on: { "work-review": ["direct"] },
+  },
+  {
+    // No line says who asked: the light model read it from the description.
+    repo: "acme/web",
+    n: 2318,
+    title: "Upgrade the date picker to v5",
+    author: "sentry-junior",
+    requester: "",
+    read: "@li-wei",
+    body: "Li-Wei asked for this after the Safari 19 crash in the booking form. Upgrades the date picker to v5 and moves its styles to tokens.",
+    age: 20,
+    wait: 18,
+    by: "sentry-junior",
+    direct: true,
+    size: [120, 64, 7],
+    on: { "work-review": ["direct"] },
   },
   {
     repo: "acme/ml-pipeline",
@@ -1569,20 +1601,15 @@ const recs: Rec[] = SEEDS.map((s) => {
 
 const isBot = (login: string) => login.endsWith("[bot]") || config.signals.bots.includes(login);
 // As signals.ts: yours, or a bot's opened for you.
-const mineOf = (s: Seed) =>
-  s.author === ME ||
-  onBehalf(
-    {
-      kind: s.kind ?? "pr",
-      author: s.author,
-      author_bot: isBot(s.author),
-      assignees: s.assignee ? [ME] : [],
-      ...(s.requester !== undefined && { requester: s.requester }),
-    },
-    ME,
-    config.signals.my_names,
-    isBot,
-  );
+const factsOf = (s: Seed) => ({
+  kind: s.kind ?? "pr",
+  author: s.author,
+  author_bot: isBot(s.author),
+  assignees: s.assignee ? [ME] : [],
+  ...(s.requester !== undefined && { requester: s.requester }),
+});
+const mineOf = (s: Seed) => s.author === ME || onBehalf(factsOf(s), ME, config.signals.my_names, isBot, s.read);
+const attributionOfSeed = (s: Seed) => attributionOf(factsOf(s), isBot, s.read);
 
 // The PRs it needs directly: its own list, else the one its blocker's chain goes through, else its blocker.
 const needsOf = (s: Seed) => s.needs ?? (s.blocker ? [/\(through (\S+)\)/.exec(s.blocker[0])?.[1] ?? s.blocker[0]] : []);
@@ -1683,8 +1710,8 @@ function signals(r: Rec): Signals {
       login: s.author,
       bot: isBot(s.author),
       via: "",
-      person: "",
-      agent: isBot(s.author) ? s.author : "",
+      person: attributionOfSeed(s)?.person ?? "",
+      agent: attributionOfSeed(s)?.agent ?? "",
       me: mine,
       engaged_90d: s.close ?? 0,
       close: (s.close ?? 0) >= config.signals.close_collaborator_min,
@@ -1894,6 +1921,7 @@ function cardOf(r: Rec, p: Placement): Card {
   const st = handedBack(r) ? "handed back" : sig.pr.blocked && (was === "approved" || was === "waiting for review") ? "blocked" : was;
   const wake = waitable(sig, itemOf(r), ME);
   const by = placedBy(p);
+  const attribution = attributionOfSeed(s);
   return {
     ...(team && { team_ask: me.requested_codeowner ? `CODEOWNERS ping to @${team}` : `asked @${team}` }),
     id: r.id,
@@ -1904,7 +1932,8 @@ function cardOf(r: Rec, p: Placement): Card {
     url: sig.item.url,
     author: s.author,
     author_bot: sig.author.bot,
-    by: me.author ? "you" : s.author,
+    by: me.author ? "you" : attribution?.person ? attribution.person.replace(/^@/, "") : s.author,
+    ...(attribution && { attribution }),
     people: peopleOf(itemOf(r)),
     ...(st && { stage: st }),
     bucket: p.bucket,
