@@ -179,6 +179,35 @@ Tailscale gets the address its certificate: Connect again with the same code, wh
 A phone paired by a build that paired as a machine holds a token the desk refuses every write: at its next launch the
 app forgets it and asks to pair again (revoke the old pairing in Settings → Network).
 
+## TestFlight
+
+`ios/testflight.sh` archives a Release build, signs it and uploads it to App Store Connect, where it shows under
+TestFlight once Apple has processed it. The build number is main's commit count; the version testers see is
+`MARKETING_VERSION` in `project.yml`. `ONLY_ARCHIVE=1` signs an `.ipa` into `.build/testflight/` and sends nothing.
+
+Once, before the first upload:
+
+1. **The app's record.** App Store Connect → Apps → + → New App: iOS, a name (shown on the App Store and in TestFlight;
+   "Inbox" alone is likely taken), the bundle ID `dev.inbox.ios` (register it under Certificates, Identifiers & Profiles
+   → Identifiers if the list doesn't offer it; if it's taken, change `PRODUCT_BUNDLE_IDENTIFIER` in `project.yml`), any SKU.
+2. **Signing.** Either stay signed in to Xcode with the Apple ID of the team (Settings → Accounts), or make an App Store
+   Connect API key (Users and Access → Integrations, App Manager) and pass `ASC_KEY_ID`, `ASC_ISSUER_ID` and
+   `ASC_KEY_PATH`. The first archive makes the team's distribution certificate and profile.
+3. **Run it**, with your team id (developer.apple.com → Membership details):
+
+   ```bash
+   TEAM=<team id> ios/testflight.sh
+   ```
+
+Testers in your own team (internal testing) get it at once. Anyone else (external testing) waits for Beta App Review,
+which signs in with nothing: tell it, under TestFlight → Test Information → Beta App Review Information, "No account is
+needed. On the first screen, press Try test mode (under Connect): the app then shows made-up pull requests, issues and
+questions, and nothing leaves the phone. Connecting to a real desk needs the desktop app on the owner's computer and
+Tailscale." The App Store itself also wants a privacy policy URL; the app collects nothing (`Inbox/PrivacyInfo.xcprivacy`).
+
+What's set for it: `ITSAppUsesNonExemptEncryption` false (HTTPS only, so no export questions), the privacy manifest
+(UserDefaults, for the desk's address), `UIRequiresFullScreen` (portrait only), and the 1024 icon with no alpha.
+
 ## What the phone does
 
 A paired phone is your hands like the window (`fromDesk()` in `src/server.ts`; README → Safety). An opened page has one

@@ -33,7 +33,10 @@ targets:
           UIColorName: Paper
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
+        UIRequiresFullScreen: true  # portrait only, so no split screen (App Store validation asks for one or the other)
         NSCameraUsageDescription: To scan the pairing code your desk shows.
+        # Only HTTPS through the system: exempt, so TestFlight and the App Store ask nothing about encryption.
+        ITSAppUsesNonExemptEncryption: false
         # Plain http only to this machine: the Simulator on the desk's own Mac, and the mock.
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
