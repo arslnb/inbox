@@ -625,6 +625,7 @@ export interface Card {
   wake_on?: Until[]; // what a snooze can wait on now; absent when nothing
   done_at?: string; // when you marked it done, or did what took it off your desk; only while it's done
   verdict: AiReview["verdict"] | null; // from the AI review of the current commit
+  risk?: AiReview["risk"]; // the same review's, so a row says what its review does
   preflight?: Preflight; // Now and Today cards only
   handed_back?: boolean; // your PR back on top: the coordinator can't get it merged, or nobody's asked to review it; its why says which
   cta?: "ready" | "reply" | "reviewers" | "handoff"; // the row's one call to action: Ready for review on your own open draft, Reply on your PR whose only action is answering someone, Add reviewers on your ready PR nobody's asked to review, or Hand off for merge on yours that's approved, green and mergeable (merging it yourself is in More)

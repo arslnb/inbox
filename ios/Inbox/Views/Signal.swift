@@ -38,7 +38,6 @@ struct Signal: View {
   static let risky: Set<String> = ["draft", "changes requested", "blocked", "handed back", "closed"]
   static let ci = ["green": "CI passing", "red": "CI failing", "pending": "CI running"]
   static let verdicts = ["look": "look closely", "skim": "skim it", "skip": "skip it"]
-  static let verdictRisk = ["look": "high", "skim": "medium", "skip": "low"]
 
   // RowIcons.tsx's factsOf(): status (on the Inbox), CI, risk, size. One with nothing to say counts for the PR; only a
   // stage that stops it, CI failing or running, a medium or high risk and a medium or large change take a bar off.
@@ -52,7 +51,7 @@ struct Signal: View {
       out.append(Fact(said: "No checks", good: true))
     }
     let verdict = card.preflight?.verdict ?? card.verdict
-    if let risk = card.preflight?.risk ?? verdict.flatMap({ verdictRisk[$0] }) {
+    if let risk = card.preflight?.risk ?? card.risk {
       let how = verdict.flatMap { verdicts[$0] }.map { ", \($0)" } ?? ""
       out.append(Fact(said: "\(Words.capitalized(risk)) risk\(how)", good: risk == "low"))
     } else {

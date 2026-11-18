@@ -1987,6 +1987,8 @@ export class Desk {
     if (it.threads_unresolved > 0) chips.push(`${it.threads_unresolved} unresolved`);
     if (it.kind === "pr") chips.push(`+${it.additions} −${it.deletions}`);
     const me = e.analysis.signals.me;
+    const fresh = snap.reviews.get(it.id);
+    const ai = fresh?.head_oid === it.head_oid ? fresh : undefined; // a review of this commit, not an earlier one
     const wake = e.inflight ? [] : waitable(e.analysis.signals, it, this.me());
     const team = me.requested && !me.requested_direct && me.requested_team ? me.requested_team : "";
     const by = p && !e.inflight ? placedBy(p) : undefined; // your PR in Merging is the coordinator's
@@ -2044,7 +2046,8 @@ export class Desk {
       snooze_when: e.status === "snoozed" && e.state.snooze_when ? (oneOf(UNTILS, e.state.snooze_when.split(":")[0]) ?? null) : null,
       ...(wake.length > 0 && { wake_on: wake }),
       ...(e.status === "done" && e.state.done_at ? { done_at: e.state.done_at } : {}),
-      verdict: snap.reviews.get(it.id)?.head_oid === it.head_oid ? snap.reviews.get(it.id)!.verdict : null,
+      verdict: ai?.verdict ?? null,
+      ...(ai && { risk: ai.risk }),
       resolved: e.resolved?.reason ?? null,
       resolved_at: e.resolved ? (e.resolved.at ?? it.updated_at) : null,
       inflight: e.inflight,

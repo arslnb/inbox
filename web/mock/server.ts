@@ -1974,6 +1974,7 @@ function cardOf(r: Rec, p: Placement): Card {
     ...(wake.length > 0 && !inFlight(r) && { wake_on: wake }),
     ...(status(r) === "done" && r.state.done_at ? { done_at: r.state.done_at } : {}),
     verdict: reviews.get(r.id)?.head_oid === itemOf(r).head_oid ? reviews.get(r.id)!.verdict : null,
+    ...(reviews.get(r.id)?.head_oid === itemOf(r).head_oid && { risk: reviews.get(r.id)!.risk }),
     resolved: s.resolved ?? null,
     resolved_at: s.resolved ? iso(s.upd ?? 1) : null, // the story's "resolved" event
     inflight: inFlight(r),

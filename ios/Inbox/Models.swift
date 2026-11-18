@@ -194,6 +194,7 @@ struct Card: Decodable, Identifiable, Sendable {
   var section: String?  // "urgent" | "standard" | "fyi": where it is on the Inbox; absent off it
   var size: Size?  // a PR's lines added and removed
   var verdict: String?  // the AI review of its current commit: "look" | "skim" | "skip"
+  var risk: String?  // the same review's: "low" | "medium" | "high"
   var preflight: Preflight?
 
   struct Preflight: Decodable, Sendable {

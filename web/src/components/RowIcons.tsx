@@ -91,7 +91,6 @@ const CI = {
 };
 
 const VERDICT = { look: "look closely", skim: "skim it", skip: "skip it" };
-const VERDICT_RISK = { look: "high", skim: "medium", skip: "low" } as const;
 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
@@ -132,7 +131,7 @@ interface Fact {
 function factsOf(card: Card, stage: boolean): Fact[] {
   const pr = card.kind === "pr" ? card : undefined;
   const verdict = pr?.preflight?.verdict ?? pr?.verdict ?? undefined;
-  const risk = pr?.preflight?.risk ?? (verdict && VERDICT_RISK[verdict]);
+  const risk = pr?.preflight?.risk ?? pr?.risk;
   const size = pr?.size && sizeOf(pr.size);
   const ci = pr && pr.ci !== "none" ? pr.ci : undefined;
   const st = stage ? pr?.stage : undefined;
