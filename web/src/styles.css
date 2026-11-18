@@ -7955,8 +7955,8 @@ p.rv-next {
 .rv-viewed {
   display: inline-flex;
   flex: none;
-  align-items: center;
-  align-self: center;
+  align-items: baseline;
+  align-self: baseline;
   gap: 6px;
   margin-left: auto;
   color: var(--pencil);
@@ -7978,6 +7978,7 @@ p.rv-next {
   width: 14px;
   height: 14px;
   margin: 0;
+  align-self: center;
   accent-color: var(--ink-2);
   cursor: pointer;
 }
