@@ -151,7 +151,7 @@ const review =
     if (!(await page.locator(".rv-diff").count())) {
       const kept = await page.evaluate<string | null>(`localStorage.getItem("desk.review.view")`);
       const tabs = page.locator(".rv-views .head-tab");
-      await (kept === "traditional" ? tabs.filter({ hasText: "Traditional" }) : tabs.first()).click();
+      await (kept === "traditional" ? tabs.filter({ hasText: "Code changes" }) : tabs.first()).click();
     }
     await page.locator(".rv-diff").first().waitFor({ timeout: 15_000 });
     await page.waitForTimeout(900);
@@ -2065,7 +2065,7 @@ const SHOTS: Shot[] = [
       const words = "A comment that outlives the list folding";
       await talk(page);
       await page.locator(".rv-comment-input").fill(words);
-      await page.locator(".rv-views .head-tab", { hasText: "Traditional" }).click();
+      await page.locator(".rv-views .head-tab", { hasText: "Code changes" }).click();
       await page.locator(".rv-file-sec[id]").first().waitFor({ timeout: 15_000 });
       await page.evaluate(`document.querySelectorAll(".rv-file-sec[id]")[1]?.scrollIntoView({ block: "start" })`);
       await page.waitForTimeout(300);
@@ -2786,8 +2786,8 @@ const SHOTS: Shot[] = [
       await toBottom("review-unread")(page);
     },
   },
-  // The guided review: two words above the diff where the review has steps, Guided Review first; only its steps, each with
-  // its sections, test files folded; what no step covers is left to Traditional, which draws every file in the PR's order.
+  // The guided review: two words above the diff where the review has steps, Review first; only its steps, each with
+  // its sections, test files folded; what no step covers is left to Code changes, which draws every file in the PR's order.
   ...(["review-guided", "review-guided-next", "review-guided-end", "review-traditional"] as const).map((name): Shot => ({
     name,
     go: async (page) => {
@@ -2797,7 +2797,7 @@ const SHOTS: Shot[] = [
       const bad = (m: string) => failures.push(`${name}: ${m}`);
       const tabs = (await page.locator(".rv-views .head-tab").allTextContents()).map((t) => t.replace(/\d+$/, ""));
       const on = await page.locator(".rv-views .head-tab.on").allTextContents();
-      if (tabs.join("|") !== "Guided Review|Traditional|Conversation" || on.join() !== "Guided Review")
+      if (tabs.join("|") !== "Review|Code changes|Conversation" || on.join() !== "Review")
         bad(`the switch reads ${JSON.stringify(tabs)}, on ${JSON.stringify(on)}`);
       // What the desk sent, and the sections the page drew, in order.
       const sectionsDrawn = `[...document.querySelectorAll(".rv-diffs > .rv-step, .rv-diffs > .rv-file-sec[id]")].map((el) =>
@@ -2837,7 +2837,7 @@ const SHOTS: Shot[] = [
       )
         bad(`the steps end with ${JSON.stringify(nexts)}`);
       const outside = new Set([...(o.beyond ?? []), ...o.rest].map((h) => h.path)).size;
-      if (outside > 0 !== last.includes("Traditional"))
+      if (outside > 0 !== last.includes("Code changes"))
         bad(`with ${outside} files outside the guide, its end reads ${JSON.stringify(last)}`);
       if (await page.locator(".rv-side").isVisible()) {
         const rows = await page.locator(".rv-files .rv-step-row").allTextContents();
@@ -2861,7 +2861,7 @@ const SHOTS: Shot[] = [
         await page.waitForTimeout(300);
       }
       if (name === "review-traditional") {
-        await page.locator(".rv-views .head-tab", { hasText: "Traditional" }).click();
+        await page.locator(".rv-views .head-tab", { hasText: "Code changes" }).click();
         await page.waitForTimeout(400);
         const drawn = await page.evaluate<string[]>(`(async () => {
           scrollTo(0, document.documentElement.scrollHeight);
@@ -2872,11 +2872,11 @@ const SHOTS: Shot[] = [
         })()`);
         const all = [...o.chunks, ...o.unread, ...o.skipped];
         const files = [...new Set(all.toSorted((a, b) => a.file - b.file).map((h) => h.path))];
-        if (drawn.join() !== files.join()) bad(`Traditional draws ${drawn.join()}, not every file in order: ${files.join()}`);
+        if (drawn.join() !== files.join()) bad(`Code changes draws ${drawn.join()}, not every file in order: ${files.join()}`);
         if ((await page.evaluate<string | null>(`localStorage.getItem("desk.review.view")`)) !== "traditional")
           bad("the choice isn't kept");
         if (await page.locator(".rv-next, .rv-files[aria-label='Steps of the guided review']").count())
-          bad("Traditional still shows the steps");
+          bad("Code changes still shows the steps");
         await page.locator(".rv-views").scrollIntoViewIfNeeded();
         // The sidebar's files, as folders: the file you're in is marked, its folders ringed; a folded one is marked in its place,
         // and scrolling into a folded folder's file opens it.
@@ -2927,12 +2927,12 @@ const SHOTS: Shot[] = [
     },
   },
   {
-    // A review without steps has no guide: Traditional and Conversation alone.
+    // A review without steps has no guide: Code changes and Conversation alone.
     name: "review-guided-none",
     go: async (page) => {
       await review("acme/api#4154")(page);
       const tabs = (await page.locator(".rv-views .head-tab").allTextContents()).map((t) => t.replace(/\d+$/, ""));
-      if (tabs.join("|") !== "Traditional|Conversation" || (await page.locator(".rv-step").count()))
+      if (tabs.join("|") !== "Code changes|Conversation" || (await page.locator(".rv-step").count()))
         failures.push(`review-guided-none: a review without steps shows ${JSON.stringify(tabs)}`);
     },
   },
@@ -6083,7 +6083,7 @@ try {
         colorScheme: theme,
         deviceScaleFactor: 2,
       });
-      // The review shots read Traditional; the review-guided ones start from the default.
+      // The review shots read Code changes; the review-guided ones start from the default.
       await page.addInitScript(`localStorage.getItem("desk.review.view") ?? localStorage.setItem("desk.review.view", "traditional")`);
       // The macOS app's bridge (electron/preload.cjs) with only status() faked: App takes the shell's markers from it, and
       // Settings → This device draws the app's rows. No theme, so the theme stays in localStorage as in a browser.

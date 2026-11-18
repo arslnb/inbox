@@ -420,8 +420,8 @@ struct ItemPage: View {
   private func tabs(_ review: ReviewView, _ proxy: ScrollViewProxy) -> some View {
     let guided = !(review.order?.steps ?? []).isEmpty
     return HStack(spacing: 20) {
-      if guided { tab("Guided Review", on: !onConversation && diff?.guiding == true) { read("guided", review, proxy) } }
-      tab("Traditional", on: !onConversation && diff?.guiding != true) { read("traditional", review, proxy) }
+      if guided { tab("Review", on: !onConversation && diff?.guiding == true) { read("guided", review, proxy) } }
+      tab("Code changes", on: !onConversation && diff?.guiding != true) { read("traditional", review, proxy) }
       tab("Conversation", count: owing.count, on: onConversation) {
         talking = true
         proxy.scrollTo("tabs", anchor: .top)

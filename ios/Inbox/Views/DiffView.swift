@@ -1,6 +1,6 @@
 import SwiftUI
 
-// A PR's diff. Traditional: each file once, in the PR's order, its hunks' lines under a header that folds it; then the
+// A PR's diff. Code changes: each file once, in the PR's order, its hunks' lines under a header that folds it; then the
 // files the desk folded away, under one line. Guided (DiffModel.guiding): the review's steps, each a heading with what
 // to check, then only its sections. Drawn from the order's hunks alone (PatchLines.swift, Guide.swift). Unified,
 // wrapped, never scrolled sideways (that would fight the swipe back). A line is pressed to comment on it; a thread, the
@@ -138,7 +138,7 @@ struct DiffView: View {
       VStack(alignment: .leading, spacing: 0) {
         Text(model.left > 0 ? "End of the guide. \(model.left == 1 ? "1 more file changes" : "\(model.left) more files change") outside it:" : "End of the guide.")
           .sans(13).foregroundStyle(Theme.pencil).fixedSize(horizontal: false, vertical: true)
-        if model.left > 0 { quietLink("read every file in Traditional", traditional) }
+        if model.left > 0 { quietLink("read every file in Code changes", traditional) }
       }
       .padding(.horizontal, Theme.pad).padding(.top, 12)
       .frame(maxWidth: .infinity, alignment: .leading)

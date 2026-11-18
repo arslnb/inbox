@@ -839,7 +839,7 @@ test("the walk-through is one list: each step's sections, then what no step cove
   );
 });
 
-test("Traditional is every file in the PR's order, all its hunks in diff order, then the desk's fold", () => {
+test("Code changes is every file in the PR's order, all its hunks in diff order, then the desk's fold", () => {
   const hunk = (id: string, path: string, file: number, level: ReviewHunk["level"]): ReviewHunk => ({
     id,
     path,

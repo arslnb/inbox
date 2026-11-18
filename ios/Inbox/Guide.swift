@@ -51,7 +51,7 @@ extension Diff {
   }
 
   // What the guided review shows: only its steps, so the guide holds your attention; a potential bug the steps leave out
-  // (one of the first `bugs` notes) still shows, after them. The rest is left to Traditional.
+  // (one of the first `bugs` notes) still shows, after them. The rest is left to Code changes.
   static func guided(_ o: ReviewOrder, bugs: Int) -> Guided {
     let w = walk(o)
     let after = w.list.dropFirst(w.beyond)

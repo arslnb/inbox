@@ -7549,7 +7549,7 @@ ul.rv-status-why {
   white-space: nowrap;
 }
 
-/* Traditional's files, the same timeline nested: a folder is a ring on its level's line with its files hanging a step
+/* Code changes' files, the same timeline nested: a folder is a ring on its level's line with its files hanging a step
    in on a line of their own, each li drawing its stretch so a line ends at its last row. */
 .rv-tree ol::before {
   content: none;
@@ -8190,7 +8190,7 @@ p.rv-next {
   width: 150px;
 }
 
-/* The views' pills, as wide as their words: Guided Review (where there is one), Traditional, Conversation. */
+/* The views' pills, as wide as their words: Review (where there is one), Code changes, Conversation. */
 .rv-views .sk-tab {
   flex: none;
   width: 112px;

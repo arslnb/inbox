@@ -3,7 +3,7 @@ import XCTest
 @testable import Inbox
 
 // The diff's pure parts against the mock's own hunks (Fixtures/review-steps.json): a patch's lines and their numbers,
-// Traditional order, the threads on their lines, and how much of a long file is drawn.
+// Code changes order, the threads on their lines, and how much of a long file is drawn.
 @MainActor
 final class PatchLinesTests: XCTestCase {
   private func review() throws -> ReviewView { try Fixture.decode("review-steps") }
@@ -79,7 +79,7 @@ final class PatchLinesTests: XCTestCase {
     XCTAssertEqual(Diff.header("@@ -10 +10,2 @@ fn").map { [$0.old, $0.oldCount, $0.new, $0.newCount] }, [10, 1, 10, 2], "a count left out is 1")
   }
 
-  func testTraditionalOrderIsEachFileOnceInThePRsOrder() throws {
+  func testCode changesOrderIsEachFileOnceInThePRsOrder() throws {
     let r = try review()
     let (list, rest) = Diff.traditional(try XCTUnwrap(r.order))
     XCTAssertEqual(rest, list.count, "nothing folded in this one")

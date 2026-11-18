@@ -109,7 +109,7 @@ review with a goal, its fold opened), `item-pr-guided` (a step of the guide, its
 end), `item-pr-ai-stale` (on an earlier commit, a new one being written), `item-pr-ai-failed` (Try again),
 `item-pr-ai-running`, `item-pr-ai-none` (Ask Claude for one), `item-pr-guided-large` (a step at an accessibility text
 size), `item-pr-checks` (a failing
-run, its checks opened), `item-pr-own` (your PR: who reviews it, + Add reviewers), `item-pr-diff` (its diff in Traditional, from the first file), `item-pr-files` and `item-pr-steps` (the list of files, or of the guide's steps, opened above it),
+run, its checks opened), `item-pr-own` (your PR: who reviews it, + Add reviewers), `item-pr-diff` (its diff in Code changes, from the first file), `item-pr-files` and `item-pr-steps` (the list of files, or of the guide's steps, opened above it),
 `item-pr-diff-thread` (a thread under its line), `item-pr-line-comment` (the box for a comment on a line), `item-issue` (its pre-review; Make PR with fix), `item-issue-step` (a walk at its second step; Comment), `item-issue-injection` (a flagged one: Block), `item-issue-none` (Analyze it), `item-issue-blocked` (Unblock), `item-issue-large` (the walk at an accessibility text size), `item-reply` (what
 waits on your reply, each with your agent's read, on the Conversation tab), `item-pr-conversation` (a bot's links and images as words, reviews' verdicts, a resolved one as a line), `item-pr-conversation-none`, `item-draft` (Ready for review; its description's first paragraph where a review would be), `item-mine` (Hand off for merge), `item-merging` (Back to desk),
 the boxes `approve`, `reply`, `reviewers` and `answer`, `question`, `session`, `session-kick`, `item-large` and `item-largest` (accessibility
@@ -269,13 +269,13 @@ merge, where Snooze does); More is its three dots only where it doesn't fit even
   this one's node in the accent and its title in ink (a red ✗ for CI failing, "changes" in amber or a green ✓ only
   where that's news); a long stack shows four around this PR and "16 more" (Fewer), and the
   stack's other branches come under "Other branches" (`Stack.around()`). A press opens that PR.
-- **Guided Review, Traditional and Conversation.** Tabs under the stack, as words, the one you're on in ink with a
+- **Review, Code changes and Conversation.** Tabs under the stack, as words, the one you're on in ink with a
   rule under it: a review with steps reads two ways, the choice kept on this phone (`review.view`), Guided first; a
-  review without steps has Traditional and Conversation. Conversation (with how many wait on your reply) holds what
+  review without steps has Code changes and Conversation. Conversation (with how many wait on your reply) holds what
   reviewers said in the diff's place; a PR opened to reply, and the bar's Reply, open on it. Guided is only the review's steps: "2 of 4" and the
   step's title, its words, "Check:", its note, its diagram, then its sections, each under Look or Skim and why; at its
   foot "Next: …", which goes to the next step, and after the last "End of the guide. 3 more files change outside it:
-  read every file in Traditional". A potential bug no step covers still shows, under "Potential bugs outside the
+  read every file in Code changes". A potential bug no step covers still shows, under "Potential bugs outside the
   guide". A test file starts folded there. A diagram is its title, its caption and one line per edge or message
   ("Dispatch (new) → Lease (new): lease()"): the window's own fallback, never a figure.
 - **The AI review in the code.** In either order its notes sit under their lines, in the sans face with a rule down
@@ -286,7 +286,7 @@ merge, where Snooze does); More is its three dots only where it doesn't fit even
   file once in reading order, its level (Look, Skim), a dot where the AI review has notes in it and a tick once
   you've viewed it ("5 files changed · 2 viewed"), then "Not worth reviewing · N files"; a press goes to it. In Guided the same heading lists the guide's steps ("2 of 4" and the
   title) instead, as the window's steps take the files' place (`DiffModel.stops`).
-- **A PR's diff.** Under its State and stack, every file once in the PR's order (the window's Traditional), each under
+- **A PR's diff.** Under its State and stack, every file once in the PR's order (the window's Code changes), each under
   a header that folds it and stays at the top while its lines scroll: the name with its folder cut from the head, the
   lines added and removed, and under it new, deleted or renamed from where. Lines are unified and wrapped, never
   scrolled sideways (that would fight the swipe back): the new file's number (the old one on a removed line), the

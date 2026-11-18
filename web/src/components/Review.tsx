@@ -383,7 +383,7 @@ export function Review({
   // The desk's reading order; its notes are only those written for this commit, in reading order.
   const order = v?.order;
   const guided = !!order?.steps?.length;
-  // The guided review is only its steps: what no step covers is left to Traditional, so the guide holds your attention.
+  // The guided review is only its steps: what no step covers is left to Code changes, so the guide holds your attention.
   const guiding = guided && walking;
   // The AI review's concerns are its first notes: each is a potential bug, marked on its line.
   const bugs = v && !v.ai_stale ? (v.ai?.concerns.length ?? 0) : 0;
@@ -402,7 +402,7 @@ export function Review({
   // Guided, a test file stays folded until you open it; one you've viewed, until you open it again.
   const isShut = (x: Section) =>
     shut.has(x.path) || (guiding && isTestPath(x.path) && !testsOpen.has(x.path)) || (isViewed(x) && !peek.has(x.key));
-  const seen = new Set(guiding ? [] : list.filter((x) => isViewed(x)).map((x) => x.path)); // Traditional's files you've viewed
+  const seen = new Set(guiding ? [] : list.filter((x) => isViewed(x)).map((x) => x.path)); // Code changes' files you've viewed
   // The sidebar's rows in the guided review: its steps.
   const noted = (at: number, end: number) => list.slice(at, end).some((y) => y.notes.length > 0);
   const stops = steps.map((st, k) => {
@@ -1038,10 +1038,10 @@ export function Review({
       <div className="rv-bar">
         <nav className="rv-views" aria-label="Guided review, every file, or the conversation">
           {guided &&
-            tab("Guided Review", !talking && walking, () => {
+            tab("Review", !talking && walking, () => {
               pickOrder(true);
             })}
-          {tab("Traditional", !talking && !guiding, () => {
+          {tab("Code changes", !talking && !guiding, () => {
             pickOrder(false);
           })}
           {tab(
@@ -1230,7 +1230,7 @@ export function Review({
                                       scrollTo({ top: 0 });
                                     }}
                                   >
-                                    read every file in Traditional
+                                    read every file in Code changes
                                   </button>
                                 </>
                               )}
@@ -1409,7 +1409,7 @@ const withMarks = (marks: ReadonlySet<string>, change: ReadonlyMap<string, boole
 // Whether any of these folders holds the file.
 const hasInside = (dirs: ReadonlySet<string>, path: string) => [...dirs].some((d) => path.startsWith(`${d}/`));
 
-// Traditional's files in the sidebar, as folders: each file once, where reading reaches it. A click folds a folder or opens
+// Code changes' files in the sidebar, as folders: each file once, where reading reaches it. A click folds a folder or opens
 // it; the folders of the file you're in are ringed, and a folded one is marked in its place.
 function FileTree({
   nodes,
@@ -1486,7 +1486,7 @@ function FileTree({
 
 const countFiles = (n: PathNode): number => (n.kids ? n.kids.reduce((sum, k) => sum + countFiles(k), 0) : 1);
 
-// The guided review's steps in the sidebar, where Traditional lists the files; the one you're in follows the scroll.
+// The guided review's steps in the sidebar, where Code changes lists the files; the one you're in follows the scroll.
 function StepList({
   stops,
   on,
@@ -1499,7 +1499,7 @@ function StepList({
   return (
     <nav className="rv-files rv-steps" aria-label="Steps of the guided review">
       <h2 className="rv-side-head">
-        <span>Guided Review</span>
+        <span>Review</span>
       </h2>
       {/* A timeline: a dot a step on one line down the list, the step you're on in a fluorescent purple. */}
       <ol>
@@ -1687,7 +1687,7 @@ function Shell({
   return (
     <>
       <div className="rv-bar" aria-hidden="true">
-        {/* Its views' pills: Guided Review only where there's an AI review to guide by. */}
+        {/* Its views' pills: Review only where there's an AI review to guide by. */}
         <div className="rv-views">
           {fresh && <span className="sk sk-tab" />}
           <span className="sk sk-tab" />

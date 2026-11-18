@@ -1,7 +1,7 @@
 import Foundation
 
 // A PR's diff as the page draws it, from the hunks in the desk's reading order (ReviewOrder) alone: a patch's lines with
-// their numbers, the files in Traditional order, the threads on their lines, and where a comment on a line goes. The
+// their numbers, the files in Code changes order, the threads on their lines, and where a comment on a line goes. The
 // twins of patchLines() in src/review.ts, traditional() and onLines() in src/sections.ts, threadsOn() and inlineAt() in
 // web/src/view.ts. Pure: nothing here asks the desk.
 
@@ -45,7 +45,7 @@ struct DiffSection: Identifiable, Sendable {
   let key: String
   let path: String
   let file: Int  // index in ReviewView.files
-  var level: String?  // "skip" under a ranked review's fold; nil in Traditional order
+  var level: String?  // "skip" under a ranked review's fold; nil in Code changes order
   var why: String?  // why the desk folded the file
   let hunks: [ReviewHunk]  // none for a file with no text diff
   var notes: [Int] = []  // indices into ai.notes, in reading order
@@ -111,7 +111,7 @@ enum Diff {
     }
   }
 
-  // Traditional: every file in the PR's order, each one section with all its hunks in diff order; then, from `rest` on,
+  // Code changes: every file in the PR's order, each one section with all its hunks in diff order; then, from `rest` on,
   // the files the desk folds away. No ranking, no levels.
   static func traditional(_ o: ReviewOrder) -> (list: [DiffSection], rest: Int) {
     var byFile: [Int: [ReviewHunk]] = [:]
@@ -249,7 +249,7 @@ final class DiffModel {
   var left = 0
   private var parsed: [String: [Row]] = [:]
 
-  // Traditional, or (with `guided`, for an order that has steps) the guided review; `bugs`: how many of ai.notes are concerns.
+  // Code changes, or (with `guided`, for an order that has steps) the guided review; `bugs`: how many of ai.notes are concerns.
   init(_ order: ReviewOrder, guided: Bool = false, bugs: Int = 0) {
     guiding = guided && !(order.steps ?? []).isEmpty
     if guiding {
@@ -270,7 +270,7 @@ final class DiffModel {
     var notes = false  // the AI review has notes in it
   }
 
-  // The guide's steps; in Traditional each file once, where reading reaches it, less what the desk folded away (that
+  // The guide's steps; in Code changes each file once, where reading reaches it, less what the desk folded away (that
   // is one line of the diff itself, "Not worth reviewing").
   var stops: [Stop] {
     if guiding { return steps.indices.map { Stop(id: "step-\($0)", title: steps[$0].title) } }
@@ -281,7 +281,7 @@ final class DiffModel {
     }
   }
 
-  // Traditional's files you've viewed, by path.
+  // Code changes' files you've viewed, by path.
   func seen(_ marks: Set<String>) -> Set<String> { Set(list.filter { Folds.viewed($0, marks) }.map(\.path)) }
 
   // The lines it draws: its first Diff.cap.

@@ -79,7 +79,7 @@ final class GuideTests: XCTestCase {
     XCTAssertEqual(Diff.guided(try order("review"), bugs: 1).left, 11)
     let model = DiffModel(try order("review-steps"), guided: true, bugs: 2)
     XCTAssertTrue(model.guiding)
-    XCTAssertEqual(model.rest, model.list.count, "no fold: what's left is Traditional's")
+    XCTAssertEqual(model.rest, model.list.count, "no fold: what's left is Code changes'")
     XCTAssertEqual(model.steps.count, 4)
   }
 
@@ -97,13 +97,13 @@ final class GuideTests: XCTestCase {
     XCTAssertEqual(Diff.guided(o, bugs: 1).left, 1)
   }
 
-  func testAnOrderWithoutStepsIsTraditionalWhateverWasChosen() throws {
+  func testAnOrderWithoutStepsIsCode changesWhateverWasChosen() throws {
     let model = DiffModel(try order("review-own"), guided: true)
     XCTAssertFalse(model.guiding)
     XCTAssertEqual(model.steps.count, 0)
   }
 
-  func testTraditionalCarriesEachFilesNotes() throws {
+  func testCode changesCarriesEachFilesNotes() throws {
     let (list, _) = Diff.traditional(try order("review-steps"))
     XCTAssertEqual(list.first { $0.path == "src/routes/query.ts" }?.notes, [2, 3])
     XCTAssertEqual(list.first { $0.path == "docs/api/query.md" }?.notes, [])
