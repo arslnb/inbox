@@ -7421,12 +7421,9 @@ ul.rv-status-why {
   padding-top: 10px;
 }
 
-/* How many wait on your reply, after the tab's name. */
+/* How many wait on your reply, after the tab's name: the sidebar's count. */
 .rv-tab-n {
   margin-left: 6px;
-  color: var(--pencil);
-  font-weight: 500;
-  font-variant-numeric: tabular-nums;
 }
 
 .rv-fname {
@@ -7656,8 +7653,8 @@ ul.rv-status-why {
 }
 
 /* A review has no page head: its own bar is in its place, flush with the window's top and stuck there, as tall as a head,
-   so what sticks under a head sticks under it. Its three views are pills, rounded rectangles: the one you're on filled a
-   little more and in ink. What finishes the review and More are at its right. It's a drag handle, its controls excepted. */
+   so what sticks under a head sticks under it. Its views are tabs; what finishes the review and More are at its right. It's
+   a drag handle, its controls excepted. */
 .col.headless .main {
   padding-top: 0;
 }
@@ -7671,7 +7668,6 @@ ul.rv-status-why {
   align-items: center;
   height: 52px;
   margin-bottom: 14px;
-  background: var(--paper);
   -webkit-app-region: drag;
   user-select: none;
 }
@@ -7684,41 +7680,53 @@ ul.rv-status-why {
   -webkit-app-region: no-drag;
 }
 
+/* The bar is a page head like every other: on the chrome, its hairline under it, out to the window's edges however wide
+   (the column clips what reaches past them). */
+.col:has(.rv-bar) {
+  overflow-x: clip;
+}
+
+.rv-bar::before {
+  content: "";
+  position: absolute;
+  inset: 0 -100vmax;
+  z-index: -1;
+  border-bottom: 1px solid var(--rule);
+  background: var(--chrome);
+}
+
 .rv-bar .rv-views {
   display: flex;
   flex: none;
-  gap: 6px;
+  align-self: stretch;
   min-width: 0;
   height: auto;
   margin: 0;
   border: 0;
 }
 
+/* Its views are tabs, a size under the review's title so they don't read as headings: the one you're on in ink over a
+   mark on the hairline, the others pencil. One weight, so nothing moves. */
 .rv-bar .head-tab {
-  height: 30px;
-  padding: 0 11px;
-  border-radius: 7px;
-  background: color-mix(in oklab, var(--ink) 5%, transparent);
   color: var(--pencil);
+  font-size: var(--text-md);
+  font-weight: 500;
   white-space: nowrap;
 }
 
-.rv-bar .head-tab:hover {
-  background: color-mix(in oklab, var(--ink) 9%, transparent);
-}
-
+.rv-bar .head-tab:hover,
 .rv-bar .head-tab.on {
-  background: color-mix(in oklab, var(--ink) 13%, transparent);
   color: var(--ink);
 }
 
 .rv-bar .head-tab.on::after {
-  content: none;
+  bottom: -1px;
 }
 
+/* The ring inside the tab's padding, clear of the hairline. */
 .rv-bar .head-tab:focus-visible {
-  border-radius: 7px;
-  outline-offset: 2px;
+  border-radius: 6px;
+  outline-offset: -10px;
 }
 
 .rv-bar .rv-actions {
@@ -8174,16 +8182,22 @@ p.rv-next {
   width: 150px;
 }
 
-/* The views' pills, as wide as their words: Review (where there is one), Code changes, Conversation. */
+/* The views' names as bars, as wide as their words: Review (where there is one), Code changes, Conversation. */
 .rv-views .sk-tab {
   flex: none;
-  width: 112px;
-  height: 30px;
-  border-radius: 7px;
+  align-self: center;
+  width: 84px;
+  height: 10px;
+  margin: 0 12px;
+  border-radius: 4px;
 }
 
 .rv-views .sk-tab:nth-last-child(2) {
   width: 92px;
+}
+
+.rv-views .sk-tab:first-child:nth-last-child(3) {
+  width: 48px;
 }
 
 /* A file's header: its fold mark, its path, its lines added and removed at the end. */

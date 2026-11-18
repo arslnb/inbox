@@ -1,5 +1,15 @@
 import { Effect } from "effect";
-import { Fragment, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
+import {
+  Fragment,
+  useEffect,
+  useLayoutEffect,
+  useMemo,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type KeyboardEvent as KeyEvent,
+  type ReactNode,
+} from "react";
 import { parsePatchFiles, type SelectedLineRange } from "@pierre/diffs";
 import { FileDiff, type DiffLineAnnotation, type FileDiffOptions } from "@pierre/diffs/react";
 import { hydratePartialDiff, type FileDiffLoadedFiles } from "@pierre/diffs";
@@ -917,11 +927,33 @@ export function Review({
     setStored(VIEW, w ? "guided" : "traditional");
   };
   const owed = view.conversation.filter((c) => c.waiting_on_you).length; // waiting on your reply: the tab's count
+  // The views are tabs: the arrows, Home and End move to a view and show it.
+  const tabKeys = (e: KeyEvent<HTMLButtonElement>) => {
+    const tabs = [...(e.currentTarget.parentElement?.querySelectorAll<HTMLButtonElement>('[role="tab"]') ?? [])];
+    const at = tabs.indexOf(e.currentTarget);
+    const to =
+      e.key === "ArrowRight" ? at + 1 : e.key === "ArrowLeft" ? at - 1 : e.key === "Home" ? 0 : e.key === "End" ? tabs.length - 1 : null;
+    if (to === null) return;
+    e.preventDefault();
+    const next = tabs[(to + tabs.length) % tabs.length];
+    next?.focus();
+    next?.click();
+  };
   const tab = (name: string, on: boolean, pick: () => void, count = 0) => (
-    <button key={name} type="button" className={cls("head-tab", on && "on")} aria-pressed={on} onClick={pick}>
+    <button
+      key={name}
+      type="button"
+      role="tab"
+      className={cls("head-tab", on && "on")}
+      aria-selected={on}
+      aria-controls="rv-panel"
+      tabIndex={on ? 0 : -1}
+      onKeyDown={tabKeys}
+      onClick={pick}
+    >
       {name}
       {count > 0 && (
-        <span className="rv-tab-n" title={`${count} waiting on your reply`}>
+        <span className="pill-count rv-tab-n" title={`${count} waiting on your reply`}>
           {count}
         </span>
       )}
@@ -1040,9 +1072,9 @@ export function Review({
 
   return (
     <>
-      {/* Across the review's top, stuck there: its three views as pills, then what finishes it and More. */}
+      {/* Across the review's top, stuck there: its views as tabs, then what finishes it and More. */}
       <div className="rv-bar">
-        <nav className="rv-views" aria-label="Review, Code changes or Conversation">
+        <div className="rv-views" role="tablist" aria-label="Review, Code changes or Conversation">
           {guided &&
             tab("Review", !talking && walking, () => {
               pickOrder(true);
@@ -1058,12 +1090,12 @@ export function Review({
             },
             owed,
           )}
-        </nav>
+        </div>
         {actions}
       </div>
       <div className={cls("review", showSide && "side-open")}>
         {toggle}
-        <div className="rv-main">
+        <div className="rv-main" id="rv-panel" role="tabpanel" aria-label={talking ? "Conversation" : guiding ? "Review" : "Code changes"}>
           <div className="rv-top">
             <Head card={card} me={me} now={now} resolved={resolved?.line ?? null} row={row} ai={aiShown ? ai : null} />
             {/* Yours gets no AI summary unless asked for, so its description's first paragraph says what it's about. */}
@@ -1691,7 +1723,7 @@ function Shell({
   return (
     <>
       <div className="rv-bar" aria-hidden="true">
-        {/* Its views' pills: Review only where there's an AI review to guide by. */}
+        {/* Its views' names as bars: Review only where there's an AI review to guide by. */}
         <div className="rv-views">
           {fresh && <span className="sk sk-tab" />}
           <span className="sk sk-tab" />
