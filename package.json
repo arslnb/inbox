@@ -39,6 +39,7 @@
     "app": "npm run build && electron .",
     "app:dev": "node --disable-warning=ExperimentalWarning scripts/dev-app.ts",
     "smoke:app": "npm run build && node --disable-warning=ExperimentalWarning scripts/smoke-app.ts",
+    "qa:release": "node --disable-warning=ExperimentalWarning scripts/qa-release.ts",
     "icons": "electron scripts/icons.ts",
     "dist": "npm run build && electron-builder",
     "dist:mac": "npm run build && electron-builder --mac",

@@ -357,6 +357,14 @@ npm run release:publish v0.2.4    # checks, pushes main and the tag, builds ever
 - Nothing is signed: macOS is ad-hoc signed and not notarized, and Windows shows a SmartScreen warning on first run.
 - The Windows and Linux builds are made on the Mac and not run there: try one on a real machine when their packaging changes.
 
+**QA.** The workflow's `qa` job installs the Apple silicon dmg it just built on a scratch home and launches it (`scripts/qa-release.ts` driving `scripts/smoke-app.ts`): the window, tray, bridge, the version and Settings. Publish waits for it. The Actions token can't read your GitHub, so after each release a Mac runs the full pass on the published build:
+
+```bash
+npm run qa:release            # the latest release; or -- v0.2.51, or -- path/to/Inbox-0.2.51-arm64.dmg
+```
+
+It installs that release as a QA copy at `~/.inbox-qa/Inbox.app`, with its own home and port (47833), beside your own app, which it never touches: a separate `DESK_HOME` gets its own window state, logs and single-instance lock. It checks what the CI job does, then waits for a first GitHub sync with no errors and opens an item's review. `QA_SHALLOW=1` skips the sync; `QA_HOME` and `QA_PORT` move the copy. The copy and its home stay, so you can open it again: `open -n --env DESK_HOME=$HOME/.inbox-qa --env DESK_PORT=47833 ~/.inbox-qa/Inbox.app`.
+
 **Updates.** The packaged app checks the latest release every 6 hours with your GitHub token (the repo is private). When there's a newer one, the sidebar's footer says so:
 
 - Where the app can install it (macOS, the Linux AppImage, the Windows installer) it downloads it unasked, then offers **Restart to update**: it quits and restarts into it. The download is kept across restarts of the app. What's in `~/.inbox` is untouched.

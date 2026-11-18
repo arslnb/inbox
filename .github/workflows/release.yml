@@ -112,8 +112,38 @@ jobs:
           echo "::error::no finished CI run for $GITHUB_SHA after 20 minutes"
           exit 1
 
+  # The Apple silicon dmg as built, installed and launched on a scratch home (scripts/qa-release.ts) before anything is
+  # published. Shallow: the Actions token can't read a user's GitHub, so no sync; a Mac runs the full pass after the release.
+  qa:
+    needs: build
+    runs-on: macos-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+      - uses: actions/download-artifact@v4
+        with:
+          name: inbox-mac-arm64
+          path: dist
+      - run: npm run qa:release -- dist/*-arm64.dmg
+        env:
+          QA_HOME: ${{ runner.temp }}/inbox-qa
+          QA_SHALLOW: "1"
+          GITHUB_TOKEN: ${{ github.token }}
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: qa-logs
+          path: ${{ runner.temp }}/inbox-qa/app/logs
+
   publish:
-    needs: [check, build]
+    needs: [check, build, qa]
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:

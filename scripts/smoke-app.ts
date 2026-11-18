@@ -1,5 +1,6 @@
 // npm run smoke:app [-- <packaged binary>]: launches the desktop app (from the repo, or a packaged binary) on a
-// scratch home and port, checks the window, tray, bridge and clipboard, opens Settings and quits.
+// scratch home and port, checks the window, tray, bridge and clipboard, opens Settings and quits. SMOKE_VERSION also
+// checks the app's version; SMOKE_DEEP=1 waits for the first GitHub sync and opens an item's review (npm run qa:release).
 import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
@@ -70,6 +71,8 @@ try {
   assert.ok(bridge, "window.desktop is missing");
   assert.equal(bridge.platform, process.platform);
   assert.match(bridge.version, /^\d+\.\d+\.\d+/);
+  const want = envVar("SMOKE_VERSION");
+  if (want) assert.equal(bridge.version, want, "not the version under test");
   assert.equal(typeof bridge.status.open_at_login, "boolean");
   assert.equal(typeof bridge.status.hotkey.ok, "boolean");
   step(`bridge: ${JSON.stringify(bridge)}`);
@@ -91,6 +94,29 @@ try {
     assert.equal(copied, "ok");
     assert.equal(read, "inbox smoke");
     step("navigator.clipboard.writeText works");
+  }
+
+  if (envVar("SMOKE_DEEP")) {
+    type Overview = { synced_at: string | null; syncing: boolean; sync_error: string | null; config_errors: unknown[] };
+    let o: Overview | null = null;
+    for (let i = 0; i < 90 && !(o?.synced_at && !o.syncing); i++) {
+      await sleep(2000);
+      o = (await (await fetch(`${deskUrl}/api/overview`)).json()) as Overview;
+    }
+    assert.ok(o?.synced_at, "no finished GitHub sync after 3 minutes");
+    assert.equal(o.sync_error, null, `sync failed: ${o.sync_error}`);
+    assert.deepEqual(o.config_errors, [], "config errors");
+    step(`synced with GitHub at ${o.synced_at}`);
+    // Rows land once Claude has sorted the first sync.
+    const first = page.locator(".queue [data-id] .row-main").first();
+    await first.waitFor({ timeout: 90_000 }).catch(() => null);
+    if (await first.count()) {
+      await first.click();
+      await page.locator(".review").waitFor({ timeout: 30_000 });
+      step("an item's review opened");
+      await page.goBack();
+      await page.locator(".queue").waitFor({ timeout: 10_000 });
+    } else step("the Inbox is empty; skipped opening an item");
   }
 
   await app.evaluate(({ Menu }) => {

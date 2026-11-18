@@ -10,5 +10,5 @@
     "web/test/*.test.ts"
   ],
   "project": ["src/**/*.ts", "electron/**/*.{ts,cjs}", "web/**/*.{ts,tsx}", "scripts/**/*.ts", "test/**/*.ts"],
-  "ignoreBinaries": ["plutil"]
+  "ignoreBinaries": ["plutil", "pkill", "xattr"]
 }
