@@ -1,4 +1,5 @@
 import type { Card, Stage } from "../../../src/types.ts";
+import { RISK_BARS, rowLit } from "../risk.ts";
 import { cls, sizeOf } from "../format.ts";
 
 // A row's icons (16px, drawn in currentColor like .i): what it is, and its facts on the right as one signal.
@@ -114,20 +115,14 @@ export function Signal({ lit }: { lit: number }) {
   );
 }
 
-export const RISK_BARS = { high: 1, medium: 2, low: 4 } as const; // risk alone as a signal, here and beside a review
-
-const BAD_STAGE: ReadonlySet<Stage> = new Set(["draft", "changes requested", "blocked", "handed back", "closed"]);
-
 interface Fact {
   key: string;
   said: string; // "Approved", "CI passing", "Low risk", "Small change"
-  good: boolean; // nothing against it: it lights a bar of the signal
   end?: React.ReactNode; // its icon or counts, on the right
 }
 
 // A PR's four facts, in the order its signal's popover reads: status, CI, risk, changes. One with nothing to say (no
-// checks, no AI review yet) says so quietly and counts for the PR: only a draft or a stage that stops it, CI failing or
-// still running, a medium or high risk and a medium or large change take a bar off its signal.
+// checks, no AI review yet) says so quietly.
 function factsOf(card: Card, stage: boolean): Fact[] {
   const pr = card.kind === "pr" ? card : undefined;
   const verdict = pr?.preflight?.verdict ?? pr?.verdict ?? undefined;
@@ -140,7 +135,6 @@ function factsOf(card: Card, stage: boolean): Fact[] {
     facts.push({
       key: "status",
       said: cap(st),
-      good: !BAD_STAGE.has(st),
       // Amber only on yours, where it's work for you.
       end: (
         <span className={cls("sig-i", st === "changes requested" && card.by === "you" && "t-warn")}>
@@ -153,7 +147,6 @@ function factsOf(card: Card, stage: boolean): Fact[] {
       ? {
           key: "ci",
           said: CI[ci].tip,
-          good: ci === "green",
           end: (
             <span className={cls("sig-i", CI[ci].tone)}>
               <Icon>
@@ -163,25 +156,23 @@ function factsOf(card: Card, stage: boolean): Fact[] {
             </span>
           ),
         }
-      : { key: "ci", said: "No checks", good: true },
+      : { key: "ci", said: "No checks" },
     risk
       ? {
           key: "risk",
           said: `${cap(risk)} risk${verdict ? `, ${VERDICT[verdict]}` : ""}`,
-          good: risk === "low",
           end: (
             <span className="sig-i">
               <Signal lit={RISK_BARS[risk]} />
             </span>
           ),
         }
-      : { key: "risk", said: "No AI review yet", good: true },
+      : { key: "risk", said: "No AI review yet" },
   );
   if (size && pr?.size)
     facts.push({
       key: "size",
       said: size.label.split(":")[0]!,
-      good: size.bars < 3,
       end: (
         <span className="rv-size">
           <span className="add">+{pr.size.add}</span> <span className="del">−{pr.size.del}</span>
@@ -191,8 +182,8 @@ function factsOf(card: Card, stage: boolean): Fact[] {
   return facts;
 }
 
-// The facts on a row's right as one icon: a signal of four bars for the PR's status, CI, the AI review's risk and its size,
-// one lit for each with nothing against it. Under the pointer it opens them as the review's Status does: its name, then a
+// The facts on a row's right as one icon: the AI review's risk as its signal, the same bars a review shows (grey with no
+// review yet). Under the pointer it opens them as the review's Status does: its name, then a
 // row each, words on the left and its icon on the right (Tips.tsx shows its .tip-rich). A quick review's bolt leads it. A
 // row with no facts keeps the empty slot, so the columns line up down the table.
 export function RowFacts({ card, stage }: { card?: Card; stage?: boolean }) {
@@ -212,7 +203,7 @@ export function RowFacts({ card, stage }: { card?: Card; stage?: boolean }) {
       <span className="rf line-signal" data-tip={words || undefined}>
         {pr && (
           <>
-            <Signal lit={4 - facts.filter((f) => !f.good).length} />
+            <Signal lit={rowLit(pr)} />
             <span className="sr">{words}</span>
             <span className="tip-rich sig" hidden>
               <span className="sig-head">Status</span>

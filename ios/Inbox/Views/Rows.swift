@@ -128,6 +128,7 @@ struct RowLines: View {
   var facts: [Fact] = []
   var cta: String?
   var signal: [Signal.Fact]?  // a PR's
+  var lit = 0  // its signal: the AI review's risk
   var face: RowFace?
   var age: String
   var under: String?  // a line of its own under the facts: why it's blocked, your agent's note
@@ -178,7 +179,7 @@ struct RowLines: View {
               if let quick {
                 Bolt().fill(Theme.accentInk).frame(width: 14, height: 14).accessibilityElement().accessibilityLabel(quick)
               }
-              if let signal { Signal(lit: Signal.lit(signal), said: Signal.said(signal)) }
+              if let signal { Signal(lit: lit, said: Signal.said(signal)) }
             }
             .alignmentGuide(.firstTextBaseline) { $0.height / 2 + 4.5 }
           }
@@ -247,6 +248,7 @@ struct CardRow: View {
       facts: facts,
       cta: cta,
       signal: card.isPR ? Signal.facts(card, stage: active) : nil,
+      lit: Signal.lit(card),
       face: face,
       age: Words.age(since, now: now),
       under: under

@@ -29,42 +29,41 @@ struct Signal: View {
     .accessibilityLabel(said)
   }
 
-  // One of a PR's facts: its words, and whether it has nothing against it (it lights a bar).
+  // One of a PR's facts, in words.
   struct Fact: Equatable {
     let said: String
-    let good: Bool
   }
 
   static let risky: Set<String> = ["draft", "changes requested", "blocked", "handed back", "closed"]
   static let ci = ["green": "CI passing", "red": "CI failing", "pending": "CI running"]
   static let verdicts = ["look": "look closely", "skim": "skim it", "skip": "skip it"]
 
-  // RowIcons.tsx's factsOf(): status (on the Inbox), CI, risk, size. One with nothing to say counts for the PR; only a
-  // stage that stops it, CI failing or running, a medium or high risk and a medium or large change take a bar off.
+  // RowIcons.tsx's factsOf(): status (on the Inbox), CI, risk, size, read out beside the signal.
   static func facts(_ card: Card, stage: Bool) -> [Fact] {
     guard card.isPR else { return [] }
     var out: [Fact] = []
-    if stage, let st = card.stage, !st.isEmpty { out.append(Fact(said: Words.capitalized(st), good: !risky.contains(st))) }
+    if stage, let st = card.stage, !st.isEmpty { out.append(Fact(said: Words.capitalized(st))) }
     if let ci = card.ci, let said = Signal.ci[ci] {
-      out.append(Fact(said: said, good: ci == "green"))
+      out.append(Fact(said: said))
     } else {
-      out.append(Fact(said: "No checks", good: true))
+      out.append(Fact(said: "No checks"))
     }
     let verdict = card.preflight?.verdict ?? card.verdict
     if let risk = card.preflight?.risk ?? card.risk {
       let how = verdict.flatMap { verdicts[$0] }.map { ", \($0)" } ?? ""
-      out.append(Fact(said: "\(Words.capitalized(risk)) risk\(how)", good: risk == "low"))
+      out.append(Fact(said: "\(Words.capitalized(risk)) risk\(how)"))
     } else {
-      out.append(Fact(said: "No AI review yet", good: true))
+      out.append(Fact(said: "No AI review yet"))
     }
     if let add = card.size?.add, let del = card.size?.del {
       let size = Words.sizeOf(add: add, del: del)
-      out.append(Fact(said: String(size.label.split(separator: ":")[0]), good: size.bars < 3))
+      out.append(Fact(said: String(size.label.split(separator: ":")[0])))
     }
     return out
   }
 
-  static func lit(_ facts: [Fact]) -> Int { 4 - facts.filter { !$0.good }.count }
+  // The AI review's risk, the bars a review shows; grey with no review yet.
+  static func lit(_ card: Card) -> Int { (card.preflight?.risk ?? card.risk).map(Status.riskBars) ?? 0 }
 
   static func said(_ facts: [Fact]) -> String { facts.map(\.said).joined(separator: ". ") }
 }

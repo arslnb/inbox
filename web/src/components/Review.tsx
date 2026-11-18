@@ -35,7 +35,8 @@ import {
 import { andMore } from "../../../src/stage.ts";
 import { api, runUi } from "../api.ts";
 import { useKeyed } from "../keyed.ts";
-import { RISK_BARS, Signal } from "./RowIcons.tsx";
+import { RISK_BARS } from "../risk.ts";
+import { Signal } from "./RowIcons.tsx";
 import { age, byOf, cls, handoffLabel, MOD, modelName, sinceText, shortRef, when, aiName } from "../format.ts";
 import { blocks, inline, lead, unlinked, urlPlace } from "../../../src/prose.ts";
 import { reviewOf } from "../reviews.ts";

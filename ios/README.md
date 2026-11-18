@@ -347,9 +347,8 @@ merge, where Snooze does); More is its three dots only where it doesn't fit even
     its title; under it its ref and why, and on the right its call to action as a small tinted button (a press on the
     row opens its page, whose bar has it), the quick bolt, a PR's signal, who it's from as their picture alone (yours
     too; a small robot for a bot's own PR or an agent's question, a clock for a note's reminder) and its age. The
-    signal is four bars (`Views/Signal.swift`, RowIcons.tsx's `Signal` and `factsOf()`): one lit for each of its stage
-    (on the Inbox), CI, the AI review's risk and its size with nothing against it, all lit in one colour by how many
-    (one red, two orange, three yellow, four green). A phone has no hover: VoiceOver reads its facts ("Approved. CI
+    signal is its AI review's risk, the bars its review shows (`Views/Signal.swift`, web/src/risk.ts's `rowLit`): one
+    red for high, two orange for medium, four green for low, grey with no review yet. A phone has no hover: VoiceOver reads its facts ("Approved. CI
     passing. Low risk, skip it. Tiny change").
   - **The filter**, on all four pages (one filter, as the window's search): a box under the
     page's name. Words match a row's title, repo, author or ref. `author:dana` keeps who opened it (a bot's PR counts

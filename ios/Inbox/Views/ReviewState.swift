@@ -331,7 +331,7 @@ enum Status {
   }
 
   static func risk(_ r: String) -> String { Words.capitalized(r) + " risk" }
-  static func riskBars(_ r: String) -> Int { r == "high" ? 1 : r == "medium" ? 2 : 4 }  // RowIcons.tsx's RISK_BARS
+  static func riskBars(_ r: String) -> Int { r == "high" ? 1 : r == "medium" ? 2 : 4 }  // web/src/risk.ts's RISK_BARS
 
   // Whose picture: a person's, yours too; none for a team.
   static func face(_ who: String, me: String) -> String? {
