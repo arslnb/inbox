@@ -1,7 +1,7 @@
 // Turns a GitHub item plus facts about you into the signals rules can test.
 import { areaFiles } from "./areas.ts";
 import { attributionOf, onBehalf } from "./github/behalf.ts";
-import { approved, owesReply, reviewOptional, waitsOf } from "./stage.ts";
+import { approved, mergeOwed, owesReply, reviewOptional, waitsOf } from "./stage.ts";
 import type { Attribution, Config, Context, FieldDoc, Item, ReviewState, Signals, Until } from "./types.ts";
 
 export const FIELDS: FieldDoc[] = [
@@ -27,7 +27,11 @@ export const FIELDS: FieldDoc[] = [
   { path: "pr.files", type: "number", doc: "files changed" },
   { path: "pr.ci", type: "string", doc: '"green", "red", "pending" or "none"' },
   { path: "pr.review", type: "string", doc: 'review decision: "approved", "changes_requested", "required" or "none"' },
-  { path: "pr.mergeable", type: "string", doc: '"clean", "conflict" or "unknown" (only checked for your PRs)' },
+  {
+    path: "pr.mergeable",
+    type: "string",
+    doc: '"clean", "conflict" or "unknown" (only checked for your PRs and those whose merge is yours)',
+  },
   { path: "pr.approvals", type: "number", doc: "people whose latest review approves" },
   { path: "pr.unresolved_threads", type: "number", doc: "unresolved review threads" },
   { path: "pr.base", type: "string", doc: "base branch" },
@@ -127,6 +131,11 @@ export const FIELDS: FieldDoc[] = [
   },
   { path: "me.reviewed_hours", type: "number", doc: "hours since your latest review (-1 if none)" },
   { path: "me.pushed_since_review", type: "boolean", doc: "someone pushed after your latest review" },
+  {
+    path: "me.merge_owed",
+    type: "boolean",
+    doc: "someone else's open PR you approved whose author can't merge it (no say on the repo): the merge is yours",
+  },
   { path: "me.commented", type: "boolean", doc: "you commented or reviewed" },
   { path: "me.last_action_hours", type: "number", doc: "hours since your latest comment, review or push (-1 if none)" },
   { path: "me.new_activity", type: "boolean", doc: "someone else acted after your latest action" },
@@ -368,6 +377,7 @@ export function analyze(item: Item, ctx: Context, cfg: Config, now: Date, read?:
       review_state: myReview?.state ?? "none",
       reviewed_hours: hours(myReview?.at ?? null),
       pushed_since_review: pushedSinceReview,
+      merge_owed: !yours && mergeOwed(item, ctx.me),
       commented: item.comments.some((c) => isMe(c.author)) || myReviews.length > 0,
       last_action_hours: hours(lastAction),
       new_activity: Boolean(lastAction && others && others > lastAction),

@@ -1702,6 +1702,7 @@ function signals(r: Rec): Signals {
       review_state: myReview?.[1] ?? "none",
       reviewed_hours: myReview?.[2] ?? -1,
       pushed_since_review: !!s.pushed,
+      merge_owed: false,
       commented: !!myReview,
       last_action_hours: myReview?.[2] ?? (mine ? (s.upd ?? s.age) : -1),
       new_activity: r.fresh,

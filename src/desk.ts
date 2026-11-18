@@ -1729,7 +1729,7 @@ export class Desk {
       const inflight = theirs && !rebasing;
       const freed = deps.get(item.id)?.merged.at(-1)?.at ?? "";
       const activityAt = freed > analysis.activity_at ? freed : analysis.activity_at;
-      const status = blocked.has(item.author.toLowerCase()) ? "muted" : statusOf(state, activityAt, now);
+      const status = blocked.has(item.author.toLowerCase()) ? "muted" : statusOf(state, activityAt, now, analysis.signals.me.merge_owed);
       const back = merging.get(item.id)?.handback;
       analysis.signals.me.handed_back =
         !!back && !inflight && status === "active" && item.state === "open" && (state.done_at ?? "") <= back.at;
@@ -2052,8 +2052,12 @@ export class Desk {
       // Even with red CI: getting it green is the coordinator's once it's ready, so the desk never holds this back.
       ...(it.kind === "pr" && it.draft && it.state === "open" && me.author && this.writer && { cta: "ready" as const }),
       ...(snap.unasked.has(it.id) && this.writer && { cta: "reviewers" as const }),
-      // Yours, green and mergeable: Hand off for merge, so your agent lands it; merging it yourself stays in More.
-      ...(me.author && !e.inflight && actions.includes("merge") && readyToMerge(it, this.me()) && { cta: "handoff" as const }),
+      // Yours, or theirs whose merge is yours, green and mergeable: Hand off for merge, so your agent lands it; merging it
+      // yourself stays in More.
+      ...((me.author || me.merge_owed) &&
+        !e.inflight &&
+        actions.includes("merge") &&
+        readyToMerge(it, this.me()) && { cta: "handoff" as const }),
       ...(me.author && sig.review_optional && { review_optional: true as const }),
       ...(talked(it, this.me()) && { talk: true as const }),
       ...(actions.length > 0 && { actions }),
@@ -3732,7 +3736,7 @@ export class Desk {
         if (!e.state.inflight_at || it.kind !== "pr") continue;
         if (it.state !== "open" && (it.closed_at ?? it.updated_at) < cutoff) continue;
         const m = this.merging(it.id);
-        const { approved_by, changes_by } = verdicts(it, me);
+        const { approved_by, changes_by } = verdicts(it, e.analysis.signals.me.author ? me : it.author); // on theirs, your approval counts
         const row = {
           state: it.state,
           base: it.base,
@@ -4843,9 +4847,10 @@ function countsOf(r: BoardResult): Record<Bucket, number> {
   };
 }
 
-function statusOf(s: StateRow, activityAt: string, now: Date): Status {
+// Done doesn't hide a PR whose merge is yours (mergeOwed): approving it isn't the end of it. Mute or snooze still do.
+function statusOf(s: StateRow, activityAt: string, now: Date, mergeOwed = false): Status {
   if (s.muted) return "muted";
-  if (s.done_at && activityAt <= (s.acked_at ?? s.done_at)) return "done";
+  if (s.done_at && activityAt <= (s.acked_at ?? s.done_at) && !mergeOwed) return "done";
   if (s.snooze_when) return "snoozed"; // compute() ends it once it happens
   if (s.snooze_until && now.toISOString() < s.snooze_until && !(s.snooze_on_activity && activityAt > (s.acked_at ?? s.snoozed_at ?? "")))
     return "snoozed";

@@ -23,6 +23,7 @@ import { KEEP_RESOLVED, type Connector, type Members, type NewEvent } from "./co
 import { itemEvents } from "./github-events.ts";
 import { botCheck } from "../signals.ts";
 import { onBehalf } from "../github/behalf.ts";
+import { mergeOwed } from "../stage.ts";
 import { report } from "../sentry.ts";
 
 const HOUR = 3_600_000;
@@ -273,16 +274,19 @@ export class GitHubConnector implements Connector {
     });
   }
 
-  // A bot's PR opened for you is read as deeply and as often as your own: what the desk stored of it says whose it is.
+  // A bot's PR opened for you is read as deeply and as often as your own: what the desk stored of it says whose it is. So
+  // is someone else's PR whose merge is yours (mergeOwed), for its mergeability and merge method.
   private mine(hits: SearchHit[]): SearchHit[] {
     const me = this.me().toLowerCase();
     const signals = this.desk.loaded?.config.signals;
     if (!signals) return hits;
     const isBot = botCheck(signals.bots);
-    const bots = hits.filter((h) => h.kind === "pr" && h.author.toLowerCase() !== me && isBot(h.author, h.author_bot)).map((h) => h.id);
-    const stored = bots.length ? this.desk.store.itemsById(bots) : new Map<string, Item>();
+    const others = hits.filter((h) => h.kind === "pr" && h.author.toLowerCase() !== me).map((h) => h.id);
+    const stored = others.length ? this.desk.store.itemsById(others) : new Map<string, Item>();
     return hits.map((h) => {
       const it = stored.get(h.id);
+      if (it && mergeOwed(it, me)) return { ...h, mine: true };
+      if (!isBot(h.author, h.author_bot)) return h;
       const read = it && this.desk.attributions.readOf(it);
       return it && onBehalf(it, me, [this.ctx?.name ?? "", ...signals.my_names], isBot, read) ? { ...h, mine: true } : h;
     });

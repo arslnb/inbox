@@ -17,7 +17,7 @@ export function resolution(item: Item, s: Signals, settings: ResolveSettings, te
   if (item.state === "merged") return { reason: "merged", actor: item.merged_by ?? "", at: item.closed_at ?? null };
   if (item.state === "closed") return { reason: "closed", actor: "", at: item.closed_at ?? null };
   // Your own PRs, and issues, only resolve by closing.
-  if (item.kind !== "pr" || s.me.author) return null;
+  if (item.kind !== "pr" || s.me.author || s.me.merge_owed) return null; // a merge you owe is yours until it lands
 
   const me = lc(s.me.login);
   const myTeams = new Set(teams.map(lc));

@@ -92,6 +92,7 @@ export const RAW_NODE = Schema.Struct({
   comments: conn(RAW_COMMENT),
   // PullRequest only
   isDraft: Schema.optionalKey(Schema.Boolean),
+  authorAssociation: Schema.optionalKey(Schema.String),
   body: Schema.optionalKey(Schema.String), // markdown
   additions: Schema.optionalKey(Schema.Number),
   deletions: Schema.optionalKey(Schema.Number),
@@ -298,6 +299,7 @@ export function normalize(n: RawNode, now = new Date().toISOString()): Item {
     ...(checks && { checks_failed: checks.filter(checkFailed).map(checkName) }),
     ...(optional.length > 0 && { checks_optional: optional }),
     ...(mergeMethod && { merge_method: mergeMethod }),
+    ...(n.authorAssociation !== undefined && { author_can_merge: collaborator(n.authorAssociation) }),
     ...("viewerPermission" in n.repository && { can_merge: MERGERS.has(n.repository.viewerPermission ?? "") }),
     review_requests: (n.reviewRequests?.nodes ?? [])
       .filter((r) => r.requestedReviewer)
