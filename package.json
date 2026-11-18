@@ -1,0 +1,181 @@
+{
+  "name": "@gricha/inbox",
+  "productName": "Inbox",
+  "version": "0.2.57",
+  "description": "A local desk that sorts your GitHub review load into boards and a priority queue.",
+  "license": "UNLICENSED",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/gricha/inbox.git"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "files": [
+    "bin",
+    "lib",
+    "skills",
+    "web/dist",
+    "web/src/styles.css",
+    "web/src/doc.css",
+    "web/src/fonts"
+  ],
+  "type": "module",
+  "main": "electron/main.ts",
+  "desktopName": "inbox.desktop",
+  "bin": {
+    "inbox": "bin/inbox"
+  },
+  "engines": {
+    "node": ">=22.18"
+  },
+  "scripts": {
+    "start": "node --disable-warning=ExperimentalWarning src/cli.ts serve",
+    "dev": "concurrently -k \"DESK_DEV=1 node --watch --disable-warning=ExperimentalWarning src/cli.ts serve\" \"vite --config web/vite.config.ts\"",
+    "build": "vite build --config web/vite.config.ts",
+    "test": "node --disable-warning=ExperimentalWarning --import ./test/helpers/no-agent.ts --test --test-timeout=300000 \"test/**/*.test.ts\" \"web/test/*.test.ts\" \"integrations/**/*.test.ts\"",
+    "typecheck": "tsc -p tsconfig.json && tsc -p web/tsconfig.json",
+    "app": "npm run build && electron .",
+    "app:dev": "node --disable-warning=ExperimentalWarning scripts/dev-app.ts",
+    "smoke:app": "npm run build && node --disable-warning=ExperimentalWarning scripts/smoke-app.ts",
+    "qa:release": "node --disable-warning=ExperimentalWarning scripts/qa-release.ts",
+    "icons": "electron scripts/icons.ts",
+    "dist": "npm run build && electron-builder",
+    "dist:mac": "npm run build && electron-builder --mac",
+    "dist:linux": "npm run build && electron-builder --linux",
+    "dist:win": "npm run build && electron-builder --win",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "oxlint --type-aware --deny-warnings --report-unused-disable-directives .",
+    "lint:css": "stylelint \"web/src/**/*.css\"",
+    "knip": "knip",
+    "check": "npm run format:check && npm run lint && npm run lint:css && npm run typecheck && npm run knip && npm test",
+    "prepare": "simple-git-hooks",
+    "shots": "node --disable-warning=ExperimentalWarning scripts/shots.ts",
+    "ios:demo": "node --disable-warning=ExperimentalWarning scripts/ios-demo.ts",
+    "release": "node --disable-warning=ExperimentalWarning scripts/release.ts",
+    "prepack": "rm -rf lib && tsc -p tsconfig.build.json && npm run build",
+    "release:publish": "bash scripts/release-publish.sh"
+  },
+  "dependencies": {
+    "@hono/node-server": "^2.1.5",
+    "@modelcontextprotocol/sdk": "^1.32.2",
+    "effect": "^4.1.2",
+    "electron-updater": "^6.8.11",
+    "elkjs": "^0.12.1",
+    "hono": "^4.13.14",
+    "smol-toml": "^1.9.1",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@excalidraw/excalidraw": "^0.18.1",
+    "@pierre/diffs": "1.6.2",
+    "@sentry/hono": "^11.11.0",
+    "@sentry/node": "^11.11.0",
+    "@sentry/react": "^11.11.0",
+    "@types/node": "^22.20.5",
+    "@types/react": "^19.3.0",
+    "@types/react-dom": "^19.3.0",
+    "@vitejs/plugin-react": "^6.1.2",
+    "concurrently": "^10.0.6",
+    "electron": "^45.0.0",
+    "electron-builder": "^26.17.0",
+    "knip": "^6.43.0",
+    "lint-staged": "^16.4.0",
+    "oxlint": "^1.90.0",
+    "oxlint-tsgolint": "^7.0.2005",
+    "playwright-core": "^1.64.0",
+    "prettier": "^3.9.10",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
+    "simple-git-hooks": "^2.14.0",
+    "stylelint": "^17.16.0",
+    "stylelint-config-standard": "^40.0.0",
+    "typescript": "^7.0.2",
+    "uqr": "^0.1.3",
+    "vite": "^8.3.5"
+  },
+  "build": {
+    "appId": "dev.inbox.app",
+    "productName": "Inbox",
+    "directories": {
+      "buildResources": "assets",
+      "output": "release"
+    },
+    "files": [
+      "electron/**",
+      "src/**",
+      "web/dist/**",
+      "web/src/styles.css",
+      "web/src/doc.css",
+      "web/src/fonts/**",
+      "skills/**",
+      "assets/**",
+      "package.json",
+      "!**/node_modules/**/*.{ts,mts,cts,map}"
+    ],
+    "npmRebuild": false,
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "gricha",
+        "repo": "inbox",
+        "private": true,
+        "releaseType": "release"
+      }
+    ],
+    "protocols": [
+      {
+        "name": "Inbox",
+        "schemes": [
+          "inbox"
+        ]
+      }
+    ],
+    "mac": {
+      "category": "public.app-category.developer-tools",
+      "target": [
+        "dmg"
+      ],
+      "identity": "-",
+      "hardenedRuntime": false
+    },
+    "linux": {
+      "executableName": "inbox",
+      "category": "Development",
+      "syncDesktopName": true,
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "artifactName": "${productName}-${version}.${ext}"
+    },
+    "nsis": {
+      "artifactName": "${productName}-Setup-${version}.${ext}"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    }
+  },
+  "simple-git-hooks": {
+    "pre-commit": "npx lint-staged",
+    "pre-push": "npm run check"
+  },
+  "lint-staged": {
+    "*.{ts,tsx,cjs,js,json,md,css,html,yml}": "prettier --write",
+    "*.{ts,tsx}": "oxlint --type-aware --deny-warnings",
+    "*.css": "stylelint --fix"
+  }
+}

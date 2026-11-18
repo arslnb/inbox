@@ -1,0 +1,9 @@
+node_modules
+web/dist
+release
+research
+package-lock.json
+assets
+integrations/claude-desktop/inbox/.claude-plugin/types
+.shots
+ios

@@ -1,0 +1,204 @@
+#!/bin/sh
+# Builds the app, runs it in the booted Simulator against the mock desk, and writes a PNG of each state into ios/.shots/,
+# in light and dark. Look at them after any change to the app: ios/README.md says what to look for.
+#
+#   ios/shots.sh                  every state
+#   ios/shots.sh inbox item-pr    only these
+#
+# SHOTS_UDID picks a simulator (default: the booted one); SHOTS_PORT the mock's port (default 47841).
+set -eu
+
+HERE=$(cd "$(dirname "$0")" && pwd)
+ROOT=$(dirname "$HERE")
+PORT=${SHOTS_PORT:-47841}
+DESK="http://localhost:$PORT"
+OUT="$HERE/.shots"
+BUNDLE=it.pstrucha.inbox
+PATH="/opt/homebrew/bin:$PATH"
+
+UDID=${SHOTS_UDID:-$(xcrun simctl list devices booted | sed -n 's/.*(\([0-9A-F-]\{36\}\)) (Booted).*/\1/p' | head -1)}
+[ -n "$UDID" ] || { echo "No booted simulator: open Simulator (or xcrun simctl boot \"iPhone 17 Pro\") first." >&2; exit 1; }
+
+# A desk already on the port (a mock started by hand, with whatever was done to it since) would be shot in the mock's place.
+if curl -fs "$DESK/health" >/dev/null 2>&1; then
+  echo "Something already answers on port $PORT: stop it first (or set SHOTS_PORT), so the shots are of a fresh mock." >&2
+  exit 1
+fi
+
+echo "Building…"
+mkdir -p "$HERE/.build"
+xcodebuild -project "$HERE/Inbox.xcodeproj" -scheme Inbox -configuration Debug \
+  -destination "platform=iOS Simulator,id=$UDID" -derivedDataPath "$HERE/.build" build >"$HERE/.build/shots-build.log" 2>&1 ||
+  { tail -30 "$HERE/.build/shots-build.log" >&2; exit 1; }
+xcrun simctl install "$UDID" "$HERE/.build/Build/Products/Debug-iphonesimulator/Inbox.app"
+
+# The mock desk, for as long as this script runs. Its dates are relative to its start, so ages read the same every run.
+(cd "$ROOT" && MOCK_PORT=$PORT MOCK_NO_POLL=1 exec node --disable-warning=ExperimentalWarning web/mock/server.ts) >/dev/null 2>&1 &
+MOCK=$!
+cleanup() {
+  kill "$MOCK" 2>/dev/null || true
+  xcrun simctl terminate "$UDID" "$BUNDLE" >/dev/null 2>&1 || true
+  xcrun simctl status_bar "$UDID" clear >/dev/null 2>&1 || true
+  xcrun simctl ui "$UDID" appearance light >/dev/null 2>&1 || true
+  xcrun simctl ui "$UDID" content_size large >/dev/null 2>&1 || true
+}
+trap cleanup EXIT INT TERM
+i=0
+until curl -fs "$DESK/health" >/dev/null 2>&1; do
+  i=$((i + 1))
+  [ "$i" -lt 50 ] || { echo "The mock desk didn't start on port $PORT (is it taken, or is npm install needed?)." >&2; exit 1; }
+  sleep 0.2
+done
+
+mkdir -p "$OUT"
+xcrun simctl status_bar "$UDID" override --time "9:41" --batteryState charged --batteryLevel 100 --wifiBars 3 --cellularBars 4 >/dev/null 2>&1 || true
+
+# name, then the launch arguments that reach it (Store.applyLaunchArguments, DEBUG builds only).
+shot() {
+  name=$1
+  shift
+  # Where a review has steps the diff opens Guided, whatever was last chosen on this simulator.
+  case "$*" in *review.view*) ;; *) set -- "$@" -review.view guided ;; esac
+  for look in light dark; do
+    xcrun simctl ui "$UDID" appearance "$look"
+    xcrun simctl terminate "$UDID" "$BUNDLE" >/dev/null 2>&1 || true
+    xcrun simctl launch "$UDID" "$BUNDLE" "$@" >/dev/null
+    sleep "${SHOTS_WAIT:-3}"
+    xcrun simctl io "$UDID" screenshot "$OUT/$name-$look.png" >/dev/null 2>&1
+    echo "  $name-$look.png"
+  done
+}
+
+wanted() {
+  [ -z "$ONLY" ] && return 0
+  for w in $ONLY; do [ "$w" = "$1" ] && return 0; done
+  return 1
+}
+ONLY="$*"
+
+wanted connect && shot connect -connect
+wanted connect-error && shot connect-error -connect -connectAddress "https://desk.tail1234.ts.net" \
+  -connectError "That pairing code isn't valid: run inbox pair again for a new one."
+# What the camera would have read (the Simulator has none): a QR that isn't a desk's never leaves the connect screen.
+wanted connect-scan-wrong && shot connect-scan-wrong -connect -scan "https://example.com"
+# A desk's link, read: nothing is sent until Connect, and the address it named is said first.
+wanted connect-scanned && shot connect-scanned -connect -scan "https://gregs-mac.tail1234.ts.net/pair#ABCD-2345"
+wanted inbox && shot inbox -deskURL "$DESK"
+wanted inbox-scrolled && shot inbox-scrolled -deskURL "$DESK" -scrollTo standard
+wanted inbox-empty && shot inbox-empty -deskURL "$DESK" -empty
+# The filter: its suggestions with the cursor in the box, a person as a pill with what matches, and the other two pages
+# it's on (Blocked lies flat and counts "n of m"; the Archive opens the groups with a match).
+wanted inbox-filter && shot inbox-filter -deskURL "$DESK" -filterFocus
+wanted inbox-filter-author && shot inbox-filter-author -deskURL "$DESK" -filter "author:dana "
+wanted inbox-filter-large && shot inbox-filter-large -deskURL "$DESK" -filter "involves:priya " -filterFocus \
+  -UIPreferredContentSizeCategoryName UICTContentSizeCategoryAccessibilityL
+wanted blocked-filter && shot blocked-filter -deskURL "$DESK" -page blocked -filter "web"
+wanted archive-filter && shot archive-filter -deskURL "$DESK" -page archive -filter "involves:marco "
+# FYI's first five and Show 3 more: the mock's FYI has six, which all show, so two of Standard's are moved there and back.
+if wanted inbox-fyi; then
+  for id in "acme/api#3052" "acme/api#3053"; do
+    curl -fs -X POST -H "Content-Type: application/json" -d "{\"id\":\"$id\",\"action\":\"fyi\"}" "$DESK/api/act" >/dev/null
+  done
+  shot inbox-fyi -deskURL "$DESK" -scrollTo fyi
+  for id in "acme/api#3052" "acme/api#3053"; do
+    curl -fs -X POST -H "Content-Type: application/json" -d "{\"id\":\"$id\",\"action\":\"standard\"}" "$DESK/api/act" >/dev/null
+  done
+fi
+# The note box: a new note, and one opened with its reminder.
+wanted note-new && shot note-new -deskURL "$DESK" -note new
+wanted note-edit && shot note-edit -deskURL "$DESK" -note n3
+wanted blocked && shot blocked -deskURL "$DESK" -page blocked
+wanted merging && shot merging -deskURL "$DESK" -page merging
+wanted merging-filter && shot merging-filter -deskURL "$DESK" -page merging -filter "planner"
+# Merging's "<agent>'s work": two reviews being written, your ask, a review that failed three times (Try again), an answer nobody read.
+wanted merging-work && shot merging-work -deskURL "$DESK" -page merging -scrollTo work
+wanted archive && shot archive -deskURL "$DESK" -page archive
+# Ask your agent: your chat (its latest ask unanswered, with what your agent is on), about a PR, and what the mock never
+# sends (-asks): nothing asked yet, and your agent off.
+wanted chat && shot chat -deskURL "$DESK" -chat none
+wanted chat-item && shot chat-item -deskURL "$DESK" -chat "me/notes-app#12"
+wanted chat-empty && shot chat-empty -deskURL "$DESK" -chat "acme/api#4127" -asks empty
+wanted chat-off && shot chat-off -deskURL "$DESK" -chat none -asks off
+wanted chat-stopped && shot chat-stopped -deskURL "$DESK" -chat none -asks stopped
+# The same chat with your agent as Codex and as OpenCode: its name and mark, its own words for how it runs.
+wanted chat-codex && shot chat-codex -deskURL "$DESK" -chat none -agent codex
+wanted chat-opencode && shot chat-opencode -deskURL "$DESK" -chat "acme/api#4127" -asks empty -agent opencode
+wanted chat-large && shot chat-large -deskURL "$DESK" -chat "me/notes-app#12" \
+  -UIPreferredContentSizeCategoryName UICTContentSizeCategoryAccessibilityL
+wanted item-pr && shot item-pr -deskURL "$DESK" -open "acme/api#4127"
+# Its Status: the risk opened to its reasons; and someone else's PR you approved (the bar says so).
+wanted item-pr-status && shot item-pr-status -deskURL "$DESK" -open "acme/api#4127" -part risk
+wanted item-pr-approved && shot item-pr-approved -deskURL "$DESK" -open "acme/api#4127" -approved
+# A PR's State: its checks opened to each by name (a failing run), and your own PR's reviewers with + Add reviewers.
+wanted item-pr-checks && shot item-pr-checks -deskURL "$DESK" -open "oss/tinyhttp#205" -part checks
+wanted item-pr-own && shot item-pr-own -deskURL "$DESK" -open "acme/worker#875" -part reviewers
+# A PR's diff: scrolled to its first file, a thread under its line, and the box for a comment on a line.
+wanted item-pr-diff && shot item-pr-diff -deskURL "$DESK" -open "acme/api#4127" -scroll diff -review.view traditional
+# A file marked viewed (the mock remembers it): folded, ticked, and counted in the list of files.
+if wanted item-pr-viewed; then
+  curl -fs -X POST -H "Content-Type: application/json" -d '{"marks":["ee1c4db634a7a0eb"],"viewed":true}' "$DESK/api/review/acme%2Fapi%234127/viewed" >/dev/null
+  shot item-pr-viewed -deskURL "$DESK" -open "acme/api#4127" -scroll diff -review.view traditional -part files
+  curl -fs -X POST -H "Content-Type: application/json" -d '{"marks":["ee1c4db634a7a0eb"],"viewed":false}' "$DESK/api/review/acme%2Fapi%234127/viewed" >/dev/null
+fi
+wanted item-pr-files && shot item-pr-files -deskURL "$DESK" -open "acme/api#4127" -scroll diff -review.view traditional -part files
+wanted item-pr-steps && shot item-pr-steps -deskURL "$DESK" -open "acme/api#4127" -scroll diff -part files
+wanted item-pr-diff-thread && shot item-pr-diff-thread -deskURL "$DESK" -open "acme/api#4127" -scroll thread -review.view traditional
+wanted item-pr-line-comment && shot item-pr-line-comment -deskURL "$DESK" -open "acme/api#4127" -scroll diff -comment "src/planner/stream.ts:12" -review.view traditional
+# The AI review: its fold opened (a goal, interfaces, could be better), a step of the guide with its diagram as text,
+# its notes on a line, and where a review stands: on an earlier commit, failed, being written, none.
+wanted item-pr-ai-open && shot item-pr-ai-open -deskURL "$DESK" -open "acme/worker#879" -ai open
+wanted item-pr-guided && shot item-pr-guided -deskURL "$DESK" -open "acme/worker#879" -scroll guide
+wanted item-pr-guided-note && shot item-pr-guided-note -deskURL "$DESK" -open "acme/worker#879" -scroll note
+wanted item-pr-guided-end && shot item-pr-guided-end -deskURL "$DESK" -open "acme/api#4127" -scroll step-3
+wanted item-pr-ai-stale && shot item-pr-ai-stale -deskURL "$DESK" -open "acme/api#4099"
+wanted item-pr-ai-failed && shot item-pr-ai-failed -deskURL "$DESK" -open "acme/worker#890"
+wanted item-pr-ai-running && shot item-pr-ai-running -deskURL "$DESK" -open "acme/web#2301"
+# None: with the desk's own reviews off, so opening it starts none (the mock's setting, put back after).
+if wanted item-pr-ai-none; then
+  curl -fs -X PUT -H "Content-Type: application/json" -d '{"set":{"review.auto_ai":false}}' "$DESK/api/settings" >/dev/null
+  shot item-pr-ai-none -deskURL "$DESK" -open "acme/ml-pipeline#307"
+  curl -fs -X PUT -H "Content-Type: application/json" -d '{"set":{"review.auto_ai":true}}' "$DESK/api/settings" >/dev/null
+fi
+# An issue: its pre-review with Make PR with fix, a walk at its second step, and what the mock never sends (-issue cuts
+# it from what it does): a flagged one with Block, none yet with Analyze it, a blocked author with Unblock.
+wanted item-issue && shot item-issue -deskURL "$DESK" -open "acme/worker#860"
+wanted item-issue-step && shot item-issue-step -deskURL "$DESK" -open "acme/api#4071" -step 2
+wanted item-issue-injection && shot item-issue-injection -deskURL "$DESK" -open "acme/worker#860" -issue injection
+wanted item-issue-none && shot item-issue-none -deskURL "$DESK" -open "acme/worker#860" -issue none
+wanted item-issue-blocked && shot item-issue-blocked -deskURL "$DESK" -open "acme/worker#860" -issue blocked
+# Yours: one that owes a reply (what was said, and Reply), a draft, one through review, one in Merging.
+wanted item-reply && shot item-reply -deskURL "$DESK" -open "me/notes-app#12"
+# The Conversation tab: what the mock never sends (a bot's links and images, reviews' verdicts, a resolved thread), and nothing said.
+wanted item-pr-conversation && shot item-pr-conversation -deskURL "$DESK" -open "acme/api#4127" -said links -scroll said
+wanted item-pr-conversation-none && shot item-pr-conversation-none -deskURL "$DESK" -open "acme/api#4127" -said none -scroll said
+wanted item-draft && shot item-draft -deskURL "$DESK" -open "acme/web#2303"
+wanted item-mine && shot item-mine -deskURL "$DESK" -open "acme/worker#875"
+wanted item-merging && shot item-merging -deskURL "$DESK" -page merging -open "acme/api#4122"
+# The boxes that write (-box opens one once its page has loaded).
+wanted approve && shot approve -deskURL "$DESK" -open "acme/api#4127" -box approve
+wanted reply && shot reply -deskURL "$DESK" -open "me/notes-app#12" -box reply
+wanted reviewers && shot reviewers -deskURL "$DESK" -open "acme/worker#875" -box reviewers
+wanted question && shot question -deskURL "$DESK" -open "inquiry:q1c0ffee"
+wanted answer && shot answer -deskURL "$DESK" -open "inquiry:q1c0ffee" -box answer
+wanted session && shot session -deskURL "$DESK" -open "session:5f1c2a90-7d3e-4b8a-9c11-2e6f0a4b7d21"
+wanted session-kick && shot session-kick -deskURL "$DESK" -open "session:a83e61d4-0b52-4f7c-8e3a-91c4d6b2f058"
+# Accessibility text sizes: the bar's quiet buttons fold into More rather than clip; at the largest, with the longest
+# call to action, More is its dots, the button keeps its words and the lines changed go under the ref.
+# The size is a launch argument: `simctl ui content_size` isn't taken by every simulator, and a shot it didn't reach is
+# the default size's twin.
+wanted item-large && shot item-large -deskURL "$DESK" -open "acme/api#4127" \
+  -UIPreferredContentSizeCategoryName UICTContentSizeCategoryAccessibilityL
+wanted item-pr-guided-large && shot item-pr-guided-large -deskURL "$DESK" -open "acme/worker#879" -scroll guide \
+  -UIPreferredContentSizeCategoryName UICTContentSizeCategoryAccessibilityL
+wanted item-issue-large && shot item-issue-large -deskURL "$DESK" -open "acme/api#4071" -step 2 \
+  -UIPreferredContentSizeCategoryName UICTContentSizeCategoryAccessibilityL
+wanted item-largest && shot item-largest -deskURL "$DESK" -open "acme/worker#875" \
+  -UIPreferredContentSizeCategoryName UICTContentSizeCategoryAccessibilityXXXL
+wanted settings && shot settings -deskURL "$DESK" -settings
+# Test mode: the made-up desk inside the app (Demo.swift), with no mock behind it.
+wanted test-mode && shot test-mode -deskURL https://test-mode.invalid
+wanted test-mode-settings && shot test-mode-settings -deskURL https://test-mode.invalid -settings
+# A desk that isn't there: nothing listens on port 9.
+wanted offline && shot offline -deskURL "http://localhost:9"
+
+echo "Wrote $OUT"

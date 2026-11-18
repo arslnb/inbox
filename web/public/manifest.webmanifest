@@ -1,0 +1,14 @@
+{
+  "name": "Inbox",
+  "short_name": "Inbox",
+  "description": "Your GitHub review load, sorted into what needs you now.",
+  "start_url": "/#/focus",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#F5F6F8",
+  "theme_color": "#F5F6F8",
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/icon-maskable.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}

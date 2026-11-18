@@ -1,0 +1,1400 @@
+// HTTP API + web UI on 127.0.0.1.
+import fs from "node:fs";
+import { Server, type IncomingMessage } from "node:http";
+import net from "node:net";
+import os from "node:os";
+import path from "node:path";
+import type { Duplex } from "node:stream";
+import { fileURLToPath } from "node:url";
+import { Cause, Effect, Exit, Option, Semaphore } from "effect";
+import { Hono, type Context, type Next } from "hono";
+import { getCookie, setCookie } from "hono/cookie";
+import { streamSSE } from "hono/streaming";
+import { serve, type ServerType } from "@hono/node-server";
+import { WebStandardStreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/webStandardStreamableHttp.js";
+import { refreshSkills, SKILL_MD } from "./agents.ts";
+import { createClient } from "./client.ts";
+import { createGitHub } from "./github/index.ts";
+import { createWriter, type GitHubWriter } from "./github/write.ts";
+import { Desk } from "./desk.ts";
+import {
+  BadRequest,
+  Conflict,
+  errorBody,
+  Forbidden,
+  fsError,
+  isDeskHttpError,
+  ListenFailed,
+  NotFound,
+  Unauthorized,
+  Unavailable,
+  type ErrorBody,
+  type FsError,
+  type GitHubReadError,
+  type Upstream,
+} from "./errors.ts";
+import { settleHome } from "./home.ts";
+import { createMcpServer } from "./mcp.ts";
+import { instrument, logLine } from "./sentry.ts";
+import { openUrl } from "./notify.ts";
+import { readOmarchy, watchOmarchy } from "./omarchy.ts";
+import type { AppUpdater } from "./updates.ts";
+import { Remote, readTailnet, sameSecret, serveOff, serveOn } from "./remote.ts";
+import { checkoutFor } from "./checkout.ts";
+import { dropHostSession, fetchPr, generateReview, installed, loggedIn } from "./review.ts";
+import { fetchIssue, findClone, generateIssueReview } from "./issue.ts";
+import { DOC_CSP } from "./render.ts";
+import { isSecret } from "./settings.ts";
+import { FIELDS } from "./signals.ts";
+import { field as fieldOf, isRecord, oneOf, str as stringOf, strings as stringsOf } from "./narrow.ts";
+import { GITHUB_ACTIONS, type Action, type AskLines, type InlineAt, type RemoteView } from "./types.ts";
+
+const VERSION = stringOf(fieldOf(JSON.parse(fs.readFileSync(new URL("../package.json", import.meta.url), "utf8")), "version")) ?? "";
+export const DEFAULT_PORT = 47823;
+const DIST = fileURLToPath(new URL("../web/dist/", import.meta.url));
+const TYPES: Record<string, string> = {
+  ".html": "text/html; charset=utf-8",
+  ".js": "text/javascript; charset=utf-8",
+  ".css": "text/css; charset=utf-8",
+  ".svg": "image/svg+xml",
+  ".png": "image/png",
+  ".ico": "image/x-icon",
+  ".json": "application/json",
+  ".webmanifest": "application/manifest+json",
+  ".woff2": "font/woff2",
+};
+
+const LOCAL = new Set(["localhost", "127.0.0.1", "[::1]"]);
+const DOC_PAGE = /^\/api\/docs\/[0-9a-f]{16}\/html$/;
+
+// Where a browser page may call the desk from: its own address, and the Vite servers that serve its UI in development.
+function originsOf(port: number): Set<string> {
+  const origins = new Set([`http://localhost:${port}`, `http://127.0.0.1:${port}`]);
+  // Vite's default ports, or DESK_DEV_PORT when it runs on another.
+  if (process.env.DESK_DEV)
+    for (const p of [5173, 5174, Number(process.env.DESK_DEV_PORT) || 5173]) {
+      origins.add(`http://localhost:${p}`);
+      origins.add(`http://127.0.0.1:${p}`);
+    }
+  // The desktop app running from a checkout serves the UI from its own Vite server, on exactly this origin.
+  if (process.env.DESK_UI_ORIGIN) origins.add(process.env.DESK_UI_ORIGIN);
+  return origins;
+}
+
+// Per connection, not per request; and fetch undoes the encoding it asked for.
+const HOP = ["host", "connection", "keep-alive", "transfer-encoding", "upgrade", "accept-encoding", "content-encoding", "content-length"];
+const UI_STARTING =
+  '<!doctype html><meta http-equiv="refresh" content="2"><title>Inbox</title><p>The UI from your checkout is starting; this page tries again every 2 seconds.</p>';
+
+// The app's Vite UI, passed through so this address always shows the checkout's current UI.
+function fromUi(req: Request, ui: string): Effect.Effect<Response, Forbidden | NotFound> {
+  return Effect.gen(function* () {
+    const site = req.headers.get("sec-fetch-site");
+    // Another site may link to the desk, but not load the checkout's files into its own page.
+    if ((site === "cross-site" || site === "same-site") && req.headers.get("sec-fetch-mode") !== "navigate")
+      return yield* new Forbidden({ message: "forbidden cross-site request" });
+    const { pathname, search } = new URL(req.url);
+    // Vite's proxy sends these prefixes back to the desk, so one the desk doesn't route would go round forever.
+    if (pathname.startsWith("/api") || pathname.startsWith("/health")) return yield* new NotFound({ message: "not found" });
+    const headers = new Headers(req.headers);
+    for (const h of HOP) headers.delete(h);
+    // The request's own signal, not the Effect's: the body streams on after the route has answered.
+    const passed = Effect.tryPromise({
+      try: () => fetch(`${ui}${pathname}${search}`, { headers, redirect: "manual", signal: req.signal }),
+      catch: (cause) => cause,
+    });
+    return yield* Effect.match(passed, {
+      onFailure: () =>
+        new Response(UI_STARTING, { status: 503, headers: { "content-type": "text/html; charset=utf-8", "cache-control": "no-store" } }),
+      onSuccess: (res) => {
+        const out = new Headers(res.headers);
+        for (const h of HOP) out.delete(h);
+        return new Response(res.body, { status: res.status, statusText: res.statusText, headers: out });
+      },
+    });
+  });
+}
+
+// The Vite page's hot-reload socket, through the desk like the page. Returns what drops the open ones: a server holding one
+// never finishes closing.
+export function proxyUpgrades(server: Server, port: number, ui: string): () => void {
+  const origins = originsOf(port);
+  const to = new URL(ui);
+  const open = new Set<Duplex>();
+  server.on("upgrade", (req: IncomingMessage, socket: Duplex, head: Buffer) => {
+    const origin = req.headers.origin;
+    if (!LOCAL.has(URL.parse(`http://${req.headers.host ?? ""}`)?.hostname ?? "") || (origin && !origins.has(origin))) {
+      socket.end("HTTP/1.1 403 Forbidden\r\nConnection: close\r\n\r\n");
+      return;
+    }
+    // Node sends every Upgrade here, curl --http2's h2c to the API too, and Vite would leave those hanging.
+    const p = URL.parse(req.url ?? "", "http://localhost")?.pathname ?? "";
+    if (req.headers.upgrade?.toLowerCase() !== "websocket" || p.startsWith("/api") || p.startsWith("/mcp")) {
+      socket.end("HTTP/1.1 400 Bad Request\r\nConnection: close\r\n\r\n");
+      return;
+    }
+    const up = net.connect(Number(to.port), to.hostname);
+    open.add(socket);
+    const drop = () => {
+      open.delete(socket);
+      socket.destroy();
+      up.destroy();
+    };
+    up.on("error", drop).on("close", drop);
+    socket.on("error", drop).on("close", drop);
+    const lines = [`${req.method} ${req.url} HTTP/1.1`];
+    for (let i = 0; i < req.rawHeaders.length; i += 2) lines.push(`${req.rawHeaders[i]}: ${req.rawHeaders[i + 1]}`);
+    up.write(`${lines.join("\r\n")}\r\n\r\n`);
+    up.write(head);
+    up.pipe(socket).pipe(up);
+  });
+  return () => {
+    for (const s of open) s.destroy();
+  };
+}
+
+// Requests that came in on the listener only `tailscale serve` is pointed at, and how each proved it's a paired device.
+// By the connection, never a header: serve passes on the client's own Host, so a peer could send `Host: localhost`.
+const REMOTE = new WeakSet<Request>();
+const VIA = new WeakMap<Request, "cookie" | "bearer" | "phone">();
+export const remoteFetch =
+  (app: Hono) =>
+  (req: Request, env?: unknown): Response | Promise<Response> => {
+    REMOTE.add(req);
+    return app.fetch(req, env);
+  };
+// Requests that came in on the local network's listener (Settings → Network → Local network): read only, with its token.
+const LAN = new WeakSet<Request>();
+export const lanFetch =
+  (app: Hono) =>
+  (req: Request, env?: unknown): Response | Promise<Response> => {
+    LAN.add(req);
+    return app.fetch(req, env);
+  };
+const SESSION = "__Host-inbox"; // a paired browser's token: HttpOnly, Secure, SameSite=Strict, this host only
+
+// The desk's own page, for its GitHub writes (approve, a reply, ready for review, the More menu's), hand-offs and asks: a browser marks the request same-origin and sends an Origin, which
+// the check below lets through only when it's ours. curl, the CLI and agents send neither unless they forge both; from
+// another device it's also a paired browser's session, which a machine's token (agents, the CLI) never is. A paired phone's
+// token counts by itself: a native app sends neither header, and the token is only ever a phone's over the tailnet.
+const fromDesk = (c: Context) =>
+  VIA.get(c.req.raw) === "phone" ||
+  (c.req.header("sec-fetch-site") === "same-origin" &&
+    !!c.req.header("origin") &&
+    (!REMOTE.has(c.req.raw) || VIA.get(c.req.raw) === "cookie"));
+
+const PAIR_PAGE = `<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width"><title>Inbox</title>
+<style>body{font:15px/1.5 system-ui,sans-serif;margin:4em auto;max-width:32em;padding:0 1em;color-scheme:light dark}</style>
+<p id="m">Pairing this browser with your desk…</p>
+<script>
+const code = location.hash.slice(1);
+history.replaceState(null, "", "/pair");
+const say = (t) => { document.getElementById("m").textContent = t; };
+if (!code) say("This link has no pairing code. On the desk's machine, run inbox pair and open the link it prints.");
+else
+  fetch("/api/pair", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ code, kind: "browser", name: "Browser on " + (navigator.platform || "a device") }),
+  })
+    .then(async (r) => (r.ok ? location.replace("/") : say(((await r.json().catch(() => null))?.error ?? "Pairing failed") + ".")))
+    .catch(() => say("The desk didn't answer. Try the link again."));
+</script>`;
+
+// docs/effect.md Boundaries → HTTP: the value or its Response, a refusal's status, 499 for a client gone, else a logged 500 Sentry sees.
+function reply<A, E>(c: Context, exit: Exit.Exit<A, E>, log: (m: string) => void): Response {
+  if (Exit.isSuccess(exit)) return exit.value instanceof Response ? exit.value : c.json(exit.value);
+  if (Cause.hasInterruptsOnly(exit.cause)) return new Response(null, { status: 499 });
+  const failed = Option.getOrUndefined(Cause.findErrorOption(exit.cause));
+  if (isDeskHttpError(failed)) {
+    if (failed.status >= 500) c.error = failed;
+    return c.json(errorBody(failed), failed.status);
+  }
+  log(`error: ${Cause.pretty(exit.cause)}`);
+  const e = Cause.squash(exit.cause);
+  c.error = e instanceof Error ? e : new Error(String(e));
+  return c.json({ error: c.error.message, tag: "Internal" } satisfies ErrorBody, 500);
+}
+
+// A route's Effect, run and answered.
+export async function respond<A, E>(
+  c: Context,
+  effect: Effect.Effect<A, E>,
+  opts: { log: (m: string) => void; read?: boolean },
+): Promise<Response> {
+  return reply(c, await Effect.runPromiseExit(effect, opts.read ? { signal: c.req.raw.signal } : undefined), opts.log);
+}
+
+// A line of a PR's diff, or a range from `start` to it, rebuilt from its parts; null when any of them is bad.
+function inlineAtOf(b: Record<string, unknown>): InlineAt | null {
+  const line = (v: unknown): v is number => typeof v === "number" && Number.isInteger(v) && v > 0;
+  const side = (v: unknown): v is "new" | "old" => v === "new" || v === "old";
+  const { path: file, line: at, side: on, start } = b;
+  if (typeof file !== "string" || !file || !line(at) || !side(on)) return null;
+  if (start === undefined) return { path: file, line: at, side: on };
+  if (!isRecord(start)) return null;
+  const { line: from, side: was } = start;
+  return line(from) && side(was) ? { path: file, line: at, side: on, start: { line: from, side: was } } : null;
+}
+
+export function createApp(desk: Desk, port: number, remote: Remote = new Remote(desk.store)): Hono {
+  const app = new Hono();
+  instrument(app);
+  const origins = originsOf(port);
+  const ui = process.env.DESK_UI_ORIGIN;
+  const log = (m: string) => {
+    desk.log(m);
+  };
+
+  // Only this machine's browser and tools: blocks DNS rebinding (Host) and cross-site requests (Origin).
+  const local = (c: Context) =>
+    Effect.suspend((): Effect.Effect<void, Forbidden> => {
+      const refused = (message: string) => Effect.fail(new Forbidden({ message }));
+      if (!LOCAL.has(new URL(c.req.url).hostname)) return refused("forbidden host");
+      const origin = c.req.header("origin");
+      if (origin && !origins.has(origin)) return refused("forbidden origin");
+      // A no-cors GET (an <img> on another site or another localhost port) has no Origin; browsers still say where it came from.
+      const site = c.req.header("sec-fetch-site");
+      if ((site === "cross-site" || site === "same-site") && (c.req.path.startsWith("/api/") || c.req.path === "/mcp"))
+        return refused("forbidden cross-site request");
+      return Effect.void;
+    });
+  // From another device, through `tailscale serve`: this desk's tailnet name, its owner's login as Tailscale names them,
+  // and a paired device's token (a browser's cookie; a machine's or a phone's bearer); pairing itself, its page and its
+  // trade, is the only thing without one.
+  const tailnet = (c: Context) =>
+    Effect.suspend((): Effect.Effect<void, Forbidden | Unauthorized> => {
+      const refused = (message: string) => Effect.fail(new Forbidden({ message }));
+      const tn = remote.tailnet;
+      if (!tn) return refused("this desk isn't served over Tailscale now");
+      if (new URL(c.req.url).hostname !== tn.name) return refused("forbidden host");
+      const origin = c.req.header("origin");
+      if (origin && origin !== `https://${tn.name}`) return refused("forbidden origin");
+      const site = c.req.header("sec-fetch-site");
+      if ((site === "cross-site" || site === "same-site") && (c.req.path.startsWith("/api/") || c.req.path === "/mcp"))
+        return refused("forbidden cross-site request");
+      if ((c.req.header("tailscale-user-login") ?? "").toLowerCase() !== tn.login)
+        return refused("only the desk's owner may use it from another device");
+      if ((c.req.method === "GET" && c.req.path === "/pair") || (c.req.method === "POST" && c.req.path === "/api/pair")) return Effect.void;
+      const bearer = /^Bearer (\S+)$/i.exec(c.req.header("authorization") ?? "")?.[1];
+      const dev = bearer
+        ? (remote.verify(bearer, "phone") ?? remote.verify(bearer, "device"))
+        : remote.verify(getCookie(c, SESSION), "browser");
+      if (dev) {
+        VIA.set(c.req.raw, !bearer ? "cookie" : dev.kind === "phone" ? "phone" : "bearer");
+        return Effect.void;
+      }
+      return Effect.fail(new Unauthorized({ message: "pair this device first: run inbox pair on the desk's machine" }));
+    });
+  // From the local network: the desk's own address as Origin, GET only, and the token, as Basic auth's password or a bearer.
+  const lan = (c: Context) =>
+    Effect.suspend((): Effect.Effect<void, Forbidden | Unauthorized> => {
+      const refused = (message: string) => Effect.fail(new Forbidden({ message }));
+      const secret = desk.settings["lan.token"];
+      if (!desk.settings["lan.on"] || !secret) return refused("this desk isn't served on the local network now");
+      if (c.req.method !== "GET" && c.req.method !== "HEAD") return refused("from the local network the desk is read only");
+      const origin = c.req.header("origin");
+      if (origin && origin !== new URL(c.req.url).origin) return refused("forbidden origin");
+      const site = c.req.header("sec-fetch-site");
+      if ((site === "cross-site" || site === "same-site") && (c.req.path.startsWith("/api/") || c.req.path === "/mcp"))
+        return refused("forbidden cross-site request");
+      const auth = c.req.header("authorization") ?? "";
+      const basic = /^Basic (\S+)$/i.exec(auth)?.[1];
+      const given =
+        /^Bearer (\S+)$/i.exec(auth)?.[1] ?? (basic ? Buffer.from(basic, "base64").toString().split(":").slice(1).join(":") : "");
+      if (given && sameSecret(given, secret)) return Effect.void;
+      return Effect.fail(new Unauthorized({ message: "the local network token, from Settings → Network → Local network" }));
+    });
+  app.use("*", async (c: Context, next: Next) => {
+    const checked = Effect.runSyncExit(REMOTE.has(c.req.raw) ? tailnet(c) : LAN.has(c.req.raw) ? lan(c) : local(c));
+    if (Exit.isFailure(checked)) {
+      c.res = reply(c, checked, log);
+      if (LAN.has(c.req.raw) && c.res.status === 401) c.res.headers.set("WWW-Authenticate", 'Basic realm="Inbox", charset="UTF-8"');
+    } else {
+      await next();
+      // A review document's page runs nothing and asks for nothing; only the desk's window frames it (#/doc/<id>).
+      const doc = DOC_PAGE.test(c.req.path);
+      c.header("X-Frame-Options", doc ? "SAMEORIGIN" : "DENY");
+      c.header("Content-Security-Policy", doc ? `${DOC_CSP}; frame-ancestors 'self'` : "frame-ancestors 'none'");
+    }
+  });
+
+  // Only a bug gets here: every route answers its own failures through respond.
+  app.onError((e, c) => {
+    desk.log(`error: ${e.stack ?? e.message}`);
+    return c.json({ error: e.message, tag: "Internal" } satisfies ErrorBody, 500);
+  });
+
+  const STARTING = "desk is starting; the first sync can take a minute";
+  // Before the first sync there's nothing to show, unless it's the config's errors.
+  const up = Effect.suspend((): Effect.Effect<void, Unavailable> =>
+    !desk.loaded && !desk.configErrors.length
+      ? Effect.fail(
+          new Unavailable({
+            message: desk.githubError ? `GitHub isn't connected yet (${desk.githubError.message}): run inbox setup` : STARTING,
+            reason: "starting",
+          }),
+        )
+      : Effect.void,
+  );
+  type Req = { req: { json<T>(): Promise<T> } };
+  const notJson = () => new BadRequest({ message: "the body must be a JSON object" });
+  const json = (c: Req): Effect.Effect<Record<string, unknown>, BadRequest> =>
+    Effect.tryPromise({ try: () => c.req.json<unknown>(), catch: notJson }).pipe(
+      Effect.filterOrFail((b): b is Record<string, unknown> => typeof b === "object" && b !== null && !Array.isArray(b), notJson),
+    );
+  // A body that isn't a JSON object reads as {}: each route says what it needs.
+  const bodyOf = (c: Req) => Effect.orElseSucceed(json(c), (): Record<string, unknown> => ({}));
+  // A string the body may leave out.
+  const str = (b: Record<string, unknown>, k: string): Effect.Effect<string | undefined, BadRequest> => {
+    const v = b[k] ?? undefined;
+    return v === undefined || typeof v === "string" ? Effect.succeed(v) : Effect.fail(new BadRequest({ message: `${k} must be a string` }));
+  };
+  // A string the body must have.
+  const field = (c: Req, key: string) =>
+    Effect.flatMap(bodyOf(c), (b): Effect.Effect<string, BadRequest> =>
+      typeof b[key] === "string" ? Effect.succeed(b[key]) : Effect.fail(new BadRequest({ message: `need { ${key} }` })),
+    );
+
+  // What can't fail answers through respond too: a bug in it is a logged 500 like any other.
+  const total = (c: Context, f: () => unknown) => respond(c, Effect.sync(f), { log });
+  app.get("/health", (c) => total(c, () => ({ ok: true, version: VERSION })));
+  app.get("/api/overview", (c) =>
+    respond(
+      c,
+      Effect.andThen(up, () => desk.overview()),
+      { log, read: true },
+    ),
+  );
+  app.get("/api/focus", (c) =>
+    respond(
+      c,
+      Effect.andThen(up, () => desk.focus()),
+      { log, read: true },
+    ),
+  );
+  app.get("/api/queue", (c) =>
+    respond(
+      c,
+      Effect.andThen(up, () => desk.queue()),
+      { log, read: true },
+    ),
+  );
+  app.get("/api/boards/:id", (c) =>
+    respond(
+      c,
+      Effect.andThen(up, () => desk.board(c.req.param("id"))),
+      { log, read: true },
+    ),
+  );
+  app.get("/api/item", (c) => {
+    const id = c.req.query("id");
+    const item = Effect.gen(function* () {
+      yield* up;
+      if (!id) return yield* new BadRequest({ message: "missing ?id=" });
+      return yield* desk.item(id);
+    });
+    return respond(c, item, { log, read: true });
+  });
+  app.post("/api/act", (c) => {
+    const act = Effect.gen(function* () {
+      yield* up;
+      const b = (yield* json(c)) as { id?: string; action?: Action; until?: string };
+      if (!b.id || !b.action) return yield* new BadRequest({ message: "need { id, action }" });
+      return { ok: true, ...(yield* desk.act(b.id, b.action, b.until, fromDesk(c) ? undefined : "agent")) };
+    });
+    return respond(c, act, { log });
+  });
+  // inbox_add and `inbox add`: a pin plus GitHub reads, so agents may call it.
+  app.post("/api/add", (c) => {
+    const add = Effect.gen(function* () {
+      yield* up;
+      const { id, why, from } = yield* bodyOf(c);
+      if (typeof id !== "string" || !id) return yield* new BadRequest({ message: "need { id }: owner/repo#123 or a GitHub URL" });
+      const line = (v: unknown): Effect.Effect<string | undefined, BadRequest> =>
+        v === undefined || typeof v === "string"
+          ? Effect.succeed(v)
+          : Effect.fail(new BadRequest({ message: "why and from are lines of text" }));
+      return { ok: true, ...(yield* desk.add(id, yield* line(why), yield* line(from))) };
+    });
+    return respond(c, add, { log });
+  });
+  // Who you can ask to review your PR, as you type: a path of its own, since the review's GET takes any id.
+  app.get("/api/reviewers/:id{.+}", (c) =>
+    respond(
+      c,
+      Effect.andThen(up, () => desk.reviewers(c.req.param("id"), c.req.query("q") ?? "")),
+      { log, read: true },
+    ),
+  );
+  // A file of the PR at its head, for its review's more lines around a hunk.
+  app.get("/api/file/:id{.+}", (c) =>
+    respond(
+      c,
+      Effect.andThen(up, () => desk.fileAt(c.req.param("id"), c.req.query("path") ?? "")),
+      { log, read: true },
+    ),
+  );
+  // A PR's id in one path segment (owner%2Frepo%23123), or as owner/repo%23123. An open starts its AI review and Claude's
+  // read once its diff and conversation are in, so it runs to the end whoever still waits; only a prefetch is a read.
+  app.get("/api/review/:id{.+}", (c) => {
+    const ahead = c.req.query("ahead") === "1";
+    return respond(
+      c,
+      Effect.andThen(up, () => desk.reviewView(c.req.param("id"), ahead)),
+      { log, read: ahead },
+    );
+  });
+  // Joins the PR's AI review, which runs to the end whoever still waits: the request's signal never reaches it.
+  app.post("/api/review/:id{.+}/ai", (c) => {
+    const ai = Effect.gen(function* () {
+      yield* up;
+      const { force } = yield* bodyOf(c);
+      return { ok: true, ai: yield* desk.aiReview(c.req.param("id"), force === true) };
+    });
+    return respond(c, ai, { log });
+  });
+  // The desk's GitHub writes below: from its own window or your paired phone only (`refused` otherwise), once it's up, with the body read as
+  // each says. A write never takes the request's signal: once sent it lands and is recorded, whoever still listens.
+  const write = <A, E>(c: Context, refused: string, then: (b: Record<string, unknown>) => Effect.Effect<A, E>) =>
+    respond(
+      c,
+      Effect.gen(function* () {
+        yield* up;
+        if (!fromDesk(c)) return yield* new Forbidden({ message: refused });
+        return yield* then(yield* bodyOf(c));
+      }),
+      { log },
+    );
+  const bad = (message: string) => Effect.fail(new BadRequest({ message }));
+  app.post("/api/review/:id{.+}/approve", (c) =>
+    write(c, "approve from the PR's review in the desk", ({ head_oid, body }) => {
+      if (typeof head_oid !== "string" || !head_oid) return bad("need { head_oid }: the commit you reviewed");
+      if (body !== undefined && typeof body !== "string") return bad("body must be a string");
+      return Effect.map(desk.approve(c.req.param("id"), head_oid, body), (r) => ({ ok: true, ...r }));
+    }),
+  );
+  // Posts your reply to one of the PR's conversations, from the desk's own window only.
+  app.post("/api/review/:id{.+}/reply", (c) =>
+    write(c, "replies are sent from the desk's window, by you", (b) => {
+      if (typeof b.id !== "string" || !b.id || typeof b.body !== "string") return bad("need { id, body }");
+      return Effect.map(desk.reply(c.req.param("id"), b.id, b.body), (r) => ({ ok: true, ...r }));
+    }),
+  );
+  // Your comment on the PR or issue, from the desk's own window only.
+  app.post("/api/review/:id{.+}/comment", (c) =>
+    write(c, "comments are sent from the desk's window, by you", (b) => {
+      if (typeof b.body !== "string") return bad("need { body }");
+      return Effect.map(desk.comment(c.req.param("id"), b.body), (r) => ({ ok: true, ...r }));
+    }),
+  );
+  // Your comment on a line of the PR's diff, from the desk's own window only.
+  app.post("/api/review/:id{.+}/inline", (c) =>
+    write(c, "comments are sent from the desk's window, by you", (b) => {
+      const at = inlineAtOf(b);
+      const { body, head_oid } = b;
+      if (!at || typeof body !== "string" || typeof head_oid !== "string" || !head_oid)
+        return bad("need { path, line, side: new|old, start?: { line, side }, body, head_oid }");
+      return Effect.map(desk.inlineComment(c.req.param("id"), at, body, head_oid), (r) => ({ ok: true, ...r }));
+    }),
+  );
+  const reviewerIds = (b: Record<string, unknown>): Effect.Effect<{ users: string[]; teams: string[] }, BadRequest> => {
+    const ids = (v: unknown): string[] | null => {
+      if (v === undefined) return [];
+      const list = stringsOf(v);
+      return list?.every((x) => x !== "") ? list : null;
+    };
+    const users = ids(b.users);
+    const teams = ids(b.teams);
+    return users && teams ? Effect.succeed({ users, teams }) : bad("users and teams are lists of node ids");
+  };
+  // Your own draft's Ready for review, from the desk's own window only.
+  app.post("/api/review/:id{.+}/ready", (c) =>
+    write(c, "mark your draft ready for review from the desk's window", (b) =>
+      Effect.flatMap(reviewerIds(b), (ask) => Effect.map(desk.markReady(c.req.param("id"), ask), (r) => ({ ok: true, ...r }))),
+    ),
+  );
+  // Reviewers for your ready PR nobody's asked to review, from the desk's own window only.
+  app.post("/api/review/:id{.+}/reviewers", (c) =>
+    write(c, "ask reviewers from the PR's review in the desk's window", (b) =>
+      Effect.flatMap(reviewerIds(b), (ask) => Effect.as(desk.askReviewers(c.req.param("id"), ask, b.keep === true), { ok: true })),
+    ),
+  );
+  // One reviewer of your open PR, from the review's sidebar: { login, act: "remove" | "rerequest" }, from the desk's own window only.
+  app.post("/api/review/:id{.+}/reviewer", (c) =>
+    write(c, "change a reviewer from the PR's review in the desk's window", (b) => {
+      const act = oneOf(["remove", "rerequest"] as const, b.act);
+      if (typeof b.login !== "string" || !b.login.trim() || !act) return bad('need { login, act: "remove" | "rerequest" }');
+      return Effect.as(desk.reviewerAct(c.req.param("id"), b.login.trim(), act), { ok: true });
+    }),
+  );
+  // Hunks of a PR you marked viewed, or unmarked: { marks, viewed }. It writes nothing to GitHub, but a mark folds code away,
+  // so only your hands make one.
+  app.post("/api/review/:id{.+}/viewed", (c) =>
+    write(c, "mark what you've viewed from the PR's review in the desk's window", (b) => {
+      const marks = stringsOf(b.marks);
+      if (!marks?.length || marks.length > 5000 || marks.some((m) => !m || m.length > 64) || typeof b.viewed !== "boolean")
+        return bad("need { marks: the hunks' marks, viewed: true or false }");
+      return Effect.as(desk.markViewed(c.req.param("id"), marks, b.viewed), { ok: true });
+    }),
+  );
+  // The More menu's GitHub writes (close, draft, ready, merge, reopen, request changes), from the desk's own window only.
+  app.post("/api/github", (c) =>
+    write(c, "GitHub actions are yours, from the desk's window", (b) => {
+      const action = oneOf(GITHUB_ACTIONS, b.action);
+      if (typeof b.id !== "string" || !action) return bad("need { id, action }");
+      if (b.head_oid !== undefined && typeof b.head_oid !== "string") return bad("head_oid must be a string");
+      if (b.body !== undefined && typeof b.body !== "string") return bad("body must be a string");
+      const opts = { ...(b.head_oid !== undefined && { head: b.head_oid }), ...(b.body !== undefined && { body: b.body }) };
+      return Effect.map(desk.githubAct(b.id, action, opts), (r) => ({ ok: true, ...r }));
+    }),
+  );
+  // Merging: your own PRs you handed off (Hand off for merge and Back to desk, through /api/act), which the coordinator gets merged.
+  app.get("/api/inflight", (c) =>
+    respond(
+      c,
+      Effect.andThen(up, () => desk.inflight()),
+      { log, read: true },
+    ),
+  );
+  // inbox_note and inbox_hand_back: local only, so agents may call them.
+  app.post("/api/inflight/:id{.+}/note", (c) => {
+    const note = Effect.gen(function* () {
+      yield* up;
+      return { ok: true, ...(yield* desk.note(c.req.param("id"), yield* field(c, "text"))) };
+    });
+    return respond(c, note, { log });
+  });
+  app.post("/api/inflight/:id{.+}/handback", (c) => {
+    const back = Effect.gen(function* () {
+      yield* up;
+      return { ok: true, ...(yield* desk.handBack(c.req.param("id"), yield* field(c, "why"))) };
+    });
+    return respond(c, back, { log });
+  });
+  app.post("/api/coordinator/wake", (c) => {
+    const wake = Effect.gen(function* () {
+      yield* up;
+      const { ask } = yield* bodyOf(c);
+      yield* desk.wakeCoordinator(typeof ask === "string" ? ask : undefined);
+      return { ok: true };
+    });
+    return respond(c, wake, { log });
+  });
+  // Your words to the coordinator, from the desk's own window or your paired phone only: it's woken with them at once.
+  app.post("/api/ask", (c) => {
+    const ask = Effect.gen(function* () {
+      yield* up;
+      if (!fromDesk(c)) return yield* new Forbidden({ message: "ask your agent from the desk's window" });
+      const b = yield* bodyOf(c);
+      if (typeof b.text !== "string") return yield* new BadRequest({ message: "need { text }" });
+      let lines: AskLines | undefined;
+      if (b.lines !== undefined) {
+        const l = isRecord(b.lines) ? b.lines : null;
+        const at = l && inlineAtOf(l);
+        if (!l || !at || typeof l.head !== "string" || (l.note !== undefined && typeof l.note !== "boolean"))
+          return yield* new BadRequest({ message: "need lines: { path, line, side: new|old, start?: { line, side }, head, note? }" });
+        lines = { ...at, head: l.head, ...(l.note === true && { note: true }) };
+      }
+      const asked = yield* desk.ask({
+        text: b.text,
+        item_id: yield* str(b, "item_id"),
+        thread_id: yield* str(b, "thread_id"),
+        thread_url: yield* str(b, "thread_url"),
+        lines,
+      });
+      return { ok: true, ask: asked };
+    });
+    return respond(c, ask, { log });
+  });
+  // An issue's pre-review now; `trust` (skip the screen after a flag) only from the window.
+  app.post("/api/issue/:id/analyze", (c) => {
+    const go = Effect.gen(function* () {
+      yield* up;
+      const b = yield* bodyOf(c);
+      const trust = b.trust === true;
+      if (trust && !fromDesk(c)) return yield* new Forbidden({ message: "analyze a flagged issue anyway from the desk's window" });
+      return yield* desk.analyzeIssue(c.req.param("id"), trust);
+    });
+    return respond(c, go, { log });
+  });
+  // Make PR with fix, and the desk's own blocklist: the window's only.
+  app.post("/api/issue/:id/fix", (c) => {
+    const go = Effect.gen(function* () {
+      yield* up;
+      if (!fromDesk(c)) return yield* new Forbidden({ message: "make a PR with a fix from the desk's window" });
+      return { ok: true, ask: yield* desk.fixIssue(c.req.param("id")) };
+    });
+    return respond(c, go, { log });
+  });
+  for (const [route, on] of [
+    ["block", true],
+    ["unblock", false],
+  ] as const)
+    app.post(`/api/issue/:id/${route}`, (c) => {
+      const go = Effect.gen(function* () {
+        yield* up;
+        if (!fromDesk(c)) return yield* new Forbidden({ message: `${route} an author from the desk's window` });
+        return yield* desk.blockAuthor(c.req.param("id"), on);
+      });
+      return respond(c, go, { log });
+    });
+  app.get("/api/asks", (c) => total(c, () => desk.chat()));
+  // New chat, with your agent or another one: from the desk's own window or your paired phone only, as it changes your agent.
+  app.post("/api/asks/new", (c) => {
+    const fresh = Effect.gen(function* () {
+      if (!fromDesk(c)) return yield* new Forbidden({ message: "start a new chat from the desk's window" });
+      const b = yield* bodyOf(c);
+      return yield* desk.newChat(typeof b.agent === "string" ? b.agent : undefined, `http://localhost:${port}/mcp`);
+    });
+    return respond(c, fresh, { log });
+  });
+  // inbox_ask: local only, so agents may read where an ask is.
+  app.get("/api/asks/:id", (c) =>
+    respond(
+      c,
+      Effect.andThen(up, () => desk.askPlace(c.req.param("id"))),
+      { log, read: true },
+    ),
+  );
+  // inbox_answer: local only, so agents may call it.
+  app.post("/api/asks/:id/answer", (c) => {
+    const answer = Effect.gen(function* () {
+      return { ok: true, ask: yield* desk.answer(c.req.param("id"), yield* field(c, "text")) };
+    });
+    return respond(c, answer, { log });
+  });
+  // Review documents (docs/review-format.md): an agent's, read as the desk reads its own and kept under <home>/docs; a PR's
+  // AI review as one; each as JSON and as its page. Local only, so agents may call them.
+  app.post("/api/docs", (c) =>
+    respond(
+      c,
+      Effect.flatMap(
+        Effect.tryPromise({ try: () => c.req.text(), catch: () => new BadRequest({ message: "couldn't read the body" }) }),
+        (text) => Effect.map(desk.submitDoc(text), (saved) => ({ ok: true, ...saved })),
+      ),
+      { log },
+    ),
+  );
+  app.post("/api/review/:id{.+}/doc", (c) =>
+    respond(
+      c,
+      Effect.andThen(up, () => Effect.map(desk.reviewDoc(c.req.param("id")), (saved) => ({ ok: true, ...saved }))),
+      { log },
+    ),
+  );
+  app.get("/api/docs/:id{[0-9a-f]{16}}", (c) =>
+    respond(
+      c,
+      Effect.map(desk.doc(c.req.param("id"), "json"), (text) => c.body(text, 200, { "content-type": "application/json; charset=utf-8" })),
+      { log, read: true },
+    ),
+  );
+  app.get("/api/docs/:id{[0-9a-f]{16}}/html", (c) =>
+    respond(
+      c,
+      Effect.map(desk.doc(c.req.param("id"), "html"), (text) => c.html(text, 200, { "cache-control": "no-cache" })),
+      { log, read: true },
+    ),
+  );
+  // Notes to yourself: local only, nothing reaches GitHub.
+  const noteBody = (c: Context) =>
+    Effect.map(bodyOf(c), (b) => ({
+      text: typeof b.text === "string" ? b.text : "",
+      remind: typeof b.remind === "string" ? b.remind : "",
+      ...(typeof b.section === "string" && { section: b.section }),
+    }));
+  app.post("/api/notes", (c) =>
+    respond(
+      c,
+      Effect.gen(function* () {
+        yield* up;
+        return { ok: true, note: yield* desk.saveNote(null, yield* noteBody(c)) };
+      }),
+      { log },
+    ),
+  );
+  app.post("/api/notes/:id/done", (c) =>
+    respond(
+      c,
+      Effect.gen(function* () {
+        yield* up;
+        yield* desk.doneNote(c.req.param("id"));
+        return { ok: true };
+      }),
+      { log },
+    ),
+  );
+  app.post("/api/notes/:id", (c) =>
+    respond(
+      c,
+      Effect.gen(function* () {
+        yield* up;
+        return { ok: true, note: yield* desk.saveNote(c.req.param("id"), yield* noteBody(c)) };
+      }),
+      { log },
+    ),
+  );
+  // inbox_inquire and inbox_inquiry: an agent's question for you, and reading your answer. Local only, so agents may call them.
+  app.post("/api/inquiries", (c) => {
+    const inquire = Effect.gen(function* () {
+      yield* up;
+      const b = yield* bodyOf(c);
+      const pairs = (k: string, a: string, z: string): Effect.Effect<(readonly [string, string])[], BadRequest> => {
+        const v = b[k] ?? [];
+        const got: unknown[] = Array.isArray(v) ? v : [];
+        const read = got.flatMap((o) => {
+          const x = stringOf(fieldOf(o, a));
+          const y = stringOf(fieldOf(o, z));
+          return x !== undefined && y !== undefined ? [[x, y] as const] : [];
+        });
+        if (Array.isArray(v) && read.length === got.length) return Effect.succeed(read);
+        return Effect.fail(new BadRequest({ message: `${k} must be a list of { ${a}, ${z} }` }));
+      };
+      const question = yield* str(b, "question");
+      const from = yield* str(b, "from");
+      const context = yield* str(b, "context");
+      if (!question || !from || context === undefined) return yield* new BadRequest({ message: "need { question, from, context }" });
+      const inquiry = yield* desk.inquire({
+        question,
+        from,
+        context,
+        options: (yield* pairs("options", "answer", "next")).map(([answer, next]) => ({ answer, next })),
+        links: (yield* pairs("links", "label", "url")).map(([label, url]) => ({ label, url })),
+        item: yield* str(b, "item"),
+      });
+      return { ok: true, inquiry };
+    });
+    return respond(c, inquire, { log });
+  });
+  app.get("/api/inquiries/unread", (c) => total(c, () => desk.unreadAnswers())); // before :id, which would take it
+  app.get("/api/inquiries/:id", (c) => respond(c, desk.inquiryView(c.req.param("id")), { log, read: true }));
+  // inbox_inquiry gave whoever asked your answer: the desk notes when, so you can see it was picked up.
+  app.post("/api/inquiries/:id/read", (c) =>
+    respond(
+      c,
+      Effect.map(desk.answerRead(c.req.param("id")), (inquiry) => ({ ok: true, inquiry })),
+      { log },
+    ),
+  );
+  // Your answer, from the desk's own window or your paired phone only: an agent can't answer its own question.
+  app.post("/api/inquiries/:id/answer", (c) => {
+    const answer = Effect.gen(function* () {
+      if (!fromDesk(c)) return yield* new Forbidden({ message: "answer it in the desk's window" });
+      const b = yield* bodyOf(c);
+      if (b.dismiss === true) return { ok: true, inquiry: yield* desk.answerInquiry(c.req.param("id"), "", true) };
+      if (typeof b.text !== "string") return yield* new BadRequest({ message: "need { text } or { dismiss: true }" });
+      return { ok: true, inquiry: yield* desk.answerInquiry(c.req.param("id"), b.text) };
+    });
+    return respond(c, answer, { log });
+  });
+  // Sessions that need you (src/connectors/sessions.ts): anyone may read one; only the desk's window or your paired phone starts one, and only a window opens one (its link opens on the desk's computer).
+  app.get("/api/sessions/:id", (c) => respond(c, desk.session(c.req.param("id")), { log, read: true }));
+  app.post("/api/sessions/:id/kick", (c) => {
+    const kick = Effect.gen(function* () {
+      if (!fromDesk(c)) return yield* new Forbidden({ message: "kick a session in the desk's window" });
+      return { ok: true, ...(yield* desk.kickSession(c.req.param("id"))) };
+    });
+    return respond(c, kick, { log });
+  });
+  app.post("/api/sessions/:id/open", (c) => {
+    const open = Effect.gen(function* () {
+      if (!fromDesk(c) || VIA.get(c.req.raw) === "phone") return yield* new Forbidden({ message: "open a session from the desk's window" });
+      return { ok: true, ...(yield* desk.openSession(c.req.param("id"))) };
+    });
+    return respond(c, open, { log });
+  });
+  // Automations (src/automations.ts): any local client may list, write and run them, on as soon as saved; only you delete one. A
+  // plugin's is listed too, and only switched, only from the window.
+  app.get("/api/automations", (c) => total(c, () => desk.automations.view()));
+  app.put("/api/automations/:id", (c) => {
+    const set = Effect.gen(function* () {
+      yield* up;
+      const b = yield* bodyOf(c);
+      const strings = (v: unknown): v is string[] => Array.isArray(v) && v.every((x) => typeof x === "string");
+      if (
+        typeof b.name !== "string" ||
+        (b.prompt !== undefined && typeof b.prompt !== "string") ||
+        (b.decide !== undefined && typeof b.decide !== "string") ||
+        (b.rule !== undefined && (typeof b.rule !== "object" || b.rule === null || Array.isArray(b.rule))) ||
+        (b.schedule !== undefined && typeof b.schedule !== "string") ||
+        (b.events !== undefined && !strings(b.events)) ||
+        (b.when !== undefined && typeof b.when !== "string") ||
+        (b.can !== undefined && !strings(b.can)) ||
+        (b.on !== undefined && typeof b.on !== "boolean")
+      )
+        return yield* new BadRequest({ message: "need { name, prompt, schedule or events, when?, decide?, rule?, can?, on? }" });
+      const { name, schedule, events, prompt, when, decide, rule, can, on } = b;
+      const a = yield* desk.automations.set(
+        c.req.param("id"),
+        { name, schedule, events, prompt, when, decide, rule, can, on },
+        fromDesk(c),
+      );
+      return { ok: true, automation: a };
+    });
+    return respond(c, set, { log });
+  });
+  // What a plugin comes with: only the owner switches it, in the window, and nothing else of it changes.
+  app.put("/api/automations/:id/on", (c) => {
+    const turn = Effect.gen(function* () {
+      yield* up;
+      if (!fromDesk(c)) return yield* new Forbidden({ message: "only the owner switches it, in the desk's window: Settings" });
+      const { on } = yield* bodyOf(c);
+      if (typeof on !== "boolean") return yield* new BadRequest({ message: "need { on: true or false }" });
+      return { ok: true, automation: yield* desk.automations.switch(c.req.param("id"), on) };
+    });
+    return respond(c, turn, { log });
+  });
+  app.delete("/api/automations/:id", (c) => {
+    const remove = Effect.gen(function* () {
+      if (!fromDesk(c)) return yield* new Forbidden({ message: "delete it in the desk's window: Settings → Automations" });
+      yield* desk.automations.remove(c.req.param("id"));
+      return { ok: true };
+    });
+    return respond(c, remove, { log });
+  });
+  app.post("/api/automations/:id/run", (c) => {
+    const run = Effect.gen(function* () {
+      yield* up;
+      const a = yield* desk.automations.get(c.req.param("id"));
+      if (!a.on && !fromDesk(c))
+        return yield* new Conflict({
+          message: `"${a.name}" is off: the owner turns it on in Settings → ${a.plugin ? (desk.connectors.find((x) => x.id === a.plugin)?.name ?? a.plugin) : "Automations"}`,
+        });
+      desk.automations.run(a, "now");
+      return { ok: true, running: a.id };
+    });
+    return respond(c, run, { log });
+  });
+  // Criteria (src/urgency.ts): they only order the Inbox and never act on an item, so any local client may list, save or delete
+  // one, and an agent's is on as it's saved; switching one, a plugin's included, is the owner's, in the window.
+  app.get("/api/criteria", (c) => total(c, () => desk.urgency.view()));
+  app.put("/api/criteria/:id", (c) => {
+    const set = Effect.gen(function* () {
+      yield* up;
+      const b = yield* bodyOf(c);
+      if (
+        typeof b.name !== "string" ||
+        (b.when !== undefined && typeof b.when !== "string") ||
+        (b.ask !== undefined && typeof b.ask !== "string") ||
+        (b.urgent !== undefined && typeof b.urgent !== "boolean") ||
+        (b.on !== undefined && typeof b.on !== "boolean")
+      )
+        return yield* new BadRequest({ message: "need { name, when?, ask?, urgent?, on? }" });
+      const { name, when, ask, urgent, on } = b;
+      const criterion = yield* desk.urgency.set(
+        c.req.param("id"),
+        { name, when, ask, urgent, on: fromDesk(c) ? on : undefined },
+        fromDesk(c),
+      );
+      return { ok: true, criterion };
+    });
+    return respond(c, set, { log });
+  });
+  app.put("/api/criteria/:id/on", (c) => {
+    const turn = Effect.gen(function* () {
+      yield* up;
+      if (!fromDesk(c))
+        return yield* new Forbidden({ message: "only the owner switches it, in the desk's window: Settings → Automations → Urgency" });
+      const { on } = yield* bodyOf(c);
+      if (typeof on !== "boolean") return yield* new BadRequest({ message: "need { on: true or false }" });
+      return { ok: true, criterion: yield* desk.urgency.switch(c.req.param("id"), on) };
+    });
+    return respond(c, turn, { log });
+  });
+  app.delete("/api/criteria/:id", (c) => respond(c, Effect.as(desk.urgency.remove(c.req.param("id")), { ok: true }), { log }));
+  app.post("/api/undo", (c) => {
+    const undo = Effect.gen(function* () {
+      yield* up;
+      const { seq } = (yield* bodyOf(c)) as { seq?: number };
+      const { id, action } = yield* desk.undo(seq, fromDesk(c) ? undefined : "agent");
+      return { ok: true, id, action };
+    });
+    return respond(c, undo, { log });
+  });
+  // The pass runs on through the runner, which logs and reports what fails it; the answer doesn't wait for it.
+  app.post("/api/sync", (c) =>
+    total(c, () => {
+      desk.runner.fork("sync", desk.sync());
+      return { ok: true };
+    }),
+  );
+  app.get("/api/config", (c) =>
+    respond(
+      c,
+      Effect.map(up, () => desk.getConfig()),
+      { log, read: true },
+    ),
+  );
+  app.post("/api/config/preview", (c) => {
+    const preview = Effect.gen(function* () {
+      yield* up;
+      const { text } = (yield* json(c)) as { text?: string };
+      return desk.preview(text ?? "");
+    });
+    return respond(c, preview, { log });
+  });
+  app.put("/api/config", (c) => {
+    const put = Effect.gen(function* () {
+      yield* up;
+      const { text, base } = (yield* json(c)) as { text?: string; base?: string };
+      return yield* desk.putConfig(text ?? "", base);
+    });
+    return respond(c, put, { log });
+  });
+  app.put("/api/config/builtin", (c) => {
+    const put = Effect.gen(function* () {
+      yield* up;
+      const { board, rule, on, base } = yield* json(c);
+      if (typeof board !== "string" || typeof rule !== "string" || typeof on !== "boolean")
+        return yield* new BadRequest({ message: "need { board, rule, on }" });
+      if (base !== undefined && typeof base !== "string")
+        return yield* new BadRequest({ message: "base must be the hash from GET /api/config" });
+      return yield* desk.switchRule(board, rule, on, base);
+    });
+    return respond(c, put, { log });
+  });
+  app.get("/api/fields", (c) => total(c, () => FIELDS));
+  app.get("/api/settings", (c) => total(c, () => desk.getSettings()));
+  app.put("/api/settings", (c) => {
+    const put = Effect.gen(function* () {
+      const b = (yield* json(c)) as { set?: Record<string, unknown>; reset?: string[] };
+      // A key (a secret setting) is set or cleared in the desk's window only, as approve is: no agent, CLI or curl reaches it.
+      const keys = [...(b.set && typeof b.set === "object" ? Object.keys(b.set) : []), ...(Array.isArray(b.reset) ? b.reset : [])];
+      if (keys.some((k) => typeof k === "string" && isSecret(k)) && !fromDesk(c))
+        return yield* new Forbidden({ message: "set or clear a key in the desk's window: Settings → Agent" });
+      return yield* desk.putSettings({ set: b.set, reset: b.reset });
+    });
+    return respond(c, put, { log });
+  });
+  const mcpUrl = `http://localhost:${port}/mcp`;
+  app.get("/api/agents", (c) => respond(c, desk.agentStatus(mcpUrl), { log, read: true }));
+  app.post("/api/agents/connect", (c) => respond(c, desk.connectAgent(mcpUrl), { log }));
+  app.get("/api/setup", (c) => respond(c, desk.setupView(), { log, read: true }));
+  app.post("/api/setup/check", (c) => respond(c, desk.checkSetup(), { log }));
+  app.post("/api/setup", (c) =>
+    respond(
+      c,
+      Effect.flatMap(json(c), (b) => desk.chooseAgent(typeof b.agent === "string" ? b.agent : "", mcpUrl)),
+      { log },
+    ),
+  );
+  app.post("/api/update", (c) => respond(c, desk.update(), { log }));
+  app.get("/api/status", (c) =>
+    respond(
+      c,
+      Effect.andThen(up, () => desk.status()),
+      { log, read: true },
+    ),
+  );
+  // The event log. A long-poll: with ?wait= it answers as soon as there's an event after ?after=, or the client goes away.
+  app.get("/api/activity", (c) => {
+    const int = (key: string): Effect.Effect<number | undefined, BadRequest> => {
+      const v = c.req.query(key);
+      const n = Number(v);
+      if (v && (!Number.isInteger(n) || n < 0)) return Effect.fail(new BadRequest({ message: `${key} must be a whole number` }));
+      return Effect.succeed(v ? n : undefined);
+    };
+    const activity = Effect.gen(function* () {
+      const q = { after: yield* int("after"), limit: yield* int("limit"), wait: yield* int("wait"), item: c.req.query("item") };
+      return yield* desk.activity(q);
+    });
+    return respond(c, activity, { log, read: true });
+  });
+
+  // The theme Omarchy has on, here; null off Omarchy.
+  app.get("/api/omarchy", (c) => respond(c, readOmarchy(), { log, read: true }));
+
+  app.get("/api/events", (c) =>
+    total(c, () =>
+      streamSSE(c, async (stream) => {
+        // Hono's stream swallows a write to a closed client, so dropping the promise is right.
+        const off = desk.onChange((rev) => void stream.writeSSE({ event: "update", data: JSON.stringify({ rev }) }));
+        const offNotify =
+          c.req.query("notify") === "1"
+            ? desk.onNotify((title, body) => void stream.writeSSE({ event: "notify", data: JSON.stringify({ title, body }) }))
+            : () => {};
+        // Omarchy switching theme, read again: a window with Omarchy as its theme follows it.
+        const offOmarchy = watchOmarchy(() => {
+          desk.runner.fork(
+            "omarchy",
+            Effect.map(readOmarchy(), (t) => void stream.writeSSE({ event: "omarchy", data: JSON.stringify(t) })),
+          );
+        });
+        stream.onAbort(() => {
+          off();
+          offNotify();
+          offOmarchy();
+        });
+        await stream.writeSSE({ event: "update", data: JSON.stringify({ rev: desk.rev }) });
+        while (!stream.aborted) {
+          await stream.sleep(25_000);
+          if (!stream.aborted) await stream.write(": ping\n\n");
+        }
+      }),
+    ),
+  );
+
+  // Your other devices (src/remote.ts). Only this machine mints a code or a token; the code's trade is the other device's.
+  const here = (c: Context, what: string) =>
+    Effect.suspend(() => (REMOTE.has(c.req.raw) ? Effect.fail(new Forbidden({ message: `${what} on the desk's machine` })) : Effect.void));
+  const served = Effect.suspend(() =>
+    remote.url
+      ? Effect.succeed(remote.url)
+      : Effect.fail(new Conflict({ message: "turn on Settings → Network → Tailscale → Use it from your other devices first" })),
+  );
+  app.get("/api/remote", (c) =>
+    total(
+      c,
+      () =>
+        ({
+          on: remote.wanted,
+          text: remote.text,
+          url: remote.url,
+          login: remote.tailnet?.login ?? null,
+          devices: remote.devices(),
+        }) satisfies RemoteView,
+    ),
+  );
+  app.post("/api/pair/code", (c) =>
+    respond(
+      c,
+      Effect.gen(function* () {
+        yield* here(c, "pair a device");
+        const url = yield* served;
+        const { code, expires_at } = remote.mint();
+        return { code, expires_at, url, pair_url: `${url}/pair#${code}` };
+      }),
+      { log },
+    ),
+  );
+  app.post("/api/pair/token", (c) =>
+    respond(
+      c,
+      Effect.gen(function* () {
+        yield* here(c, "mint a token");
+        const url = yield* served;
+        const { name } = yield* bodyOf(c);
+        return { url, ...remote.issue(name, "device") };
+      }),
+      { log },
+    ),
+  );
+  app.post("/api/pair", (c) =>
+    respond(
+      c,
+      Effect.gen(function* () {
+        if (!REMOTE.has(c.req.raw)) return yield* new Forbidden({ message: "pair from the other device, at the desk's tailnet address" });
+        const { code, name, kind } = yield* bodyOf(c);
+        const paired = yield* remote.trade(code, name, kind === "browser" || kind === "phone" ? kind : "device");
+        log(`paired ${paired.device.kind} "${paired.device.name}" (${paired.device.id})`);
+        if (kind !== "browser") return { ok: true, token: paired.token, device: paired.device };
+        setCookie(c, SESSION, paired.token, { path: "/", httpOnly: true, secure: true, sameSite: "Strict", maxAge: 400 * 86_400 });
+        return { ok: true, device: paired.device };
+      }),
+      { log },
+    ),
+  );
+  app.get("/pair", (c) => total(c, () => c.html(PAIR_PAGE, 200, { "cache-control": "no-store" })));
+  app.delete("/api/devices/:id", (c) =>
+    respond(
+      c,
+      Effect.gen(function* () {
+        if (!fromDesk(c)) return yield* new Forbidden({ message: "revoke it in the desk's window: Settings → Network → Tailscale" });
+        yield* remote.revoke(c.req.param("id"));
+        log(`revoked paired device ${c.req.param("id")}`);
+        return { ok: true };
+      }),
+      { log },
+    ),
+  );
+  // The skill for a paired machine's agents, its addresses this desk's as that machine reaches it.
+  app.get("/skill", (c) =>
+    respond(
+      c,
+      Effect.map(Effect.try({ try: () => fs.readFileSync(SKILL_MD, "utf8"), catch: fsError("read", SKILL_MD) }), (text) => {
+        const at = REMOTE.has(c.req.raw) ? remote.url : null;
+        const body = at ? text.replaceAll("http://localhost:47823", at).replaceAll("localhost:47823", at) : text;
+        return c.body(body, 200, { "content-type": "text/markdown; charset=utf-8" });
+      }),
+      { log, read: true },
+    ),
+  );
+
+  // MCP over Streamable HTTP, stateless: a fresh server per request whose tools call the routes in-process and answer for their failures.
+  app.post("/mcp", (c) => {
+    const api = createClient((p, init) => app.request(p, init));
+    const transport = new WebStandardStreamableHTTPServerTransport();
+    const handled = Effect.promise(async () => {
+      await createMcpServer(api, log).connect(transport);
+      return transport.handleRequest(c.req.raw);
+    });
+    return respond(c, handled, { log });
+  });
+  // Stateless: no server-initiated stream and no session to end, which the spec answers with 405.
+  app.on(["GET", "DELETE"], "/mcp", (c) =>
+    total(c, () => c.json({ jsonrpc: "2.0", error: { code: -32000, message: "Method not allowed." }, id: null }, 405, { allow: "POST" })),
+  );
+
+  app.all("/api/*", (c) => respond(c, Effect.fail(new NotFound({ message: "not found" })), { log }));
+
+  if (ui) app.get("*", (c) => respond(c, fromUi(c.req.raw, ui), { log, read: true }));
+  app.get("*", (c) => {
+    const page = Effect.gen(function* () {
+      const rel = decodeURIComponent(c.req.path).replace(/^\/+/, "") || "index.html";
+      let file = path.resolve(DIST, rel);
+      if (!file.startsWith(DIST) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) file = path.join(DIST, "index.html");
+      if (!fs.existsSync(file)) return c.text("UI not built. Run: npm run build", 503);
+      const type = TYPES[path.extname(file)] ?? "application/octet-stream";
+      const cache = file.includes(`${path.sep}assets${path.sep}`) ? "public, max-age=31536000, immutable" : "no-cache";
+      const body = yield* Effect.try({ try: () => fs.readFileSync(file), catch: fsError("read", file) });
+      return c.body(body, 200, { "content-type": type, "cache-control": cache });
+    });
+    return respond(c, page, { log, read: true });
+  });
+
+  return app;
+}
+
+type ServeOptions = {
+  port?: number;
+  open?: boolean;
+  home?: string;
+  notify?: (title: string, body: string) => void; // the desktop app shows its own notifications
+  log?: (msg: string) => void;
+  writer?: GitHubWriter; // a stand-in for live checks that must not write to GitHub
+  tailscale?: boolean; // inbox serve --tailscale: serve over Tailscale whatever the setting says
+  app?: AppUpdater; // the packaged app runs this desk: it checks for a newer Inbox
+};
+type Served = { url: string; desk: Desk; close(): Promise<void> };
+
+// Listening on 127.0.0.1 (or `hostname`), or why it can't: the port in use, or Node's error.
+const listen = (fetch: (req: Request, env?: unknown) => Response | Promise<Response>, port: number, url: string, hostname = "127.0.0.1") =>
+  Effect.callback<ServerType, ListenFailed>((resume) => {
+    const s = serve({ fetch, port, hostname }, () => {
+      resume(Effect.succeed(s));
+    });
+    s.once("error", (cause: Error) => {
+      resume(Effect.fail(new ListenFailed({ port, url, cause })));
+    });
+    return Effect.sync(() => {
+      s.close();
+    });
+  });
+
+const shut = (s: ServerType) =>
+  Effect.callback<void>((resume) => {
+    s.close(() => {
+      resume(Effect.void);
+    });
+    if (s instanceof Server) s.closeAllConnections();
+  });
+
+// Served over Tailscale while `wanted()`: `tailscale serve` on https://<tailnet name>/ to a listener on a free loopback
+// port of its own, so what arrives there is remote. One change at a time; a failed start waits for the setting to change.
+function overTailnet(app: Hono, remote: Remote, desk: Desk, wanted: () => boolean) {
+  const lock = Semaphore.makeUnsafe(1);
+  let server: ServerType | null = null;
+  let failed = false;
+  let closed = false;
+  const on = Effect.gen(function* () {
+    const tn = yield* readTailnet(desk.settings["app.tailscale_login"]);
+    const s = yield* listen(remoteFetch(app), 0, "a free loopback port");
+    const at = s.address();
+    const listening = at !== null && typeof at === "object" ? at.port : yield* Effect.die(new Error("the tailnet's listener has no port"));
+    const target = `http://127.0.0.1:${listening}`;
+    const mine = desk.store.get("tailscale_serve");
+    // Ready before serve points at it, so the first request through isn't refused.
+    remote.tailnet = tn;
+    yield* serveOn(tn.name, target, typeof mine === "string" ? mine : null).pipe(
+      Effect.onError(() =>
+        Effect.andThen(
+          Effect.sync(() => {
+            remote.tailnet = null;
+          }),
+          shut(s),
+        ),
+      ),
+    );
+    desk.store.set("tailscale_serve", target);
+    server = s;
+    remote.text = `On at https://${tn.name}/, for ${tn.login}'s paired devices.`;
+    desk.log(`serving over Tailscale at https://${tn.name}/ for ${tn.login}`);
+  });
+  const off = Effect.gen(function* () {
+    remote.tailnet = null;
+    const s = server;
+    server = null;
+    if (s) yield* shut(s);
+    const done = yield* Effect.exit(serveOff);
+    if (Exit.isFailure(done)) desk.log(`tailscale serve didn't turn off: ${Cause.pretty(done.cause)}`);
+    remote.text = "Off.";
+    desk.log("stopped serving over Tailscale");
+  });
+  const settle: Effect.Effect<void> = Effect.suspend(() => {
+    const want = !closed && wanted();
+    remote.wanted = want;
+    if (!want) failed = false;
+    if (want === !!server || (want && failed)) return Effect.void;
+    const step = want
+      ? on.pipe(
+          Effect.catch((e) =>
+            Effect.sync(() => {
+              failed = true;
+              remote.text = e.message;
+              desk.log(`can't serve over Tailscale: ${e.message}`);
+            }),
+          ),
+        )
+      : off;
+    return Effect.andThen(step, settle);
+  });
+  const settled = lock.withPermits(1)(settle);
+  return {
+    check: () => {
+      if (!closed && (!!server !== wanted() || remote.wanted !== wanted())) desk.runner.fork("tailscale serve", settled);
+    },
+    stop: Effect.suspend(() => {
+      closed = true;
+      return settled;
+    }),
+  };
+}
+
+// Served on every interface at `port` while Settings → Network → Local network is on with a token; a failed start waits for a change.
+function onLan(app: Hono, desk: Desk, port: number) {
+  const lock = Semaphore.makeUnsafe(1);
+  let server: ServerType | null = null;
+  let failed = false;
+  let closed = false;
+  const wanted = () => !closed && desk.settings["lan.on"] && !!desk.settings["lan.token"];
+  const settle: Effect.Effect<void> = Effect.suspend(() => {
+    const want = wanted();
+    if (!want) failed = false;
+    if (want === !!server || (want && failed)) return Effect.void;
+    if (!want) {
+      const s = server;
+      server = null;
+      desk.log("stopped serving on the local network");
+      return s ? shut(s) : Effect.void;
+    }
+    return listen(lanFetch(app), port, `port ${port} on every interface`, "0.0.0.0").pipe(
+      Effect.match({
+        onFailure: (e) => {
+          failed = true;
+          desk.log(`can't serve on the local network: ${e.message}`);
+        },
+        onSuccess: (s) => {
+          server = s;
+          const at = Object.values(os.networkInterfaces())
+            .flatMap((l) => l ?? [])
+            .filter((a) => a.family === "IPv4" && !a.internal)
+            .map((a) => `http://${a.address}:${port}`);
+          desk.log(`serving read only on the local network at ${at.join(", ") || `port ${port}`}`);
+        },
+      }),
+      Effect.andThen(() => settle),
+    );
+  });
+  const settled = lock.withPermits(1)(settle);
+  return {
+    check: () => {
+      if (!closed && !!server !== wanted()) desk.runner.fork("local network", settled);
+    },
+    stop: Effect.suspend(() => {
+      closed = true;
+      return settled;
+    }),
+  };
+}
+
+// What the desk installed in your agents, kept current and renamed from before Inbox, on every start of the owner's desk
+// (inbox serve, the app's own): what it did, in the log.
+export const refreshAgents = (desk: Desk, url: string): Effect.Effect<void> =>
+  Effect.flatMap(refreshSkills(desk.home, `${url}/mcp`), (done) =>
+    Effect.sync(() => {
+      for (const line of done) desk.log(line);
+    }),
+  );
+
+// The desk on its port, its first config read and its loops started. Its port, GitHub's viewer or a file it can't read
+// or write fails it, and then it leaves nothing open: the desktop app retries.
+export const startDesk = Effect.fnUntraced(function* (
+  opts: ServeOptions = {},
+): Effect.fn.Return<Served, ListenFailed | GitHubReadError | Upstream | FsError> {
+  const port = opts.port ?? Number((process.env.DESK_PORT ?? "") || DEFAULT_PORT);
+  const log =
+    opts.log ??
+    ((m: string) => {
+      console.error(`${new Date().toISOString()} ${m}`);
+      logLine(m);
+    });
+  const dropped = dropHostSession(process.env);
+  if (dropped.length)
+    log(`started inside a Claude Code session: dropped its ${dropped.length} variables so your agent uses your own login`);
+  const home = opts.home ?? (yield* settleHome(port, log));
+  const desk = new Desk({
+    home,
+    github: createGitHub({ log }),
+    log,
+    ...(opts.notify && { notify: opts.notify }),
+    review: { fetchPr, generate: generateReview, checkout: (item) => checkoutFor(home, item), loggedIn, installed },
+    issues: { fetch: fetchIssue, generate: generateIssueReview, clone: (repo) => findClone(repo) },
+    writer: opts.writer ?? createWriter({ log }),
+    mcpUrl: `http://localhost:${port}/mcp`,
+    ...(opts.app && { app: opts.app }),
+  });
+  const remote = new Remote(desk.store);
+  const app = createApp(desk, port, remote);
+  const url = `http://localhost:${port}`;
+
+  // The desktop app retries: don't leak the SQLite handle each time.
+  const server = yield* listen(app.fetch, port, url).pipe(
+    Effect.onError(() =>
+      Effect.sync(() => {
+        desk.stop();
+      }),
+    ),
+  );
+  const ui = process.env.DESK_UI_ORIGIN;
+  const dropUpgrades = ui && server instanceof Server ? proxyUpgrades(server, port, ui) : () => {};
+  log(`Inbox on ${url} (home ${home})${ui ? `, its UI from ${ui}` : ""}`);
+
+  yield* desk.init().pipe(
+    Effect.onError(() =>
+      Effect.sync(() => {
+        desk.stop();
+        server.close();
+      }),
+    ),
+  );
+  desk.start();
+  desk.runner.fork("skill refresh", refreshAgents(desk, url));
+  const tailscale = overTailnet(app, remote, desk, () => !!opts.tailscale || desk.settings["app.tailscale"]);
+  desk.onChange(tailscale.check);
+  tailscale.check();
+  const lanServer = onLan(app, desk, port + 1);
+  desk.onChange(lanServer.check);
+  lanServer.check();
+  if (opts.open) openUrl(url);
+
+  // The desk stops at once; its agents may take a moment.
+  const stopListening = Effect.callback<void>((resume) => {
+    server.close(() => {
+      resume(Effect.void);
+    });
+    if (server instanceof Server) server.closeAllConnections();
+    dropUpgrades();
+  });
+  // The port is let go even when closing the desk dies.
+  const closing = Effect.andThen(
+    Effect.andThen(tailscale.stop, lanServer.stop),
+    Effect.all([Effect.exit(desk.close()), stopListening], { concurrency: 2 }).pipe(Effect.flatMap(([closed]) => closed)),
+  );
+  return { url, desk, close: () => Effect.runPromise(closing) };
+});
+
+// startDesk for a caller that awaits it (the desktop app): it rejects with what stopped the desk, whose words it shows.
+export function startServer(opts: ServeOptions = {}): Promise<Served> {
+  return Effect.runPromise(startDesk(opts));
+}

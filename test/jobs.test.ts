@@ -1,0 +1,292 @@
+// The ledger of work Claude owes the owner (src/jobs.ts) and its loop: an AI review survives a desk restart, a run past its
+// time is retried with backoff and then failed with its reason, and the review page says what the ledger says; an answer
+// nobody picked up is said so once.
+import { test, type TestContext } from "node:test";
+import assert from "node:assert/strict";
+import { Effect } from "effect";
+import { Desk, type ReviewDeps } from "../src/desk.ts";
+import { ClaudeApiError } from "../src/errors.ts";
+import type { PrText } from "../src/review.ts";
+import type { AiReview, Job } from "../src/types.ts";
+import { reviewAsk, setup } from "./helpers/desk.ts";
+import { NOW } from "./helpers/items.ts";
+import { run, runSync } from "./helpers/run.ts";
+
+const ID = "acme/api#1";
+const FILE = { path: "a.ts", previous_path: null, status: "modified", additions: 1, deletions: 0, patch: "@@ -1 +1 @@\n-a\n+b" } as const;
+const SETTINGS = { "policy.judge": false };
+
+const flush = () =>
+  new Promise((r) => {
+    setImmediate(r);
+  });
+
+// A fake agent that holds each review until the test lets it go, then answers, or fails with `fail`'s words.
+function fakeReview() {
+  const started: string[] = [];
+  const gates = new Map<string, () => void>();
+  let fail: string | null = null;
+  const deps: ReviewDeps = {
+    fetchPr: () => Effect.succeed({ body: "why", files: [{ ...FILE }] } satisfies PrText),
+    generate: (item) =>
+      Effect.gen(function* () {
+        started.push(item.id);
+        yield* Effect.promise(
+          () =>
+            new Promise<void>((r) => {
+              gates.set(item.id, r);
+            }),
+        );
+        if (fail) return yield* Effect.fail(new ClaudeApiError({ message: fail }));
+        return {
+          verdict: "skim",
+          risk: "low",
+          summary: `Review of ${item.id}`,
+          concerns: [],
+          notes: [],
+          head_oid: item.head_oid,
+          model: "claude-opus-5",
+          at: NOW.toISOString(),
+        } satisfies AiReview;
+      }),
+  };
+  return {
+    deps,
+    started,
+    release: async (id: string) => {
+      gates.get(id)!();
+      await flush();
+    },
+    fail: (words: string | null) => {
+      fail = words;
+    },
+  };
+}
+
+async function reviewing(c: TestContext) {
+  const f = fakeReview();
+  const t = await setup([reviewAsk(1)], { settings: SETTINGS, desk: { review: f.deps } });
+  const desks = [t.desk];
+  c.after(async () => {
+    for (const d of desks) d.stop();
+    await t.cleanup();
+  });
+  // The next desk on the same home, as after a restart.
+  const restart = async () => {
+    t.desk.stop();
+    const desk = new Desk({ home: t.home, github: t.gh, now: () => NOW, review: f.deps, notify: () => {}, log: () => {} });
+    desks.push(desk);
+    await run(desk.init());
+    return desk;
+  };
+  await run(t.desk.sync());
+  await flush();
+  return { ...t, f, restart };
+}
+
+const pick = (j: Job | null, keys: (keyof Job)[] = ["state", "attempts"]) => j && Object.fromEntries(keys.map((k) => [k, j[k]]));
+
+// The review page's AI section reads the ledger: a spinner exactly while its job runs, else its last try's words.
+async function same(desk: Desk) {
+  const v = await run(desk.reviewView(ID));
+  const j = desk.jobs.get("ai_review", ID)!;
+  assert.deepEqual(
+    { generating: v.generating, ai_error: v.ai_error, ai_job: v.ai_job },
+    { generating: j.state === "running", ai_error: j.state === "running" ? null : j.error, ai_job: j },
+    "the review page says what the ledger says",
+  );
+}
+
+test("a review that failed stays failed across a desk restart: opening it says why, with Try again, and starts nothing", async (c) => {
+  const t = await reviewing(c);
+  t.f.fail("claude exited with 1");
+  await t.f.release(ID);
+  const before = await run(t.desk.reviewView(ID));
+  assert.deepEqual([before.generating, before.ai_error], [false, "claude exited with 1"]);
+  const desk = await t.restart();
+  const after = await run(desk.reviewView(ID));
+  assert.deepEqual([after.generating, after.ai_error], [false, "claude exited with 1"], "no spinner for a review nobody runs");
+  assert.deepEqual(t.f.started, [ID], "opening it doesn't start it again: the loop retries it after its backoff");
+});
+
+test("a desk restart queues again the review it was in, that try not counted, and the loop starts it", async (c) => {
+  const t = await reviewing(c);
+  assert.deepEqual(t.f.started, [ID]);
+  assert.deepEqual(pick(t.desk.jobs.get("ai_review", ID)), { state: "running", attempts: 1 });
+  await same(t.desk);
+  const desk = await t.restart(); // its run is cut, and records nothing
+  assert.deepEqual(pick(desk.jobs.get("ai_review", ID)), { state: "queued", attempts: 0 }, "the cut try doesn't count");
+  await same(desk);
+  assert.deepEqual(
+    runSync(desk.inflight()).work.map((w) => [w.title, w.state]),
+    [["Change 1", "queued"]],
+    "Claude's work lists it",
+  );
+  desk.jobs.tick();
+  await flush();
+  assert.deepEqual(t.f.started, [ID, ID], "the loop starts it again");
+  assert.deepEqual(pick(desk.jobs.get("ai_review", ID)), { state: "running", attempts: 1 });
+  await same(desk);
+  await t.f.release(ID);
+  assert.deepEqual(pick(desk.jobs.get("ai_review", ID)), { state: "done", attempts: 1 });
+  await same(desk);
+  assert.deepEqual(runSync(desk.inflight()).work, [], "done isn't listed");
+});
+
+test("a review past its time is stopped and tried again after its backoff; after three tries it's failed with its reason, until you try again", async (c) => {
+  const t = await reviewing(c);
+  let at = NOW.getTime();
+  const later = async (minutes: number) => {
+    at += minutes * 60_000;
+    t.setNow(new Date(at));
+    t.desk.jobs.tick();
+    await flush();
+  };
+  const job = () => pick(t.desk.jobs.get("ai_review", ID), ["state", "attempts", "error"]);
+  const late = "no answer in 65 minutes, so it was stopped";
+
+  await later(64);
+  assert.deepEqual(job(), { state: "running", attempts: 1, error: null }, "within its time");
+  await later(1);
+  assert.deepEqual(job(), { state: "queued", attempts: 1, error: late });
+  assert.equal(t.desk.generating.size, 0, "its run is stopped");
+  await same(t.desk);
+  await later(1);
+  assert.equal(t.f.started.length, 1, "it waits out its backoff");
+  await later(1);
+  assert.equal(t.f.started.length, 2, "then tries again");
+  assert.deepEqual(job(), { state: "running", attempts: 2, error: late });
+  await same(t.desk);
+  await later(65);
+  assert.deepEqual(job(), { state: "queued", attempts: 2, error: late });
+  assert.equal(t.desk.aiPausedNow(), false, "one PR timing out again doesn't pause the others");
+  await later(10);
+  assert.deepEqual(job(), { state: "running", attempts: 3, error: late });
+  await later(65);
+  assert.deepEqual(job(), { state: "failed", attempts: 3, error: late });
+  await same(t.desk);
+  await later(60);
+  assert.equal(t.f.started.length, 3, "failed: it waits for you");
+  assert.deepEqual(
+    runSync(t.desk.inflight()).work.map((w) => pick(w, ["kind", "key", "state", "error"])),
+    [{ kind: "ai_review", key: ID, state: "failed", error: late }],
+    "Claude's work lists it, with its reason",
+  );
+
+  const again = run(t.desk.aiReview(ID)); // Try again
+  await flush();
+  assert.deepEqual(job(), { state: "running", attempts: 1, error: late }, "Try again starts its tries over");
+  await t.f.release(ID);
+  assert.equal((await again).summary, `Review of ${ID}`);
+  assert.deepEqual(job(), { state: "done", attempts: 1, error: null });
+  await same(t.desk);
+});
+
+test("the agent at its usage limit: a review's tries aren't spent on it; it waits out each pause, however many, and runs once the agent works again", async (c) => {
+  const t = await reviewing(c);
+  const limit = "You've hit your weekly limit \u00b7 resets 7am (America/Los_Angeles)";
+  let at = NOW.getTime();
+  const later = async (minutes: number) => {
+    at += minutes * 60_000;
+    t.setNow(new Date(at));
+    t.desk.aiPaused = null; // the pause, on the wall clock, ran out
+    t.desk.jobs.tick();
+    await flush();
+  };
+  const job = () => pick(t.desk.jobs.get("ai_review", ID), ["state", "attempts", "error"]);
+  t.f.fail(limit);
+  for (let n = 1; n <= 4; n++) {
+    await t.f.release(ID);
+    assert.deepEqual(job(), { state: "queued", attempts: 0, error: limit }, `try ${n} was the agent's failure, not the PR's`);
+    assert.equal(t.desk.aiPausedNow(), true, "one such failure pauses the rest: no other PR would fare better");
+    await later(29);
+    assert.equal(t.f.started.length, n, "it waits out the pause");
+    await later(1);
+    assert.equal(t.f.started.length, n + 1, "then tries again");
+  }
+  assert.deepEqual(
+    runSync(t.desk.inflight()).work.map((w) => pick(w, ["kind", "key", "state"])),
+    [{ kind: "ai_review", key: ID, state: "running" }],
+    "four failures on, Claude's work still has it, not failed",
+  );
+  t.f.fail(null);
+  await t.f.release(ID);
+  assert.deepEqual(job(), { state: "done", attempts: 1, error: null }, "the limit lifted: reviewed, with nobody's Try again");
+});
+
+const CONTEXT = "The guide says deletes are kept forever, and #12 changes that. ".repeat(4);
+// The owner's answer to an agent's question, on a desk whose clock the test moves a minute's pass at a time.
+async function answered(c: TestContext, settings: Record<string, unknown>, from = "docs research") {
+  const t = await setup([], { settings: { ...SETTINGS, ...settings } });
+  c.after(t.cleanup);
+  await run(t.desk.sync());
+  const q = runSync(t.desk.inquire({ question: "Document it now?", from, context: CONTEXT, item: "acme/elsewhere#9" }));
+  t.notes.length = 0; // the question's own notification
+  runSync(t.desk.answerInquiry(q.id, "Now"));
+  let at = NOW.getTime();
+  const later = (minutes: number) => {
+    at += minutes * 60_000;
+    t.setNow(new Date(at));
+    t.desk.jobs.tick();
+  };
+  const job = () => pick(t.desk.jobs.get("answer", q.id), ["state", "error"]);
+  return { ...t, q, later, job };
+}
+
+test("an answer nobody picked up in 30 minutes: the owner is told once, Merging says so for a day, and a late read still ends it", async (c) => {
+  const t = await answered(c, { "notify.quiet": "" });
+  const gone = "that session has probably ended";
+  t.later(29);
+  assert.deepEqual([t.job(), t.notes], [{ state: "queued", error: null }, []], "within its wait");
+  const rev = t.desk.rev;
+  t.later(1);
+  assert.deepEqual(t.job(), { state: "failed", error: gone });
+  assert.deepEqual(t.notes, ["Your answer to docs research hasn't been picked up, so that session has probably ended."]);
+  assert.ok(t.desk.rev > rev, "the window hears of it");
+  assert.deepEqual(
+    runSync(t.desk.inflight()).work.map((w) => [w.kind, w.state, w.title, w.from, w.error]),
+    [["answer", "failed", "Document it now?", "docs research", gone]],
+    "Claude's work says whose answer, and why",
+  );
+  t.later(600);
+  assert.equal(t.notes.length, 1, "it doesn't nag");
+  assert.deepEqual(
+    t.desk.unreadAnswers().map((x) => x.id),
+    [t.q.id],
+    "still there for the session that asked",
+  );
+  runSync(t.desk.answerRead(t.q.id));
+  assert.deepEqual([t.job(), runSync(t.desk.inflight()).work], [{ state: "done", error: null }, []], "read late: done");
+  t.later(25 * 60);
+  assert.equal(t.desk.jobs.get("answer", t.q.id), null, "a done job goes after a day");
+});
+
+test("an answer read within its wait is done, and nobody is told; unread, it goes from Merging a day after you were told", async (c) => {
+  const t = await answered(c, { "notify.quiet": "" });
+  t.later(5);
+  runSync(t.desk.answerRead(t.q.id));
+  t.later(60);
+  assert.deepEqual([t.job(), t.notes], [{ state: "done", error: null }, []]);
+
+  const u = await answered(c, { "notify.quiet": "", "agent.coordinator": false }, "Inbox coordinator");
+  u.later(30);
+  assert.deepEqual(u.notes, ["Your answer to your agent hasn't been picked up, so that session has probably ended."]);
+  u.later(24 * 60 + 1);
+  assert.deepEqual([u.job(), runSync(u.desk.inflight()).work], [null, []]);
+  assert.equal(runSync(u.desk.inquiry(u.q.id)).answer?.read_at, null, "its page still says it wasn't picked up");
+});
+
+test("an unread answer waits out quiet hours to tell you; with notifications off, Merging alone says so", async (c) => {
+  const h = NOW.getHours();
+  const t = await answered(c, { "notify.quiet": `${h}:00-${h + 1}:00` });
+  t.later(30);
+  assert.deepEqual([t.job(), t.notes], [{ state: "queued", error: null }, []], "quiet hours");
+  t.later(29);
+  assert.deepEqual(t.notes, []);
+  t.later(1);
+  assert.deepEqual([t.job()?.state, t.notes.length], ["failed", 1], "told when they end");
+
+  const off = await answered(c, { "notify.enabled": false });
+  off.later(30);
+  assert.deepEqual([off.job()?.state, off.notes], ["failed", []]);
+});

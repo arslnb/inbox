@@ -1,0 +1,94 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# A newer push to a PR supersedes the run before it. On main every commit's run finishes: a release of that commit
+# needs it green.
+concurrency:
+  group: ci-${{ github.ref }}-${{ github.event_name == 'push' && github.sha || 'pr' }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+# Each check is a job of its own, so a red run names what failed. The static checks give the same answer on every OS, so
+# they run once, on Linux. The tests run in shards (node --test-shard) on Linux, whole on macOS, and on Windows only on main:
+# Windows runs them several times slower, and what breaks only there is rare enough to catch after the merge.
+jobs:
+  static:
+    strategy:
+      fail-fast: false
+      matrix:
+        check:
+          - { name: format, run: npm run format:check }
+          - { name: lint, run: npm run lint && npm run lint:css }
+          - { name: typecheck, run: npm run typecheck }
+          - { name: knip, run: npm run knip }
+          - { name: build, run: npm run build }
+    name: ${{ matrix.check.name }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      # The checks don't launch Electron, so skip its ~100 MB download.
+      - run: npm ci
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+      - run: ${{ matrix.check.run }}
+
+  # Linux in three shards; macOS whole, in one job: GitHub runs only a few macOS jobs at once per account, and a release
+  # builds on two of them, so more shards there wait for a runner (one waited out its 15 minutes without starting).
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-latest, shard: 1, of: 3 }
+          - { os: ubuntu-latest, shard: 2, of: 3 }
+          - { os: ubuntu-latest, shard: 3, of: 3 }
+          - { os: macos-latest, shard: 1, of: 1 }
+    name: test (${{ matrix.os }}, ${{ matrix.shard }}/${{ matrix.of }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+      # Its own limit, under the job's: a hang fails the step, which keeps its log (a cancelled job keeps none).
+      - run: npm test
+        timeout-minutes: 8
+        env:
+          NODE_OPTIONS: --test-shard=${{ matrix.shard }}/${{ matrix.of }}
+
+  test-windows:
+    if: github.event_name == 'push'
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3]
+    name: test (windows-latest, ${{ matrix.shard }}/3)
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+        env:
+          ELECTRON_SKIP_BINARY_DOWNLOAD: "1"
+      # Its own limit, under the job's: a hang fails the step, which keeps its log (a cancelled job keeps none).
+      - run: npm test
+        timeout-minutes: 8
+        env:
+          NODE_OPTIONS: --test-shard=${{ matrix.shard }}/3

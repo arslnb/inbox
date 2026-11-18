@@ -1,0 +1,631 @@
+import XCTest
+
+@testable import Inbox
+
+// The client against the desk's exact answers (docs/api.md, src/server.ts), stubbed: nothing here reaches a network.
+final class ClientTests: XCTestCase {
+  private let tailnet = DeskAddress(url: URL(string: "https://desk.tail1234.ts.net")!)
+  private let local = DeskAddress(url: URL(string: "http://localhost:47823")!)
+  private typealias Answer = StubProtocol.Answer
+
+  private func client(_ address: DeskAddress? = nil, token: String? = "inbox_test") -> APIClient {
+    APIClient(address: address ?? tailnet, token: token, session: StubProtocol.session())
+  }
+
+  private func refused(_ status: Int, _ words: String, tag: String = "Forbidden") -> Answer {
+    Answer(status: status, body: #"{"error":"\#(words)","tag":"\#(tag)"}"#)
+  }
+
+  private func failure<T>(_ run: () async throws -> T) async -> APIError? {
+    do {
+      _ = try await run()
+      return nil
+    } catch { return error as? APIError }
+  }
+
+  // MARK: Pairing
+
+  func testPairingTradesTheCodeOnce() async throws {
+    StubProtocol.reset([
+      "/api/pair": Answer(
+        body: #"{"ok":true,"token":"inbox_abc","device":{"id":"0123456789abcdef","name":"iPhone","kind":"phone","created_at":"2026-11-12T09:00:00.000Z","last_used_at":null}}"#)
+    ])
+    let answer = try await client(token: nil).pair(code: "ABCD2345", name: "iPhone")
+    XCTAssertEqual(answer.token, "inbox_abc")
+    XCTAssertEqual(answer.device?.name, "iPhone")
+    let sent = StubProtocol.requests()
+    XCTAssertEqual(sent.count, 1, "one try per press: any try burns the code")
+    XCTAssertEqual(sent[0].httpMethod, "POST")
+    XCTAssertEqual(sent[0].url?.absoluteString, "https://desk.tail1234.ts.net/api/pair")
+    XCTAssertNil(sent[0].value(forHTTPHeaderField: "Authorization"))
+    XCTAssertNil(sent[0].value(forHTTPHeaderField: "Origin"), "an Origin would be refused")
+    let body = try JSONDecoder().decode([String: String].self, from: try XCTUnwrap(sent[0].sentBody))
+    XCTAssertEqual(body, ["code": "ABCD2345", "name": "iPhone", "kind": "phone"], "a phone, not a machine: a device's token is an agent's")
+  }
+
+  func testAWrongOrUsedCode() async {
+    StubProtocol.reset(["/api/pair": refused(403, "that pairing code isn't valid: run inbox pair again for a new one")])
+    let e = await failure { try await self.client(token: nil).pair(code: "ABCD2345", name: "x") }
+    XCTAssertEqual(e, .refused(status: 403, message: "that pairing code isn't valid: run inbox pair again for a new one"))
+    let why = PairFailure(e!, host: tailnet.host)
+    XCTAssertEqual(why, .badCode("that pairing code isn't valid: run inbox pair again for a new one"))
+    XCTAssertEqual(why.words, "That pairing code isn't valid: run inbox pair again for a new one.")
+    XCTAssertEqual(StubProtocol.requests().count, 1, "never retried")
+  }
+
+  func testTooManyTries() async {
+    StubProtocol.reset(["/api/pair": refused(429, "too many pairing attempts: wait a minute", tag: "TooManyRequests")])
+    let e = await failure { try await self.client(token: nil).pair(code: "ABCD2345", name: "x") }
+    XCTAssertEqual(PairFailure(e!, host: tailnet.host), .tooMany("too many pairing attempts: wait a minute"))
+    XCTAssertEqual(StubProtocol.requests().count, 1)
+  }
+
+  // Tailscale says this phone is someone else's: not a bad token, and not a bad code.
+  func testTheWrongTailscaleLogin() async {
+    StubProtocol.reset(["/api/pair": refused(403, "only the desk's owner may use it from another device")])
+    let e = await failure { try await self.client(token: nil).pair(code: "ABCD2345", name: "x") }
+    let why = PairFailure(e!, host: tailnet.host)
+    XCTAssertEqual(why, .wrongLogin("only the desk's owner may use it from another device"))
+    XCTAssertTrue(why.words.hasPrefix("Only the desk's owner may use it from another device."))
+    XCTAssertTrue(why.words.contains("Sign this phone in to Tailscale as the desk's owner"))
+  }
+
+  func testNotServedOverTailscale() async {
+    StubProtocol.reset(["/api/pair": refused(403, "this desk isn't served over Tailscale now")])
+    let e = await failure { try await self.client(token: nil).pair(code: "ABCD2345", name: "x") }
+    let why = PairFailure(e!, host: tailnet.host)
+    XCTAssertEqual(why, .notServed("this desk isn't served over Tailscale now"))
+    XCTAssertTrue(why.words.contains("Use it from your other devices"))
+  }
+
+  func testAnAddressNothingAnswersAt() async {
+    StubProtocol.reset(["/api/pair": Answer(error: .cannotFindHost)])
+    let e = await failure { try await self.client(token: nil).pair(code: "ABCD2345", name: "x") }
+    XCTAssertEqual(e, .unreachable)
+    let why = PairFailure(e!, host: tailnet.host)
+    XCTAssertEqual(why, .unreachable(host: "desk.tail1234.ts.net"))
+    XCTAssertEqual(why.words, "Can't reach desk.tail1234.ts.net. Check this phone has Tailscale on, and that the desk's computer is awake.")
+    for code in [URLError.Code.timedOut, .notConnectedToInternet, .cannotConnectToHost, .secureConnectionFailed] {
+      StubProtocol.reset(["/api/pair": Answer(error: code)])
+      let e = await failure { try await self.client(token: nil).pair(code: "ABCD2345", name: "x") }
+      XCTAssertEqual(e, .unreachable)
+    }
+  }
+
+  func testAnyOtherRefusalKeepsTheDesksWords() async {
+    StubProtocol.reset(["/api/pair": refused(403, "forbidden host")])
+    let e = await failure { try await self.client(token: nil).pair(code: "ABCD2345", name: "x") }
+    XCTAssertEqual(PairFailure(e!, host: tailnet.host).words, "Forbidden host.")
+  }
+
+  // MARK: Every later request
+
+  func testABearerOnEveryRequestOverTailscaleAndNoneOnLocalhost() async throws {
+    StubProtocol.reset(["/health": Answer(body: #"{"ok":true,"version":"0.2.7"}"#)])
+    let version = try await client().health().version
+    XCTAssertEqual(version, "0.2.7")
+    XCTAssertEqual(StubProtocol.requests()[0].value(forHTTPHeaderField: "Authorization"), "Bearer inbox_test")
+    _ = try await client(local).health()
+    XCTAssertNil(StubProtocol.requests()[1].value(forHTTPHeaderField: "Authorization"), "the desk's own computer needs no token")
+    XCTAssertEqual(StubProtocol.requests()[1].url?.absoluteString, "http://localhost:47823/health")
+  }
+
+  // 401: the device was revoked.
+  func testRevoked() async {
+    StubProtocol.reset(["/api/queue": refused(401, "pair this device first: run inbox pair on the desk's machine", tag: "Unauthorized")])
+    let e = await failure { try await self.client().queue() }
+    XCTAssertEqual(e, .unpaired("pair this device first: run inbox pair on the desk's machine"))
+  }
+
+  // Whatever isn't the desk's JSON means the desk isn't there: Tailscale's own page, a proxy's 502, the web UI's HTML.
+  func testAnswersThatAreNotTheDesks() async {
+    StubProtocol.reset(["/api/queue": Answer(status: 502, type: "text/html", body: "<html>Bad Gateway</html>")])
+    var e = await failure { try await self.client().queue() }
+    XCTAssertEqual(e, .notDesk)
+    StubProtocol.reset(["/api/queue": Answer(status: 200, type: "text/html; charset=utf-8", body: "<!doctype html>")])
+    e = await failure { try await self.client().queue() }
+    XCTAssertEqual(e, .notDesk, "an unknown path answers the window's HTML with 200")
+    StubProtocol.reset(["/api/queue": Answer(status: 200, body: "[1, 2")])
+    e = await failure { try await self.client().queue() }
+    XCTAssertEqual(e, .refused(status: 200, message: "This app can't read the desk's answer: is the desk newer than the app?"))
+  }
+
+  func testStartingAndBrokenRules() async {
+    StubProtocol.reset([
+      "/api/queue": Answer(status: 503, body: #"{"error":"desk is starting; the first sync can take a minute","tag":"Unavailable","reason":"starting"}"#)
+    ])
+    var e = await failure { try await self.client().queue() }
+    XCTAssertEqual(e, .starting("desk is starting; the first sync can take a minute"))
+    StubProtocol.reset(["/api/queue": Answer(status: 503, body: #"{"error":"config has errors: a: b","tag":"Unavailable","reason":"config"}"#)])
+    e = await failure { try await self.client().queue() }
+    XCTAssertEqual(e, .rules("config has errors: a: b"))
+    // An older desk may leave the tag out: the status still says what it is.
+    StubProtocol.reset(["/api/queue": Answer(status: 409, body: #"{"error":"acme/api#1 is in Merging, so your agent has it; bring it back to the desk first"}"#)])
+    e = await failure { try await self.client().queue() }
+    XCTAssertEqual(e, .refused(status: 409, message: "acme/api#1 is in Merging, so your agent has it; bring it back to the desk first"))
+  }
+
+  // MARK: What it asks, and how
+
+  func testAnItemsIdIsEncodedInTheQuery() async throws {
+    StubProtocol.reset(["/api/item": Answer(body: String(decoding: try Fixture.data("item"), as: UTF8.self))])
+    let detail = try await client().item("acme/api#4127")
+    XCTAssertEqual(detail.card.id, "acme/api#4127")
+    XCTAssertEqual(StubProtocol.requests()[0].url?.absoluteString, "https://desk.tail1234.ts.net/api/item?id=acme%2Fapi%234127")
+  }
+
+  func testActSendsTheActionAndReadsItsUndo() async throws {
+    StubProtocol.reset(["/api/act": Answer(body: #"{"ok":true,"state":{"id":"acme/api#4127"},"undo_seq":41}"#)])
+    let answer = try await client().act("acme/api#4127", "snooze", until: "tomorrow")
+    XCTAssertEqual(answer.undoSeq, 41)
+    let sent = StubProtocol.requests()[0]
+    XCTAssertEqual(sent.httpMethod, "POST")
+    XCTAssertEqual(sent.value(forHTTPHeaderField: "Content-Type"), "application/json")
+    let body = try JSONDecoder().decode([String: String].self, from: try XCTUnwrap(sent.sentBody))
+    XCTAssertEqual(body, ["id": "acme/api#4127", "action": "snooze", "until": "tomorrow"])
+  }
+
+  func testUndoSendsItsSeqAsANumber() async throws {
+    StubProtocol.reset(["/api/undo": Answer(body: #"{"ok":true,"id":"acme/api#4127","action":"done"}"#)])
+    let answer = try await client().undo(seq: 41)
+    XCTAssertEqual(answer.action, "done")
+    let body = try JSONDecoder().decode([String: Int].self, from: try XCTUnwrap(StubProtocol.requests()[0].sentBody))
+    XCTAssertEqual(body, ["seq": 41])
+  }
+
+  func testReadingAQuestion() async throws {
+    StubProtocol.reset(["/api/inquiries/q1c0ffee": Answer(body: String(decoding: try Fixture.data("inquiry"), as: UTF8.self))])
+    let q = try await client().inquiry("q1c0ffee")
+    XCTAssertEqual(q.options.count, 3)
+    XCTAssertEqual(StubProtocol.requests().map { "\($0.httpMethod ?? "") \($0.url?.path ?? "")" }, ["GET /api/inquiries/q1c0ffee"])
+  }
+
+  // The stream as events() itself asks for it: never ?notify=1, which would take the desk's notifications away from its
+  // computer, and with the device's token. One value per update; a ping or any other event is not a cue to read.
+  func testTheEventStreamYieldsOncePerUpdate() async throws {
+    let frames = "event: update\ndata: {\"rev\":1}\n\n: ping\n\nevent: notify\ndata: {}\n\nevent: omarchy\ndata: null\n\nevent: update\ndata: {\"rev\":2}\n\n"
+    StubProtocol.reset(["/api/events": Answer(type: "text/event-stream", body: frames)])
+    var updates = 0
+    for try await _ in client().events() { updates += 1 }
+    XCTAssertEqual(updates, 2)
+    let sent = StubProtocol.requests()
+    XCTAssertEqual(sent.count, 1)
+    XCTAssertEqual(sent[0].url?.absoluteString, "https://desk.tail1234.ts.net/api/events")
+    XCTAssertEqual(sent[0].value(forHTTPHeaderField: "Authorization"), "Bearer inbox_test")
+    XCTAssertEqual(sent[0].httpMethod, "GET")
+  }
+
+  // Whatever answers the stream that isn't the desk's (Tailscale's page, a refusal) ends it with an error, so the store reads and tries again.
+  func testAStreamThatIsNotTheDesksThrows() async {
+    for answer in [Answer(type: "text/html", body: "event: update\n\n"), Answer(status: 403, type: "text/event-stream", body: "event: update\n\n")] {
+      StubProtocol.reset(["/api/events": answer])
+      do {
+        for try await _ in client().events() { XCTFail("no update from what isn't the desk's stream") }
+        XCTFail("it should throw")
+      } catch {
+        XCTAssertEqual(error as? APIError, .notDesk)
+      }
+    }
+  }
+}
+
+// The store's part: where a failed request leaves the app.
+@MainActor
+final class StoreTests: XCTestCase {
+  private var defaults: UserDefaults!
+  private let suite = "dev.inbox.ios.tests.\(UUID().uuidString)"
+  private let address = "https://desk.tail1234.ts.net"
+
+  override func setUp() async throws {
+    defaults = UserDefaults(suiteName: suite)
+  }
+
+  override func tearDown() async throws {
+    defaults.removePersistentDomain(forName: suite)
+    Keychain.delete(for: address)
+  }
+
+  private let pair = StubProtocol.Answer(body: #"{"ok":true,"token":"inbox_abc","device":{"id":"0123456789abcdef","name":"Greg's iPhone","kind":"phone"}}"#)
+
+  func testPairingKeepsTheTokenInTheKeychainAndTheAddressInDefaults() async throws {
+    StubProtocol.reset(["/api/pair": pair])
+    let store = Store(defaults: defaults, session: StubProtocol.session())
+    XCTAssertNil(store.address)
+    let said = await store.connect(typed: "desk.tail1234.ts.net/pair#abcd-2345", code: "")
+    store.stopLive()
+    XCTAssertNil(said)
+    XCTAssertEqual(store.address?.text, address)
+    XCTAssertEqual(store.deviceName, "Greg's iPhone")
+    XCTAssertEqual(Keychain.read(for: address), "inbox_abc")
+    XCTAssertEqual(defaults.string(forKey: "desk.address"), address)
+    XCTAssertFalse(defaults.dictionaryRepresentation().values.contains { ($0 as? String)?.contains("inbox_abc") == true }, "the token is never in UserDefaults")
+    // The next launch finds both.
+    let again = Store(defaults: defaults, session: StubProtocol.session())
+    XCTAssertEqual(again.address?.text, address)
+    XCTAssertEqual(again.deviceName, "Greg's iPhone")
+  }
+
+  // Paired by a build that paired as a machine: its token is refused every write, in words that point at the window.
+  // The next launch forgets it and asks to pair again, with the address kept.
+  func testAPhonePairedAsAMachinePairsAgain() async {
+    defaults.set(address, forKey: "desk.address")
+    defaults.set("Greg's iPhone", forKey: "desk.device")
+    XCTAssertTrue(Keychain.save("inbox_old", for: address))
+    let store = Store(defaults: defaults, session: StubProtocol.session())
+    XCTAssertNil(store.address)
+    XCTAssertEqual(store.connectNote?.contains("Pair it again"), true)
+    XCTAssertEqual(store.lastAddress, address)
+    XCTAssertNil(Keychain.read(for: address))
+    // Paired again, as a phone, it stays.
+    StubProtocol.reset(["/api/pair": pair])
+    let said = await store.connect(typed: address, code: "ABCD-2345")
+    store.stopLive()
+    XCTAssertNil(said)
+    XCTAssertEqual(Store(defaults: defaults, session: StubProtocol.session()).address?.text, address)
+  }
+
+  // A code typed before (and already tried) never rides along with a pasted link: the link's own code is the one traded.
+  func testAPairingLinksCodeWinsOverOneTypedBefore() async throws {
+    StubProtocol.reset(["/api/pair": pair])
+    let store = Store(defaults: defaults, session: StubProtocol.session())
+    var said = await store.connect(typed: "https://desk.tail1234.ts.net/pair#WXYZ-6789", code: "ABCD-2345")
+    store.stopLive()
+    XCTAssertNil(said)
+    let sent = StubProtocol.requests().filter { $0.url?.path == "/api/pair" }
+    XCTAssertEqual(sent.count, 1)
+    let body = try JSONDecoder().decode([String: String].self, from: try XCTUnwrap(sent[0].sentBody))
+    XCTAssertEqual(body["code"], "WXYZ6789")
+    // Nor does a leftover that isn't a code's shape stop the link.
+    store.disconnect()
+    StubProtocol.reset(["/api/pair": pair])
+    said = await store.connect(typed: "desk.tail1234.ts.net/pair#wxyz-6789", code: "ABC")
+    store.stopLive()
+    XCTAssertNil(said)
+  }
+
+  func testACodeThatCannotBeOneIsNeverSent() async {
+    StubProtocol.reset(["/api/pair": pair])
+    let store = Store(defaults: defaults, session: StubProtocol.session())
+    let said = await store.connect(typed: address, code: "ABC-123")
+    XCTAssertEqual(said?.hasPrefix("A pairing code is 8 letters and digits"), true)
+    XCTAssertTrue(StubProtocol.requests().isEmpty, "a slip of the thumb spends no try")
+    XCTAssertNil(store.address)
+  }
+
+  func testARefusedPairingSaysWhyAndSavesNothing() async {
+    StubProtocol.reset(["/api/pair": .init(status: 403, body: #"{"error":"that pairing code isn't valid: run inbox pair again for a new one","tag":"Forbidden"}"#)])
+    let store = Store(defaults: defaults, session: StubProtocol.session())
+    let said = await store.connect(typed: address, code: "ABCD-2345")
+    XCTAssertEqual(said, "That pairing code isn't valid: run inbox pair again for a new one.")
+    XCTAssertNil(store.address)
+    XCTAssertNil(Keychain.read(for: address))
+    XCTAssertNil(defaults.string(forKey: "desk.address"))
+    XCTAssertEqual(StubProtocol.requests().count, 1)
+  }
+
+  // As the connect screen takes what the camera read (ConnectView.scanned) once Connect is pressed: only a desk's link is traded, and
+  // the field keeps the address alone. Returns the field and the words in red.
+  private func scan(_ text: String, into store: Store) async -> (field: String, said: String?) {
+    guard case .success(let link) = DeskAddress.scanned(text), case .success(let read) = DeskAddress.parse(link) else {
+      return ("", DeskAddress.Unreadable.notAPairingLink.words)
+    }
+    return (read.address.text, await store.connect(typed: link, code: ""))
+  }
+
+  func testAScannedLinkTradesItsCodeOnceAsAPhone() async throws {
+    StubProtocol.reset(["/api/pair": pair])
+    let store = Store(defaults: defaults, session: StubProtocol.session())
+    let (field, said) = await scan("https://desk.tail1234.ts.net/pair#abcd-2345", into: store)
+    store.stopLive()
+    XCTAssertNil(said)
+    XCTAssertEqual(field, address)
+    XCTAssertEqual(store.address?.text, address)
+    XCTAssertEqual(Keychain.read(for: address), "inbox_abc")
+    let sent = StubProtocol.requests().filter { $0.url?.path == "/api/pair" }
+    XCTAssertEqual(sent.count, 1, "one trade: any try burns the code")
+    XCTAssertEqual(sent[0].url?.absoluteString, "https://desk.tail1234.ts.net/api/pair")
+    let body = try XCTUnwrap(JSONSerialization.jsonObject(with: try XCTUnwrap(sent[0].sentBody)) as? [String: String])
+    XCTAssertEqual(body["code"], "ABCD2345")
+    XCTAssertEqual(body["kind"], "phone")
+  }
+
+  func testAScannedCodeThatIsNotADesksAsksNothing() async {
+    StubProtocol.reset(["/api/pair": pair])
+    let store = Store(defaults: defaults, session: StubProtocol.session())
+    for other in ["https://example.com", "WIFI:T:WPA;S:home;P:secret;;", address, "https://desk.tail1234.ts.net/pair#nope"] {
+      let (_, said) = await scan(other, into: store)
+      XCTAssertEqual(said, "That isn't a desk's pairing code. Scan the one Pair a device shows, in Settings → Network on the desk's computer.")
+    }
+    XCTAssertTrue(StubProtocol.requests().isEmpty, "nothing was asked, so no try was spent")
+    XCTAssertNil(store.address)
+  }
+
+  // The field holds the address without the burnt code, so the code field shows for a new one.
+  func testARefusalAfterAScanKeepsTheAddressAndAsksForACode() async {
+    StubProtocol.reset(["/api/pair": .init(status: 403, body: #"{"error":"that pairing code isn't valid: run inbox pair again for a new one","tag":"Forbidden"}"#)])
+    let store = Store(defaults: defaults, session: StubProtocol.session())
+    let (field, said) = await scan("https://desk.tail1234.ts.net/pair#ABCD-2345", into: store)
+    XCTAssertEqual(said, "That pairing code isn't valid: run inbox pair again for a new one.")
+    XCTAssertEqual(field, address)
+    guard case .success(let typed) = DeskAddress.parse(field) else { return XCTFail("the field is an address") }
+    XCTAssertNil(typed.code, "no code in the field: Connect again can't re-send the burnt one")
+    XCTAssertFalse(typed.address.isLocal, "so the code field shows")
+    XCTAssertNil(store.address)
+    XCTAssertEqual(StubProtocol.requests().count, 1)
+  }
+
+  func testLocalhostConnectsWithNoCodeAndNoToken() async {
+    StubProtocol.reset(["/health": .init(body: #"{"ok":true,"version":"0.2.7"}"#)])
+    let store = Store(defaults: defaults, session: StubProtocol.session())
+    let said = await store.connect(typed: "localhost:47823", code: "")
+    store.stopLive()
+    XCTAssertNil(said)
+    XCTAssertEqual(store.address?.text, "http://localhost:47823")
+    XCTAssertFalse(StubProtocol.requests().contains { $0.url?.path == "/api/pair" }, "the desk's own computer never pairs")
+    XCTAssertNil(Keychain.read(for: "http://localhost:47823"))
+  }
+
+  func testNothingAtALocalAddress() async {
+    StubProtocol.reset([:])
+    let store = Store(defaults: defaults, session: StubProtocol.session())
+    let said = await store.connect(typed: "http://localhost:9", code: "")
+    XCTAssertEqual(said, "Nothing answers at http://localhost:9. Start the desk with inbox serve, or open the desktop app.")
+    XCTAssertNil(store.address)
+  }
+
+  // A 401 later: the device was revoked. Back to the connect screen, saying so, the token forgotten and the address kept.
+  func testRevokedGoesBackToPairing() async {
+    StubProtocol.reset(["/api/pair": pair])
+    let store = Store(defaults: defaults, session: StubProtocol.session())
+    _ = await store.connect(typed: address, code: "ABCD-2345")
+    store.stopLive()
+    let unpaired = StubProtocol.Answer(status: 401, body: #"{"error":"pair this device first: run inbox pair on the desk's machine","tag":"Unauthorized"}"#)
+    StubProtocol.reset(["/api/overview": unpaired, "/api/queue": unpaired])
+    await store.load()
+    XCTAssertNil(store.address)
+    XCTAssertEqual(store.connectNote?.contains("revoked on the desk's computer"), true)
+    XCTAssertEqual(store.lastAddress, address)
+    XCTAssertNil(Keychain.read(for: address))
+  }
+
+  // The desk away: its bubble, in the words for where it is, and what was on screen stays.
+  func testOfflineAndBack() async throws {
+    StubProtocol.reset(["/api/pair": pair])
+    let store = Store(defaults: defaults, session: StubProtocol.session())
+    _ = await store.connect(typed: address, code: "ABCD-2345")
+    store.stopLive()
+    let ok = { (name: String) in StubProtocol.Answer(body: String(decoding: try Fixture.data(name), as: UTF8.self)) }
+    StubProtocol.reset(["/api/overview": try ok("overview"), "/api/queue": try ok("queue")])
+    await store.load()
+    XCTAssertEqual(store.inboxCount, 29)
+    XCTAssertTrue(store.notices.isEmpty, "nothing is said while all is well")
+
+    StubProtocol.reset(["/api/overview": .init(status: 502, type: "text/html", body: "Bad Gateway"), "/api/queue": .init(error: .timedOut)])
+    await store.load()
+    XCTAssertTrue(store.offline)
+    XCTAssertEqual(store.notices.map(\.title), ["The desk can't be reached"])
+    XCTAssertEqual(store.inboxCount, 29, "the last answer stays on screen")
+
+    StubProtocol.reset(["/api/overview": try ok("overview"), "/api/queue": try ok("queue")])
+    await store.load()
+    XCTAssertFalse(store.offline)
+    XCTAssertTrue(store.notices.isEmpty)
+  }
+
+  // A read the desk refuses (this phone's Tailscale is signed in as someone else) says so, in its words, until one is answered.
+  func testARefusedReadSaysWhy() async throws {
+    StubProtocol.reset(["/api/pair": pair])
+    let store = Store(defaults: defaults, session: StubProtocol.session())
+    _ = await store.connect(typed: address, code: "ABCD-2345")
+    store.stopLive()
+    let no = StubProtocol.Answer(status: 403, body: #"{"error":"only the desk's owner may use it from another device","tag":"Forbidden"}"#)
+    StubProtocol.reset(["/api/overview": no, "/api/queue": no])
+    await store.load()
+    XCTAssertNil(store.queue)
+    XCTAssertNotNil(store.address, "a 403 isn't a revoke: the token stays")
+    XCTAssertEqual(store.refused, "only the desk's owner may use it from another device")
+    XCTAssertEqual(store.notices.map(\.title), ["Can't read the desk"])
+    XCTAssertEqual(store.notices[0].text, "Only the desk's owner may use it from another device. Sign this phone in to Tailscale as the desk's owner.")
+    XCTAssertEqual(store.notices[0].fixLabel, "Retry")
+    await store.load()
+    XCTAssertEqual(store.notices.count, 1, "the same refusal again is the same bubble")
+
+    // A desk newer than the app: its answer can't be read, and that's said too.
+    StubProtocol.reset(["/api/overview": .init(body: #"{"me":7}"#), "/api/queue": .init(body: "[]")])
+    await store.load()
+    XCTAssertEqual(store.notices.map(\.text), ["This app can't read the desk's answer: is the desk newer than the app?"])
+
+    let ok = { (name: String) in StubProtocol.Answer(body: String(decoding: try Fixture.data(name), as: UTF8.self)) }
+    StubProtocol.reset(["/api/overview": try ok("overview"), "/api/queue": try ok("queue")])
+    await store.load()
+    XCTAssertNil(store.refused)
+    XCTAssertTrue(store.notices.isEmpty)
+    XCTAssertEqual(store.inboxCount, 29)
+  }
+
+  // Coming to the front reads at once: it doesn't wait for the event stream, which a sleeping desk holds for a minute.
+  func testGoingLiveReadsBeforeTheStreamAnswers() async throws {
+    StubProtocol.reset(["/api/pair": pair])
+    let store = Store(defaults: defaults, session: StubProtocol.session())
+    _ = await store.connect(typed: address, code: "ABCD-2345")
+    store.stopLive()
+    let ok = { (name: String) in StubProtocol.Answer(body: String(decoding: try Fixture.data(name), as: UTF8.self)) }
+    StubProtocol.reset(["/api/events": .init(hangs: true), "/api/overview": try ok("overview"), "/api/queue": try ok("queue")])
+    store.startLive()
+    for _ in 0..<150 where store.queue == nil { try await Task.sleep(for: .milliseconds(20)) }
+    store.stopLive()
+    XCTAssertEqual(store.inboxCount, 29)
+  }
+
+  // Pull to refresh on a desk that's away: the sync's silence is the answer, and nothing more is asked.
+  func testRefreshStopsAtASyncNothingAnswers() async throws {
+    StubProtocol.reset(["/api/pair": pair])
+    let store = Store(defaults: defaults, session: StubProtocol.session())
+    _ = await store.connect(typed: address, code: "ABCD-2345")
+    store.stopLive()
+    let ok = { (name: String) in StubProtocol.Answer(body: String(decoding: try Fixture.data(name), as: UTF8.self)) }
+    StubProtocol.reset(["/api/sync": .init(error: .timedOut), "/api/overview": try ok("overview"), "/api/queue": try ok("queue")])
+    await store.refresh()
+    XCTAssertTrue(store.offline)
+    XCTAssertEqual(StubProtocol.requests().map { $0.url?.path }, ["/api/sync"])
+
+    // A sync the desk refuses doesn't stop the read.
+    StubProtocol.reset([
+      "/api/sync": .init(status: 500, body: #"{"error":"boom","tag":"Internal"}"#), "/api/overview": try ok("overview"), "/api/queue": try ok("queue"),
+    ])
+    await store.refresh()
+    XCTAssertFalse(store.offline)
+    XCTAssertEqual(store.inboxCount, 29)
+  }
+
+  // As the window: Done, Snooze and Mute take an active item off its list; a resolved or already cleared one stays put.
+  func testWhatLeavesItsList() async throws {
+    StubProtocol.reset(["/api/pair": pair])
+    let store = Store(defaults: defaults, session: StubProtocol.session())
+    _ = await store.connect(typed: address, code: "ABCD-2345")
+    store.stopLive()
+    let ok = { (name: String) in StubProtocol.Answer(body: String(decoding: try Fixture.data(name), as: UTF8.self)) }
+    StubProtocol.reset(["/api/overview": try ok("overview"), "/api/queue": try ok("queue")])
+    await store.load()
+    for action in ["done", "snooze", "mute"] {
+      XCTAssertTrue(store.leaves("acme/api#4127", action), "an Inbox row")
+      XCTAssertFalse(store.leaves("acme/web#2284", action), "merged: it stays in the Archive")
+      XCTAssertFalse(store.leaves("acme/api#4088", action), "already snoozed")
+      XCTAssertTrue(store.leaves("session:5f1c2a90-7d3e-4b8a-9c11-2e6f0a4b7d21", action), "a session")
+    }
+    for action in ["restore", "unmute", "seen"] { XCTAssertFalse(store.leaves("acme/api#4127", action)) }
+
+    // The row of a resolved item is still there while the desk has the action.
+    StubProtocol.reset([
+      "/api/act": .init(body: #"{"ok":true,"state":{"id":"acme/web#2284"},"undo_seq":7}"#), "/api/overview": try ok("overview"), "/api/queue": try ok("queue"),
+    ])
+    store.act("acme/web#2284", name: "web#2284", "done")
+    XCTAssertFalse(store.leaving.contains("acme/web#2284"))
+    store.act("acme/api#4127", name: "api#4127", "done")
+    XCTAssertTrue(store.leaving.contains("acme/api#4127"))
+    for _ in 0..<150 where !store.leaving.isEmpty || store.toast == nil { try await Task.sleep(for: .milliseconds(20)) }
+    XCTAssertEqual(store.toast?.undo, 7)
+  }
+
+  // A store on the desk's own computer, with nothing asked yet.
+  private func local() async throws -> Store {
+    StubProtocol.reset(["/health": .init(body: #"{"ok":true,"version":"mock"}"#)])
+    let store = Store(defaults: defaults, session: StubProtocol.session())
+    let said = await store.connect(typed: "localhost:47841", code: "")
+    store.stopLive()
+    XCTAssertNil(said)
+    return store
+  }
+
+  // Opening a PR is one read, the window's own open; every redraw after it is ?ahead=1, which starts nothing.
+  func testOpeningAPRReadsItsReviewOnceThenAhead() async throws {
+    let id = "acme/api#4127"
+    let store = try await local()
+    StubProtocol.reset(["/api/review/\(id)": StubProtocol.Answer(body: String(decoding: try Fixture.data("review-steps"), as: UTF8.self))])
+    guard case .success(let first)? = await store.readReview(id) else { return XCTFail("no review") }
+    XCTAssertEqual(first.card?.id, id)
+    XCTAssertEqual(StubProtocol.requests().map(\.url?.absoluteString), ["http://localhost:47841/api/review/acme%2Fapi%234127"], "no ahead, and no /api/item")
+
+    // The desk said something changed: a redraw.
+    _ = await store.readReview(id)
+    _ = await store.readReview(id)
+    XCTAssertEqual(
+      StubProtocol.requests().dropFirst().map(\.url?.query), ["ahead=1", "ahead=1"], "an event never restarts what the open started")
+    XCTAssertFalse(StubProtocol.requests().contains { $0.url?.path == "/api/item" })
+
+    // Its page left and opened again: an open again.
+    store.closeReview(id)
+    StubProtocol.reset(["/api/review/\(id)": StubProtocol.Answer(body: String(decoding: try Fixture.data("review-steps"), as: UTF8.self))])
+    _ = await store.readReview(id)
+    XCTAssertEqual(StubProtocol.requests().map(\.url?.query), [nil])
+  }
+
+  // Opening an issue is one GET, as the window's; nothing is posted, so nothing asks your agent or touches the blocklist.
+  func testOpeningAnIssuePostsNothing() async throws {
+    let id = "acme/worker#860"
+    let store = try await local()
+    StubProtocol.reset(["/api/item": StubProtocol.Answer(body: String(decoding: try Fixture.data("item-issue"), as: UTF8.self))])
+    guard case .success(let d)? = await store.fetchItem(id) else { return XCTFail("no issue") }
+    XCTAssertNotNil(d.issueAi)
+    XCTAssertEqual(StubProtocol.requests().map(\.httpMethod), ["GET"])
+    XCTAssertEqual(StubProtocol.requests().map(\.url?.absoluteString), ["http://localhost:47841/api/item?id=acme%2Fworker%23860"])
+  }
+
+  // Opening the chat is one GET: nothing is sent to your agent, and Merging isn't read for it.
+  func testOpeningTheChatOnlyReadsYourAsks() async throws {
+    let store = try await local()
+    StubProtocol.reset(["/api/asks": StubProtocol.Answer(body: String(decoding: try Fixture.data("asks"), as: UTF8.self))])
+    store.openChat(ChatAbout(item: "me/notes-app#12"))
+    await store.readAsks()
+    XCTAssertEqual(StubProtocol.requests().map { "\($0.httpMethod ?? "") \($0.url?.absoluteString ?? "")" }, ["GET http://localhost:47841/api/asks"])
+    XCTAssertEqual(store.path, [.chat(ChatAbout(item: "me/notes-app#12"))])
+    XCTAssertEqual(store.asks?.asks.count, 3)
+    XCTAssertTrue(Asking.waiting(store.asks), "the page menu says Your agent · waiting")
+    // A read that fails keeps what's drawn; the next update tries again.
+    StubProtocol.reset(["/api/asks": StubProtocol.Answer(error: .cannotConnectToHost)])
+    await store.readAsks()
+    XCTAssertEqual(store.asks?.asks.count, 3)
+    XCTAssertNotNil(store.address)
+    // A desk that isn't syncing yet still answers it; one that refuses the read changes nothing either.
+    StubProtocol.reset(["/api/asks": StubProtocol.Answer(status: 503, body: #"{"error":"the desk hasn't synced yet","reason":"starting"}"#)])
+    await store.readAsks()
+    XCTAssertEqual(store.asks?.asks.count, 3)
+    XCTAssertEqual(StubProtocol.requests().filter { $0.httpMethod != "GET" }.count, 0)
+  }
+
+  // A desk paired before its first run was finished (inbox pair doesn't check): the window shows the first-run page in
+  // every page's place, so the phone says where to finish it. Asked once per connection, then while it's unfinished.
+  func testADeskNotSetUpYetSaysSo() async throws {
+    let store = Store(defaults: defaults, session: StubProtocol.session())
+    let ok = { (name: String) in StubProtocol.Answer(body: String(decoding: try Fixture.data(name), as: UTF8.self)) }
+    var answers = ["/health": StubProtocol.Answer(body: #"{"ok":true,"version":"1.0.0"}"#), "/api/overview": try ok("overview"), "/api/queue": try ok("queue")]
+    answers["/api/setup"] = StubProtocol.Answer(body: #"{"needed":true,"github":{"login":"me"},"agent":null,"agents":[]}"#)
+    StubProtocol.reset(answers)
+    _ = await store.connect(typed: "http://localhost:47841", code: "")
+    store.stopLive()
+    await store.load()
+    XCTAssertEqual(store.notices.map(\.title), ["The desk isn't set up yet"])
+    // Finished at the computer: the next read says so and the bubble goes.
+    answers["/api/setup"] = StubProtocol.Answer(body: #"{"needed":false}"#)
+    StubProtocol.reset(answers)
+    await store.load()
+    XCTAssertTrue(store.notices.isEmpty)
+    // Done: not asked again on every read.
+    StubProtocol.reset(answers)
+    await store.load()
+    XCTAssertEqual(StubProtocol.requests().filter { $0.url?.path == "/api/setup" }.count, 0)
+  }
+
+  // An open that never reached the desk, or a desk still starting, is tried as an open again; one the desk refused was seen by it.
+  func testAnOpenTheDeskNeverSawIsAnOpenAgain() async throws {
+    let id = "acme/api#4127"
+    let store = try await local()
+    StubProtocol.reset(["/api/review/\(id)": StubProtocol.Answer(error: .cannotConnectToHost)])
+    _ = await store.readReview(id)
+    _ = await store.readReview(id)
+    XCTAssertEqual(StubProtocol.requests().map(\.url?.query), [nil, nil])
+    StubProtocol.reset(["/api/review/\(id)": StubProtocol.Answer(status: 502, body: #"{"error":"GitHub didn't answer"}"#)])
+    _ = await store.readReview(id)
+    _ = await store.readReview(id)
+    XCTAssertEqual(StubProtocol.requests().map(\.url?.query), [nil, "ahead=1"])
+    XCTAssertNil(store.pins[id])
+    // A desk still starting answers 503 before it opens anything: neither its AI review nor your agent's read began.
+    store.closeReview(id)
+    StubProtocol.reset(["/api/review/\(id)": StubProtocol.Answer(status: 503, body: #"{"error":"the desk is starting","reason":"starting"}"#)])
+    _ = await store.readReview(id)
+    _ = await store.readReview(id)
+    XCTAssertEqual(StubProtocol.requests().map(\.url?.query), [nil, nil])
+  }
+
+  func testDisconnectForgetsTheTokenAndTheAddress() async {
+    StubProtocol.reset(["/api/pair": pair])
+    let store = Store(defaults: defaults, session: StubProtocol.session())
+    _ = await store.connect(typed: address, code: "ABCD-2345")
+    store.disconnect()
+    XCTAssertNil(store.address)
+    XCTAssertNil(store.connectNote)
+    XCTAssertNil(Keychain.read(for: address))
+    XCTAssertNil(defaults.string(forKey: "desk.address"))
+    XCTAssertFalse(StubProtocol.requests().contains { $0.httpMethod == "DELETE" }, "the phone can't revoke itself, and doesn't try")
+  }
+}
