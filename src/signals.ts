@@ -330,7 +330,8 @@ export function analyze(item: Item, ctx: Context, cfg: Config, now: Date, read?:
         !item.draft &&
         !item.review_requests_hidden &&
         !item.review_requests.some((r) => !isBot(r.reviewer, r.bot)) &&
-        !item.reviews.some((r) => lc(r.author) !== lc(item.author) && !isMe(r.author) && !isBot(r.author, r.author_bot)),
+        // Your review counts on theirs; on yours (a bot's opened for you too) it's the author's own.
+        !item.reviews.some((r) => lc(r.author) !== lc(item.author) && !(yours && isMe(r.author)) && !isBot(r.author, r.author_bot)),
       review_optional: reviewOptional(item),
       pushed_hours: hours(headAt),
       paths: item.paths ?? [],
