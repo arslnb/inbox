@@ -54,11 +54,11 @@ const SECTIONS: readonly { id: string; text: (c: SkillContext) => string }[] = [
   {
     id: "risk",
     text: () =>
-      `- risk: "low", "medium" or "high": how much breaks, for whom, and how hard it is to undo, if this change is wrong. Not its size.` +
+      `- risk: "low", "medium" or "high": its blast radius in production if it lands and is wrong: what breaks, for whom, and how hard it is to undo. Not its size: a big refactor can be low, a one-line config change high.` +
       ` high: it can lose or corrupt data; crosses a security boundary (auth, permissions, secrets, untrusted input); breaks a contract others build on (a public API, a schema, a wire format, config or a CLI others use); runs a migration or anything that can't be rolled back; or changes concurrency or a deploy path that can take a service down.` +
       ` medium: it changes behaviour users or other code depend on, inside one boundary, and a revert undoes it.` +
       ` low: the same behaviour as before (refactors, renames, tests, docs, copy), off by default, or a patch-level dependency bump.\n` +
-      `- risk_reasons: why, most serious first, within the budget; empty when low. Each: factor (data, security, contract, concurrency, deploy, irreversible, reach, untested or other) and why, at most twelve words, naming the thing ("rewrites user rows in place").`,
+      `- risk_reasons: why, most serious first, within the budget; empty when low. Each: factor (data, security, contract, concurrency, deploy, irreversible, reach, untested or other) and why, at most twelve words, naming what it reaches ("rewrites user rows in place", "every API request reads this config").`,
   },
   {
     id: "intent",
