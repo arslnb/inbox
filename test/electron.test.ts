@@ -12,6 +12,7 @@ import { Effect, Fiber, Scheduler, Schema } from "effect";
 import { BadRequest } from "../src/errors.ts";
 import { failure, run } from "./helpers/run.ts";
 import {
+  appVariant,
   appRunner,
   backoff,
   APP_FILES,
@@ -936,4 +937,12 @@ test("echoTo stops writing once the terminal is gone, without an uncaught EPIPE"
   await sleep(10);
   echo("three\n");
   assert.deepEqual(written, ["one\n"]);
+});
+
+test("the Dock and menu bar tell a dev or QA build from the release", () => {
+  assert.equal(appVariant({ packaged: true, source: false, ownersHome: true }), "release");
+  assert.equal(appVariant({ packaged: true, source: true, ownersHome: true }), "dev"); // Run from a checkout
+  assert.equal(appVariant({ packaged: false, source: false, ownersHome: true }), "dev"); // npm run app
+  assert.equal(appVariant({ packaged: true, source: false, ownersHome: false }), "qa"); // npm run qa:release
+  assert.equal(appVariant({ packaged: false, source: true, ownersHome: false }), "dev");
 });

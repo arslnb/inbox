@@ -25,7 +25,7 @@ import readline from "node:readline";
 import { Cause, Effect, Exit, Fiber, Result, Schema } from "effect";
 import { BadRequest, Forbidden, messageOf, Upstream, type FsError } from "../src/errors.ts";
 import { readToken } from "../src/github/client.ts";
-import { deskHome, settleHome } from "../src/home.ts";
+import { deskHome, ownersHome, settleHome } from "../src/home.ts";
 import { field } from "../src/narrow.ts";
 import { report } from "../src/sentry.ts";
 import { DEFAULT_PORT } from "../src/server.ts";
@@ -57,6 +57,7 @@ import {
   isHttpUrl,
   isTheme,
   keepsView,
+  appVariant,
   linkArg,
   linkHash,
   loginShellPath,
@@ -106,6 +107,8 @@ const sourceWanted = sourceDir(envSource ?? launchSource, os.homedir());
 let plan: DeskPlan = { run: "in-process" };
 let fromSource = "";
 const asset = (name: string) => path.join(app.getAppPath(), "assets", name);
+const variant = appVariant({ packaged: app.isPackaged, source: sourceWanted !== "", ownersHome: ownersHome(home) });
+const appIcon = asset(variant === "release" ? "icon.png" : `icon-${variant}.png`);
 
 // Only the parts of the desk's answers the tray uses.
 const Status = Schema.Struct({ now: Schema.Number, today: Schema.Number, text: Schema.String });
@@ -201,7 +204,7 @@ function main(): Effect.Effect<void> {
     // Only the packaged app on the owner's home takes inbox:// links: from the repo they'd start a bare Electron.
     if (app.isPackaged && !process.env.DESK_HOME && !app.isDefaultProtocolClient(PROTOCOL))
       log(app.setAsDefaultProtocolClient(PROTOCOL) ? `opening ${PROTOCOL}:// links` : `couldn't take ${PROTOCOL}:// links`);
-    if (mac && !app.isPackaged) app.dock?.setIcon(asset("icon.png")); // from the repo the Dock would show Electron's icon
+    if (mac && variant !== "release") app.dock?.setIcon(appIcon); // a dev or QA build isn't mistaken for the release
     secureSession();
     handle("desktop:status", (e) =>
       fromApp(e).pipe(Effect.map(() => ({ hotkey, open_at_login: loginItemEnabled(), source: sourceStatus() }))),
@@ -617,7 +620,7 @@ function refresh(): Effect.Effect<void> {
 
 function notify(title: string, body: string): void {
   if (!Notification.isSupported()) return;
-  const n = new Notification({ title, body, ...(mac ? {} : { icon: asset("icon.png") }) });
+  const n = new Notification({ title, body, ...(mac ? {} : { icon: appIcon }) });
   shown.add(n);
   n.on("click", () => {
     shown.delete(n);
@@ -860,7 +863,7 @@ function createWindow(): void {
     // On macOS the UI's title bar holds the traffic lights (web/src/styles.css pads it for them).
     ...(mac ? { titleBarStyle: "hiddenInset" as const, trafficLightPosition: { x: 18, y: 19 } } : {}),
     autoHideMenuBar: !mac,
-    ...(mac ? {} : { icon: asset("icon.png") }),
+    ...(mac ? {} : { icon: appIcon }),
     webPreferences: {
       preload: path.join(app.getAppPath(), "electron", "preload.cjs"),
       contextIsolation: true,
@@ -996,8 +999,12 @@ function appMenu(): Menu {
 
 // ---------------------------------------------------------------- tray and badge
 
-const trayImage = (alert: boolean): NativeImage =>
-  nativeImage.createFromPath(asset(mac ? "trayTemplate.png" : alert ? "tray-alert.png" : "tray.png"));
+// The release's menu bar icon is a template; a dev or QA build's is its own colour, so the two never look alike.
+const trayImage = (alert: boolean): NativeImage => {
+  const tint = variant === "release" ? "" : `-${variant}`;
+  const name = mac && !tint ? "trayTemplate.png" : `tray${tint}${alert && !mac ? "-alert" : ""}.png`;
+  return nativeImage.createFromPath(asset(name));
+};
 
 function createTray(): void {
   tray = new Tray(trayImage(false));

@@ -472,6 +472,14 @@ export function desktopSettings(values?: Record<string, unknown>): DesktopSettin
   };
 }
 
+// ---------------------------------------------------------------- which build
+
+// What the Dock and menu bar show, so this build can't be mistaken for another: dev runs its desk from a checkout (or the
+// app itself from the repo), qa is a packaged app on a home that isn't the owner's (npm run qa:release), release is yours.
+export type AppVariant = "release" | "dev" | "qa";
+export const appVariant = (o: { packaged: boolean; source: boolean; ownersHome: boolean }): AppVariant =>
+  !o.packaged || o.source ? "dev" : o.ownersHome ? "release" : "qa";
+
 // ---------------------------------------------------------------- run from a checkout
 
 // The setting (or DESK_SOURCE) as an absolute folder; "" is off.

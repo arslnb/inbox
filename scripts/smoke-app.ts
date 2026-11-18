@@ -49,7 +49,17 @@ try {
 
   const tray = await app.evaluate(({ app: electronApp, nativeImage }) => {
     const t = (globalThis as { deskTray?: Electron.Tray }).deskTray;
-    const icons = ["trayTemplate.png", "tray.png", "tray-alert.png", "overlay-alert.png", "icon.png"];
+    const icons = [
+      "trayTemplate.png",
+      "tray.png",
+      "tray-alert.png",
+      "overlay-alert.png",
+      "icon.png",
+      "icon-dev.png",
+      "icon-qa.png",
+      "tray-dev.png",
+      "tray-qa.png",
+    ];
     const missing = icons.filter((f) => nativeImage.createFromPath(`${electronApp.getAppPath()}/assets/${f}`).isEmpty());
     return t && !t.isDestroyed() ? { title: process.platform === "darwin" ? t.getTitle() : "", missing } : null;
   });

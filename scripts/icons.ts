@@ -27,6 +27,22 @@ const icon = svg(
   `<rect x="100" y="100" width="824" height="824" rx="185" fill="${PETROL}"/><g fill="${WARM_WHITE}" transform="translate(100 100) scale(12.875)">${mark}</g>`,
 );
 
+// A build that isn't the release says so in the Dock and menu bar (appVariant in electron/lib.ts): its own colour, and on
+// the app icon its name under the mark.
+const VARIANTS = { dev: { fill: "#C2410C", label: "DEV" }, qa: { fill: "#6E56CF", label: "QA" } } as const;
+const variantIcon = (fill: string, label: string) =>
+  svg(
+    "0 0 1024 1024",
+    `<rect x="100" y="100" width="824" height="824" rx="185" fill="${fill}"/><g fill="${WARM_WHITE}" transform="translate(152 90) scale(11.25)">${mark}</g>` +
+      `<text x="512" y="842" text-anchor="middle" font-family="-apple-system, system-ui, sans-serif" font-weight="800" font-size="168" letter-spacing="14" fill="${WARM_WHITE}">${label}</text>`,
+  );
+const variantTile = (fill: string, alert: boolean) =>
+  svg(
+    "0 0 64 64",
+    `<rect width="64" height="64" rx="13.5" fill="${fill}"/><g fill="${WARM_WHITE}">${mark}</g>` +
+      (alert ? `<circle cx="54" cy="10" r="10" fill="#E5484D"/>` : ""),
+  );
+
 // Maskable: full bleed, the mark at three quarters so it stays inside the platform's safe zone.
 const maskable = svg(
   "0 0 64 64",
@@ -53,6 +69,13 @@ const rasters: [file: string, svg: string, width: number, height: number][] = [
   ["tray-alert.png", tile(true), 16, 16],
   ["tray-alert@2x.png", tile(true), 32, 32],
   ["overlay-alert.png", dot, 16, 16],
+  ...Object.entries(VARIANTS).flatMap(([name, v]): [string, string, number, number][] => [
+    [`icon-${name}.png`, variantIcon(v.fill, v.label), 1024, 1024],
+    [`tray-${name}.png`, variantTile(v.fill, false), 16, 16],
+    [`tray-${name}@2x.png`, variantTile(v.fill, false), 32, 32],
+    [`tray-${name}-alert.png`, variantTile(v.fill, true), 16, 16],
+    [`tray-${name}-alert@2x.png`, variantTile(v.fill, true), 32, 32],
+  ]),
 ];
 
 // Sized <svg> so Chromium rasterizes the vector at the target size instead of scaling a 300x150 bitmap.
