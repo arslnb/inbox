@@ -146,7 +146,7 @@ try {
   step("quit cleanly; the port is free");
   console.log("smoke:app passed");
 } catch (e) {
-  app.process().kill();
+  app.process().kill("SIGKILL"); // a blocking dialog ignores SIGTERM and would stay on the screen
   throw e;
 } finally {
   if (ownHome) fs.rmSync(home, { recursive: true, force: true });

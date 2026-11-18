@@ -61,6 +61,7 @@ const smoke = spawnSync(process.execPath, ["--disable-warning=ExperimentalWarnin
   env,
 });
 if (smoke.status !== 0) {
+  spawnSync("pkill", ["-9", "-f", bin]); // whatever the failed run left open, a dialog included
   console.error(`qa:release failed for Inbox ${version}; its logs are in ${path.join(home, "app", "logs")}`);
   process.exit(smoke.status ?? 1);
 }
