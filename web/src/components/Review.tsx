@@ -1013,6 +1013,12 @@ export function Review({
                 : []),
               ...(yoursOpen && !asking && !acted ? [{ label: "Add reviewers", run: addReviewers }] : []),
               {
+                label: "Show log",
+                run: () => {
+                  onCard(card, "log");
+                },
+              },
+              {
                 label: "Copy link",
                 run: () => {
                   onCard(card, "link");

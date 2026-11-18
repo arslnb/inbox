@@ -5309,15 +5309,32 @@ const SHOTS: Shot[] = [
   },
   // The More menu in a review.
   {
-    // Done and Copy link, then Close and Request changes under "On GitHub".
+    // Done, Show log and Copy link (Add reviewers on yours), then Close and Request changes under "On GitHub".
     name: "more-review",
     go: async (page) => {
       await review("acme/worker#875", [MORE])(page);
       const items = await moreItems(page);
       const head = items.indexOf("#On GitHub");
-      if (items[0] !== "Done" || items[1] !== "Copy link" || (head >= 0 && (head !== 2 || head === items.length - 1)))
+      const log = items.indexOf("Show log");
+      if (
+        items[0] !== "Done" ||
+        log < 1 ||
+        items[log + 1] !== "Copy link" ||
+        (head >= 0 && (head !== log + 2 || head === items.length - 1))
+      )
         failures.push(`more-review: the More menu reads ${JSON.stringify(items)}`);
     },
+  },
+  {
+    // Show log in a review's More: the item's log.
+    name: "more-show-log",
+    go: async (page) => {
+      await review("acme/worker#875", [MORE])(page);
+      await page.locator(".more-pop .pop-item", { hasText: "Show log" }).click();
+      await page.locator(".item-log").waitFor();
+      if (!page.url().includes("#/log/")) failures.push(`more-show-log: went to ${page.url()}`);
+    },
+    after: fresh,
   },
   {
     // Copy link in a review's More: the PR's inbox:// link on the clipboard (stubbed, never yours), and a quiet toast.
