@@ -1,8 +1,0 @@
-node_modules
-web/dist/
-release/
-*.tsbuildinfo
-.DS_Store
-.shots/
-.claude/worktrees/
-lib/
