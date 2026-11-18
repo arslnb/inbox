@@ -134,7 +134,7 @@ export const FIELDS: FieldDoc[] = [
   {
     path: "me.merge_owed",
     type: "boolean",
-    doc: "someone else's open PR you approved whose author can't merge it (no say on the repo): the merge is yours",
+    doc: "someone else's open PR from a fork you approved whose author can't merge it (no say on the repo): the merge is yours",
   },
   { path: "me.commented", type: "boolean", doc: "you commented or reviewed" },
   { path: "me.last_action_hours", type: "number", doc: "hours since your latest comment, review or push (-1 if none)" },

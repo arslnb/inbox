@@ -20,6 +20,7 @@ const approvedByMe = (n: number, o: Partial<Item> = {}) =>
     merge_method: "SQUASH",
     head_oid: "h4",
     author_can_merge: false,
+    head_repo: "outsider/api",
     ...o,
   });
 
@@ -29,6 +30,8 @@ test("the merge is yours: approved by you, its author can't merge it, nobody hol
   const { author_can_merge: _, ...old } = approvedByMe(1);
   assert.equal(mergeOwed(old, "me"), false, "stored before it was fetched");
   assert.equal(mergeOwed(approvedByMe(1, { draft: true }), "me"), false, "a draft");
+  assert.equal(mergeOwed(approvedByMe(1, { head_repo: "acme/api" }), "me"), false, "its branch is in the repo: a bot's for a teammate");
+  assert.equal(mergeOwed(approvedByMe(1, { head_repo: "" }), "me"), true, "a deleted fork");
   assert.equal(mergeOwed(approvedByMe(1, { can_merge: false }), "me"), false, "you can't merge it either");
   assert.equal(mergeOwed(approvedByMe(1, { review_decision: "required" }), "me"), false, "GitHub wants another approval");
   const held = approvedByMe(1);

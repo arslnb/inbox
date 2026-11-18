@@ -27,11 +27,12 @@ export function approved(it: Item, self: string): boolean {
 export const reviewOptional = (it: Item): boolean =>
   it.kind === "pr" && it.review_decision === "none" && !!it.default_branch && it.base === it.default_branch && it.can_merge !== false;
 
-// Someone else's open PR you approved whose author has no say on the repo (a fork's contributor, say): they can't merge
-// it, so the merge is yours. Your approval must be your latest verdict, and nobody else may hold it.
+// Someone else's open PR, from a fork, you approved whose author has no say on the repo: they can't merge it, so the merge
+// is yours. A branch in the repo itself was pushed by someone who can (a bot opening it for a teammate, say). Your
+// approval must be your latest verdict, and nobody else may hold it.
 export function mergeOwed(it: Item, me: string): boolean {
   if (it.kind !== "pr" || it.state !== "open" || it.draft || it.author_can_merge !== false || it.can_merge === false) return false;
-  if (lc(it.author) === lc(me)) return false;
+  if (lc(it.author) === lc(me) || it.head_repo === undefined || lc(it.head_repo) === lc(it.repo)) return false;
   const mine = it.reviews.findLast((r) => lc(r.author) === lc(me) && r.state !== "commented" && r.state !== "pending");
   return mine?.state === "approved" && !verdicts(it, it.author).changes_by.length && it.review_decision !== "required";
 }

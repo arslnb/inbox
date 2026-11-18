@@ -30,7 +30,7 @@ export const GITHUB_CRITERIA: readonly BuiltInCriterion[] = [
   {
     id: "merge-owed",
     name: "Yours to merge",
-    help: "Someone else's PR you approved whose author can't merge it (no say on the repo, like a fork's contributor), with CI green: the merge is yours, so it's Urgent.",
+    help: "Someone else's PR from a fork you approved whose author can't merge it (no say on the repo), with CI green: the merge is yours, so it's Urgent.",
     on: true,
     when: "me.merge_owed && pr.ci == 'green' && pr.mergeable != 'conflict'",
     urgent: true,
