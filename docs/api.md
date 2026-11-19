@@ -486,7 +486,7 @@ interface Conversation {
   comments: { id: string; author: string; bot: boolean; body: string; at: string; url: string }[]; // oldest first
   waiting_on_you: boolean;
   url: string;
-  take: Take | null; // your agent's read; only when waiting on you
+  take: Take | null; // the light model's read; only when waiting on you
 }
 
 interface Checks {
@@ -851,7 +851,7 @@ The only model the desk calls that isn't your agent is [the decision model](#the
 
 ### The light model
 
-One role for the small, frequent asks: the judge's sort, the Inbox's score, the criteria's and automations' questions, and short reads such as [who a bot's PR is for](#opened-for-you). Each goes down a chain (`Light` in `src/light.ts`, `desk.light`):
+One role for the small, frequent asks: the judge's sort, the Inbox's score, the criteria's and automations' questions, and short reads such as [who a bot's PR is for](#opened-for-you), [what a conversation waiting on you wants](#what-reviewers-said) and [whether a session is blocked on you](#sessions). Each goes down a chain (`Light` in `src/light.ts`, `desk.light`):
 
 1. **An external provider**, when you configured one and it takes that kind of ask. Today that's [the decision model](#the-decision-model-openrouter), which answers the criteria's and automations' yes-or-no and pick-one questions and the Inbox's score (`Provider.decide`), not the judge or a read. Another (a Cloudflare AI Gateway endpoint, say) would be one more entry in `Light.providers()`, with the kinds it takes.
 2. **Your subscription's light model**, through [your own agent](#your-own-agent), with no tools (`Light.ask()`). `lightModel()` picks the model and effort: Settings → Agent → More's **Light model** (`agent.light_model`) and **Light model's effort** (`agent.light_effort`), or, where empty, your subscription's cheap tier (`TIERS` in `src/settings.ts`):
@@ -1027,7 +1027,7 @@ Bots never wait on you. Nor does a thread your push answered: GitHub marks it ou
 
 **Reply on the row.** The same rule, on what a sync knows of your PR, gives its row the call to action Reply when that's all it needs: open, not in Merging, not a draft, CI not failing, no conflict, no changes requested, and not approved and green (`owesReply`).
 
-**Your agent's read.** For each conversation waiting on you, your agent (tool-less, like the judge) reads the PR's title, description, latest commits and the conversations, with the code a thread is on, fenced with a random tag. Up to 10 a call, one PR at a time, in the background: when you open a review, and after a sync for rows that say Reply. For each it gives a one-line gist of what they want and its take ("Valid concern: …", "A nit: …", "Already addressed: …", "Only you can answer: …", "Nothing to do: …"). The take is kept per conversation until a newer comment arrives (`take:<pr>` in the store). A failure shows in the view and isn't retried on that PR for 10 minutes.
+**The light model's read.** For each conversation waiting on you, [the light model](#the-light-model) (tool-less, like the judge) reads the PR's title, description, latest commits and the conversations, with the code a thread is on, fenced with a random tag. Up to 10 a call, one PR at a time, in the background: when you open a review, and after a sync for rows that say Reply. For each it gives a one-line gist of what they want and its take ("Valid concern: …", "A nit: …", "Already addressed: …", "Only you can answer: …", "Nothing to do: …"). The take is kept per conversation until a newer comment arrives (`take:<pr>` in the store). A failure shows in the view and isn't retried on that PR for 10 minutes.
 
 **Answering.** The reply box starts with your agent's suggestion. Reply (or ⌘↩) posts it on GitHub as you, through `POST /api/review/:id/reply`, one of the desk's GitHub writes ([Security model](#security-model)). A thread's `side` (`new`, `old` for a removed line, `null` on the PR) places it in the diff. Your own comment on a line goes through `POST /api/review/:id/inline`.
 
@@ -1377,7 +1377,7 @@ Any shape it doesn't know gives no item. Nothing it reads is kept but a one-line
 
 **Stalled:** a turn ended on a rate limit (until `quotaLimits.resetsAt` when it says), `overloaded` or a 5xx; a background session's `state: failed`; a turn left open with no process (unless you stopped or interrupted it); the desktop app's error mark after its last turn; and, weakly, busy with nothing written for `sessions.quiet_minutes`, unless it's retrying or a subagent is working. Codex keeps no errors or approvals in its rollouts, so a Codex turn started and idle 25 minutes is all it can say.
 
-**Asking you something.** A turn that ended normally with a question, in a terminal still open (or Codex's `task_complete`), goes to your agent (`askAgent()`, tool-less, the message's last 2 KB, at most 3 a pass), once per session and last event. It reaches the Inbox only if it's blocking; a directional question ("Want me to also…?") never does. With `sessions.ask` off, none reaches the Inbox. The desktop app's and background sessions' own reads stand instead.
+**Asking you something.** A turn that ended normally with a question, in a terminal still open (or Codex's `task_complete`), goes to [the light model](#the-light-model) (tool-less, the message's last 2 KB, at most 3 a pass), once per session and last event. It reaches the Inbox only if it's blocking; a directional question ("Want me to also…?") never does. With `sessions.ask` off, none reaches the Inbox. The desktop app's and background sessions' own reads stand instead.
 
 **Left out:** the coordinator (`Inbox coordinator`), your agent (`Inbox agent`) and anything working under the desk's home (the judge, reviews, automations).
 

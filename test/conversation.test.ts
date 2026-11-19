@@ -323,6 +323,7 @@ test("Claude reads what waits on you once per latest comment, in the background,
   await until(() => fake.calls() === 1 && !t.desk.convos.reading);
   const args = fake.args(1);
   assert.ok(args.includes("--json-schema") && args[args.indexOf("--tools") + 1] === "", "no tools, like the judge");
+  assert.deepEqual([args[args.indexOf("--model") + 1], args[args.indexOf("--effort") + 1]], ["claude-haiku-5-5", "low"], "the light model");
   assert.ok(!fake.stdin(1).includes("PRRT_resolved") && fake.stdin(1).includes("Do tombstones ever expire?"));
 
   const v = await run(t.desk.reviewView("web#3"));

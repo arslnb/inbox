@@ -1,13 +1,11 @@
 // What reviewers said on a PR, which of it waits on you, and Claude's read of what does. Read only: replies go through
-// Desk.reply(), on your click. Claude runs like the judge: your own claude, no tools, an empty directory.
+// Desk.reply(), on your click. Claude runs like the judge: the light model, no tools, an empty directory.
 import { randomBytes } from "node:crypto";
 import { Cache, Cause, Duration, Effect, Exit, Result, Schema, type Fiber } from "effect";
 import type { Desk } from "./desk.ts";
 import { messageOf, type GitHubReadError } from "./errors.ts";
 import type { PrContext } from "./github/index.ts";
 import { decode, field, str } from "./narrow.ts";
-import { askAgent, makeAgentDir } from "./review.ts";
-import { agentName } from "./settings.ts";
 import type { Conversation, Item, ReviewState, ReviewView, Take } from "./types.ts";
 import { report } from "./sentry.ts";
 import { pushedAt, threadWaitsOnYou, waitsOnYou } from "./stage.ts";
@@ -295,13 +293,11 @@ export class Conversations {
       const unread = (yield* this.list(id)).filter((c) => c.waiting_on_you && !c.take).slice(0, BATCH);
       if (!unread.length) return;
       const prompt = buildTakePrompt(e.item, desk.me() || "the owner", unread, ctx);
-      const dir = yield* makeAgentDir(desk.home);
-      const agent = desk.agent();
-      const { answer } = yield* askAgent(prompt, { schema: TAKE_SCHEMA, dir, agent });
+      const { answer } = yield* desk.light.ask(prompt, TAKE_SCHEMA);
       const got = parseTakes(answer, new Map(unread.map((c) => [c.id, c.comments.at(-1)!.id])), new Date().toISOString());
       desk.store.set(`take:${id}`, { ...keptTakes(desk.store.get(`take:${id}`)), ...got });
       this.errors.delete(id);
-      desk.log(`${agentName(agent)} read ${Object.keys(got).length} of ${unread.length} conversations waiting on you on ${id}`);
+      desk.log(`${desk.light.tierName()} read ${Object.keys(got).length} of ${unread.length} conversations waiting on you on ${id}`);
     }).pipe(
       Effect.catchDefect((defect) =>
         Effect.sync(() => {
