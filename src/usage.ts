@@ -11,8 +11,8 @@ export const WORK = {
   comments: "Reviewers' comments",
   sessions: "Sessions that need you",
   attribution: "Bot PRs opened for you",
-  merging: "Your agent: Merging",
-  agent: "Your agent: Ask your agent",
+  merging: "Merging",
+  agent: "Ask your agent",
   other: "Other",
 } as const;
 export type WorkKind = keyof typeof WORK;

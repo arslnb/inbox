@@ -125,6 +125,18 @@ const AREAS: Areas = {
 const HOUR = 3_600_000;
 const T0 = Date.now();
 const iso = (hoursAgo: number) => new Date(T0 - hoursAgo * HOUR).toISOString();
+// Settings → Usage's graph: a few months of finished items, quiet weekends, busier lately; the same on every run.
+function closedDays(): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (let i = 0; i < 140; i++) {
+    const d = new Date(T0 - i * 24 * HOUR);
+    const weekend = d.getDay() === 0 || d.getDay() === 6;
+    const n = Math.max(0, Math.round(((i * 37) % 23) * (weekend ? 0.15 : 1) * (i < 30 ? 2.2 : 1) - 4));
+    if (n) out[`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`] = n;
+  }
+  return out;
+}
+
 const hoursSince = (at: string) => Math.round((Date.now() - Date.parse(at)) / HOUR);
 const BUCKET_LIST = new Set<Bucket>(["now", "today", "blocked", "later", "fyi", "hide"]);
 // Every action /api/act takes, so a body's is checked.
@@ -4455,6 +4467,8 @@ async function respond(req: IncomingMessage, url: URL): Promise<unknown> {
         row("sessions", "claude-haiku-5-5", 96, 240_000, 9_000, 0, 0.03),
         row("attribution", "claude-haiku-5-5", 12, 30_000, 2_000, 0, 0.004),
       ],
+      now: new Date(T0).toISOString(),
+      closed: closedDays(),
     };
   }
   const crit = /^\/api\/criteria\/([^/]+)(\/on)?$/.exec(url.pathname);

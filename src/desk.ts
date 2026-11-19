@@ -873,7 +873,19 @@ export class Desk {
   // Settings → Usage: the last `days` days, or everything with none.
   usageView(days: number | null): UsageView {
     const since = days === null ? null : new Date(this.now().getTime() - days * 86_400_000).toISOString();
-    return { days, first: this.store.firstUsage(), work: { ...WORK }, rows: this.store.usage(since) };
+    const now = this.now().toISOString();
+    return { days, first: this.store.firstUsage(), work: { ...WORK }, rows: this.store.usage(since), now, closed: this.closedPerDay() };
+  }
+
+  // Distinct items finished per local day, over the 53 weeks a contribution graph shows.
+  private closedPerDay(): Record<string, number> {
+    const from = new Date(this.now().getTime() - 371 * 86_400_000).toISOString();
+    const days = new Map<string, Set<string>>();
+    for (const c of this.store.closings(this.me(), from)) {
+      const day = localDay(new Date(c.at));
+      days.set(day, (days.get(day) ?? new Set()).add(c.item_id));
+    }
+    return Object.fromEntries([...days].map(([d, s]) => [d, s.size]));
   }
 
   start(): void {
@@ -4872,6 +4884,9 @@ function countsOf(r: BoardResult): Record<Bucket, number> {
     hide: r.order.hide.length,
   };
 }
+
+// A date's day where the desk runs, as "2026-11-19".
+const localDay = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
 // Done doesn't hide a PR whose merge is yours (mergeOwed): approving it isn't the end of it. Mute or snooze still do.
 function statusOf(s: StateRow, activityAt: string, now: Date, mergeOwed = false): Status {

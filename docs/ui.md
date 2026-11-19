@@ -504,12 +504,11 @@ No tabs. In Settings the sidebar lists its parts in place of the pages, under **
 
 ### Usage
 
-`#/settings/usage`: what the desk's model calls would have cost at Anthropic's API prices, had it paid per token instead of running on your plan. Nothing here is billed. [api.md → Usage](api.md#usage).
+`#/settings/usage`: what you closed each day, and what the desk's model calls would have cost at Anthropic's API prices, had it paid per token instead of running on your plan. Nothing here is billed. [api.md → Usage](api.md#usage).
 
-- The total, its count of model calls and since when the desk has counted, with a window: last 7 days, last 30 days (the default) or since it started counting.
-- **By work**: sorting and scoring the Inbox, AI reviews, issue pre-reviews, automations, reviewers' comments, sessions that need you, bot PRs opened for you, and your agent (Merging, Ask your agent), costliest first; each row's help gives its models' cost and calls.
-- **By model**: each model's calls, cost and tokens (in, out, read from and written to the cache).
-- A note on what isn't counted: Codex and OpenCode runs, and the decision model's.
+- **Closed per day**: a contribution graph of the last 53 weeks (a column a week, Sunday on top, greener for more; the latest half year when narrow), its total in the heading. It counts the items you marked Done, your approvals that took an item off your desk, and PRs you or your agent merged or closed; a cell's tooltip gives its day's count.
+- **Cost at API prices**: the total and the dates it covers, with a window (last 7 days, last 30 days, the default, or since it started counting) and what isn't counted: Codex and OpenCode runs, and the decision model's. Calls on a model with no known price make it "or more".
+- **By work** or **By model**, the heading a switch: by work, costliest first, each row's help naming its model (or each model's cost when several); by model, each one's cost and tokens (in, out, read from and written to the cache).
 
 ### Automations
 

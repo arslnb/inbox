@@ -501,6 +501,19 @@ export class Store {
     }));
   }
 
+  // What you finished from `from` on: your Done presses, your approvals that took an item off your desk, and PRs you
+  // merged or closed (your agent's merges are on your login). One row each; an item finished twice counts twice.
+  closings(me: string, from: string): { at: string; item_id: string }[] {
+    return this.db
+      .prepare(
+        `SELECT at, item_id FROM events WHERE action = 'done' AND undone = 0 AND at >= ?1
+         UNION ALL SELECT at, item_id FROM activity WHERE kind = 'resolved' AND json_extract(data, '$.reason') = 'you approved' AND at >= ?1
+         UNION ALL SELECT at, item_id FROM activity WHERE kind IN ('merged', 'closed') AND lower(actor) = lower(?2) AND at >= ?1`,
+      )
+      .all(from, me)
+      .map((r) => ({ at: text(r.at), item_id: text(r.item_id) }));
+  }
+
   firstUsage(): string | null {
     return textOrNull(this.db.prepare("SELECT MIN(at) AS at FROM usage").get()?.at ?? null);
   }

@@ -909,7 +909,7 @@ What the desk's model calls would have cost at Anthropic's API prices, had it pa
 - **Your agent's sessions** (Merging, Ask your agent) are read from their Claude Code transcripts in their folder, each time the desk looks at them, from where the last look stopped. Each model request is priced at the list prices in `PRICES`, a cache write at 1.25× input (2× for an hour). A resumed copy repeats its history; the table keeps each request once (by its message id). A model `PRICES` doesn't know is counted in `unpriced`, not in the cost.
 - **Not counted:** Codex and OpenCode runs, and the decision model's (OpenRouter).
 
-`GET /api/usage?days=7` sums them by work and model; Settings → Usage shows it.
+`GET /api/usage?days=7` sums them by work and model; Settings → Usage shows it. Its `closed` counts the distinct items you finished each local day of the last 53 weeks: your Done presses (`events`), your approvals that resolved an item (`activity` resolved "you approved"), and PRs merged or closed on your login (yours or your agent's).
 
 ## Reviews
 

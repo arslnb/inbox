@@ -6,7 +6,9 @@ import path from "node:path";
 import { askClaude } from "../src/review.ts";
 import { Store } from "../src/store.ts";
 import { as, claudeUsage, meterTo, transcriptUsage } from "../src/usage.ts";
-import { run } from "./helpers/run.ts";
+import { reviewAsk, setup } from "./helpers/desk.ts";
+import { NOW } from "./helpers/items.ts";
+import { run, runSync } from "./helpers/run.ts";
 
 const posix = { skip: process.platform === "win32" };
 
@@ -85,4 +87,25 @@ test("a call is kept under the work it was for, once, and summed by work and mod
   ]);
   assert.deepEqual(by("2026-11-18T00:00:00Z"), [["review", "claude-haiku-5-5", 1, 10, 0.25]], "the window");
   assert.equal(store.firstUsage(), "2026-11-16T00:00:00Z");
+});
+
+test("closed per day: your Done presses, your approvals off the desk and your merges, an item once a day; undone doesn't count", async (c) => {
+  const t = await setup([reviewAsk(1), reviewAsk(2), reviewAsk(3)]);
+  c.after(t.cleanup);
+  await run(t.desk.sync());
+  runSync(t.desk.act("api#1", "done"));
+  runSync(t.desk.undo(runSync(t.desk.act("api#2", "done")).undo_seq));
+  const now = NOW.toISOString();
+  const event = (item_id: string, kind: "merged" | "resolved", actor: string, data: Record<string, string> = {}) =>
+    ({ at: now, source: "github", item_id, kind, actor, data }) as const;
+  t.desk.store.addActivity([
+    event("acme/api#1", "resolved", "", { reason: "you approved" }), // the same item the same day
+    event("acme/api#3", "merged", "ME"),
+    event("acme/api#4", "merged", "carol"), // someone else's merge isn't yours
+    event("acme/api#5", "resolved", "", { reason: "approved by carol" }),
+  ]);
+  const closed = t.desk.usageView(30).closed;
+  const d = NOW;
+  const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  assert.deepEqual(closed, { [today]: 2 });
 });

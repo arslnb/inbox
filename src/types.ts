@@ -1706,4 +1706,6 @@ export interface UsageView {
   first: string | null; // when it started counting
   work: Record<string, string>; // each work's name, as Settings shows it
   rows: UsageTotal[];
+  now: string; // the desk's clock, which the window and the graph end at
+  closed: Record<string, number>; // items you finished each day of the last 53 weeks, by local day ("2026-11-19"); days with none left out
 }
