@@ -68,7 +68,7 @@ xcrun simctl launch booted it.pstrucha.inbox -deskURL http://localhost:47841 -pa
 | `-scroll diff\|thread\|said`                   | with `-open`: a PR's page scrolled to its diff, the first thread on a line of it, or its Conversation tab |
 | `-scroll guide\|step-<n>\|note`                | with `-open`: the guided review's first step, a later one (from 0), or the AI review's first note on a line |
 | `-ai open`                                     | with `-open`: the AI review's fold, opened                              |
-| `-review.view guided\|traditional\|conversation` | the diff's order where a review has steps, or the Conversation tab, for this launch (the saved choice is left alone) |
+| `-review.view guided\|traditional\|conversation` | the diff's order where a review has steps, or the Conversation tab, for this launch |
 | `-part risk\|changes`                          | with `-open`: that row of a PR's Status, opened                         |
 | `-said links\|none`                            | with `-open`: a PR's conversation as the mock never sends it: a bot's links and images, reviews' verdicts and a resolved thread added, or nothing said |
 | `-approved`                                    | with `-open`: someone else's PR as if you'd approved its commit         |
@@ -270,7 +270,7 @@ merge, where Snooze does); More is its three dots only where it doesn't fit even
   where that's news); a long stack shows four around this PR and "16 more" (Fewer), and the
   stack's other branches come under "Other branches" (`Stack.around()`). A press opens that PR.
 - **Review, Code changes and Conversation.** Tabs under the stack, as words, the one you're on in ink with a
-  rule under it: a review with steps reads two ways, the choice kept on this phone (`review.view`), Review first; a
+  rule under it: a review with steps reads two ways and a PR always opens on Review (Code changes holds for that PR only); a
   review without steps has Code changes and Conversation. Conversation (with how many wait on your reply) holds what
   reviewers said in the diff's place; a PR opened to reply, and the bar's Reply, open on it. Review is only the guide's steps: "2 of 4" and the
   step's title, its words, "Check:", its note, its diagram, then its sections, each under Look or Skim and why; at its

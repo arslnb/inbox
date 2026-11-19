@@ -24,8 +24,8 @@ struct ItemPage: View {
   @State private var sent: [SentWords] = []  // yours on the diff's lines, until the conversation has them
   @State private var talking: Bool?  // on the Conversation tab; nil until picked: a PR opened to reply starts on it
   @State private var marking: [String: Bool] = [:]  // Viewed ticks on their way, until a review read again agrees
-  // This phone's choice where a review has steps: the guided review, or every file ("traditional"). The window's own.
-  @AppStorage("review.view") private var reading = "guided"
+  // Where a review has steps: the guided review, or every file ("traditional"). A PR opens on its Review; -review.view overrides it.
+  @State private var reading = UserDefaults.standard.volatileDomain(forName: UserDefaults.argumentDomain)["review.view"] as? String ?? "guided"
 
   // A box that writes, as a sheet.
   enum Box: Identifiable {

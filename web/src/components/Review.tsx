@@ -81,7 +81,6 @@ import {
 } from "../view.ts";
 import { FIT, isTestPath, LEVEL, onLines, STATUS, traditional, VERDICT, walk, type Section } from "../../../src/sections.ts";
 import "../diffThemes.ts";
-import { getStored, setStored } from "../storage.ts";
 import { diffTheme, omarchyTheme, onOmarchy } from "../theme.ts";
 import { Avatar } from "./Avatar.tsx";
 import { CI, HandButton, ActButton, REVIEW } from "./Detail.tsx";
@@ -134,7 +133,6 @@ const STACK_SHOWN = 4; // the PR below this one, this one and two above; the res
 const SIDE: Width = { key: "desk.review.side.width", cssVar: "--rv-side-w-user", min: 220, max: 0.45 };
 const ROOM = 680; // px of the page's column (styles.css's @container pane): narrower, the sidebar opens over the diff, folded
 const ROW = 19; // px: .rv-diff's --diffs-line-height
-const VIEW = "desk.review.view"; // this device's choice: the guided review or traditional, when a review has steps
 const pane = () => document.querySelector(".col");
 // The fractional width, as the container query reads it, so the two agree at the edge.
 const roomy = () => (pane()?.getBoundingClientRect().width ?? innerWidth) >= ROOM;
@@ -223,7 +221,7 @@ export function Review({
   const [view, setView] = useState<ReviewView | string | null>(null); // string: why it failed
   const [secIdx, setSecIdx] = useState(0); // the section you're in; with the rest folded, its line is one past the last shown
   const [restOpen, setRestOpen] = useState(false);
-  const [walking, setWalking] = useState(() => !["traditional", "importance"].includes(getStored(VIEW) ?? ""));
+  const [walking, setWalking] = useState(true); // a PR opens on its Review when it has one; Code changes is for this PR only
   // The Conversation tab, in the diff's place: a PR opened to reply starts on it.
   const [talking, setTalking] = useState(known?.cta === "reply");
   const tabbed = useRef(!!known); // whether the tab it opens on was picked: by its row, or once the review lands
@@ -920,12 +918,11 @@ export function Review({
   // A review of an earlier commit isn't shown, so it isn't taken for this commit's.
   const ai = view.ai_stale ? null : view.ai;
 
-  // The diff's two orders; the choice is this device's.
+  // The diff's two orders.
   const pickOrder = (w: boolean) => {
     setTalking(false);
     setWalking(w);
     setDrawn(0); // the other view's sections draw a screenful first too, not all at once
-    setStored(VIEW, w ? "guided" : "traditional");
   };
   const owed = view.conversation.filter((c) => c.waiting_on_you).length; // waiting on your reply: the tab's count
   // The views are tabs: the arrows, Home and End move to a view and show it.
@@ -1264,7 +1261,6 @@ export function Review({
                                     className="link-btn"
                                     onClick={() => {
                                       setWalking(false);
-                                      setStored(VIEW, "traditional");
                                       scrollTo({ top: 0 });
                                     }}
                                   >

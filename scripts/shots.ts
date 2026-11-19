@@ -137,8 +137,9 @@ const at = (hash: string) => async (page: Page) => {
 // A PR's review, opened from `from` (the Inbox), once Pierre has drawn and highlighted its diffs; then each selector clicked
 // in order. Always from that page, so every size shows the same way back and list beside it, and the review opens afresh
 // rather than keep what the shot before left in it.
+// A review opens on its Review where it has one; the shots read Code changes unless they ask for the guide.
 const review =
-  (id: string, clicks: string[] = [], from = "#/") =>
+  (id: string, clicks: string[] = [], from = "#/", view: "Review" | "Code changes" = "Code changes") =>
   async (page: Page) => {
     // Already there, it may be by an Esc whose hashchange hasn't landed yet: a review opened before it would skip the page.
     if ((await page.evaluate<string>("location.hash")) !== from) await at(from)(page);
@@ -148,11 +149,11 @@ const review =
     await at(`#/review/${encodeURIComponent(id)}`)(page);
     // One opened to reply starts on its Conversation tab: the shots read its diff, as every other's, unless they ask for the tab.
     await page.locator(".rv-diff, .rv-talk:not([hidden])").first().waitFor({ timeout: 15_000 });
-    if (!(await page.locator(".rv-diff").count())) {
-      const kept = await page.evaluate<string | null>(`localStorage.getItem("desk.review.view")`);
-      const tabs = page.locator(".rv-views .head-tab");
-      await (kept === "traditional" ? tabs.filter({ hasText: "Code changes" }) : tabs.first()).click();
-    }
+    const tabs = page.locator(".rv-views .head-tab");
+    // The Review tab comes with the AI review's steps, which may land after the diff: a click on Code changes keeps it there.
+    const tab = tabs.filter({ hasText: view }).first();
+    await tab.waitFor({ timeout: 15_000 });
+    if (view === "Code changes" || (await page.locator(".rv-views .head-tab.on").textContent()) !== view) await tab.click();
     await page.locator(".rv-diff").first().waitFor({ timeout: 15_000 });
     await page.waitForTimeout(900);
     for (const c of clicks) {
@@ -2168,13 +2169,17 @@ const SHOTS: Shot[] = [
     // summary, the other reasons, Interfaces and Could be better; Look here sits on its line and the first step has a note.
     name: "review-ai-parts",
     go: async (page) => {
-      await page.evaluate(`localStorage.removeItem("desk.review.view")`);
-      await review("acme/worker#879")(page);
+      await review("acme/worker#879", [], "#/", "Review")(page);
       const ai = page.locator(".rv-ai");
       const bad = (m: string) => failures.push(`review-ai-parts: ${m}`);
       if (!(await ai.locator(".rv-gist").innerText()).startsWith("Splits the scheduler into Lease and Dispatch"))
         bad("the goal doesn't lead");
-      if ((await page.locator("[data-status=risk] .rv-status-said").innerText()) !== "Medium risk") bad("Status's risk isn't Medium risk");
+      // Status is the sidebar's: without room beside the diff there's none.
+      if (
+        (await page.locator(".rv-side").isVisible()) &&
+        (await page.locator("[data-status=risk] .rv-status-said").innerText()) !== "Medium risk"
+      )
+        bad("Status's risk isn't Medium risk");
       if (!(await ai.innerText()).includes("Not quite what the description says")) bad("no gap line");
       await page.locator(".rv-show").click();
       await page.waitForTimeout(200);
@@ -2196,8 +2201,7 @@ const SHOTS: Shot[] = [
     // A step's diagram, laid out by ELK in the app's tokens, under its step's note.
     name: "review-diagram",
     go: async (page) => {
-      await page.evaluate(`localStorage.removeItem("desk.review.view")`);
-      await review("acme/worker#879")(page);
+      await review("acme/worker#879", [], "#/", "Review")(page);
       const fig = page.locator(".rv-step .dg").first();
       await fig.scrollIntoViewIfNeeded();
       await page.locator(".rv-step .dg-sketch-svg").first().waitFor({ timeout: 15_000 });
@@ -2316,7 +2320,7 @@ const SHOTS: Shot[] = [
     go: async (page) => {
       await reviewAs((v) => {
         Object.assign(v, { files: [], conversation: [], ai: null, ai_stale: false, generating: false, ai_error: null });
-        v.order = { ...v.order, ranked: false, chunks: [], unread: [], skipped: [], rest: [], notes: [] };
+        v.order = { ...v.order, ranked: false, chunks: [], unread: [], skipped: [], rest: [], notes: [], steps: [] };
         v.item = { ...v.item, additions: 0, deletions: 0, changed_files: 0 };
       })(page);
       await at(`#/review/${encodeURIComponent("acme/api#4127")}`)(page);
@@ -2806,10 +2810,18 @@ const SHOTS: Shot[] = [
   ...(["review-guided", "review-guided-next", "review-guided-end", "review-traditional"] as const).map((name): Shot => ({
     name,
     go: async (page) => {
-      await page.evaluate(`localStorage.removeItem("desk.review.view")`);
       const id = name === "review-guided-end" ? "acme/worker#879" : "acme/api#4127";
-      await review(id)(page);
       const bad = (m: string) => failures.push(`${name}: ${m}`);
+      if (name === "review-guided") {
+        // Code changes is for that visit: the PR opened again starts on its Review.
+        await review(id)(page);
+        await at("#/")(page);
+        await at(`#/review/${encodeURIComponent(id)}`)(page);
+        await page.locator(".rv-diff").first().waitFor({ timeout: 15_000 });
+        const opened = await page.locator(".rv-views .head-tab.on").allTextContents();
+        if (opened.join() !== "Review") bad(`opened again after Code changes, it's on ${JSON.stringify(opened)}, not Review`);
+      }
+      await review(id, [], "#/", "Review")(page);
       const tabs = (await page.locator(".rv-views .head-tab").allTextContents()).map((t) => t.replace(/\d+$/, ""));
       const on = await page.locator(".rv-views .head-tab.on").allTextContents();
       if (tabs.join("|") !== "Review|Code changes|Conversation" || on.join() !== "Review")
@@ -2888,8 +2900,6 @@ const SHOTS: Shot[] = [
         const all = [...o.chunks, ...o.unread, ...o.skipped];
         const files = [...new Set(all.toSorted((a, b) => a.file - b.file).map((h) => h.path))];
         if (drawn.join() !== files.join()) bad(`Code changes draws ${drawn.join()}, not every file in order: ${files.join()}`);
-        if ((await page.evaluate<string | null>(`localStorage.getItem("desk.review.view")`)) !== "traditional")
-          bad("the choice isn't kept");
         if (await page.locator(".rv-next, .rv-files[aria-label='Steps of the review']").count()) bad("Code changes still shows the steps");
         await page.locator(".rv-views").scrollIntoViewIfNeeded();
         // The sidebar's files, as folders: the file you're in is marked, its folders ringed; a folded one is marked in its place,
@@ -2920,9 +2930,6 @@ const SHOTS: Shot[] = [
           await page.waitForTimeout(300);
         }
       }
-    },
-    after: async (page) => {
-      await page.evaluate(`localStorage.setItem("desk.review.view", "traditional")`);
     },
     // xl has room for the sidebar beside the list, where the steps replace the files.
     sizes: ["wide", "mid", "min", "mac", "xl"],
@@ -6142,8 +6149,6 @@ try {
         colorScheme: theme,
         deviceScaleFactor: 2,
       });
-      // The review shots read Code changes; the review-guided ones start from the default.
-      await page.addInitScript(`localStorage.getItem("desk.review.view") ?? localStorage.setItem("desk.review.view", "traditional")`);
       // The macOS app's bridge (electron/preload.cjs) with only status() faked: App takes the shell's markers from it, and
       // Settings → This device draws the app's rows. No theme, so the theme stays in localStorage as in a browser.
       if (size.mac) {
