@@ -321,14 +321,6 @@ struct InboxList: View {
           if !any {
             if let first { QuietLine(text: first).deskLine() } else { QuietLine(text: filtering ? "No matches." : "Nothing needs you right now.").deskLine() }
           }
-          if let n = view.reviewing, n > 0 {
-            QuietLine(
-              text: n == 1
-                ? "1 more PR reaches you once \(store.agent) has reviewed it."
-                : "\(n) more PRs reach you once \(store.agent) has reviewed them.", size: 14
-            )
-            .deskLine()
-          }
         }
         .deskList()
         .refreshable { await store.refresh() }

@@ -70,6 +70,7 @@ export const CARDS = {
     chips: ["CI red", "+120 −30"],
     ci: "red",
     wake_on: ["ci", "push"],
+    preflight: { state: "running" },
   }),
   today: card("getsentry/sentry#101", "today", "Fix the flaky snuba test that only fails on Tuesdays", "your team was asked · 1d"),
   later: card("getsentry/sentry#202", "later", "Bump some dependency", "team ask, not close"),
@@ -116,7 +117,7 @@ const overview: Overview = {
   rate_limit: { remaining: 4800, reset_at: ago(-1) },
 };
 
-const focus: FocusView = { sessions: [], sections: { now: [CARDS.now], today: [CARDS.today] }, reviewing: 2, paused: null };
+const focus: FocusView = { sessions: [], sections: { now: [CARDS.now], today: [CARDS.today] }, reviewing: 0, paused: null };
 
 // One automation that's on and may snooze, with a run that added one item and snoozed another; its summary carries text a
 // fence must hold.
@@ -457,7 +458,7 @@ function route(api: FakeApi, method: string | undefined, url: URL, body: any): R
       const r = resolve(body.id);
       if (r.status !== 200) return reply(r.status, r.body);
       const d = r.body as ItemDetail;
-      return reply(200, { ok: true, item: { ...d, card: { ...d.card, pinned: true }, generating: true, held: true }, undo_seq: 8 });
+      return reply(200, { ok: true, item: { ...d, card: { ...d.card, pinned: true }, generating: true, held: false }, undo_seq: 8 });
     }
     case "POST /api/undo":
       return reply(200, { ok: true, id: body.seq === 9 ? "session:abc" : CARDS.now.id, action: "done" });

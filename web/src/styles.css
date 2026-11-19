@@ -1794,6 +1794,13 @@ html::-webkit-scrollbar-corner,
   color: var(--faint);
 }
 
+/* A PR whose first AI review isn't written yet: where that review is, quiet words where its signal will be. */
+.line-pending {
+  color: var(--pencil);
+  font-size: var(--text-sm);
+  white-space: nowrap;
+}
+
 .rf {
   display: inline-flex;
   flex: none;
@@ -2176,13 +2183,6 @@ html::-webkit-scrollbar-corner,
   padding: 10px var(--pad) 0;
 }
 
-.queue-reviewing {
-  margin: 0;
-  padding: 14px var(--pad) 0;
-  color: var(--pencil);
-  font-size: var(--text-md);
-}
-
 /* Later's groups open and close on their heading. */
 .group-toggle {
   display: inline-flex;
@@ -2425,11 +2425,6 @@ html::-webkit-scrollbar-corner,
 .beside .quiet-note {
   padding: 16px;
   font-size: var(--text-md);
-}
-
-.beside .queue-reviewing {
-  padding-top: 14px;
-  font-size: var(--text-sm);
 }
 
 .beside .lane-stack {

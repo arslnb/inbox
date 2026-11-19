@@ -1498,7 +1498,7 @@ export class Desk {
     this.store.pruneKv("added:", kept);
     this.store.pruneKv("sorted:", kept);
     this.store.pruneKv("acted:", kept);
-    this.store.pruneKv("shown:", kept);
+    this.store.pruneKv("shown:", new Set()); // the old hold's marks: nothing reads them now
     this.store.pruneKv("viewed:", kept);
     this.store.pruneKv("take:", kept);
     this.store.pruneKv("said:", kept);
@@ -1689,12 +1689,6 @@ export class Desk {
     if (!this.loaded || !this.syncedAt) return;
     const snap = this.snapshot();
     const { now, today } = this.top(snap, new Set());
-    const all = this.top(snap, new Set(), true);
-    const shown = new Set([...now, ...today].map((c) => c.id));
-    // Once on your desk it stays: a PR shown without its review (paused, or it failed) isn't held again.
-    for (const c of [...now, ...today])
-      if (c.kind === "pr" && !snap.reviews.has(c.id) && !this.store.get(`shown:${c.id}`)) this.store.set(`shown:${c.id}`, true);
-    const held = [...all.now, ...all.today].map((c) => c.id).filter((id) => !shown.has(id));
     const me = this.me().toLowerCase();
     const queued = [...now, ...today]
       .filter(
@@ -1707,10 +1701,11 @@ export class Desk {
           !snap.auto.has(c.id), // its automation's run told you
       )
       .map((c) => ({ id: c.id, ref: shortRef(c), why: c.why }));
-    // Held on the first pass, they were there before you looked, as the rest were.
     const prev = strings(this.store.get("notified_queue")) ?? null;
-    const keep = prev === null ? held : held.filter((id) => prev.includes(id));
-    this.store.set("notified_queue", [...queued.map((x) => x.id), ...keep]);
+    this.store.set(
+      "notified_queue",
+      queued.map((x) => x.id),
+    );
     const fresh = prev === null ? [] : queued.filter((x) => !prev.includes(x.id));
     if (!fresh.length || !this.mayNotify()) return;
     const [only] = fresh;
@@ -2179,11 +2174,9 @@ export class Desk {
   }
 
   // Your PRs back on top of the queue: handed back, or ready and nobody's asked to review them.
-  needsCards(snap: Snapshot, seen: Set<string>, all = false): Card[] {
+  needsCards(snap: Snapshot, seen: Set<string>): Card[] {
     const out: Card[] = [];
-    for (const [id, why] of snap.needs) {
-      // Your ready PR nobody's asked to review waits for its AI review too; a hand-back never waits.
-      if (!all && why === UNASKED && this.awaitsAi(snap.entries.get(id)!, snap)) continue;
+    for (const id of snap.needs.keys()) {
       seen.add(id);
       out.push(this.queueCard(snap.entries.get(id)!, snap.best.get(id)!, snap));
     }
@@ -2271,43 +2264,24 @@ export class Desk {
       return {
         sessions: this.sessions.active(),
         sections,
-        reviewing: this.reviewing(snap),
+        reviewing: 0, // nothing waits on its review now: kept for older clients
         paused: this.paused(),
       };
     });
   }
 
-  // Someone else's open PR reaches your desk only once Claude has reviewed it: until its first AI review is written it waits,
-  // paused AI reviews (a lapsed login) included; only AI reviews turned off or this commit's review failed for good let it
-  // through unreviewed (out of tries, not while a retry is to come). Once shown (`shown:<id>`, or you put it there) it stays.
-  awaitsAi(e: Entry, snap: Snapshot): boolean {
-    const it = e.item;
-    if (!this.autoAiOn() || !this.reviewable(e)) return false;
-    if (snap.reviews.has(it.id) || this.store.get(`shown:${it.id}`)) return false;
-    const j = this.jobs.get("ai_review", it.id);
-    return !(j?.state === "failed" && j.head === it.head_oid); // only out of tries; a retry to come still holds it
-  }
-
-  // How many would be in Now or Today but for Claude's review.
-  reviewing(snap: Snapshot): number {
-    return [...snap.best].filter(([id, p]) => (p.bucket === "now" || p.bucket === "today") && this.awaitsAi(snap.entries.get(id)!, snap))
-      .length;
-  }
-
-  // Now and Today in the queue's order, which the AI reviews run in too: what was handed back, then each board's. `all` keeps
-  // what waits on Claude's first review (awaitsAi), for the AI reviews and the notifications.
-  top(snap: Snapshot, seen: Set<string>, all = false): FocusView["sections"] {
+  // Now and Today in the queue's order, which the AI reviews run in too: what was handed back, then each board's. A PR whose
+  // AI review isn't written yet is there too, its preflight saying so.
+  top(snap: Snapshot, seen: Set<string>): FocusView["sections"] {
     const loaded = this.loaded!;
-    const sections: FocusView["sections"] = { now: this.needsCards(snap, seen, all), today: [] };
+    const sections: FocusView["sections"] = { now: this.needsCards(snap, seen), today: [] };
     for (const bucket of ["now", "today"] as const) {
       for (const board of boardsOf(loaded)) {
         for (const id of snap.boards.get(board.config.id)!.result.order[bucket]) {
           const p = snap.best.get(id);
           if (seen.has(id) || !p || p.bucket !== bucket || p.board !== board.config.id) continue;
           seen.add(id);
-          const e = snap.entries.get(id)!;
-          if (!all && this.awaitsAi(e, snap)) continue;
-          sections[bucket].push(this.queueCard(e, p, snap));
+          sections[bucket].push(this.queueCard(snap.entries.get(id)!, p, snap));
         }
       }
     }
@@ -2320,7 +2294,6 @@ export class Desk {
       const snap = this.snapshot();
       const seen = new Set<string>();
       const sections: QueueView["sections"] = { ...this.top(snap, seen), blocked: [], later: [], fyi: [] };
-      const reviewing = this.reviewing(snap);
       const hidden: Card[] = [];
       for (const bucket of ["blocked", "later", "fyi", "hide"] as const) {
         for (const board of boardsOf(loaded)) {
@@ -2390,7 +2363,7 @@ export class Desk {
         notes: this.notesView(),
         sessions: this.sessions.cards(),
         sections,
-        reviewing,
+        reviewing: 0, // as in focus()
         hidden: kept,
         cleared,
         resolved: resolved.sort((a, b) => (b.resolved_at ?? "").localeCompare(a.resolved_at ?? "")),
@@ -2524,7 +2497,7 @@ export class Desk {
         ai: snap.reviews.get(id) ?? null,
         ai_stale: (snap.reviews.get(id)?.head_oid ?? e.item.head_oid) !== e.item.head_oid,
         generating: this.aiRunning(id),
-        held: this.awaitsAi(e, snap) && ["now", "today"].includes(snap.best.get(id)?.bucket ?? ""),
+        held: false, // as reviewing in focus()
         activity: this.store.activity({ after: 0, limit: ITEM_ACTIVITY, item: id, latest: true }),
         log: this.placements.log(id),
         stack: this.stack(id, snap),
@@ -2991,7 +2964,7 @@ export class Desk {
         room--;
       }
     }
-    const top = this.top(snap, new Set(), true);
+    const top = this.top(snap, new Set());
     const want = (ids: string[]) => {
       for (const id of ids) {
         if (room <= 0 || !this.autoAi()) return; // a run that failed at once may have paused them
@@ -3473,9 +3446,6 @@ export class Desk {
       const seq = action === "seen" ? 0 : this.store.logAction(id, action, before, now.toISOString(), auto);
       // An automation's sort was its opinion too, and its why for what it did: what you do with the item ends both.
       if (action !== "seen" && !auto) for (const k of [`sorted:${id}`, `acted:${id}`]) if (this.store.get(k)) this.store.set(k, null);
-      // What you bring onto your desk, or put in a section of it yourself, is there now, reviewed or not.
-      if (["pin", "restore", "unmute"].includes(action) || (!auto && ["urgent", "standard", "fyi"].includes(action)))
-        this.store.set(`shown:${id}`, true);
       this.changed();
       if (action === "inflight") this.coordinator.wake(id, "handed off");
       const { snoozed_at: _, acked_at: __, ...state } = s;

@@ -1,4 +1,5 @@
 import { test } from "node:test";
+import { aiPending } from "../src/stage.ts";
 import assert from "node:assert/strict";
 import { spawn } from "node:child_process";
 import fs from "node:fs";
@@ -2016,7 +2017,7 @@ test("reviews that fail at once still start two at a time and pause the rest", a
 
 // ---------------------------------------------------------------- pre-flight on the queue's cards
 
-test("someone else's PR reaches the queue once Claude has reviewed it; then its card carries the pre-flight, stale after a push", async () => {
+test("someone else's PR is on the queue at once, saying its review is on the way; then its card carries the pre-flight, stale after a push", async () => {
   const issue = makeItem({
     number: 9,
     kind: "issue",
@@ -2031,14 +2032,13 @@ test("someone else's PR reaches the queue once Claude has reviewed it; then its 
   };
   const pf = (id: string) => card(id)!.preflight!;
   assert.deepEqual(t.f.started, ["acme/api#3", "acme/api#2"]);
-  assert.equal(card("acme/api#3"), undefined, "being reviewed");
-  assert.equal(card("acme/api#1"), undefined, "waiting its turn");
-  assert.equal(runSync(t.desk.queue()).reviewing, 3);
-  assert.equal(runSync(t.desk.focus()).reviewing, 3);
+  assert.equal(aiPending(pf("acme/api#3")), "AI reviewing", "being reviewed: on the queue, saying so");
+  assert.equal(aiPending(pf("acme/api#1")), "AI review queued", "waiting its turn");
+  assert.equal(runSync(t.desk.queue()).reviewing, 0, "kept for older clients: nothing is held now");
   assert.deepEqual(pf("acme/api#9"), { state: "none" }, "an issue");
 
   await t.f.release("acme/api#3");
-  assert.equal(runSync(t.desk.queue()).reviewing, 2);
+  assert.equal(aiPending(pf("acme/api#3")), null, "written: its signal instead");
   assert.deepEqual(pf("acme/api#3"), {
     state: "ready",
     verdict: "skim",
@@ -2108,7 +2108,7 @@ test("the review view sends the desk's reading order", async () => {
   t.cleanup();
 });
 
-test("while AI reviews are paused, the queue says so once and the PRs wait off the desk until they're reviewed", async () => {
+test("while AI reviews are paused, the queue says so once and its PRs say their reviews wait", async () => {
   const t = await setup([ask(1), ask(2), ask(3)]);
   t.f.setFail(LOGGED_OUT);
   await t.sync();
@@ -2118,8 +2118,11 @@ test("while AI reviews are paused, the queue says so once and the PRs wait off t
   const claude = { who: "claude", why: CLAUDE_PAUSED };
   assert.deepEqual(q.paused, claude, "a failed login stops Claude as a whole");
   assert.deepEqual(runSync(t.desk.focus()).paused, claude);
-  assert.deepEqual(q.sections.now, [], "a paused review still holds them: none reaches the desk unreviewed");
-  assert.equal(runSync(t.desk.focus()).reviewing, 3);
+  assert.deepEqual(
+    q.sections.now.map((c) => aiPending(c.preflight)),
+    ["AI review paused", "AI review paused", "AI review paused"],
+    "on the desk, each saying so",
+  );
   assert.equal(t.desk.getSettings().paused.ai?.why, LOGGED_OUT, "Settings says what's paused, once");
 
   // Turning auto_ai off: nothing is paused any more, it's off.
@@ -2141,73 +2144,37 @@ test("any other failure pauses only AI reviews; a judge that can't log in pauses
   t.cleanup();
 });
 
-test("a PR that waited for Claude's review notifies once it's on the queue; one it couldn't review, or with AI reviews off, doesn't wait", async (c) => {
+test("a new PR notifies when it reaches the queue, before its review is written, and not again when it lands", async (c) => {
   const t = await setup([ask(1)], { settings: { "notify.quiet": "" } });
   c.after(t.cleanup);
   await t.sync();
+  assert.deepEqual(t.notes, [], "the first pass is quiet");
   await t.f.release("acme/api#1");
-  t.notes.length = 0;
   const card = (id: string) =>
     [...runSync(t.desk.focus()).sections.now, ...runSync(t.desk.focus()).sections.today].find((x) => x.id === id);
 
   t.gh.items.set("acme/api#2", ask(2));
   await t.sync();
-  assert.equal(card("acme/api#2"), undefined);
-  assert.deepEqual(t.notes, [], "nothing new on the queue yet");
-  await t.f.release("acme/api#2");
-  assert.ok(card("acme/api#2"));
+  assert.equal(card("acme/api#2")?.preflight?.state, "running");
   assert.equal(t.notes.length, 1);
   assert.match(t.notes[0]!, /^api#2 · /);
+  await t.f.release("acme/api#2");
+  await t.sync();
+  assert.equal(card("acme/api#2")?.preflight?.state, "ready");
+  assert.equal(t.notes.length, 1, "its review landing isn't news");
 
   t.gh.items.set("acme/api#3", ask(3));
   await t.sync();
-  assert.equal(card("acme/api#3"), undefined);
-  t.f.setFail("model overloaded");
-  await t.f.release("acme/api#3");
-  t.f.setFail(null);
-  assert.equal(card("acme/api#3"), undefined, "a failed try with a retry to come still holds it");
   t.desk.jobs.fail("ai_review", "acme/api#3", "model overloaded");
+  t.desk.generating.delete("acme/api#3");
   t.desk.changed();
-  assert.equal(card("acme/api#3")?.preflight?.state, "failed", "out of tries: on the queue without one");
+  assert.equal(aiPending(card("acme/api#3")?.preflight), "AI review failed", "out of tries: on the queue, saying so");
 
   runSync(t.desk.putSettings({ set: { "review.auto_ai": false } }));
   t.gh.items.set("acme/api#5", ask(5));
   await t.sync();
-  assert.equal(card("acme/api#5")?.preflight?.state, "off", "AI reviews off: nothing to wait for");
-  assert.equal(runSync(t.desk.focus()).reviewing, 0);
-});
-
-test("a pause holds PRs off the desk until they're reviewed; once on it, a lost failure or a push doesn't hold one again", async (c) => {
-  const t = await setup([ask(1), ask(2), ask(3)], { settings: { "notify.quiet": "" } });
-  c.after(t.cleanup);
-  await t.sync();
-  assert.deepEqual(t.notes, [], "the first pass is quiet, held ones too");
-  const ids = () => [...runSync(t.desk.focus()).sections.now, ...runSync(t.desk.focus()).sections.today].map((x) => x.id).toSorted();
-  // Two failures in a row pause AI reviews: none shows without a review.
-  t.f.setFail("Not logged in");
-  await t.f.release("acme/api#3");
-  await t.f.release("acme/api#2");
-  t.f.setFail(null);
-  assert.ok(t.desk.aiPausedNow());
-  assert.deepEqual(ids(), [], "held while paused");
-  runSync(t.desk.act("api#1", "urgent"));
-  assert.deepEqual(ids(), ["acme/api#1"], "one you put in a section yourself shows, reviewed or not");
-  // Each reviewed once the pause is over: on the desk, and it stays.
-  t.desk.aiPaused = null;
-  for (const j of t.desk.jobs.list()) t.desk.jobs.drop(j.kind, j.key); // their backoff over
-  await t.sync();
-  for (let i = 0; i < 10 && t.desk.generating.size; i++)
-    for (const id of t.f.started.filter((x) => t.desk.generating.has(x))) await t.f.release(id);
-  assert.deepEqual(ids(), ["acme/api#1", "acme/api#2", "acme/api#3"]);
-  t.notes.length = 0;
-  for (const j of t.desk.jobs.list()) t.desk.jobs.drop(j.kind, j.key); // the failures lost
-  t.gh.items.set("acme/api#3", { ...ask(3), head_oid: "h3b", updated_at: hoursAgo(0) });
-  await t.sync();
-  assert.deepEqual(ids(), ["acme/api#1", "acme/api#2", "acme/api#3"], "none held again");
-  assert.equal(runSync(t.desk.focus()).reviewing, 0);
-  for (const id of t.f.started.filter((x) => t.desk.generating.has(x))) await t.f.release(id);
-  await t.sync();
-  assert.deepEqual(t.notes, [], "nor notified again");
+  assert.equal(card("acme/api#5")?.preflight?.state, "off", "AI reviews off: no review to wait for");
+  assert.equal(aiPending(card("acme/api#5")?.preflight), null);
 });
 
 test("AI reviews run in the queue's order: Now, then Today from the top, so the cards on screen are ready first", async (c) => {
@@ -2601,12 +2568,12 @@ test("a desk started inside a Claude Code session drops that session's variables
   assert.equal(own.ANTHROPIC_BASE_URL, "https://proxy.example");
 });
 
-test("your own PR gets an AI review while it's on your desk, a draft too, and waits off the desk for it as others' do", async () => {
+test("your own PR gets an AI review while it's on your desk, a draft too, shown there while it's written as others' are", async () => {
   const t = await setup([{ ...mine(4), ci: "green", draft: true }]);
   await t.sync();
   assert.deepEqual(t.f.started, ["acme/web#4"], "your draft: reviewed");
   const on = () => [...runSync(t.desk.queue()).sections.now, ...runSync(t.desk.queue()).sections.today].some((c) => c.id === "acme/web#4");
-  assert.equal(on(), false, "held until it's written");
+  assert.equal(on(), true, "on the desk while it's written");
   await t.f.release("acme/web#4");
   assert.equal(on(), true);
   assert.equal(runSync(t.desk.item("web#4")).ai?.summary, "Review of acme/web#4");

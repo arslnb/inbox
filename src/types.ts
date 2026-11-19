@@ -768,7 +768,7 @@ export interface BoardView {
 export interface FocusView {
   sessions: SessionCard[]; // sessions that need you, after agents' questions: blocked, then stalled
   sections: { now: Card[]; today: Card[] }; // one list on screen: now first, then today
-  reviewing: number; // PRs that reach it once Claude's first review of them is written
+  reviewing: number; // always 0: nothing waits off the queue for its review now; kept for older clients
   paused: Paused | null; // said once above the queue instead of on every card
 }
 
@@ -1003,7 +1003,7 @@ export interface ItemDetail {
   ai: AiReview | null;
   ai_stale: boolean;
   generating: boolean;
-  held: boolean; // in Now or Today, but kept off the queue until Claude's first review of it is written
+  held: boolean; // always false, as FocusView.reviewing
   activity: ActivityEvent[]; // the latest events for this item, newest first
   log: PlacedEntry[]; // how it got where it is: each change of where it stood and why, newest first
   stack: Stack | null; // its stack, with it current

@@ -266,7 +266,7 @@ enum Words {
     var so = ""
     if let started = date(run?.startedAt), now.timeIntervalSince(started) >= 120 { so = ", \(plural(minutes(run?.startedAt, now: now), "minute")) so far" }
     return so.isEmpty && tries.isEmpty
-      ? "\(agent) is reviewing it. The notes land in the code below in a minute or two." : "\(agent) is reviewing it\(so)\(tries)."
+      ? "\(agent) is reviewing it. You can review it now; its notes land in the code below when it's done." : "\(agent) is reviewing it\(so)\(tries)."
   }
 
   // A try that failed says so and when your agent tries again; anything else (AI reviews paused) is the desk's own words.

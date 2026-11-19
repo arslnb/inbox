@@ -947,7 +947,7 @@ The review document parts (`risk_reasons`, `intent`, `look`, …) are in [review
 
 It also writes one for any PR whose review you open.
 
-**Held until reviewed.** Such a PR reaches the queue (`/api/queue`, `/api/focus`, the tray, `inbox_list`, `inbox ls`, the new-item notification) only once its first review is written. Until then `Desk.awaitsAi()` keeps it off, counted in `reviewing` (and `ItemDetail.held`), paused reviews included. Only AI reviews turned off, or this commit's review out of tries, lets one through unreviewed. Once a PR has been on the queue (kv `shown:<id>`, also set by your pin, restore or unmute) it isn't held again: a pause, a restart or a push leaves it where it is, and a new review is written while it keeps its place (its preflight says `stale`). Its notification comes when it reaches the queue; on a desk's first pass, held ones count as already there.
+**Shown while it's reviewed.** Such a PR is on the queue at once, its review or not: until its first review is written its `preflight` says where that review is (`running`, `queued`, `paused` or `failed`, with no `risk`), which `aiPending()` in `src/stage.ts` puts in words for the Inbox's row, `inbox ls` and `inbox_list`. Its new-item notification comes when it reaches the queue; the review landing isn't news. A push keeps its place while the new review is written (its preflight says `stale`). `reviewing` (FocusView, QueueView) and `ItemDetail.held` are kept for older clients: always 0 and false.
 
 **Failures and retries.** Each review is a job in the ledger of [Claude's work](architecture.md#claudes-work-srcjobsts), which outlives a restart.
 

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { Card, Inquiry, Note, Overview, QueueView, SessionCard } from "../../../src/types.ts";
-import { cls, aiName } from "../format.ts";
+import { cls } from "../format.ts";
 import { PAGE_GROUPS, treeGuides, type Group, type GroupKey } from "../view.ts";
 import { CardRow, type RowCtx } from "./CardRow.tsx";
 import { InquiryRow, type InquiryCtx } from "./Inquiry.tsx";
@@ -144,13 +144,6 @@ export function Queue({
         })
       ) : first ? null : (
         <p className="queue-empty">{filter.trim() ? "No matches." : "Nothing needs you right now."}</p>
-      )}
-      {view.reviewing > 0 && (
-        <p className="queue-reviewing">
-          {view.reviewing === 1
-            ? `1 more PR reaches you once ${aiName()} has reviewed it.`
-            : `${view.reviewing} more PRs reach you once ${aiName()} has reviewed them.`}
-        </p>
       )}
     </div>
   );

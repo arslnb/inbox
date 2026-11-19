@@ -2269,7 +2269,7 @@ function AiSection({
         <p className="quiet">
           {so || tries
             ? `${aiName()} is reviewing it${so}${tries}.`
-            : `${aiName()} is reviewing it. The notes land in the code below in a minute or two.`}
+            : `${aiName()} is reviewing it. You can review it now; its notes land in the code below when it's done.`}
         </p>
       )}
       {!busy && error && (

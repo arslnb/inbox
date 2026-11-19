@@ -154,7 +154,7 @@ test("ls defaults to focus, grouped by bucket, with counts of the rest", async (
     r.out,
     [
       "NOW 1",
-      "● seer#8949   Flag provider client calls in unchecked paths  octo asked you · 6d",
+      "● seer#8949   Flag provider client calls in unchecked paths  octo asked you · 6d  (AI reviewing)",
       "",
       "TODAY 1",
       "◐ sentry#101  Fix the flaky snuba test that only fails on Tuesdays  your team was asked · 1d",

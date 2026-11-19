@@ -1,4 +1,4 @@
-import type { Item, Stage, Standing, Standings } from "./types.ts";
+import type { Item, Preflight, Stage, Standing, Standings } from "./types.ts";
 
 // Only a collaborator's approval counts (the coordinator merges on it); anyone's change request holds the PR.
 export function verdicts(it: Item, self: string): { approved_by: string[]; changes_by: string[] } {
@@ -212,3 +212,12 @@ export function waitsOf(
   if (mergeOwed(it, me)) return it.maintains ? "is yours to merge: you maintain the repo" : `is yours to merge: ${it.author} can't`;
   return it.author_can_merge === false ? "is approved, for a maintainer to merge" : `is approved, for ${it.author} to merge`;
 }
+
+// A PR on the Inbox whose first AI review isn't written yet says where that review is, in place of what it would say.
+const PENDING: Partial<Record<Preflight["state"], string>> = {
+  running: "AI reviewing",
+  queued: "AI review queued",
+  paused: "AI review paused",
+  failed: "AI review failed",
+};
+export const aiPending = (p: Preflight | undefined): string | null => (p && !p.risk ? (PENDING[p.state] ?? null) : null);

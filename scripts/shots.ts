@@ -1358,38 +1358,17 @@ const SHOTS: Shot[] = [
   firstPassShot("first-sorting", SORTING),
   firstPassShot("first-sorting-narrow", SORTING, { width: 390, height: 760 }),
   {
-    // PRs held back until Claude has reviewed them: one quiet line under the queue.
-    name: "queue-reviewing",
+    // PRs whose first AI review isn't written yet: on the Inbox, each saying where its review is in place of its signal.
+    name: "queue-ai-pending",
     go: async (page) => {
       await queueAs((q) => {
-        q.reviewing = 3;
+        const pending = ["running", "queued", "paused"] as const;
+        let n = 0;
+        for (const c of [...q.inbox.urgent, ...q.inbox.standard])
+          if (c.kind === "pr" && n < pending.length) c.preflight = { state: pending[n++]! };
       })(page);
-      await toBottom("queue-reviewing")(page);
-    },
-    after: async (page) => {
-      await unroute(page);
-      await page.reload();
-      await page.locator(READY).first().waitFor({ timeout: 15_000 });
-    },
-  },
-  {
-    // Nothing on the queue yet, one on its way.
-    name: "queue-empty-reviewing",
-    go: async (page) => {
-      await at("#/")(page);
-      await queueAs((q) => {
-        q.sections.now = [];
-        q.sections.today = [];
-        q.inbox = { urgent: [], standard: [], fyi: [] };
-        q.inquiries = [];
-        q.notes = { due: [], urgent: [], open: [], fyi: [], later: [] };
-        q.sessions = [];
-        q.reviewing = 1;
-      })(page);
-      await top(page);
-      await emptyInbox(page, "queue-empty-reviewing");
-      const [empty, reviewing] = await tops(page, [".queue-empty", ".queue-reviewing"]);
-      if (!(reviewing! > empty!)) failures.push("queue-empty-reviewing: the reviewing line isn't under the empty line");
+      const words = await page.locator(".line-pending").allTextContents();
+      if (!words.includes("AI reviewing")) failures.push(`queue-ai-pending: no row says "AI reviewing" (${words.join(", ")})`);
     },
     after: async (page) => {
       await unroute(page);

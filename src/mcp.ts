@@ -7,6 +7,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import type { CallToolResult } from "@modelcontextprotocol/sdk/types.js";
 import { z } from "zod";
+import { aiPending } from "./stage.ts";
 import { baseUrl, createClient, untilText, type AddResult, type DeskClient } from "./client.ts";
 import { saveDoc } from "./doc.ts";
 import { fsError } from "./errors.ts";
@@ -113,7 +114,7 @@ const stackNote = (c: Card) =>
   c.stack ? ` (stack ${c.stack.pos}/${c.stack.size}${c.stack.folded?.length ? `, stands for ${c.stack.folded.join(", ")} too` : ""})` : "";
 
 const cardLine = (c: Card) =>
-  `${c.bucket.padEnd(5)}  ${c.id}  ${oneLine(c.title)}  [${oneLine(c.why)}]${c.new ? " (new)" : ""}${c.inflight ? " (merging)" : ""}${stackNote(c)}`;
+  `${c.bucket.padEnd(5)}  ${c.id}  ${oneLine(c.title)}  [${oneLine(c.why)}]${c.new ? " (new)" : ""}${c.inflight ? " (merging)" : ""}${aiPending(c.preflight) ? ` (${aiPending(c.preflight)})` : ""}${stackNote(c)}`;
 
 const stackLines = (s: Stack) => [
   `stack ${s.id}, bottom first on ${s.base}:`,
@@ -213,7 +214,6 @@ type ListBucket = (typeof LIST_BUCKETS)[number];
 
 const listText = Effect.fnUntraced(function* (api: DeskClient, board: string | undefined, buckets: ListBucket[], limit: number) {
   let pools: [ListBucket, Card[]][];
-  let reviewing = 0;
   let sessions: SessionCard[] = [];
   if (!board || board === "focus") {
     if (!buckets.some((b) => b === "now" || b === "today"))
@@ -221,7 +221,6 @@ const listText = Effect.fnUntraced(function* (api: DeskClient, board: string | u
         message: "Focus only holds now and today; pass a board id for blocked, later, fyi, hide or cleared",
       });
     const f = yield* api.focus();
-    reviewing = f.reviewing;
     sessions = f.sessions;
     pools = [
       ["now", f.sections.now],
@@ -242,7 +241,6 @@ const listText = Effect.fnUntraced(function* (api: DeskClient, board: string | u
   const all = pools.filter(([b]) => buckets.includes(b)).flatMap(([, cs]) => cs);
   const cards = all.slice(0, limit);
   let head = `${board && board !== "focus" ? `board ${board}` : "focus"} · buckets ${buckets.join(",")} · ${cards.length} of ${all.length} shown`;
-  if (reviewing) head += ` · ${reviewing} more once Claude has reviewed them`;
   if (sessions.length) head += ` · ${sessions.length} session${sessions.length === 1 ? "" : "s"} first`;
   if (!cards.length && !sessions.length) return head;
   return head + "\n" + untrusted([...sessions.map(sessionLine), ...cards.map(cardLine), json([...sessions, ...cards.map(compact)])]);
@@ -271,8 +269,7 @@ function itemText(d: ItemDetail): string {
   const c = d.card;
   // Merging: the user's own PR, which the coordinator has; inbox_act's done, snooze and mute don't apply.
   const flight = c.inflight ? " · merging: the user's PR, handed off for merge (inbox_merging)" : "";
-  const held = d.held ? " · off the queue until Claude has reviewed it" : "";
-  const head = `${c.id} · ${c.kind} by ${c.author}${c.author_bot ? " (bot)" : ""} · status ${c.status}${c.pinned ? " · pinned" : ""}${c.snooze_when ? ` · snoozed until ${UNTIL[c.snooze_when]}` : c.snooze_until ? ` · snoozed until ${c.snooze_until}` : ""}${flight}${held}\n${c.url}\nin the desk: ${permalink({ item: c.id })}`;
+  const head = `${c.id} · ${c.kind} by ${c.author}${c.author_bot ? " (bot)" : ""} · status ${c.status}${c.pinned ? " · pinned" : ""}${c.snooze_when ? ` · snoozed until ${UNTIL[c.snooze_when]}` : c.snooze_until ? ` · snoozed until ${c.snooze_until}` : ""}${flight}\n${c.url}\nin the desk: ${permalink({ item: c.id })}`;
   return (
     head +
     "\n" +
@@ -337,8 +334,7 @@ function addedLines(r: AddResult): string {
         : d.ai && !d.ai_stale
           ? " Its AI review is ready: inbox_brief."
           : " Its AI review isn't being written (queued behind others, the user's own PR, or review.auto_ai is off); inbox_brief writes one now.";
-  const held = d.held ? " It reaches their main page once Claude has reviewed it." : "";
-  return `added ${d.card.id} to the user's desk, pinned.${ai}${held} Local state only; nothing was sent to GitHub. Undo with inbox_undo seq=${r.undo_seq}.\n${itemText(d)}`;
+  return `added ${d.card.id} to the user's desk, pinned.${ai} Local state only; nothing was sent to GitHub. Undo with inbox_undo seq=${r.undo_seq}.\n${itemText(d)}`;
 }
 
 // A PR in Merging's state, as the coordinator needs it to get it merged.

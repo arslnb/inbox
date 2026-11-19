@@ -197,9 +197,12 @@ test("inbox_overview", async () => {
 test("inbox_list defaults to focus and fences titles", async () => {
   const r = await call("inbox_list");
   assert.equal(r.isError, false);
-  assert.match(r.text, /^focus · buckets now,today · 2 of 2 shown · 2 more once Claude has reviewed them\n/);
+  assert.match(r.text, /^focus · buckets now,today · 2 of 2 shown\n/);
   assertFenced(r.text, "Flag provider client calls in unchecked paths");
-  assert.match(r.text, /now {4}getsentry\/seer#8949 {2}Flag provider client calls in unchecked paths {2}\[octo asked you · 6d\] \(new\)/);
+  assert.match(
+    r.text,
+    /now {4}getsentry\/seer#8949 {2}Flag provider client calls in unchecked paths {2}\[octo asked you · 6d\] \(new\) \(AI reviewing\)/,
+  );
   assert.deepEqual(
     jsonBlock(r.text).map((c: { id: string }) => c.id),
     ["getsentry/seer#8949", "getsentry/sentry#101"],
@@ -294,7 +297,7 @@ test("inbox_add says what it started and how to undo it, then the item as inbox_
   });
   assert.match(
     r.text,
-    /^added getsentry\/seer#8949 to the user's desk, pinned\. Its AI review is being written; inbox_brief waits for it\. It reaches their main page once Claude has reviewed it\. Local state only; nothing was sent to GitHub\. Undo with inbox_undo seq=8\.\ngetsentry\/seer#8949 · pr by octo · status active · pinned · off the queue until Claude has reviewed it\n/,
+    /^added getsentry\/seer#8949 to the user's desk, pinned\. Its AI review is being written; inbox_brief waits for it\. Local state only; nothing was sent to GitHub\. Undo with inbox_undo seq=8\.\ngetsentry\/seer#8949 · pr by octo · status active · pinned\n/,
   );
   assertFenced(r.text, "title: Flag provider client calls in unchecked paths");
   const missing = await call("inbox_add", { ref: "nope#1", why: "x", from: "y" });
@@ -518,10 +521,7 @@ test("`inbox mcp` serves over stdio", async () => {
   try {
     assert.equal((await c.listTools()).tools.length, 20);
     const r = await c.callTool({ name: "inbox_list", arguments: { limit: 1 } });
-    assert.match(
-      (r.content as { text: string }[])[0]?.text ?? "",
-      /^focus · buckets now,today · 1 of 2 shown · 2 more once Claude has reviewed them\n/,
-    );
+    assert.match((r.content as { text: string }[])[0]?.text ?? "", /^focus · buckets now,today · 1 of 2 shown\n/);
   } finally {
     await c.close();
   }

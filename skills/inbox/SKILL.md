@@ -65,7 +65,7 @@ A `ref` is `owner/repo#123`, `repo#123` when unique, a GitHub URL, or an item's 
 ## What needs me? / What should I review next?
 
 1. `inbox_list` (no arguments) for the queue, and `inbox_overview` for the counts.
-2. Answer as one list, most urgent first: ref, a short title, and the why. Then one line for the rest ("12 later, 30 FYI"). If `inbox_list` says some PRs reach the queue once Claude has reviewed them, mention how many.
+2. Answer as one list, most urgent first: ref, a short title, and the why. Then one line for the rest ("12 later, 30 FYI"). A PR whose AI review isn't written yet says so in its line ("AI reviewing"); mention it when it matters.
 3. No JSON. If nothing is urgent, say so plainly.
 
 `inbox_list` lists items with their bucket; `inbox_item` gives one item's metadata and why it's placed where it is; `inbox_criteria list` explains the urgency criteria.

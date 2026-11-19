@@ -6,6 +6,7 @@ import { readFileSync, realpathSync, watchFile, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { parseArgs, type ParseArgsConfig } from "node:util";
 import { Cause, Data, Effect, Exit, Option } from "effect";
+import { aiPending } from "./stage.ts";
 import * as agents from "./agents.ts";
 import * as api from "./client.ts";
 import { untilText } from "./client.ts";
@@ -190,13 +191,15 @@ function printCards(x: Ctx, groups: [Bucket, Card[], string?][]): void {
     if (i) x.out();
     x.out(x.c.bold(`${label ?? b.toUpperCase()} ${cs.length}`));
     for (const k of cs) {
-      const [t, w] = fit(plain(k.title), plain(k.why), x.width - refW - 4);
       const note =
         k.status !== "active"
           ? `  [${k.status}${k.snooze_when ? ` until ${UNTIL[k.snooze_when]}` : k.snooze_until ? ` until ${localTime(k.snooze_until)}` : ""}]`
           : k.demoted
             ? `  (${k.demoted})`
-            : "";
+            : aiPending(k.preflight)
+              ? `  (${aiPending(k.preflight)})`
+              : "";
+      const [t, w] = fit(plain(k.title), plain(k.why), x.width - refW - 4 - note.length); // the note fits too
       x.out(
         `${x.glyph(b)} ${shortRef(k).padEnd(refW)}  ${k.new ? x.c.bold(t) : t}${w ? "  " + x.c.dim(w) : ""}${note ? x.c.dim(note) : ""}`,
       );
@@ -237,7 +240,6 @@ const ls = Effect.fnUntraced(function* (x: Ctx) {
         [s.fyi.length, "fyi"],
         [v.cleared.length, "cleared"],
         [v.hidden.length, "hidden"],
-        ["reviewing" in v ? v.reviewing : 0, "more once Claude has reviewed them"],
       ];
   const more = counts.filter(([n]) => n).map(([n, l]) => `${n} ${l}`);
   const hint =

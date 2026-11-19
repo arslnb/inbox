@@ -82,12 +82,10 @@ test("adding a PR the desk doesn't hold fetches it, pins it on the main page and
   );
 
   const onPage = () => runSync(t.desk.focus()).sections.today.find((x) => x.id === ID);
-  assert.equal(onPage(), undefined, "not until Claude has reviewed it");
-  assert.equal(runSync(t.desk.focus()).reviewing, 1);
+  assert.equal(onPage()?.preflight?.state, "running", "on the main page at once, its review on the way");
   await f.finish(ID);
   const row = onPage();
   assert.ok(row, "on the main page");
-  assert.equal(runSync(t.desk.focus()).reviewing, 0);
   assert.equal(row.why, "you added it");
   assert.equal(runSync(t.desk.item(ID)).placements[0]?.board, "added");
   await run(t.desk.sync());
@@ -233,7 +231,7 @@ test("adding a done, snoozed or muted item brings it back, and its one undo puts
   }
 });
 
-test("what you pin yourself is on your desk at once, reviewed or not; an agent's add waits for Claude's review", async (c) => {
+test("what you pin yourself, or an agent adds, is on your desk at once, reviewed or not", async (c) => {
   const f = fakeReview();
   const t = await setup([teamPing(2)], { settings: { "policy.judge": false, "review.at_once": 2 }, desk: { review: f.review } });
   c.after(t.cleanup);
@@ -247,8 +245,8 @@ test("what you pin yourself is on your desk at once, reviewed or not; an agent's
 
   t.gh.items.set(ID, unknown());
   await run(t.desk.add(ID, "your call on the token transport", "seer write gate"));
-  assert.equal(onDesk(ID), false);
-  assert.equal(runSync(t.desk.item(ID)).held, true);
+  assert.equal(onDesk(ID), true);
+  assert.equal(runSync(t.desk.item(ID)).held, false, "kept for older clients: nothing is held now");
 });
 
 test("adding several PRs at once starts their AI reviews two at a time, as the background ones run", async (c) => {

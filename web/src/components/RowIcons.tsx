@@ -1,4 +1,5 @@
 import type { Card, Stage } from "../../../src/types.ts";
+import { aiPending } from "../../../src/stage.ts";
 import { RISK_BARS, rowLit } from "../risk.ts";
 import { cls, sizeOf } from "../format.ts";
 
@@ -190,6 +191,16 @@ export function RowFacts({ card, stage }: { card?: Card; stage?: boolean }) {
   const pr = card?.kind === "pr" ? card : undefined;
   const facts = pr ? factsOf(pr, !!stage) : [];
   const words = facts.map((f) => f.said).join(". ");
+  // Its first AI review not written yet: where that review is, in words, in place of the signal it will light.
+  const pending = aiPending(pr?.preflight);
+  if (pending)
+    return (
+      <span className="line-facts">
+        <span className="line-pending" data-tip={words}>
+          {pending}
+        </span>
+      </span>
+    );
   return (
     <span className="line-facts">
       {pr?.quick && (

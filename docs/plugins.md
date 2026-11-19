@@ -70,7 +70,7 @@ add    you, inbox_add, a find: ref() ┘   (a ref nobody holds is fetched, then 
 look   look(items, at) ─▶ a Lens per item ─▶ status (done, snooze, mute, Merging)
 place  per board (members + pins): filter ─▶ first rule ─▶ judge ─▶ floors ─▶ quiet ─▶ caps ─▶ best across boards
 move   hand-backs and needs ─▶ every react("synced") ─▶ notify ─▶ the judge's pump
-show   held off ─▶ parts, rank ─▶ row(item, lens, seat) ─▶ Inbox, Blocked, Merging, Archive
+show   parts, rank ─▶ row(item, lens, seat) ─▶ Inbox, Blocked, Merging, Archive
 out    the window's click ─▶ Desk.write ─▶ plugin.write's checks ─▶ under its lock: send, log, after, next, then
 ```
 
@@ -292,23 +292,23 @@ Built-in criteria work the same way for Urgency (`src/connectors/github-criteria
 
 ### GitHub (`src/plugins/github/`)
 
-| Today                                                                                                                     | In the plugin                                                                          |
-| ------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| `start`, `stop`, `reconcile`, `poll`, `fillStacks`, `reschedule` (`src/connectors/github.ts`)                             | `start`, `stop`, `sync`, `react({ on: "settings" })`; ingest becomes `host.put`        |
-| `queriesFor`, `expandQuery`, the `hits` and `queries` tables, its read of pinned states; `boardIds`                       | `members` (still reads pins from `host.store`)                                         |
-| `normRef`, `REF`, `refOf`, `fetchOne` (all in github.ts now)                                                              | `ref`                                                                                  |
-| `refreshContext`, `contextError`, the rate-limit pause; `ctx`, `me()`; `init`; overview's `rate_limit`                    | `init(first)`, `status()`; kv `context` unchanged                                      |
-| `analyze`, `FIELDS` (`src/signals.ts`); `resolution` (`src/resolve.ts`)                                                   | `look`'s `fields`, `activity`, `since`; `resolved`; `fields`                           |
-| `UNTIL` (`src/types.ts`), `waitable`, `happened` (signals.ts); `push:<sha>`                                               | `until`, `happened`, `waits`                                                           |
-| `buildStacks` (`src/stacks.ts`), `dependencies` (`src/deps.ts`), the blocker words, `aged`, `trackBlocked`                | `blocked`, `freed`, `waits_since`, `fold`; `trackBlocked` in `react({ on: "synced" })` |
-| compute's `inflight`, the unasked hoist, `stuckUnasked`, `rebaseConflicts`' test, `act("inflight")`'s checks              | `yours`, `needs`, `handoff`                                                            |
-| `queueCard`'s group, `awaitsAi`, `notifyNew`'s own-draft skip, the caps' weight and skip words (`rules.ts`), `queueOrder` | `part`, `arrive`, `weight`, `capped`, `row.rank`                                       |
-| `card()`'s chips, stage, cta, team_ask, verdict, stack, blocks; `preflight` (judge.ts); `Desk.actions()`; `waitsOn`       | `row`, `row.extra`                                                                     |
-| `canApprove`, `approve`, `githubAct`, `reply`, `comment`, `inlineComment`, `markReady`, `askReviewers`                    | `write`: a switch answering one `Write` per click                                      |
-| `itemEvents` (`github-events.ts`), `wakeFor` (`src/coordinator.ts`)                                                       | `events` (built), `wake`                                                               |
-| `judgeKey`'s item part, `describe`, `ownerLines`, `areaLines` (`src/judge.ts`)                                            | `Lens.judge`, `brief`                                                                  |
-| `item()`'s signals, handoff_prompt, ai, ai_stale, generating, held, stack; `askAbout`, `askPlace`                         | `detail`, `about`                                                                      |
-| the `gh` and `git` lines automations add to their allow and deny lists (`src/automations.ts`)                             | `agent`                                                                                |
+| Today                                                                                                               | In the plugin                                                                          |
+| ------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| `start`, `stop`, `reconcile`, `poll`, `fillStacks`, `reschedule` (`src/connectors/github.ts`)                       | `start`, `stop`, `sync`, `react({ on: "settings" })`; ingest becomes `host.put`        |
+| `queriesFor`, `expandQuery`, the `hits` and `queries` tables, its read of pinned states; `boardIds`                 | `members` (still reads pins from `host.store`)                                         |
+| `normRef`, `REF`, `refOf`, `fetchOne` (all in github.ts now)                                                        | `ref`                                                                                  |
+| `refreshContext`, `contextError`, the rate-limit pause; `ctx`, `me()`; `init`; overview's `rate_limit`              | `init(first)`, `status()`; kv `context` unchanged                                      |
+| `analyze`, `FIELDS` (`src/signals.ts`); `resolution` (`src/resolve.ts`)                                             | `look`'s `fields`, `activity`, `since`; `resolved`; `fields`                           |
+| `UNTIL` (`src/types.ts`), `waitable`, `happened` (signals.ts); `push:<sha>`                                         | `until`, `happened`, `waits`                                                           |
+| `buildStacks` (`src/stacks.ts`), `dependencies` (`src/deps.ts`), the blocker words, `aged`, `trackBlocked`          | `blocked`, `freed`, `waits_since`, `fold`; `trackBlocked` in `react({ on: "synced" })` |
+| compute's `inflight`, the unasked hoist, `stuckUnasked`, `rebaseConflicts`' test, `act("inflight")`'s checks        | `yours`, `needs`, `handoff`                                                            |
+| `queueCard`'s group, `notifyNew`'s own-draft skip, the caps' weight and skip words (`rules.ts`), `queueOrder`       | `part`, `arrive`, `weight`, `capped`, `row.rank`                                       |
+| `card()`'s chips, stage, cta, team_ask, verdict, stack, blocks; `preflight` (judge.ts); `Desk.actions()`; `waitsOn` | `row`, `row.extra`                                                                     |
+| `canApprove`, `approve`, `githubAct`, `reply`, `comment`, `inlineComment`, `markReady`, `askReviewers`              | `write`: a switch answering one `Write` per click                                      |
+| `itemEvents` (`github-events.ts`), `wakeFor` (`src/coordinator.ts`)                                                 | `events` (built), `wake`                                                               |
+| `judgeKey`'s item part, `describe`, `ownerLines`, `areaLines` (`src/judge.ts`)                                      | `Lens.judge`, `brief`                                                                  |
+| `item()`'s signals, handoff_prompt, ai, ai_stale, generating, held, stack; `askAbout`, `askPlace`                   | `detail`, `about`                                                                      |
+| the `gh` and `git` lines automations add to their allow and deny lists (`src/automations.ts`)                       | `agent`                                                                                |
 
 `trackBlocked` keeps its scope (your PRs a board lists or Merging has) by reading `host.seat(id).listed` and `merging`. It runs in `react({ on: "synced" })`, after the core's moves and before it notifies, as today. So a hand-back a merge freed is notified with its "unblocked: sentry#X merged ·" prefix. Its kv `blocked` keeps feeding Blocked's order and age through `waits_since` (until D2). Its events go through `put` with no items, under source `desk` (until D5).
 
