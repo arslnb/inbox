@@ -10,7 +10,7 @@ import { alive, claude, halt, type Agent } from "../coordinator.ts";
 import type { Desk } from "../desk.ts";
 import { Conflict, NotFound, type CommandError } from "../errors.ts";
 import { isRecord, num, str } from "../narrow.ts";
-import { askAgent, makeAgentDir, runCommand } from "../review.ts";
+import { runCommand } from "../review.ts";
 import { isCoordinator, SESSION_PREFIX, type SessionAction, type SessionCard, type SessionKind } from "../types.ts";
 
 export const TAIL = 64 * 1024; // bytes of a transcript or rollout read, from its end
@@ -725,8 +725,7 @@ export class Sessions {
   // The model's read of a message that asks something; null when it couldn't say.
   read(text: string): Effect.Effect<boolean | null> {
     return Effect.gen({ self: this }, function* () {
-      const dir = yield* makeAgentDir(this.desk.home);
-      const { answer } = yield* askAgent(askPrompt(text), { schema: ASK_SCHEMA, dir, agent: this.desk.agent() });
+      const { answer } = yield* this.desk.light.ask(askPrompt(text), ASK_SCHEMA);
       const blocked = obj(answer)?.blocked;
       return typeof blocked === "boolean" ? blocked : null;
     }).pipe(

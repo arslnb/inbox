@@ -344,6 +344,7 @@ const log = (k, v) => fs.appendFileSync(path.join(__dirname, k), JSON.stringify(
 if (args[0] === "-p") {
   const prompt = fs.readFileSync(0, "utf8");
   log("asks", prompt);
+  log("askArgs", args);
   console.log(JSON.stringify({ type: "result", is_error: false, structured_output: { blocked: /Should I push/.test(prompt) } }));
   process.exit(0);
 }
@@ -392,6 +393,7 @@ else if (args[0] === "--resume") console.log("backgrounded · kick01 · resumed"
     },
     calls: () => read("calls") as { args: string[]; cwd: string }[],
     asks: () => read("asks"),
+    askArgs: () => read("askArgs") as string[][],
   };
 }
 
@@ -509,6 +511,12 @@ test(
     assert.equal(q.sessions[1]!.excerpt, "Should I push to main?");
     assert.equal(q.sessions[2]!.open_url, "claude://claude.ai/epitaxy/local_abc");
     assert.equal(m.asks().length, 2, "the model read the two questions: blocking and directional");
+    for (const args of m.askArgs())
+      assert.deepEqual(
+        [args[args.indexOf("--model") + 1], args[args.indexOf("--effort") + 1]],
+        ["claude-haiku-5-5", "low"],
+        "the light model",
+      );
     assert.ok(
       (m.asks() as string[]).every((p) => p.length < 3000),
       "only the last message",
