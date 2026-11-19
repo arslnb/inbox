@@ -30,6 +30,7 @@ import {
 import type { Checkout } from "./checkout.ts";
 import { Automations, canOf } from "./automations.ts";
 import { Urgency } from "./urgency.ts";
+import { asksOf, tagsOf } from "./tags.ts";
 import { Light } from "./light.ts";
 import { Attributions } from "./attribution.ts";
 import { Placements } from "./placements.ts";
@@ -492,6 +493,7 @@ const AiReviewSchema = schemaOf<AiReview>()(
     doc: opt(Schema.String),
     refused: opt(arrayOf(Schema.String)),
     code: opt(Schema.Boolean),
+    tags: opt(Schema.Record(Schema.String, arrayOf(Schema.String))),
     head_oid: Schema.String,
     model: Schema.String,
     at: Schema.String,
@@ -2554,7 +2556,7 @@ export class Desk {
         files: got.files,
         diff_head: got.head ?? e.item.head_oid,
         files_error: got.error,
-        order: reviewOrder(got.files, d.ai, d.ai_stale),
+        order: reviewOrder(got.files, d.ai, d.ai_stale, tagsOf(this.loaded?.tags ?? [], got.files, e.analysis.signals, d.ai?.tags)),
         ai: d.ai,
         ai_stale: d.ai_stale,
         ai_error: running ? null : (own ?? paused),
@@ -2729,6 +2731,7 @@ export class Desk {
           own: own.own,
           skill: own.hash,
           ...(ctx && { said: saidOf(ctx) }),
+          tags: asksOf(this.loaded?.tags ?? []),
         };
         const code = this.review.checkout ? yield* this.review.checkout(e.item) : null;
         const written = yield* this.review
