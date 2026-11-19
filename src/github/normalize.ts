@@ -160,6 +160,7 @@ const DECISION: Record<string, ReviewDecision> = {
   REVIEW_REQUIRED: "required",
 };
 const MERGERS = new Set(["WRITE", "MAINTAIN", "ADMIN"]);
+const MAINTAINERS = new Set(["MAINTAIN", "ADMIN"]);
 const MERGEABLE: Record<string, Mergeable> = { MERGEABLE: "clean", CONFLICTING: "conflict" };
 const MERGE_METHODS = ["MERGE", "SQUASH", "REBASE"] as const;
 
@@ -301,6 +302,7 @@ export function normalize(n: RawNode, now = new Date().toISOString()): Item {
     ...(mergeMethod && { merge_method: mergeMethod }),
     ...(n.authorAssociation !== undefined && { author_can_merge: collaborator(n.authorAssociation) }),
     ...("viewerPermission" in n.repository && { can_merge: MERGERS.has(n.repository.viewerPermission ?? "") }),
+    ...("viewerPermission" in n.repository && { maintains: MAINTAINERS.has(n.repository.viewerPermission ?? "") }),
     review_requests: (n.reviewRequests?.nodes ?? [])
       .filter((r) => r.requestedReviewer)
       .map((r) => Object.assign(reviewer(r.requestedReviewer!), { codeowner: r.asCodeOwner })),

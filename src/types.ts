@@ -77,7 +77,8 @@ export interface Item extends Head {
   checks_optional?: string[]; // those of them the base branch doesn't require (ci isn't red for these alone)
   merge_method?: "MERGE" | "SQUASH" | "REBASE"; // the repo's default merge method for you; PRs you authored only
   author_can_merge?: boolean; // its author has a say on the repo (OWNER, MEMBER or COLLABORATOR); PRs only, absent on items stored before it was fetched
-  can_merge?: boolean; // you have write access to its repo; PRs you authored or owe the merge of (mergeOwed), absent on items stored before it was fetched
+  can_merge?: boolean; // you have write access to its repo; PRs only, absent on items stored before it was fetched
+  maintains?: boolean; // you maintain or administer its repo: its merges are yours to decide (mergeOwed); PRs only, absent likewise
   review_requests: { reviewer: string; type: "user" | "team"; codeowner: boolean; bot?: boolean }[]; // team reviewer = slug; bot: a GitHub App
   review_requests_hidden?: number; // requests whose reviewer GitHub doesn't show you (a team you can't see): still someone asked
   request_events: { at: string; actor: string; actor_bot: boolean; reviewer: string; reviewer_type: "user" | "team" }[];
@@ -188,7 +189,7 @@ export interface Signals {
     requested_hours: number;
     reviewed: boolean;
     review_state: ReviewState | "none"; // your latest review
-    merge_owed: boolean; // mergeOwed(): you approved someone else's PR its author can't merge
+    merge_owed: boolean; // mergeOwed(): you approved someone else's PR in a repo you maintain, or one its author can't merge
     reviewed_hours: number;
     pushed_since_review: boolean; // commits after your latest review
     commented: boolean;

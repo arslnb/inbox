@@ -242,6 +242,8 @@ test("whether you can merge your PR: only with write access to its repo, and onl
     [can("ADMIN"), can("MAINTAIN"), can("WRITE"), can("TRIAGE"), can("READ"), can(null)],
     [true, true, true, false, false, false],
   );
+  const maintains = (p: string | null) => normalize({ ...n, repository: { ...n.repository, viewerPermission: p } }, NOW).maintains;
+  assert.deepEqual([maintains("ADMIN"), maintains("MAINTAIN"), maintains("WRITE"), maintains(null)], [true, true, false, false]);
 });
 
 test("toHit builds the light search hit", () => {

@@ -40,7 +40,17 @@ test("the merge is yours: approved by you, its author can't merge it, nobody hol
   const changed = approvedByMe(1);
   changed.reviews.push({ author: "me", author_bot: false, state: "changes_requested", at: hoursAgo(0), commit: "h4" });
   assert.equal(mergeOwed(changed, "me"), false, "your latest verdict isn't an approval");
+  const team = { author_can_merge: true, head_repo: "acme/api" };
+  assert.equal(mergeOwed(approvedByMe(1, { ...team, maintains: true }), "me"), true, "you maintain the repo: you decide who merges");
+  assert.equal(mergeOwed(approvedByMe(1, { ...team, maintains: false }), "me"), false, "you only have write access");
+  assert.equal(
+    mergeOwed(approvedByMe(1, { ...team, maintains: true, review_decision: "none" }), "me"),
+    true,
+    "a repo that needs no review",
+  );
+  assert.equal(mergeOwed(approvedByMe(1, { ...team, maintains: true, author: "me" }), "me"), false, "your own isn't owed");
   const o = { mine: false, unasked: false, askedYou: false, waitingOn: [] };
+  assert.equal(waitsOf(approvedByMe(1, { ...team, maintains: true }), "me", o), "is yours to merge: you maintain the repo");
   assert.equal(waitsOf(approvedByMe(1), "me", o), "is yours to merge: outsider can't");
   assert.equal(waitsOf(approvedByMe(1, { author_can_merge: true }), "me", o), "is approved, for outsider to merge");
 });
