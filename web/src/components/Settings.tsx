@@ -29,6 +29,7 @@ import { api, runUi } from "../api.ts";
 import { useKeyed } from "../keyed.ts";
 import { ago, aiName, cls, copyText, githubTip, MAC, orgsLine } from "../format.ts";
 import { AutomationRows, AutomationView, NewAutomation, useAutomations } from "./Automations.tsx";
+import { Usage } from "./Usage.tsx";
 import { Criteria } from "./Criteria.tsx";
 import { Rules, type RuleFocus } from "./Rules.tsx";
 import { withCode } from "./Review.tsx";
@@ -1232,7 +1233,7 @@ export function Settings({
 
   return (
     <div className="settings" hidden={!active}>
-      <div className="s-page" hidden={inView || section === "automations"}>
+      <div className="s-page" hidden={inView || section === "automations" || section === "usage"}>
         {!view && (
           <section className="s-part s-skel" aria-busy="true" aria-label="Loading">
             <div className="lines s-sheet">
@@ -1325,6 +1326,11 @@ export function Settings({
         <section id="s-criteria" className="s-part" aria-label="Urgency">
           <h2 className="group-head">Urgency</h2>
           <Criteria active={active && section === "automations"} refresh={loads} now={now} flash={flash} onAsked={onAsked} />
+        </section>
+      </div>
+      <div className="s-page" hidden={section !== "usage"}>
+        <section id="s-usage" className="s-part" aria-label="Usage">
+          <Usage active={active && section === "usage"} refresh={loads} />
         </section>
       </div>
       <section className="s-view" hidden={section !== "rules"} aria-labelledby="s-view-rules">

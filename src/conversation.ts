@@ -1,6 +1,7 @@
 // What reviewers said on a PR, which of it waits on you, and Claude's read of what does. Read only: replies go through
 // Desk.reply(), on your click. Claude runs like the judge: the light model, no tools, an empty directory.
 import { randomBytes } from "node:crypto";
+import { as } from "./usage.ts";
 import { Cache, Cause, Duration, Effect, Exit, Result, Schema, type Fiber } from "effect";
 import type { Desk } from "./desk.ts";
 import { messageOf, type GitHubReadError } from "./errors.ts";
@@ -277,7 +278,7 @@ export class Conversations {
     if (this.reading || this.desk.stopped || id === undefined) return;
     this.queue.delete(id);
     this.reading = id;
-    const call = this.desk.runner.fork("conversations", this.run(id), id);
+    const call = this.desk.runner.fork("conversations", this.run(id).pipe(as("comments")), id);
     if (!call) this.reading = null;
     else if (!call.pollUnsafe()) this.call = call; // one that ended before its first wait has pumped the next already
   }

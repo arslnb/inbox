@@ -2,6 +2,7 @@
 // its title and its description's start and end (docs/api.md → Opened for you). Kept per PR and description in kv `attribution:<id>`,
 // asked once for each, in the background, a batch at a time and at most PER_HOUR PRs an hour, hidden ones too: bot-pr hides only those it finds no one for.
 import { randomBytes } from "node:crypto";
+import { as } from "./usage.ts";
 import { Effect, Result, Schema } from "effect";
 import type { Desk } from "./desk.ts";
 import { textHash } from "./judge.ts";
@@ -130,7 +131,7 @@ export class Attributions {
       return;
     }
     this.running = true;
-    desk.runner.fork("attribution", this.run(batch));
+    desk.runner.fork("attribution", this.run(batch).pipe(as("attribution")));
   }
 
   arm(ms: number): void {

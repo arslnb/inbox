@@ -461,7 +461,7 @@ Code: `src/links.ts`; the protocol in `electron/main.ts`.
 
 No tabs. In Settings the sidebar lists its parts in place of the pages, under **‹ Inbox** and a rule (⌘1–⌘4 still open the pages). There's no search there. Two groups, each under a quiet heading:
 
-- **App**, the app's own: Inbox and notifications, Automations, Agent, This device, Network.
+- **App**, the app's own: Inbox and notifications, Automations, Agent, Usage, This device, Network.
 - **Integrations**, one per plugin: GitHub, Sessions.
 
 `SETTINGS_PARTS` in `web/src/settings-parts.ts`. The sidebar's Settings and `#/settings` open the first part.
@@ -501,6 +501,15 @@ No tabs. In Settings the sidebar lists its parts in place of the pages, under **
 - **Let your agent run without asking** (on by default; only while Run your agent is on): bypass permissions mode (its deny list still holds). Changing it restarts it.
 - **Your agent's model** and **Your agent's effort** (only while Run your agent is on; no effort on OpenCode): dropdowns of what the picked agent takes (Claude Code's aliases and levels; `codex debug models`; `opencode models`), Default first for its own default; a value set by hand stays listed. Where nothing can be read, a text field. Each agent keeps its own: switching agents puts the outgoing one's model and effort away and brings the incoming one's back (its own defaults the first time). On Claude Code a change starts a copy of the session that runs with it. The chat's menus set the same.
 - **More Agent settings**: **Let Claude sort up to** so many items an hour, **Decision model key** (an OpenRouter key, saved only from this page in `secrets.json`; shows dots once saved; pasting replaces it; Reset to default clears it; its help says what goes to OpenRouter), **Decision model** (its id), **Light model** (`agent.light_model`: what sorts, scores, answers the rules' questions and reads small facts like who a bot's PR is for, after any external provider such as the decision model; a dropdown of your agent's models, empty for "Haiku 5.5, the cheapest" on Claude Code, "GPT-5.6 Luna, the cheapest" on Codex, or its own default on OpenCode) and **Light model's effort** (`agent.light_effort`: a dropdown of your agent's levels, empty for low; none on OpenCode). Both kept per agent like your agent's model. [api.md → The light model](api.md#the-light-model).
+
+### Usage
+
+`#/settings/usage`: what the desk's model calls would have cost at Anthropic's API prices, had it paid per token instead of running on your plan. Nothing here is billed. [api.md → Usage](api.md#usage).
+
+- The total, its count of model calls and since when the desk has counted, with a window: last 7 days, last 30 days (the default) or since it started counting.
+- **By work**: sorting and scoring the Inbox, AI reviews, issue pre-reviews, automations, reviewers' comments, sessions that need you, bot PRs opened for you, and your agent (Merging, Ask your agent), costliest first; each row's help gives its models' cost and calls.
+- **By model**: each model's calls, cost and tokens (in, out, read from and written to the cache).
+- A note on what isn't counted: Codex and OpenCode runs, and the decision model's.
 
 ### Automations
 

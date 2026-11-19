@@ -40,6 +40,7 @@ import type {
   SettingsView,
   SettingValue,
   UpdateView,
+  UsageView,
 } from "../../src/types.ts";
 import { field, isKeyOf, oneOf, str, strings } from "../../src/narrow.ts";
 import { report } from "./sentry.ts";
@@ -245,6 +246,7 @@ export const api = {
   openSession: (id: string) => call<{ ok: true; url: string }>("POST", `/api/sessions/${encodeURIComponent(id)}/open`),
   automations: () => call<AutomationView[]>("GET", "/api/automations"),
   criteria: () => call<CriteriaView>("GET", "/api/criteria"),
+  usage: (days: number | null) => call<UsageView>("GET", days ? `/api/usage?days=${days}` : "/api/usage"),
   setCriterion: (id: string, b: CriterionBody) =>
     call<{ ok: true; criterion: Criterion }>("PUT", `/api/criteria/${encodeURIComponent(id)}`, b),
   switchCriterion: (id: string, on: boolean) =>

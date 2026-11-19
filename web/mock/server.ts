@@ -14,6 +14,7 @@ import { agentView, githubView } from "../../src/setup.ts";
 import { didntText, didText, eventsWords, nextAt, parseSchedule, scheduleWords } from "../../src/automations.ts";
 import { GITHUB_AUTOMATIONS } from "../../src/connectors/github-automations.ts";
 import { GITHUB_CRITERIA } from "../../src/connectors/github-criteria.ts";
+import { WORK } from "../../src/usage.ts";
 import { fallbackScore, sectionOf } from "../../src/urgency.ts";
 import { checksView } from "../../src/checks.ts";
 import { catchAllOf, resolveRules, spaceOf } from "../../src/config.ts";
@@ -4425,6 +4426,37 @@ async function respond(req: IncomingMessage, url: URL): Promise<unknown> {
     if (req.method === "POST" && auto[2]) return { ok: true, running: id };
   }
   if (route === "GET /api/criteria") return criteriaView();
+  if (route === "GET /api/usage") {
+    const days = Number(url.searchParams.get("days")) || null;
+    const k = days === 7 ? 0.25 : days === 30 ? 1 : 1.6;
+    const row = (kind: string, model: string, calls: number, input: number, output: number, read: number, cost: number) => ({
+      work: kind,
+      model,
+      calls: Math.round(calls * k),
+      input: Math.round(input * k),
+      output: Math.round(output * k),
+      cache_read: Math.round(read * k),
+      cache_write: Math.round(read * k * 0.1),
+      cost: cost * k,
+      unpriced: 0,
+    });
+    return {
+      days,
+      first: "2026-09-02T10:00:00Z",
+      work: { ...WORK },
+      rows: [
+        row("merging", "claude-fable-5-2", 412, 380_000, 610_000, 41_000_000, 71.89),
+        row("review", "claude-opus-5-5", 236, 9_400_000, 1_100_000, 3_200_000, 58.3),
+        row("issue", "claude-opus-5-5", 31, 900_000, 120_000, 0, 6.02),
+        row("agent", "claude-opus-5-5", 58, 90_000, 140_000, 7_800_000, 4.71),
+        row("automation", "claude-opus-5-5", 44, 610_000, 52_000, 1_900_000, 3.88),
+        row("triage", "claude-haiku-5-5", 1830, 7_100_000, 420_000, 12_000_000, 1.04),
+        row("comments", "claude-haiku-5-5", 205, 1_300_000, 61_000, 0, 0.16),
+        row("sessions", "claude-haiku-5-5", 96, 240_000, 9_000, 0, 0.03),
+        row("attribution", "claude-haiku-5-5", 12, 30_000, 2_000, 0, 0.004),
+      ],
+    };
+  }
   const crit = /^\/api\/criteria\/([^/]+)(\/on)?$/.exec(url.pathname);
   if (crit) {
     const id = decodeURIComponent(crit[1]!);

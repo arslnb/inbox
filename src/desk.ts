@@ -108,6 +108,7 @@ import type {
   Stack,
   Status,
   UpdateView,
+  UsageView,
   Work,
 } from "./types.ts";
 import {
@@ -123,6 +124,7 @@ import {
   UNTIL,
   untilTime,
 } from "./types.ts";
+import { meterTo, WORK } from "./usage.ts";
 import { decodeEach, field, isKeyOf, isRecord, keysOf, oneOf, schemaOf, str, strings } from "./narrow.ts";
 import { detached, report, webSentry } from "./sentry.ts";
 import { Runner } from "./runner.ts";
@@ -868,7 +870,16 @@ export class Desk {
     this.runner.fork(file, reread);
   }
 
+  // Settings → Usage: the last `days` days, or everything with none.
+  usageView(days: number | null): UsageView {
+    const since = days === null ? null : new Date(this.now().getTime() - days * 86_400_000).toISOString();
+    return { days, first: this.store.firstUsage(), work: { ...WORK }, rows: this.store.usage(since) };
+  }
+
   start(): void {
+    meterTo((work, usage) => {
+      if (!this.stopped) this.store.addUsage(this.now().toISOString(), randomBytes(6).toString("hex"), work, usage);
+    });
     this.automations.start(); // before the first sync, whose events are a fresh desk's first news for what GitHub comes with
     for (const c of this.connectors) c.start();
     this.moveAsks();

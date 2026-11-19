@@ -1,7 +1,8 @@
 // SQLite cache of every source's items (GitHub's today), your local triage state, and the event log.
 import { DatabaseSync } from "node:sqlite";
 import { Effect, Result, Schema } from "effect";
-import { decode, oneOf, schemaOf, str } from "./narrow.ts";
+import { decode, num, oneOf, schemaOf, str } from "./narrow.ts";
+import type { Usage } from "./usage.ts";
 import {
   ACTIVITY_KINDS,
   INBOX_SECTIONS,
@@ -11,6 +12,7 @@ import {
   type Item,
   type ItemState,
   type Job,
+  type UsageTotal,
 } from "./types.ts";
 
 export interface ItemMeta {
@@ -121,6 +123,10 @@ export class Store {
       -- Your other devices paired over Tailscale (src/remote.ts): a token's sha256, never the token.
       CREATE TABLE IF NOT EXISTS devices (id TEXT PRIMARY KEY, name TEXT NOT NULL, kind TEXT NOT NULL, hash TEXT NOT NULL, created_at TEXT NOT NULL, last_used_at TEXT);
       -- The desk-run coordinator's log, no longer written; the events.agent migration below still reads it.
+      -- What each model call would cost at API prices, by kind of work and model (src/usage.ts).
+      CREATE TABLE IF NOT EXISTS usage (seq INTEGER PRIMARY KEY AUTOINCREMENT, at TEXT NOT NULL, call TEXT NOT NULL, work TEXT NOT NULL, model TEXT NOT NULL, input INTEGER NOT NULL, output INTEGER NOT NULL, cache_read INTEGER NOT NULL, cache_write INTEGER NOT NULL, cost REAL);
+      CREATE INDEX IF NOT EXISTS usage_at ON usage (at);
+      CREATE UNIQUE INDEX IF NOT EXISTS usage_call ON usage (call, model);
       CREATE TABLE IF NOT EXISTS coordinator_log (seq INTEGER PRIMARY KEY AUTOINCREMENT, at TEXT NOT NULL, run INTEGER NOT NULL, kind TEXT NOT NULL, text TEXT NOT NULL, item_id TEXT, action TEXT, bucket TEXT, undo_seq INTEGER);
     `);
     const columns = (table: string) =>
@@ -462,6 +468,41 @@ export class Store {
   lastSeq(): number {
     const seq = this.db.prepare("SELECT MAX(seq) AS seq FROM activity").get()?.seq;
     return seq === null || seq === undefined ? 0 : int(seq);
+  }
+
+  // --- usage (src/usage.ts)
+
+  addUsage(at: string, call: string, work: string, usage: Usage[]): void {
+    const stmt = this.db.prepare(
+      "INSERT OR IGNORE INTO usage (at, call, work, model, input, output, cache_read, cache_write, cost) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+    );
+    for (const u of usage) stmt.run(at, call, work, u.model, u.input, u.output, u.cache_read, u.cache_write, u.cost);
+  }
+
+  // From `from` (all of it with none), by work and model; `unpriced`: its calls no price was known for.
+  usage(from: string | null): UsageTotal[] {
+    const rows = this.db
+      .prepare(
+        `SELECT work, model, COUNT(DISTINCT call) AS calls, SUM(input) AS input, SUM(output) AS output, SUM(cache_read) AS cache_read,
+         SUM(cache_write) AS cache_write, SUM(cost) AS cost, COUNT(*) - COUNT(cost) AS unpriced
+         FROM usage WHERE at >= ? GROUP BY work, model ORDER BY SUM(cost) DESC`,
+      )
+      .all(from ?? "");
+    return rows.map((r) => ({
+      work: text(r.work),
+      model: text(r.model),
+      calls: int(r.calls),
+      input: int(r.input),
+      output: int(r.output),
+      cache_read: int(r.cache_read),
+      cache_write: int(r.cache_write),
+      cost: num(r.cost) ?? 0,
+      unpriced: int(r.unpriced),
+    }));
+  }
+
+  firstUsage(): string | null {
+    return textOrNull(this.db.prepare("SELECT MIN(at) AS at FROM usage").get()?.at ?? null);
   }
 
   // --- jobs (the work Claude owes the owner: src/jobs.ts)

@@ -197,6 +197,7 @@ test("claude's envelope: structured output, JSON in the result, the model it ran
   assert.deepEqual(envelope({ structured_output: { summary: "s" } }), {
     answer: { summary: "s" },
     model: "claude-code",
+    usage: [],
   });
   assert.deepEqual(envelope({ result: 'Here: {"summary":"t"}' }).answer, { summary: "t" });
   // The model is whatever your Claude Code ran, as it reports it.
@@ -309,7 +310,11 @@ test(
     );
     const home = fs.mkdtempSync(path.join(os.tmpdir(), "desk-home-"));
     const dir = agentDir(home);
-    assert.deepEqual(await run(askClaude("PROMPT", { command: f.bin, dir })), { answer: { summary: "ok" }, model: "claude-opus-5[1m]" });
+    assert.deepEqual(await run(askClaude("PROMPT", { command: f.bin, dir })), {
+      answer: { summary: "ok" },
+      model: "claude-opus-5[1m]",
+      usage: [{ model: "claude-opus-5[1m]", input: 0, output: 0, cache_read: 0, cache_write: 0, cost: null }],
+    });
     const args = fs.readFileSync(path.join(f.dir, "args"), "utf8").split("\n");
     for (const a of ["-p", "--strict-mcp-config", "--no-session-persistence", "--json-schema"]) assert.ok(args.includes(a), a);
     assert.equal(args[args.indexOf("--tools") + 1], "");
@@ -374,6 +379,7 @@ test(
     assert.deepEqual(await run(askAgent("PROMPT", { agent: "codex", command: f.bin, dir, schema })), {
       answer: { summary: "ok" },
       model: "codex",
+      usage: [],
     });
     const at = f.read("schema-path").trim();
     const out = at.replace(/\.schema\.json$/, ".answer.json");
@@ -451,7 +457,11 @@ test(
     assert.deepEqual([other._tag, other.message, agentDown(other)], ["ClaudeApiError", "model overloaded", false]);
     // A retry notice along the way isn't the answer's failure.
     const f = fakeCodex(`echo '{"type":"error","message":"Reconnecting... 1/5"}'; ${ANSWERED}`);
-    assert.deepEqual(await run(askAgent("hi", { agent: "codex", command: f.bin, dir })), { answer: { summary: "ok" }, model: "codex" });
+    assert.deepEqual(await run(askAgent("hi", { agent: "codex", command: f.bin, dir })), {
+      answer: { summary: "ok" },
+      model: "codex",
+      usage: [],
+    });
     assert.deepEqual(fs.readdirSync(dir), [], "a failed run leaves no files either");
     fs.rmSync(dir, { recursive: true });
   },
@@ -518,7 +528,7 @@ test("the tool-less call is Claude Code's unless the agent is Codex", posix, asy
   try {
     assert.deepEqual((await run(askAgent("hi", { dir }))).answer, { summary: "from claude" });
     assert.deepEqual((await run(askAgent("hi", { dir, agent: "claude-code" }))).answer, { summary: "from claude" });
-    assert.deepEqual(await run(askAgent("hi", { dir, agent: "codex" })), { answer: { summary: "from codex" }, model: "codex" });
+    assert.deepEqual(await run(askAgent("hi", { dir, agent: "codex" })), { answer: { summary: "from codex" }, model: "codex", usage: [] });
   } finally {
     delete process.env.DESK_CLAUDE;
     delete process.env.DESK_CODEX;

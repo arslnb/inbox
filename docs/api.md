@@ -250,6 +250,7 @@ After you answer, the question leaves the main page and is owed to whoever asked
 | DELETE | `/api/automations/:id`     | Own page only; 400 for a plugin's                                                                                                                                                                     | ✓            |
 | POST   | `/api/automations/:id/run` | `{ ok, running }`: runs it now, in the background. 409 for one that's off unless from the own page                                                                                                    | ✓ (when off) |
 | GET    | `/api/criteria`            | `CriteriaView`: each criterion with `yes` (the Inbox items it says yes to), and `waiting`, `held`, `scored` ([Urgency](#urgency))                                                                     |              |
+| GET    | `/api/usage?days=`         | `UsageView`: what model calls would have cost at API prices, by `work` and `model`, over the last `days` (all of them without) ([Usage](#usage))                                                      |              |
 | PUT    | `/api/criteria/:id`        | `{ name, when?, ask?, urgent?, on? }` → `{ ok, criterion }`: saves yours, whole. An agent's is on (`on` is the window's to set)                                                                       |              |
 | PUT    | `/api/criteria/:id/on`     | `{ on }` → `{ ok, criterion }`: switches yours or a plugin's. Own page only                                                                                                                           |              |
 | DELETE | `/api/criteria/:id`        | 400 for a plugin's                                                                                                                                                                                    |              |
@@ -899,6 +900,16 @@ It leaves out the AI review's first sentence and the directories the PR touches.
 - Only the desk's own page sets or clears it: `PUT /api/settings` naming a secret from any other client is 403.
 - An automation's agent run may not read it (`--disallowedTools Read(//<home>/secrets.json)` and the same deny rule in its folder).
 - Sent only in that header, cut from any error text, never logged. `GET /api/settings`, `PUT /api/settings` and `inbox settings` show a set key as `••••••••` (`SECRET_SET`); sending that back changes nothing, and `""` or a reset clears it.
+
+### Usage
+
+What the desk's model calls would have cost at Anthropic's API prices, had it paid per token instead of running on your plan (`src/usage.ts`). Each call is a row of desk.db's `usage` table per model: its tokens (in, out, read from and written to the cache), its cost in USD, and the work it was for (`WORK`: `triage`, `review`, `issue`, `automation`, `comments`, `sessions`, `attribution`, `merging`, `agent`, `other`).
+
+- **Claude Code's one-shot calls** (`askClaude`, `askClaudeIn`, an automation's agent run) are priced by Claude Code itself: its JSON's `modelUsage` and `costUSD`. Where a call starts sets its work (`as("review")`); a call with none counts as `other`.
+- **Your agent's sessions** (Merging, Ask your agent) are read from their Claude Code transcripts in their folder, each time the desk looks at them, from where the last look stopped. Each model request is priced at the list prices in `PRICES`, a cache write at 1.25× input (2× for an hour). A resumed copy repeats its history; the table keeps each request once (by its message id). A model `PRICES` doesn't know is counted in `unpriced`, not in the cost.
+- **Not counted:** Codex and OpenCode runs, and the decision model's (OpenRouter).
+
+`GET /api/usage?days=7` sums them by work and model; Settings → Usage shows it.
 
 ## Reviews
 

@@ -869,6 +869,10 @@ export function createApp(desk: Desk, port: number, remote: Remote = new Remote(
   // Criteria (src/urgency.ts): they only order the Inbox and never act on an item, so any local client may list, save or delete
   // one, and an agent's is on as it's saved; switching one, a plugin's included, is the owner's, in the window.
   app.get("/api/criteria", (c) => total(c, () => desk.urgency.view()));
+  app.get("/api/usage", (c) => {
+    const days = Number(c.req.query("days"));
+    return total(c, () => desk.usageView(Number.isInteger(days) && days > 0 ? days : null));
+  });
   app.put("/api/criteria/:id", (c) => {
     const set = Effect.gen(function* () {
       yield* up;

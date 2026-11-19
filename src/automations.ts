@@ -3,6 +3,7 @@
 // decision model's through OpenRouter), and an agent is your own Claude Code, read only. What comes of it, the desk acts on, by the verbs you allow it (add, when you allow nothing else: on your desk
 // with its why). An agent may write or change one, and it's on unless it says off, as yours is.
 import { randomBytes } from "node:crypto";
+import { as, meter } from "./usage.ts";
 import path from "node:path";
 import { Effect, Result, Schema, type Fiber } from "effect";
 import { serverName } from "./agents.ts";
@@ -702,7 +703,7 @@ export class Automations {
     });
     entry.fiber = this.desk.runner.fork(
       "automation",
-      this.go(a, run, last, batch).pipe(Effect.flatMap(spent), Effect.ensuring(next)),
+      this.go(a, run, last, batch).pipe(as("automation"), Effect.flatMap(spent), Effect.ensuring(next)),
       a.id,
     );
     if (!entry.fiber) end();
@@ -947,6 +948,7 @@ export class Automations {
       if (!this.all().some((x) => x.id === a.id)) return false; // deleted while it ran
       run.session = sessionOf(out);
       const env = yield* claudeEnvelope(out);
+      yield* meter(env.usage);
       return yield* this.took(a, run, env.answer, out, passed);
     });
   }

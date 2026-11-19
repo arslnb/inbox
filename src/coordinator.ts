@@ -63,6 +63,7 @@ import {
   type CoordinatorView,
 } from "./types.ts";
 import { report } from "./sentry.ts";
+import { transcriptUsage } from "./usage.ts";
 import { reviewOptional } from "./stage.ts";
 
 const FRESH = 15_000; // how often Merging may look for its claude.ai link until it has one
@@ -572,6 +573,26 @@ export class Coordinator {
     this.following.unref();
   }
 
+  // What its requests cost, read from its transcripts (this session's and the ones before it in its folder) where the last look
+  // stopped; a resumed copy repeats its history, which the store keeps once.
+  tally(): void {
+    if (!this.session || this.desk.stopped) return;
+    const dir = path.dirname(transcriptPath(this.session));
+    const key = `${this.seat.key}_usage`;
+    const was: Readonly<Record<string, number>> = Result.getOrElse(decode(TALLY, this.desk.store.get(key)), () => ({}));
+    const files = Result.getOrElse(Result.try({ try: () => fs.readdirSync(dir), catch: () => [] }), () => []);
+    const now: Record<string, number> = {};
+    for (const f of files.filter((x) => x.endsWith(".jsonl"))) {
+      const from = was[f] ?? 0;
+      const read = readFrom(path.join(dir, f), from);
+      now[f] = read?.end ?? from;
+      if (!read) continue;
+      const work = this.seat === MERGING ? "merging" : "agent";
+      for (const r of transcriptUsage(read.text)) this.desk.store.addUsage(r.at, r.id, work, [r.usage]);
+    }
+    this.desk.store.set(key, now);
+  }
+
   // Answered while it waited to go again (the desk asked again while your agent was on it): it never goes.
   answered(id: string): void {
     const left = this.asks().filter((l) => askOf(l) !== id);
@@ -877,6 +898,7 @@ export class Coordinator {
         this.desk.changed();
       }
       this.session = a && { sessionId: a.sessionId, cwd: a.cwd };
+      this.tally();
       const status = a?.pid ? oneOf(STATUSES, a.status) : undefined;
       if (a?.pid && !status) this.desk.log(`coordinator: ${a.id} says "${String(a.status)}", which the desk doesn't know: shown as idle`);
       this.saw(a ? (a.pid ? (status ?? "idle") : "stopped") : null);
@@ -1135,6 +1157,31 @@ const STEP_LEN = 140;
 export function transcriptPath(s: { sessionId: string; cwd: string }): string {
   const home = process.env.CLAUDE_CONFIG_DIR?.trim() ? process.env.CLAUDE_CONFIG_DIR : path.join(os.homedir(), ".claude");
   return path.join(home, "projects", s.cwd.replaceAll(/[^A-Za-z0-9]/g, "-"), `${s.sessionId}.jsonl`);
+}
+
+const TALLY = Schema.Record(Schema.String, Schema.Number);
+
+// The file's whole lines from byte `from`, and where they end; null when there's nothing new (or no file).
+function readFrom(file: string, from: number): { text: string; end: number } | null {
+  return Result.getOrElse(
+    Result.try({
+      try: () => {
+        const fd = fs.openSync(file, "r");
+        try {
+          const size = fs.fstatSync(fd).size;
+          const at = size < from ? 0 : from; // shorter: rewritten from the start
+          const buf = Buffer.alloc(size - at);
+          fs.readSync(fd, buf, 0, buf.length, at);
+          const cut = buf.lastIndexOf(10) + 1;
+          return cut ? { text: buf.subarray(0, cut).toString("utf8"), end: at + cut } : null;
+        } finally {
+          fs.closeSync(fd);
+        }
+      },
+      catch: () => null,
+    }),
+    () => null,
+  );
 }
 
 // The file's last TAIL bytes from its first whole line; "" when it isn't there (yet).

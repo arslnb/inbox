@@ -63,7 +63,7 @@ The sidebar has four pages, plus **Ask your agent** and **Settings** in its foot
 - **Blocked**: your PRs that can't move yet, such as one that needs another PR merged first, or one waiting on reviewers. Each says what it waits on, down the chain. It comes back to your Inbox when that changes.
 - **Merging**: your PRs the coordinator is getting merged, each with what it waits on and the coordinator's latest note. Merged ones stay for 3 days. **Back to desk** takes one back.
 - **Archive**: what's done (by you, or resolved by GitHub: merged, closed, approved), then what you snoozed or muted and what your rules hid.
-- **Settings** (⌘, in the app), in two groups. App: Inbox and notifications, Automations (your automations and urgency), Agent, This device (theme, shortcut, menu bar count), Network (Tailscale to use it from your other devices; the local network to read it there with a token), then Integrations: GitHub (account, searches and rules, the AI review, its automations) and Sessions. Changes save as you go.
+- **Settings** (⌘, in the app), in two groups. App: Inbox and notifications, Automations (your automations and urgency), Agent, Usage (what its model calls would cost at API prices), This device (theme, shortcut, menu bar count), Network (Tailscale to use it from your other devices; the local network to read it there with a token), then Integrations: GitHub (account, searches and rules, the AI review, its automations) and Sessions. Changes save as you go.
 
 Everything is a click. A row opens its review (an issue opens in place). Right-click a row for Done, Snooze, Close on GitHub and Copy link. Platform keys still work: Esc goes back, ⌘↵ sends what you wrote, ⌘S saves an editor, Tab moves between controls.
 

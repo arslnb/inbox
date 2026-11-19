@@ -34,6 +34,7 @@ import { parseDiagram } from "./diagram.ts";
 import { GH_MISSING } from "./github/client.ts";
 import type { PrContext } from "./github/index.ts";
 import { field, isRecord, num, str } from "./narrow.ts";
+import { as, claudeUsage, meter, type Usage } from "./usage.ts";
 import type {
   AiReview,
   ChunkRanking,
@@ -678,7 +679,7 @@ export const askClaude = Effect.fn("askClaude")(function* (
     stdoutOnError: true,
     missing: claudeMissing(command),
   });
-  return yield* claudeEnvelope(out);
+  return yield* metered(claudeEnvelope(out));
 });
 
 // Your own claude in a repo's code (your clone, or a PR's head checked out from it) with only Read, Grep and Glob: no MCP
@@ -712,7 +713,7 @@ export const askClaudeIn = Effect.fn("askClaudeIn")(function* (
     stdoutOnError: true,
     missing: claudeMissing(command),
   });
-  return yield* claudeEnvelope(out);
+  return yield* metered(claudeEnvelope(out));
 });
 
 // The tool-less call on the agent you chose (Settings → Agent): the judge, the AI review and its check, the conversation
@@ -870,7 +871,7 @@ export const codexMcp = Effect.fnUntraced(function* (command: string, dir: strin
 
 // The schema and the final message go through two files in the agent's directory, removed after the run however it ends.
 const askCodex = (prompt: string, opts: { command?: string } & AskOpts): Effect.Effect<ClaudeAnswer, CommandError | ClaudeError> =>
-  Effect.map(codexRun(prompt, opts), ({ answer, model }) => ({ answer, model }));
+  Effect.map(codexRun(prompt, opts), ({ answer, model, usage }) => ({ answer, model, usage }));
 
 // A Codex run with the desk's MCP server (`desk`) keeps its session, as Claude Code's agent runs do, so it can be resumed.
 export const codexRun = Effect.fn("codexRun")(function* (
@@ -956,7 +957,7 @@ const codexAnswer = Effect.fnUntraced(function* (events: string, last: string): 
   }
   if (!last.trim() && failed !== null) return yield* codexError(failed);
   if (!last.trim()) return yield* new ClaudeBadOutput({ message: "codex gave no answer", excerpt: events.slice(-500) });
-  return { answer: yield* readJson(/\{[\s\S]*\}/.exec(last)?.[0] ?? "{}", last), model: model ?? "codex" };
+  return { answer: yield* readJson(/\{[\s\S]*\}/.exec(last)?.[0] ?? "{}", last), model: model ?? "codex", usage: [] };
 });
 
 // ---------------------------------------------------------------- OpenCode
@@ -1050,7 +1051,7 @@ const withSchema = (prompt: string, schema: object) =>
 
 // The tool-less call: every permission denied, no MCP server, and its session deleted after, as Claude Code keeps none.
 const askOpencode = (prompt: string, opts: { command?: string } & AskOpts): Effect.Effect<ClaudeAnswer, CommandError | ClaudeError> =>
-  Effect.map(opencodeRun(prompt, opts), ({ answer, model }) => ({ answer, model }));
+  Effect.map(opencodeRun(prompt, opts), ({ answer, model, usage }) => ({ answer, model, usage }));
 
 // A run with the desk's MCP server (`desk`, its tools by name in `tools`) keeps its session, so it can be resumed.
 export const opencodeRun = Effect.fn("opencodeRun")(function* (
@@ -1138,7 +1139,7 @@ const opencodeAnswer = Effect.fnUntraced(function* (events: string): Effect.fn.R
   }
   if (!last.trim() && failed !== null) return yield* opencodeError(failed);
   if (!last.trim()) return yield* new ClaudeBadOutput({ message: "opencode gave no answer", excerpt: events.slice(-500) });
-  return { answer: yield* readJson(/\{[\s\S]*\}/.exec(last)?.[0] ?? "{}", last), model: "opencode" };
+  return { answer: yield* readJson(/\{[\s\S]*\}/.exec(last)?.[0] ?? "{}", last), model: "opencode", usage: [] };
 });
 
 // The queue's one line when it is: every agent stops on it, the judge too.
@@ -1223,7 +1224,10 @@ export const agentDown = (e: unknown): boolean =>
 export interface ClaudeAnswer {
   answer: unknown;
   model: string; // the first model in claude's modelUsage, else "claude-code"
+  usage: Usage[]; // what it cost, by model (src/usage.ts)
 }
+
+const metered = <E>(e: Effect.Effect<ClaudeAnswer, E>) => Effect.tap(e, (a) => meter(a.usage));
 
 // What claude printed, as JSON; what doesn't parse fails with the parser's words.
 const readJson = (json: string, excerpt: string) =>
@@ -1243,6 +1247,7 @@ export const claudeEnvelope = Effect.fnUntraced(function* (out: string): Effect.
   return {
     answer: env.structured_output ?? (yield* readJson(/\{[\s\S]*\}/.exec(result)?.[0] ?? "{}", result)),
     model: usage[0] ?? "claude-code",
+    usage: claudeUsage(env.modelUsage),
   };
 });
 
@@ -1261,7 +1266,7 @@ export const generateReview = Effect.fn("generateReview")(function* (
     dir: repo ?? dir,
     agent,
     read: !!repo,
-  });
+  }).pipe(as("review"));
   const r = readReview(answer, pr.files);
   if (!r.summary) return yield* new ClaudeBadOutput({ message: "the agent returned no summary" });
   const breaking = r.interfaces.filter((x) => x.breaking);
@@ -1353,7 +1358,7 @@ const checkClaims = Effect.fnUntraced(function* (item: Item, pr: PrText, comment
     schema: CHECK_SCHEMA,
     agent,
     read: !!repo,
-  });
+  }).pipe(as("review"));
   const held = new Set<number>();
   for (const c of list(field(answer, "comments"))) {
     const n = Number(/^c(\d+)$/i.exec(text(c?.id))?.[1]);

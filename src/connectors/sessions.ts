@@ -2,6 +2,7 @@
 // Read only: `claude agents --json --all`, the tail of each transcript, the desktop app's session records and Codex's
 // threads. Any shape it doesn't know gives no item, never a wrong one; nothing it reads is kept beyond a one-line excerpt.
 import fs from "node:fs";
+import { as } from "../usage.ts";
 import os from "node:os";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
@@ -725,7 +726,7 @@ export class Sessions {
   // The model's read of a message that asks something; null when it couldn't say.
   read(text: string): Effect.Effect<boolean | null> {
     return Effect.gen({ self: this }, function* () {
-      const { answer } = yield* this.desk.light.ask(askPrompt(text), ASK_SCHEMA);
+      const { answer } = yield* this.desk.light.ask(askPrompt(text), ASK_SCHEMA).pipe(as("sessions"));
       const blocked = obj(answer)?.blocked;
       return typeof blocked === "boolean" ? blocked : null;
     }).pipe(

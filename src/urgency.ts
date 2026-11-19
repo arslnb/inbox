@@ -3,6 +3,7 @@
 // or FYI, ordered by its score. Answers and scores are kept per item and asked again only when the item or what was asked
 // changes; every one is logged to labels.jsonl, the data a cheaper model learns this from.
 import fs from "node:fs";
+import { as } from "./usage.ts";
 import path from "node:path";
 import { randomBytes } from "node:crypto";
 import { Effect, Result, Schema, type Fiber } from "effect";
@@ -406,7 +407,7 @@ export class Urgency {
     const work = this.next();
     if (!work) return;
     this.running = true;
-    const call = desk.runner.fork("urgency", this.run(work));
+    const call = desk.runner.fork("urgency", this.run(work).pipe(as("triage")));
     if (!call) this.running = false;
     else if (!call.pollUnsafe()) this.call = call;
   }

@@ -4066,6 +4066,7 @@ const SHOTS: Shot[] = [
     after: unsettle,
   },
   { name: "settings-queue", go: at("#/settings/queue") },
+  { name: "settings-usage", go: at("#/settings/usage") },
   {
     // Sessions' own part, a plugin's under GitHub in the sidebar: its switch and the model's read, Stalled after behind
     // More, and no Automations heading, as it comes with none.

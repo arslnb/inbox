@@ -1686,3 +1686,23 @@ export type DiagramGraph =
       messages: DiagramMessage[];
       notes: DiagramNote[];
     };
+
+// Settings → Usage: what the desk's model calls would have cost at API prices (src/usage.ts), by kind of work and model.
+export interface UsageTotal {
+  work: string;
+  model: string;
+  calls: number;
+  input: number;
+  output: number;
+  cache_read: number;
+  cache_write: number;
+  cost: number; // USD
+  unpriced: number; // calls with no price known, left out of cost
+}
+
+export interface UsageView {
+  days: number | null; // the window; null: since the desk started counting
+  first: string | null; // when it started counting
+  work: Record<string, string>; // each work's name, as Settings shows it
+  rows: UsageTotal[];
+}

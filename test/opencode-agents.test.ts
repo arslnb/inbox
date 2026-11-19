@@ -129,7 +129,11 @@ test(
     );
     f.file("answer", 'Here it is:\n{"summary":"ok"}');
     const schema = { type: "object", properties: { summary: { type: "string" } } };
-    assert.deepEqual(await run(askAgent("PROMPT", { agent: "opencode", dir, schema })), { answer: { summary: "ok" }, model: "opencode" });
+    assert.deepEqual(await run(askAgent("PROMPT", { agent: "opencode", dir, schema })), {
+      answer: { summary: "ok" },
+      model: "opencode",
+      usage: [],
+    });
     const [debug, call, drop] = f.calls();
     assert.deepEqual(debug!.args, ["debug", "config", "--pure"], "the servers it would load, plugins left out as the run leaves them");
     assert.deepEqual(call!.args, [...RUN, "--title", "Inbox"], "no --model, no --auto: your model, and nothing approved");

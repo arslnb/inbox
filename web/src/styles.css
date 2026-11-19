@@ -5584,6 +5584,12 @@ button.s-edit:hover:not(:disabled) {
   field-sizing: content;
 }
 
+/* Settings → Usage: a cost, in figures that line up row to row. */
+.us-cost {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+}
+
 .cr-note {
   margin: 14px 0 0;
   padding: 0 17px;

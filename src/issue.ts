@@ -2,6 +2,7 @@
 // an agent, then your own agent's analysis, reading the repo's code in your local clone when there is one. The default
 // instructions are SECTIONS; ~/.inbox/issue.md replaces any of them (`## <id>`) or adds to them, as review.md does for PRs.
 import { randomBytes } from "node:crypto";
+import { as } from "./usage.ts";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -355,7 +356,9 @@ export const generateIssueReview = Effect.fn("generateIssueReview")(function* (
   };
   const parts = outsiders(item, t, o.me);
   if (parts.length && !o.trusted) {
-    const { answer, model } = yield* askAgent(buildScreenPrompt(item, parts), { dir: o.dir, agent: o.agent, schema: SCREEN_SCHEMA });
+    const { answer, model } = yield* askAgent(buildScreenPrompt(item, parts), { dir: o.dir, agent: o.agent, schema: SCREEN_SCHEMA }).pipe(
+      as("issue"),
+    );
     if (field(answer, "injection") === true) {
       const named = parts.find((p) => p.who.toLowerCase() === str(field(answer, "who"), 100).replace(/^@/, "").toLowerCase());
       return {
@@ -369,8 +372,8 @@ export const generateIssueReview = Effect.fn("generateIssueReview")(function* (
   const code = o.agent === "claude-code" && o.clone !== null;
   const prompt = buildIssuePrompt(item, t, o.me, code, o.own);
   const { answer, model } = code
-    ? yield* askClaudeIn(prompt, o.clone!, ISSUE_SCHEMA)
-    : yield* askAgent(prompt, { dir: o.dir, agent: o.agent, schema: ISSUE_SCHEMA });
+    ? yield* askClaudeIn(prompt, o.clone!, ISSUE_SCHEMA).pipe(as("issue"))
+    : yield* askAgent(prompt, { dir: o.dir, agent: o.agent, schema: ISSUE_SCHEMA }).pipe(as("issue"));
   const r = parseIssueReview(answer, code ? o.clone : null);
   if (!r.summary) return yield* new ClaudeBadOutput({ message: "the agent returned no summary" });
   return { ...stamp, model, injection: null, ...r, code, ...(code && { repo_dir: o.clone! }), ...(t.base && { base: t.base }) };

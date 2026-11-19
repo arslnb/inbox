@@ -2,6 +2,7 @@
 // its weight, an automation's sort, the criteria's yeses), with where the first rule put it as its hint and a hard rule's
 // floor as a bound. Its own instructions are fixed here. Like the AI review it runs with no tools, no MCP and an empty directory.
 import { createHash, randomBytes } from "node:crypto";
+import { as } from "./usage.ts";
 import { Effect, Schema, type Fiber } from "effect";
 import { areaFiles, areasFor, touched } from "./areas.ts";
 import type { Desk } from "./desk.ts";
@@ -476,7 +477,7 @@ export class Judge {
     }
     this.running = true;
     desk.changed();
-    const call = desk.runner.fork("judge", this.run(batch));
+    const call = desk.runner.fork("judge", this.run(batch).pipe(as("triage")));
     if (!call) this.running = false;
     else if (!call.pollUnsafe()) this.call = call; // one that failed before its first wait has ended (and maybe pumped) already
   }
