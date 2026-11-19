@@ -5,6 +5,15 @@
 // counts: a review asked of you by name weighs most, a team or CODEOWNERS ping little, a bot's PR is noise.
 import type { BuiltInRules } from "../types.ts";
 
+const OLD = {
+  id: "old",
+  when: "item.created_hours >= 720",
+  bucket: "later",
+  why: "opened over a month ago",
+  final: true,
+  weight: 8,
+} as const;
+
 const MENTIONS: BuiltInRules["rules"] = [
   { id: "new-replies", when: "me.new_activity", bucket: "today", why: "new replies since you last acted", weight: 6 },
   {
@@ -21,6 +30,8 @@ export const GITHUB_RULES: Readonly<Record<string, BuiltInRules>> = {
   review: {
     name: "PRs to review",
     rules: [
+      // A month-old PR stays off the Inbox, even one asked of you by name: your own rules in config.toml still come first.
+      OLD,
       {
         id: "asked-directly",
         when: "me.requested_direct && !me.requested_by_bot",
@@ -99,6 +110,7 @@ export const GITHUB_RULES: Readonly<Record<string, BuiltInRules>> = {
         why: "blocked by {pr.blocker}, which {pr.blocker_waits}",
         final: true,
       },
+      OLD,
       {
         id: "fresh-draft",
         when: "item.draft && item.updated_hours < 336",

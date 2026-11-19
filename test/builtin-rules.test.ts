@@ -7,7 +7,7 @@ import { GITHUB_RULES } from "../src/connectors/github-rules.ts";
 import { classify, type Entry } from "../src/rules.ts";
 import { analyze, FIELDS } from "../src/signals.ts";
 import type { BuiltInRules, Rule, Signals } from "../src/types.ts";
-import { makeContext, makeItem, NOW } from "./helpers/items.ts";
+import { hoursAgo, makeContext, makeItem, NOW } from "./helpers/items.ts";
 import { setup, reviewAsk } from "./helpers/desk.ts";
 import { run, runSync } from "./helpers/run.ts";
 
@@ -150,6 +150,7 @@ rules = [
     [
       "2",
       "5",
+      "old",
       "asked-directly",
       "asked-by-bot",
       "yours-via-bot",
@@ -256,8 +257,10 @@ function samePlacements(text: string, next: string) {
 }
 
 test("migrating a copy of GitHub's rules keeps what's yours and places every item as before", () => {
-  // Copies had no weights: the migration compares rules without them.
-  const old = defaultConfigText({ workOrgs: ["acme"], expanded: true }).replaceAll(/, weight = \d+/g, "");
+  // Copies had no weights, nor the month-old rule: the migration compares rules without weights and switches that one off.
+  const old = defaultConfigText({ workOrgs: ["acme"], expanded: true })
+    .replaceAll(/, weight = \d+/g, "")
+    .replaceAll(`  { when = "item.created_hours >= 720", bucket = "later", why = "opened over a month ago", final = true },\n`, "");
   const edited = old
     // Changed: GitHub's bot PR rule, made FYI.
     .replace(
@@ -279,11 +282,11 @@ test("migrating a copy of GitHub's rules keeps what's yours and places every ite
   assert.ok(next);
   assert.match(
     next,
-    /# mine\nbuiltin = "review"\noff = \["your-repo"\]\nrules = \[\n {2}\{ when = "'ml-team' in item.labels", bucket = "now", why = "ML" \},\n {2}\{ id = "bot-pr", when = "author.bot && author.person == ''", bucket = "fyi", why = "bot PR" \},\n\]\n/,
+    /# mine\nbuiltin = "review"\noff = \["old", "your-repo"\]\nrules = \[\n {2}\{ when = "'ml-team' in item.labels", bucket = "now", why = "ML" \},\n {2}\{ id = "bot-pr", when = "author.bot && author.person == ''", bucket = "fyi", why = "bot PR" \},\n\]\n/,
   );
   assert.match(
     next,
-    /builtin = "mine"\nrules = \[\n {2}\{ after = "stacked", when = "pr.ci == 'pending'", bucket = "later", why = "CI running" \},\n\]\n/,
+    /builtin = "mine"\noff = \["old"\]\nrules = \[\n {2}\{ after = "stacked", when = "pr.ci == 'pending'", bucket = "later", why = "CI running" \},\n\]\n/,
   );
   assert.equal(next.split("rules = [").length - 1, 2, "the boards you didn't change name GitHub's alone");
   assert.ok(samePlacements(edited, next) > 1000);
@@ -320,13 +323,13 @@ test("a config shaped as the owner's migrates losslessly", () => {
     boards.map((b) => [b.id, b.builtin ?? null, b.off ?? [], b.rules.filter((r) => r.own !== undefined).length]),
     [
       // Rules added since the copy are off, so nothing moves; its hard asks and its older draft and bot PR rules stand in GitHub's place, and its close-collaborator rule, no longer built in, stays its own.
-      ["acme-review", "review", ["team-taken", "team-waited", "team-your-area", "team"], 4],
-      ["acme-mine", "mine", ["no-review-ready"], 1],
+      ["acme-review", "review", ["old", "team-taken", "team-waited", "team-your-area", "team"], 4],
+      ["acme-mine", "mine", ["old", "no-review-ready"], 1],
       ["acme-mentions", "mentions", [], 0],
       ["acme-collaborators", "collaborators", [], 0],
       ["acme-watching", null, [], 0],
-      ["personal-review", "review", ["team-taken", "team-waited", "team-your-area", "team"], 4],
-      ["personal-mine", "mine", ["no-review-ready"], 1],
+      ["personal-review", "review", ["old", "team-taken", "team-waited", "team-your-area", "team"], 4],
+      ["personal-mine", "mine", ["old", "no-review-ready"], 1],
       ["personal-mentions", "issues", [], 0],
     ],
   );
@@ -361,5 +364,20 @@ test("a desk started on a config.toml with GitHub's rules copied names them once
   fs.writeFileSync(file, copied);
   await run(t.desk.migrateRules());
   assert.equal(fs.readFileSync(file, "utf8"), copied, "once");
+  await t.cleanup();
+});
+
+test("a PR opened over a month ago stays off the Inbox, even asked of you by name", async () => {
+  const t = await setup([reviewAsk(1, { created_at: hoursAgo(31 * 24) }), reviewAsk(2, { created_at: hoursAgo(29 * 24) })]);
+  await run(t.desk.sync());
+  const board = runSync(t.desk.board("acme-review"));
+  assert.deepEqual(
+    board.sections.now.map((c) => c.id),
+    ["acme/api#2"],
+  );
+  assert.deepEqual(
+    board.sections.later.map((c) => [c.id, c.why]),
+    [["acme/api#1", "opened over a month ago"]],
+  );
   await t.cleanup();
 });

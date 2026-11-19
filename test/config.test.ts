@@ -273,7 +273,7 @@ test("a config written before drafts reached the desk gets both draft rules on e
   assert.equal(migrateDrafts(old.replaceAll(`why = "draft" }`, `why = "my draft" }`)), null, "a rule the owner changed is theirs");
   const mine = parseConfig(migrateDrafts(old)!).loaded!.config.boards.filter((b) => b.name === "My PRs");
   assert.equal(mine.length, 2);
-  for (const b of mine) assert.deepEqual([!!b.rules[1]?.hard, b.rules[1]?.bucket, b.rules[2]?.bucket], [true, "today", "later"]);
+  for (const b of mine) assert.deepEqual([!!b.rules[2]?.hard, b.rules[2]?.bucket, b.rules[3]?.bucket], [true, "today", "later"]);
   // A blank line before it stays the only one.
   const spaced = old.replace(
     `},\n  { when = "item.draft", bucket = "later", why = "draft" },`,
@@ -373,12 +373,13 @@ test("the template: Blocked is for your own PRs, first on My PRs, and no board o
     assert.deepEqual(rule(mine, changes + 2), ["len(pr.blocks) > 0 && me.owes_reply", "today", false, false]);
     const threads = index(mine, "pr.unresolved_threads > 0");
     assert.deepEqual(rule(mine, threads - 1), ["len(pr.waiting_on) > 0 && !me.owes_reply && pr.ci != 'red'", "blocked", true, false]);
+    assert.deepEqual(rule(`${space}-review`, 0), ["item.created_hours >= 720", "later", true, false], "a month-old PR first");
     assert.deepEqual(
-      rule(`${space}-review`, 0),
+      rule(`${space}-review`, 1),
       ["me.requested_direct && !me.requested_by_bot", "now", false, false],
-      "a direct ask leads",
+      "then a direct ask leads",
     );
-    assert.equal(boards.find((b) => b.id === `${space}-review`)!.rules[0]!.weight, 9, "a heavy default, not a floor");
+    assert.equal(boards.find((b) => b.id === `${space}-review`)!.rules[1]!.weight, 9, "a heavy default, not a floor");
   }
   const others = boards.filter((b) => !b.id.endsWith("-mine"));
   assert.deepEqual(

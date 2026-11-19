@@ -249,7 +249,7 @@ test("default review rules: a CODEOWNERS ping hints Later when it changes code y
 test("default My PRs rules: your draft touched in two weeks is on the desk by a hard rule; an older one waits in Later", () => {
   const mine = parseConfig(defaultConfigText({ workOrgs: ["acme"] })).loaded!.boards.find((x) => x.config.id === "acme-mine")!;
   const draft = (number: number, hours: number) =>
-    makeItem({ number, author: "me", draft: true, ci: "red", created_at: hoursAgo(24 * 40), updated_at: hoursAgo(hours) });
+    makeItem({ number, author: "me", draft: true, ci: "red", created_at: hoursAgo(24 * 25), updated_at: hoursAgo(hours) });
   // Claude would sort them all away; the hard rule keeps the fresh ones on the desk anyway.
   const away = () => ({ bucket: "fyi" as const, why: "a draft", pending: false });
   const fresh = [1, 2, 3, 4, 5, 6, 7].map((n) => draft(n, 30 + n));
