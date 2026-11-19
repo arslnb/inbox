@@ -131,6 +131,16 @@ test("someone else's PR is handed off for merge once approved, and then it's sti
   assert.throws(() => runSync(t.desk.act("web#3", "takeback")), /isn't in Merging/);
 });
 
+test("in a repo that needs no review, your approval is what hands someone else's PR off: GitHub gives no decision there", async (c) => {
+  const mine = { author: "me", author_bot: false, trusted: true, state: "approved" as const, at: hoursAgo(1), commit: "abc" };
+  const t = await setup([reviewAsk(1, { review_decision: "none" }), reviewAsk(2, { review_decision: "none", reviews: [mine] })]);
+  c.after(t.cleanup);
+  await run(t.desk.sync());
+  assert.throws(() => runSync(t.desk.act("api#1", "inflight")), /once it's approved/, "nobody approved it");
+  runSync(t.desk.act("api#2", "inflight"));
+  assert.equal((await run(t.desk.inflight())).rows.find((r) => r.card.id === "acme/api#2")?.theirs, true);
+});
+
 test("in Merging, the coordinator owns it: done, snooze and mute are refused, and the judge leaves it alone", async (c) => {
   process.env.DESK_CLAUDE = "/nonexistent/claude";
   const t = await setup([myPr(3, { ci: "pending" })]);

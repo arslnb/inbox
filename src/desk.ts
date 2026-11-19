@@ -3425,7 +3425,12 @@ export class Desk {
           // Handed off for merge: your own open PR, or anyone's approved one, which the coordinator only merges.
           if (entry.item.kind !== "pr" || entry.item.state !== "open")
             return yield* new Conflict({ message: `only open PRs are handed off for merge; ${id} isn't one` });
-          if (!entry.analysis.signals.me.author && entry.item.review_decision !== "approved")
+          // A repo that needs no review never gets GitHub's "approved": a collaborator's approval stands for it.
+          if (
+            !entry.analysis.signals.me.author &&
+            entry.item.review_decision !== "approved" &&
+            stage(entry.item, entry.item.author) !== "approved"
+          )
             return yield* new Conflict({ message: `${id} isn't yours, so it's handed off for merge once it's approved` });
           if (s.inflight_at && !entry.rebasing) return yield* new Conflict({ message: `${id} is in Merging already` });
           // Ready for review is yours, so a draft in Merging would wait on you there.

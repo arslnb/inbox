@@ -1014,7 +1014,7 @@ export function Review({
       )}
       {/* While you owe replies, Reply is the one filled button. */}
       {/* Yours, or anyone's approved PR: your agent gets it merged (someone else's, by merging it alone). */}
-      {(mine || (item.state === "open" && (card.inflight || card.review === "approved"))) &&
+      {(mine || (item.state === "open" && (card.inflight || card.review === "approved" || card.stage === "approved"))) &&
         !(acted?.where === "inflight" && !card.inflight) && (
           <HandButton card={card} run={run} primary={card.cta !== "reply" && !asking && !acted} />
         )}
