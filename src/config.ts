@@ -571,7 +571,8 @@ function planFor(rules: readonly Rule[], sets: Readonly<Record<string, BuiltInRu
     const pairs = common(rules.map(plain), set.rules.map(plain));
     const better =
       !best || pairs.length > best.pairs.length || (pairs.length === best.pairs.length && set.rules.length < sets[best.set]!.rules.length);
-    if (pairs.length && pairs.length * 2 >= set.rules.length && better) best = { set: name, pairs };
+    // Mostly the board's rules, not the set's: a set grows with releases, so an older copy holds less of it.
+    if (pairs.length * 2 > rules.length && better) best = { set: name, pairs };
   }
   if (!best) return null;
   const set = sets[best.set]!.rules;
