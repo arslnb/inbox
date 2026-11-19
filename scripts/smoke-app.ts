@@ -117,16 +117,24 @@ try {
     assert.equal(o.sync_error, null, `sync failed: ${o.sync_error}`);
     assert.deepEqual(o.config_errors, [], "config errors");
     step(`synced with GitHub at ${o.synced_at}`);
-    // Rows land once Claude has sorted the first sync.
-    const first = page.locator(".queue [data-id] .row-main").first();
-    await first.waitFor({ timeout: 90_000 }).catch(() => null);
-    if (await first.count()) {
-      await first.click();
+    // Rows land once Claude has sorted the first sync. A PR's row opens its review; your sessions and questions lead the
+    // Inbox and open pages of their own.
+    await page
+      .locator(".queue [data-id] .row-main")
+      .first()
+      .waitFor({ timeout: 90_000 })
+      .catch(() => null);
+    const queue = (await (await fetch(`${deskUrl}/api/queue`)).json()) as { sections: Record<string, { id: string; kind: string }[]> };
+    const prs = new Set(Object.values(queue.sections).flatMap((cards) => cards.filter((c) => c.kind === "pr").map((c) => c.id)));
+    const shown = await page.evaluate<string[]>(`[...document.querySelectorAll(".queue [data-id]")].map((r) => r.dataset.id)`);
+    const pr = shown.find((id) => prs.has(id));
+    if (pr) {
+      await page.locator(`.queue [data-id="${pr}"] .row-main`).first().click();
       await page.locator(".review").waitFor({ timeout: 30_000 });
-      step("an item's review opened");
+      step(`${pr}'s review opened`);
       await page.goBack();
       await page.locator(".queue").waitFor({ timeout: 10_000 });
-    } else step("the Inbox is empty; skipped opening an item");
+    } else step("the Inbox has no PR; skipped opening a review");
   }
 
   await app.evaluate(({ Menu }) => {
