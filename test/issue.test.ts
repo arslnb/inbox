@@ -185,7 +185,8 @@ test("past the screen, Claude Code reads your clone with Read, Grep and Glob onl
   const [screen, analysis] = f.calls();
   assert.ok(screen && analysis);
   const flag = (k: string) => analysis.args[analysis.args.indexOf(k) + 1];
-  assert.equal(flag("--tools"), "Read,Grep,Glob");
+  assert.equal(flag("--tools"), "Read,Grep,Glob,Bash");
+  assert.equal(flag("--allowedTools"), "Bash(gh api -X GET:*),Bash(gh search code:*)");
   assert.ok(analysis.args.includes("--strict-mcp-config"));
   assert.deepEqual(JSON.parse(flag("--settings")!), { disableAllHooks: true });
   assert.equal(fs.realpathSync(analysis.cwd), fs.realpathSync(clone));

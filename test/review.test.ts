@@ -1499,13 +1499,16 @@ test(
       const item = makeItem();
       const ai = await run(generateReview(item, signalsOf(item), "", { body: "", files: [FILE] }, agentDir(home), "claude-code", repo));
       const args = fs.readFileSync(path.join(f.dir, "args"), "utf8").split("\n");
-      assert.equal(args[args.indexOf("--tools") + 1], "Read,Grep,Glob");
+      assert.equal(args[args.indexOf("--tools") + 1], "Read,Grep,Glob,Bash");
+      assert.equal(args[args.indexOf("--allowedTools") + 1], "Bash(gh api -X GET:*),Bash(gh search code:*)", "of Bash, GitHub reads only");
+      assert.equal(args[args.indexOf("--permission-mode") + 1], "default", "a default of yours can't widen it");
       assert.equal(args[args.indexOf("--setting-sources") + 1], "user", "a PR's author wrote the repo's .claude");
       assert.deepEqual(JSON.parse(args[args.indexOf("--settings") + 1]!), { disableAllHooks: true });
       assert.ok(args.includes("--strict-mcp-config"));
       assert.equal(fs.readFileSync(path.join(f.dir, "cwds"), "utf8").trim(), repo, "it runs in the checkout");
       const prompt = fs.readFileSync(path.join(f.dir, "stdin"), "utf8");
       assert.match(prompt, /checked out at this PR's head in your working directory/);
+      assert.match(prompt, /read it on GitHub: `gh api -X GET repos\/OWNER\/REPO\/contents\/PATH/, "another repo's code, on GitHub");
       assert.match(prompt, /read the code this change reaches: who calls what it changes/);
       assert.doesNotMatch(prompt, /Don't run commands or use tools/);
       assert.equal(ai.code, true);
