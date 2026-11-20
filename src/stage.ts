@@ -27,13 +27,13 @@ export function approved(it: Item, self: string): boolean {
 export const reviewOptional = (it: Item): boolean =>
   it.kind === "pr" && it.review_decision === "none" && !!it.default_branch && it.base === it.default_branch && it.can_merge !== false;
 
-// Someone else's open PR you approved whose merge is yours: in a repo you maintain, you decide who merges; elsewhere, one
-// from a fork whose author has no say on the repo, so they can't merge it. A branch in the repo itself was pushed by
-// someone who can (a bot opening it for a teammate, say). Your approval must be your latest verdict, and nobody else may
-// hold it.
+// Someone else's open PR you approved whose author has no say on the repo, so can't merge it. In a repo you maintain that's
+// any such PR (a bot's, say); elsewhere only one from a fork, as a branch in the repo itself was pushed by someone who can.
+// Your approval must be your latest verdict, and nobody else may hold it.
 export function mergeOwed(it: Item, me: string): boolean {
   if (it.kind !== "pr" || it.state !== "open" || it.draft || it.can_merge === false || lc(it.author) === lc(me)) return false;
-  if (!it.maintains && (it.author_can_merge !== false || it.head_repo === undefined || lc(it.head_repo) === lc(it.repo))) return false;
+  if (it.author_can_merge !== false) return false;
+  if (!it.maintains && (it.head_repo === undefined || lc(it.head_repo) === lc(it.repo))) return false;
   const mine = it.reviews.findLast((r) => lc(r.author) === lc(me) && r.state !== "commented" && r.state !== "pending");
   return mine?.state === "approved" && !verdicts(it, it.author).changes_by.length && it.review_decision !== "required";
 }
@@ -209,7 +209,7 @@ export function waitsOf(
   if (review) return `waits on ${review}${conflict ? ", and a merge conflict fix" : ""}`;
   if (it.ci === "pending") return "waits on CI";
   if (o.mine) return "is ready to merge";
-  if (mergeOwed(it, me)) return it.maintains ? "is yours to merge: you maintain the repo" : `is yours to merge: ${it.author} can't`;
+  if (mergeOwed(it, me)) return `is yours to merge: ${it.author} can't`;
   return it.author_can_merge === false ? "is approved, for a maintainer to merge" : `is approved, for ${it.author} to merge`;
 }
 
