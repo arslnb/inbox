@@ -264,8 +264,6 @@ test("settings: schema, save, reject and reset", async () => {
   // Settings no longer live in config.toml.
   const { data: cfg } = await call<{ text: string }>("GET", "/api/config");
   assert.ok(!/^\s*(poll_seconds|\[signals\])/m.test(cfg.text));
-  const { data: p } = await call<PreviewResult>("POST", "/api/config/preview", { text: `poll_seconds = 60\n${cfg.text}` });
-  assert.match(p.errors[0]?.message ?? "", /moved to Settings/);
 });
 
 test("agents: Claude Code's status, and connect", async () => {

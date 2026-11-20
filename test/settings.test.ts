@@ -3,7 +3,6 @@ import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
-import { parse } from "smol-toml";
 import {
   agentDefs,
   agentName,
@@ -11,7 +10,6 @@ import {
   DEFAULTS,
   effective,
   loadSettings,
-  migrateLegacy,
   readSettings,
   SECTIONS,
   SETTINGS,
@@ -166,107 +164,8 @@ test("writeSettings writes through a symlinked settings.json", () => {
   assert.deepEqual(fs.readdirSync(dir).sort(), ["dotfiles.json", "settings.json"]);
 });
 
-const LEGACY = `# header
-poll_seconds = 60
-
-[signals]
-close_collaborator_min = 5   # default, so it isn't copied
-bots = ["ci-helper"]
-my_repos = []
-
-[notify]
-enabled = false
-quiet = "19:00-09:00"
-
-[handoff]
-# comment
-prompt = """
-Review {item.url}.
-[not a table] inside a string
-Do not post."""
-mine = """
-x"""
-issue = """
-y"""
-
-[analyze]
-command = "/opt/bin/claude"
-model = "sonnet"
-`;
-
-test("migrateLegacy moves settings out of config.toml and keeps boards", () => {
-  const boards = defaultConfigText({ workOrgs: ["acme"] });
-  const m = migrateLegacy(LEGACY + "\n" + boards)!;
-  assert.deepEqual(m.moved, {
-    "github.poll_seconds": 60,
-    "github.bots": ["ci-helper"],
-    "notify.enabled": false,
-    "handoff.prompt": "Review {item.url}.\n[not a table] inside a string\nDo not post.",
-    "handoff.mine": "x",
-    "handoff.issue": "y",
-  });
-  assert.ok(m.text);
-  assert.ok(m.text.startsWith("# header\n"));
-  assert.deepEqual(parse(m.text), parse(boards));
-  assert.deepEqual(parseConfig(m.text).errors, []);
-  assert.ok(migrateLegacy(`poll_seconds = 60\n\n[notify]\nenabled = false\n\n${boards}`)!.text === boards, "no leading blank lines");
-  assert.equal(migrateLegacy(boards), null);
-});
-
-test("migrateLegacy keeps the comments that describe the table after a dropped one", () => {
-  const m = migrateLegacy(`[[spaces]]
-id = "w"
-
-[analyze]
-# dropped with the table
-command = "/opt/bin/claude"
-
-# ── Work ──
-# PRs to review
-[[boards]]
-id = "a"
-space = "w"
-query = "x"
-
-[notify]
-enabled = false
-# about notify, dropped since [handoff] is dropped too
-
-[handoff]
-mine = """
-# inside a string
-x"""
-# Mentions
-[[boards]]
-id = "b"
-space = "w"
-query = "y"
-`)!;
-  assert.equal(
-    m.text,
-    `[[spaces]]
-id = "w"
-
-# ── Work ──
-# PRs to review
-[[boards]]
-id = "a"
-space = "w"
-query = "x"
-
-# Mentions
-[[boards]]
-id = "b"
-space = "w"
-query = "y"
-`,
-  );
-  assert.equal(m.moved["handoff.mine"], "# inside a string\nx");
-});
-
 test("defaults are what parseConfig uses without settings", () => {
   const cfg = parseConfig(defaultConfigText({ workOrgs: [] })).loaded!.config;
-  assert.equal(cfg.poll_seconds, DEFAULTS["github.poll_seconds"]);
   assert.equal(cfg.handoff.prompt, DEFAULTS["handoff.prompt"]);
 });
 

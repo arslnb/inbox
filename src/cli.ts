@@ -412,9 +412,8 @@ const config = Effect.fnUntraced(function* (x: Ctx) {
   }
   if (!up) {
     const { parseConfig } = yield* Effect.promise(() => import("./config.ts"));
-    const { errors, warnings } = parseConfig(yield* readText(path));
+    const { errors } = parseConfig(yield* readText(path));
     for (const e of errors) x.out(`${x.c.red("✗")} ${e.path}: ${e.message}`);
-    for (const w of warnings) x.out(`${x.c.yellow("!")} ${w.path}: ${w.message}`);
     x.out(
       errors.length
         ? x.c.dim("desk isn't running; start it with: inbox serve")
@@ -424,9 +423,8 @@ const config = Effect.fnUntraced(function* (x: Ctx) {
   }
   // Validate what's on disk, which may differ from what the server loaded.
   const text = yield* readText(path);
-  const { errors, warnings = [] } = sub === "edit" ? yield* api.putConfig(text) : yield* api.previewConfig(text);
+  const { errors } = sub === "edit" ? yield* api.putConfig(text) : yield* api.previewConfig(text);
   for (const e of errors) x.out(`${x.c.red("✗")} ${e.path}: ${e.message}`);
-  for (const w of warnings) x.out(`${x.c.yellow("!")} ${w.path}: ${w.message}`);
   if (errors.length) {
     if (sub === "edit") x.out(x.c.dim("not applied; the server keeps the last valid config"));
     return 1;

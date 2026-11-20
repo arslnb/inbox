@@ -268,7 +268,6 @@ export interface SpaceConfig {
 }
 
 export interface Config {
-  poll_seconds: number;
   signals: { close_collaborator_min: number; bots: string[]; my_repos: string[]; my_names: string[] };
   handoff: { prompt: string; mine: string; issue: string }; // review someone's PR / move your PR along / an issue
   spaces: SpaceConfig[];
@@ -1631,7 +1630,6 @@ export interface ConfigDoc {
   text: string;
   hash: string; // PUT /api/config takes it (or the whole text) as `base`
   errors: ConfigError[];
-  warnings?: ConfigError[]; // leftover pre-settings keys: ignored, not fatal
   hard: { board: string; bucket: Bucket; when: string; why: string; final?: boolean; weight: number }[]; // the loaded config's hard and final rules, for Searches and rules
   builtins: BuiltInBoard[]; // the loaded config's boards that use a plugin's rules, and each of those rules as it stands
 }
@@ -1658,7 +1656,6 @@ export interface BuiltInBoard {
 
 export interface PreviewResult {
   errors: ConfigError[];
-  warnings?: ConfigError[];
   boards: {
     id: string;
     name: string;

@@ -4,9 +4,8 @@ import type { AgentModels } from "./models.ts";
 import fs from "node:fs";
 import path from "node:path";
 import { Effect, Result } from "effect";
-import { parse } from "smol-toml";
 import { fsError, type FsError } from "./errors.ts";
-import { field, isRecord, messageOf, strings } from "./narrow.ts";
+import { isRecord, messageOf, strings } from "./narrow.ts";
 import { SECRET_SET, type AgentName, type ConfigError, type SettingDef, type SettingsSection, type SettingValue } from "./types.ts";
 
 const DEFAULT_PROMPT = `Review {item.url} by {item.author}.
@@ -667,73 +666,5 @@ export const writeSecrets = Effect.fn("writeSecrets")(function* (file: string, v
     catch: fsError("rename", file),
   });
 }, Effect.uninterruptible);
-
-// ---------------------------------------------------------------- moving settings out of config.toml
-
-// Where each pre-settings config.toml key lives now.
-const LEGACY: Record<string, string> = {
-  poll_seconds: "github.poll_seconds",
-  "signals.close_collaborator_min": "github.close_collaborator_min",
-  "signals.bots": "github.bots",
-  "signals.my_repos": "github.my_repos",
-  "notify.enabled": "notify.enabled",
-  "notify.quiet": "notify.quiet",
-  "handoff.prompt": "handoff.prompt",
-  "handoff.mine": "handoff.mine",
-  "handoff.issue": "handoff.issue",
-};
-export const LEGACY_TABLES = ["signals", "notify", "handoff", "analyze"];
-
-const toml = (text: string): Result.Result<Record<string, unknown>, unknown> => Result.try({ try: () => parse(text), catch: (e) => e });
-
-// Pulls the old settings out of config.toml text. `text` is null when they couldn't be removed cleanly.
-export function migrateLegacy(configText: string): { moved: Record<string, SettingValue>; text: string | null } | null {
-  const parsed = toml(configText);
-  if (Result.isFailure(parsed)) return null; // parseConfig reports it
-  const raw = parsed.success;
-  if (!("poll_seconds" in raw) && !LEGACY_TABLES.some((t) => t in raw)) return null;
-  const moved: Record<string, SettingValue> = {};
-  for (const [old, key] of Object.entries(LEGACY)) {
-    const [a = "", b] = old.split(".");
-    const v = b === undefined ? raw[a] : field(raw[a], b);
-    if (v === undefined) continue;
-    // TOML's """ strings end with a newline the defaults don't have.
-    const value =
-      typeof v === "string" ? v.trimEnd() : key === "github.poll_seconds" && typeof v === "number" ? Math.max(30, Math.round(v)) : v;
-    if (checkSetting(key, value) === null && isSettingValue(value) && JSON.stringify(value) !== JSON.stringify(settingDef(key)!.default))
-      moved[key] = value;
-  }
-
-  // Drop `poll_seconds = …` and the legacy tables, line by line, minding multi-line strings.
-  const out: string[] = [];
-  let skipping = false;
-  let inString = false;
-  let seenTable = false;
-  let trailing: string[] = []; // comments after a skipped table's last key describe the next table
-  for (const line of configText.split("\n")) {
-    const header = !inString && /^\s*\[/.test(line);
-    if (header) {
-      seenTable = true;
-      skipping = new RegExp(`^\\s*\\[\\s*(${LEGACY_TABLES.join("|")})\\s*\\]\\s*(#.*)?$`).test(line);
-      if (!skipping) out.push(...trailing);
-      trailing = [];
-    } else if (skipping) {
-      trailing = !inString && /^\s*(#.*)?$/.test(line) ? [...trailing, line] : [];
-    }
-    const drop = skipping || (!inString && !seenTable && /^\s*poll_seconds\s*=/.test(line));
-    if ((line.match(/"""|'''/g) ?? []).length % 2 === 1) inString = !inString;
-    if (!drop) out.push(line);
-  }
-  const text = out
-    .join("\n")
-    .replaceAll(/\n{3,}/g, "\n\n")
-    .replace(/^\n+/, "");
-  const reparsed = toml(text);
-  if (Result.isFailure(reparsed)) return { moved, text: null };
-  const after = reparsed.success;
-  const same = JSON.stringify([raw.spaces, raw.boards]) === JSON.stringify([after.spaces, after.boards]);
-  const clean = !("poll_seconds" in after) && !LEGACY_TABLES.some((t) => t in after);
-  return { moved, text: same && clean ? text : null };
-}
 
 export const settingsPath = (home: string) => path.join(home, "settings.json");

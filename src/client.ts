@@ -198,8 +198,7 @@ export function createClient(send: (path: string, init: RequestInit) => Response
     sync: () => call<{ ok: true }>("POST", "/api/sync", {}),
     getConfig: () => call<ConfigDoc>("GET", "/api/config"),
     previewConfig: (text: string) => call<PreviewResult>("POST", "/api/config/preview", { text }),
-    putConfig: (text: string, base?: string) =>
-      call<{ ok: boolean; errors: ConfigError[]; warnings?: ConfigError[] }>("PUT", "/api/config", { text, base }),
+    putConfig: (text: string, base?: string) => call<{ ok: boolean; errors: ConfigError[] }>("PUT", "/api/config", { text, base }),
     fields: () => call<FieldDoc[]>("GET", "/api/fields"),
     settings: () => call<SettingsView>("GET", "/api/settings"),
     putSettings: (patch: SettingsPatch) =>

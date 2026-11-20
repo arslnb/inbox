@@ -17,7 +17,7 @@ import {
 import { compile, TAG_FIELDS, type Compiled } from "./expr.ts";
 import { compileBoard, type CompiledBoard } from "./rules.ts";
 import { field, isRecord, oneOf, strings } from "./narrow.ts";
-import { DEFAULTS, LEGACY_TABLES, type Settings } from "./settings.ts";
+import { DEFAULTS, type Settings } from "./settings.ts";
 import { GITHUB_RULES } from "./connectors/github-rules.ts";
 
 export interface LoadedConfig {
@@ -77,9 +77,9 @@ export function parseConfig(
   text: string,
   settings: Settings = DEFAULTS,
   sources: readonly Source[] = [GITHUB], // the connectors the desk runs: a board's `source` names one
-): { loaded: LoadedConfig | null; errors: ConfigError[]; warnings: ConfigError[] } {
+): { loaded: LoadedConfig | null; errors: ConfigError[] } {
   const parsed = Result.try({ try: (): Raw => parse(text), catch: tomlError });
-  if (Result.isFailure(parsed)) return { loaded: null, errors: [parsed.failure], warnings: [] };
+  if (Result.isFailure(parsed)) return { loaded: null, errors: [parsed.failure] };
   const raw = parsed.success;
   const errors: ConfigError[] = [];
   const err = (path: string, message: string) => errors.push({ path, message });
@@ -139,11 +139,7 @@ export function parseConfig(
     return bucket(v, path, "later");
   };
 
-  // Leftovers from before settings.json: their values are ignored, so they don't block the desk.
-  const warnings: ConfigError[] = ["poll_seconds", ...LEGACY_TABLES]
-    .filter((k) => k in raw)
-    .map((k) => ({ path: k, message: `"${k}" moved to Settings (settings.json); delete it here` }));
-  known(raw, "", ["spaces", "boards", "tags", "poll_seconds", ...LEGACY_TABLES]);
+  known(raw, "", ["spaces", "boards", "tags"]);
 
   const spaces: SpaceConfig[] = [];
   const rawSpaces = Array.isArray(raw.spaces) ? raw.spaces : (raw.spaces !== undefined && err("spaces", "must be [[spaces]] tables"), []);
@@ -314,7 +310,6 @@ export function parseConfig(
   });
 
   const config: Config = {
-    poll_seconds: settings["github.poll_seconds"],
     signals: {
       close_collaborator_min: settings["github.close_collaborator_min"],
       bots: settings["github.bots"],
@@ -326,7 +321,7 @@ export function parseConfig(
     boards,
     tags: tags.map((t) => t.config),
   };
-  return { loaded: errors.length ? null : { config, boards: compiled, tags }, errors, warnings };
+  return { loaded: errors.length ? null : { config, boards: compiled, tags }, errors };
 }
 
 const toml = (s: string) => JSON.stringify(s);
