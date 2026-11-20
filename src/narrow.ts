@@ -28,6 +28,9 @@ export const fromEntries = <K extends string, V>(entries: Iterable<readonly [K, 
   // oxlint-disable-next-line typescript/no-unsafe-type-assertion -- every key came from K
   Object.fromEntries(entries) as Record<K, V>;
 
+// JSON text's value; null when it isn't JSON.
+export const jsonOf = (text: string): unknown => Result.getOrNull(Result.try({ try: (): unknown => JSON.parse(text), catch: () => null }));
+
 // JSON text checked against a schema: the value, or why it isn't one.
 export const parseJson = <S extends Schema.ConstraintDecoder<unknown>>(schema: S, text: string): Result.Result<S["Type"], string> =>
   Result.try({ try: (): unknown => JSON.parse(text), catch: (e) => (e instanceof Error ? e.message : String(e)) }).pipe(

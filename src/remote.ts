@@ -2,9 +2,9 @@
 // only it reaches, and each of your devices paired once with a one-time code for a token of its own (docs/api.md →
 // Security model).
 import crypto from "node:crypto";
-import { Effect, Result } from "effect";
+import { Effect } from "effect";
 import { Forbidden, NotFound, TailscaleError, TooManyRequests } from "./errors.ts";
-import { field, isRecord, str, strings } from "./narrow.ts";
+import { field, isRecord, jsonOf, str, strings } from "./narrow.ts";
 import { claudeSpawn, runCommand } from "./review.ts";
 import type { Store } from "./store.ts";
 import type { Device } from "./types.ts";
@@ -24,8 +24,7 @@ const tailscale = (args: string[]): Effect.Effect<string, TailscaleError> =>
   ).pipe(Effect.mapError((e) => new TailscaleError({ message: e.message, cause: e })));
 
 const parsed = (text: string, what: string): Effect.Effect<Record<string, unknown>, TailscaleError> => {
-  const r = Result.try({ try: (): unknown => JSON.parse(text), catch: () => null });
-  const v = Result.isSuccess(r) ? r.success : null;
+  const v = jsonOf(text);
   return isRecord(v) ? Effect.succeed(v) : Effect.fail(new TailscaleError({ message: `${what} didn't answer JSON` }));
 };
 

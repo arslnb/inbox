@@ -1,9 +1,9 @@
 // The models and effort levels your chosen agent takes, for Settings' dropdowns. Each agent's own: Claude Code names
 // aliases in its --model help, Codex lists its catalog with `codex debug models`, OpenCode with `opencode models`.
 // What can't be read is an empty list: the window then offers only your agent's default and what's set.
-import { Effect, Result } from "effect";
+import { Effect } from "effect";
 import { claudeSpawn, codexCommand, codexMissing, opencodeCommand, opencodeMissing, runCommand } from "./review.ts";
-import { field, isRecord, str } from "./narrow.ts";
+import { field, isRecord, jsonOf, str } from "./narrow.ts";
 import { CLAUDE_VERSIONS } from "./settings.ts";
 
 export interface Choice {
@@ -37,8 +37,7 @@ export const CLAUDE_MODELS: AgentModels = {
 // Codex's catalog (`codex debug models`): the models it lists, that reason (the rest make images or audio), in its own
 // order; the efforts are the levels any of them takes.
 function codexCatalog(json: string): AgentModels {
-  const read = Result.try({ try: (): unknown => JSON.parse(json), catch: () => null });
-  const listed = field(Result.getOrNull(read), "models");
+  const listed = field(jsonOf(json), "models");
   const rows = (Array.isArray(listed) ? listed : []).filter(isRecord).flatMap((m) => {
     const slug = str(m.slug);
     const reasons = field(m, "supported_reasoning_levels");

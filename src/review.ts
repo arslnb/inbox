@@ -33,7 +33,7 @@ import { BUDGETS, skillText, type OwnSkill } from "./connectors/github-review.ts
 import { parseDiagram } from "./diagram.ts";
 import { GH_MISSING } from "./github/client.ts";
 import type { PrContext } from "./github/index.ts";
-import { field, isRecord, num, str, strings } from "./narrow.ts";
+import { field, isRecord, jsonOf, num, str, strings } from "./narrow.ts";
 import { as, claudeUsage, meter, type Usage } from "./usage.ts";
 import type {
   AiReview,
@@ -963,7 +963,7 @@ export function strictSchema(s: unknown): unknown {
 // The thread `codex exec --json` says it started: its first event.
 export function codexThread(events: string): string | null {
   for (const line of events.split("\n")) {
-    const id = str(field(Result.getOrNull(Result.try({ try: (): unknown => JSON.parse(line), catch: () => null })), "thread_id"));
+    const id = str(field(jsonOf(line), "thread_id"));
     if (id) return id;
   }
   return null;
@@ -986,7 +986,7 @@ const codexAnswer = Effect.fnUntraced(function* (events: string, last: string): 
   let model: string | null = null;
   let failed: string | null = null;
   for (const line of events.split("\n")) {
-    const e = Result.getOrNull(Result.try({ try: (): unknown => JSON.parse(line), catch: () => null }));
+    const e = jsonOf(line);
     if (!isRecord(e)) continue;
     if (typeof e.model === "string" && e.model) model = e.model;
     if (e.type === "error" && typeof e.message === "string") failed = e.message;
@@ -1076,7 +1076,7 @@ export const opencodeConfig = Effect.fnUntraced(function* (command: string, dir:
 
 // Your own OPENCODE_CONFIG_CONTENT, if you set one, stays under the desk's: its servers and agents merged by name.
 function withYours(ours: { mcp: object; agent: object }, yours: string | undefined): object {
-  const parsed = yours?.trim() ? Result.getOrNull(Result.try({ try: (): unknown => JSON.parse(yours), catch: () => null })) : null;
+  const parsed = yours?.trim() ? jsonOf(yours) : null;
   if (!isRecord(parsed)) return ours;
   const objectOr = (v: unknown) => (isRecord(v) ? v : {});
   return { ...parsed, ...ours, mcp: { ...objectOr(parsed.mcp), ...ours.mcp }, agent: { ...objectOr(parsed.agent), ...ours.agent } };
@@ -1134,7 +1134,7 @@ const dropSession = (command: string, dir: string, session: string): Effect.Effe
 // The session `opencode run --format json` names on each event.
 export function opencodeSession(events: string): string | null {
   for (const line of events.split("\n")) {
-    const id = str(field(Result.getOrNull(Result.try({ try: (): unknown => JSON.parse(line), catch: () => null })), "sessionID"));
+    const id = str(field(jsonOf(line), "sessionID"));
     if (id) return id;
   }
   return null;
@@ -1142,7 +1142,7 @@ export function opencodeSession(events: string): string | null {
 
 // An `error` event's words, its HTTP status first when it has one ("401 User not found."), so a login or a limit reads as one.
 export function opencodeFailure(line: string): string | null {
-  const e = Result.getOrNull(Result.try({ try: (): unknown => JSON.parse(line), catch: () => null }));
+  const e = jsonOf(line);
   if (field(e, "type") !== "error") return null;
   const error = field(e, "error");
   const d = field(error, "data");
@@ -1170,7 +1170,7 @@ const opencodeAnswer = Effect.fnUntraced(function* (events: string): Effect.fn.R
   let failed: string | null = null;
   for (const line of events.split("\n")) {
     failed = opencodeFailure(line) ?? failed;
-    const e = Result.getOrNull(Result.try({ try: (): unknown => JSON.parse(line), catch: () => null }));
+    const e = jsonOf(line);
     const part = str(field(field(e, "part"), "text"));
     if (field(e, "type") === "text" && part?.trim()) last = part;
   }
