@@ -185,17 +185,13 @@ export function askedAt(it: Item, me: string): string {
 
 // What an open PR waits on next, in words: the first that applies of draft, CI, conflict, changes, a reply you owe, reviews;
 // your PR's conflict before its review is said with the review. Yours in a repo that needs no review waits on none.
-export function waitsOf(
-  it: Item,
-  me: string,
-  o: { mine: boolean; unasked: boolean; askedYou: boolean; waitingOn: string[]; optional?: boolean },
-): string {
+export function waitsOf(it: Item, me: string, o: { mine: boolean; unasked: boolean; askedYou: boolean; waitingOn: string[] }): string {
   if (it.kind !== "pr" || it.state !== "open") return "";
   const self = o.mine ? me : it.author;
   if (it.draft) return o.mine ? "is your draft" : "is a draft";
   if (it.ci === "red") return o.mine ? "waits on a CI fix" : "has CI failing";
   const changes = verdicts(it, self).changes_by;
-  const through = approved(it, self) || (o.mine && !!o.optional);
+  const through = approved(it, self) || (o.mine && reviewOptional(it));
   // Yours, short of its review with a conflict: the review is what holds it, so both are said (your agent rebases an approved one).
   const conflict = it.mergeable === "conflict";
   if (conflict && !(o.mine && !changes.length && !through && o.waitingOn.length)) return "waits on a merge conflict fix";

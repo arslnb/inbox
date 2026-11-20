@@ -417,7 +417,6 @@ export function analyze(item: Item, ctx: Context, cfg: Config, now: Date, read?:
     unasked: signals.pr.unasked,
     askedYou: requested,
     waitingOn,
-    optional: signals.pr.review_optional,
   });
   return {
     signals,
