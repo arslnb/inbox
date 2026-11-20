@@ -119,7 +119,7 @@ const overview: Overview = {
   rate_limit: { remaining: 4800, reset_at: ago(-1) },
 };
 
-const focus: FocusView = { sessions: [], sections: { now: [CARDS.now], today: [CARDS.today] }, reviewing: 0, paused: null };
+const focus: FocusView = { sessions: [], sections: { now: [CARDS.now], today: [CARDS.today] }, paused: null };
 
 // One automation that's on and may snooze, with a run that added one item and snoozed another; its summary carries text a
 // fence must hold.
@@ -185,7 +185,6 @@ const queueView: QueueView = {
   notes: { due: [], urgent: [], open: [], fyi: [], later: [] },
   sessions: [],
   sections: { now: [CARDS.now], today: [CARDS.today], blocked: [], later: [CARDS.later], fyi: [CARDS.fyi] },
-  reviewing: 0,
   hidden: [CARDS.hidden],
   cleared: [CARDS.cleared],
   resolved: [CARDS.resolved],
@@ -295,7 +294,6 @@ function detail(c: Card): ItemDetail {
     ai: null,
     ai_stale: false,
     generating: false,
-    held: false,
     activity: EVENTS.filter((e) => e.item_id === c.id).toReversed(),
     stack: null,
   };
@@ -499,7 +497,7 @@ function route(api: FakeApi, method: string | undefined, url: URL, body: any): R
       const r = resolve(body.id);
       if (r.status !== 200) return reply(r.status, r.body);
       const d = r.body as ItemDetail;
-      return reply(200, { ok: true, item: { ...d, card: { ...d.card, pinned: true }, generating: true, held: false }, undo_seq: 8 });
+      return reply(200, { ok: true, item: { ...d, card: { ...d.card, pinned: true }, generating: true }, undo_seq: 8 });
     }
     case "POST /api/undo":
       return reply(200, { ok: true, id: body.seq === 9 ? "session:abc" : CARDS.now.id, action: "done" });

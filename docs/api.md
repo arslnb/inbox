@@ -376,7 +376,6 @@ interface QueueView {
   inquiries: Inquiry[]; // agents' questions for you, oldest first
   sessions: SessionCard[]; // sessions that need you
   sections: { now: Card[]; today: Card[]; blocked: Card[]; later: Card[]; fyi: Card[] }; // the rules' view
-  reviewing: number; // PRs held until their first AI review is written
   hidden: Card[]; // a rule put it in "hide"
   cleared: Card[]; // done, snoozed, muted
   resolved: Card[]; // newest first (see Resolved)
@@ -386,7 +385,7 @@ interface QueueView {
   first_pass: FirstPass | null; // a new desk's first minutes (see The first pass)
 }
 // FirstPass: { step: "sync" | "sort"; done; total; found; line }, `line` in the desk's words for the Inbox.
-// FocusView: { sessions, sections: { now, today }, notes?, reviewing, paused }; never resolved items. notes: your notes on
+// FocusView: { sessions, sections: { now, today }, notes?, paused }; never resolved items. notes: your notes on
 // the Inbox, each named note:<id> to inbox_after.
 // BoardView: { board: BoardSummary & { queries }, sections, hidden, cleared }; every PR, no stacks.
 
@@ -461,7 +460,6 @@ interface ItemDetail {
   ai: AiReview | null;
   ai_stale: boolean; // new commits since
   generating: boolean;
-  held: boolean; // kept off the queue until its first AI review
   activity: ActivityEvent[]; // latest first
   log: PlacedEntry[]; // where it stood each time that changed, and why (src/placements.ts): Where, score, its row's why, the rule (with its when), Claude's answer, the criteria that said yes, your move, status, resolution; newest first, 100 kept
   stack: Stack | null;
@@ -967,7 +965,7 @@ The review document parts (`risk_reasons`, `intent`, `look`, …) are in [review
 
 It also writes one for any PR whose review you open.
 
-**Shown while it's reviewed.** Such a PR is on the queue at once, its review or not: until its first review is written its `preflight` says where that review is (`running`, `queued`, `paused` or `failed`, with no `risk`), which `aiPending()` in `src/stage.ts` puts in words for the Inbox's row, `inbox ls` and `inbox_list`. Its new-item notification comes when it reaches the queue; the review landing isn't news. A push keeps its place while the new review is written (its preflight says `stale`). `reviewing` (FocusView, QueueView) and `ItemDetail.held` are kept for older clients: always 0 and false.
+**Shown while it's reviewed.** Such a PR is on the queue at once, its review or not: until its first review is written its `preflight` says where that review is (`running`, `queued`, `paused` or `failed`, with no `risk`), which `aiPending()` in `src/stage.ts` puts in words for the Inbox's row, `inbox ls` and `inbox_list`. Its new-item notification comes when it reaches the queue; the review landing isn't news. A push keeps its place while the new review is written (its preflight says `stale`).
 
 **Failures and retries.** Each review is a job in the ledger of [Claude's work](architecture.md#claudes-work-srcjobsts), which outlives a restart.
 

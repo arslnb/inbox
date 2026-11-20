@@ -123,7 +123,6 @@ struct QueueView: Decodable, Sendable {
   @Lossy var hidden: [Card]
   @Lossy var cleared: [Card]
   @Lossy var resolved: [Card]
-  var reviewing: Int?
   var paused: Paused?
   var firstPass: FirstPass?
   var stacks: [String: Stack]?
