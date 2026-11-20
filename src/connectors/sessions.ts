@@ -10,7 +10,7 @@ import { Effect, Result } from "effect";
 import { alive, claude, halt, type Agent } from "../coordinator.ts";
 import type { Desk } from "../desk.ts";
 import { Conflict, NotFound, type CommandError } from "../errors.ts";
-import { isRecord, num, str } from "../narrow.ts";
+import { isRecord, jsonOf, num, str } from "../narrow.ts";
 import { runCommand } from "../review.ts";
 import { isCoordinator, SESSION_PREFIX, type SessionAction, type SessionCard, type SessionKind } from "../types.ts";
 
@@ -45,8 +45,6 @@ function roots(env: NodeJS.ProcessEnv = process.env): Roots {
 
 const filled = (v: unknown): string | undefined => (typeof v === "string" && v.trim() ? v : undefined);
 const obj = (v: unknown): Record<string, unknown> | null => (isRecord(v) ? v : null);
-const parse = (text: string): unknown =>
-  Result.getOrElse(Result.try({ try: (): unknown => JSON.parse(text), catch: () => null }), () => null);
 
 // One line of what it said: whitespace folded, cut at LINE.
 function oneLine(text: string): string {
@@ -71,7 +69,7 @@ export interface AgentRow {
 
 // null: not a list. A row without the fields every row has is dropped.
 export function parseAgents(out: string): AgentRow[] | null {
-  const listed = parse(out);
+  const listed = jsonOf(out);
   if (!Array.isArray(listed)) return null;
   return listed.flatMap((x): AgentRow[] => {
     const o = obj(x);
@@ -168,7 +166,7 @@ export function readTranscript(text: string): Tail | null {
   let interrupted = false;
   const pending = new Map<string, { name: string; input: Record<string, unknown> | null }>();
   for (const line of text.split("\n")) {
-    const e = obj(parse(line));
+    const e = obj(jsonOf(line));
     if (!e) continue;
     const type = e.type;
     written = str(e.timestamp) ?? written;
@@ -267,7 +265,7 @@ export interface DesktopRecord {
 }
 
 export function readDesktopRecord(text: string): DesktopRecord | null {
-  const o = obj(parse(text));
+  const o = obj(jsonOf(text));
   const local = str(o?.sessionId);
   const session = str(o?.cliSessionId);
   if (!o || !local?.startsWith("local_") || !session) return null;
@@ -350,7 +348,7 @@ export interface CodexTail {
 export function readRollout(text: string): CodexTail | null {
   let out: CodexTail | null = null;
   for (const line of text.split("\n")) {
-    const e = obj(parse(line));
+    const e = obj(jsonOf(line));
     const p = obj(e?.payload);
     const at = str(e?.timestamp);
     if (!e || e.type !== "event_msg" || !p || !at) continue;
@@ -864,7 +862,7 @@ function jobSessions(dir: string): Set<string> {
   const out = new Set<string>();
   for (const j of ls(dir)) {
     const text = j.isDirectory() ? readText(path.join(dir, j.name, "state.json")) : null;
-    const o = text === null ? null : obj(parse(text));
+    const o = text === null ? null : obj(jsonOf(text));
     for (const k of ["sessionId", "resumeSessionId"]) if (str(o?.[k])) out.add(str(o?.[k])!);
   }
   return out;

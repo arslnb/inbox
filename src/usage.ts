@@ -1,7 +1,7 @@
 // What the desk's model calls would cost at API prices: each call's tokens by model, kept per kind of work (docs/api.md →
 // Usage). Claude Code prices its own calls (modelUsage's costUSD); your agent's transcripts are priced from PRICES.
-import { Context, Effect, Result } from "effect";
-import { field, isRecord, num, str } from "./narrow.ts";
+import { Context, Effect } from "effect";
+import { field, isRecord, jsonOf, num, str } from "./narrow.ts";
 
 export const WORK = {
   triage: "Sorting and scoring the Inbox",
@@ -82,7 +82,7 @@ export function transcriptUsage(jsonl: string): { id: string; at: string; usage:
   const requests = new Map<string, { id: string; at: string; usage: Usage }>();
   for (const line of jsonl.split("\n")) {
     if (!line.includes('"assistant"')) continue;
-    const entry = parse(line);
+    const entry = jsonOf(line);
     const at = str(field(entry, "timestamp")) ?? "";
     const msg = field(entry, "message");
     const id = str(field(msg, "id"));
@@ -110,5 +110,3 @@ export function transcriptUsage(jsonl: string): { id: string; at: string; usage:
   }
   return [...requests.values()];
 }
-
-const parse = (line: string): unknown => Result.getOrNull(Result.try({ try: (): unknown => JSON.parse(line), catch: () => null }));

@@ -12,7 +12,7 @@ import type { Desk, Entry } from "./desk.ts";
 import { decide, type Question } from "./decisions.ts";
 import { compile } from "./expr.ts";
 import { describe, sortKey, textHash } from "./judge.ts";
-import { decodeEach, decodeValues, field, schemaOf, str } from "./narrow.ts";
+import { decodeEach, decodeValues, field, jsonOf, schemaOf, str } from "./narrow.ts";
 import { BadRequest, ClaudeBadOutput, messageOf, NotFound, type FsError } from "./errors.ts";
 import {
   agentDown,
@@ -1212,9 +1212,7 @@ function failedItem(x: { ref: string; why: string }, error: string): AutomationI
 
 // What claude printed that isn't its envelope has no session.
 function sessionOf(out: string): string | null {
-  const parsed = Result.try({ try: (): unknown => field(JSON.parse(out), "session_id"), catch: () => null });
-  const id = Result.getOrElse(parsed, () => null);
-  return typeof id === "string" ? id : null;
+  return str(field(jsonOf(out), "session_id")) ?? null;
 }
 
 // How a run answers: what needs me, which the desk adds; or, for one that may do more, what to do with each item it lists.

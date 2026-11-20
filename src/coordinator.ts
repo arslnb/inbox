@@ -28,7 +28,7 @@ import {
 } from "./errors.ts";
 import { oldHome, ownersHome } from "./home.ts";
 import { answerOf, askOf } from "./jobs.ts";
-import { decode, field, isRecord, num, oneOf, str, strings } from "./narrow.ts";
+import { decode, field, isRecord, jsonOf, num, oneOf, str, strings } from "./narrow.ts";
 import { checkSetting } from "./settings.ts";
 import {
   CODEX_DOWN,
@@ -123,7 +123,7 @@ interface TurnKind {
 }
 
 function codexFailure(line: string): string | null {
-  const e = Result.getOrNull(Result.try({ try: (): unknown => JSON.parse(line), catch: () => null }));
+  const e = jsonOf(line);
   const type = field(e, "type");
   const message = str(field(e, "message"));
   if (type === "error" && message !== undefined) return message;
@@ -133,12 +133,12 @@ function codexFailure(line: string): string | null {
 
 // What the agent said, in one event: Codex's finished agent message, OpenCode's text part.
 function codexSaid(line: string): string | null {
-  const e = Result.getOrNull(Result.try({ try: (): unknown => JSON.parse(line), catch: () => null }));
+  const e = jsonOf(line);
   const item = field(e, "item");
   return field(e, "type") === "item.completed" && field(item, "type") === "agent_message" ? (str(field(item, "text")) ?? null) : null;
 }
 function opencodeSaid(line: string): string | null {
-  const e = Result.getOrNull(Result.try({ try: (): unknown => JSON.parse(line), catch: () => null }));
+  const e = jsonOf(line);
   return field(e, "type") === "text" ? (str(field(field(e, "part"), "text")) ?? null) : null;
 }
 
@@ -1213,7 +1213,7 @@ export function activityOf(jsonl: string): string[] {
   let steps: string[] = [];
   for (const line of jsonl.split("\n")) {
     if (!line.trim()) continue;
-    const entry = Result.getOrNull(Result.try({ try: (): unknown => JSON.parse(line), catch: () => null }));
+    const entry = jsonOf(line);
     const type = field(entry, "type");
     const content = field(field(entry, "message"), "content");
     if (type === "user") {
@@ -1240,7 +1240,7 @@ export function sayingOf(jsonl: string): string {
   let said: string[] = [];
   for (const line of jsonl.split("\n")) {
     if (!line.trim()) continue;
-    const entry = Result.getOrNull(Result.try({ try: (): unknown => JSON.parse(line), catch: () => null }));
+    const entry = jsonOf(line);
     const type = field(entry, "type");
     const content = field(field(entry, "message"), "content");
     if (type === "user") {
