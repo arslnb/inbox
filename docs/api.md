@@ -1089,7 +1089,7 @@ Rules place each item first: they're cheap and say exactly what they do. Then yo
 
 A board's rules live in `config.toml` (`parseConfig()` in `src/config.ts`). They are yours, plus its plugin's set when the board names one with `builtin`.
 
-- A plugin declares its sets in its own file (`Connector.rules`). GitHub's are in `src/connectors/github-rules.ts`: `review`, `mine`, `mentions`, `issues` (mentions plus your own issues) and `collaborators`. Each set (`BuiltInRules`) has a name and rules, each with a stable `id`.
+- A plugin declares its sets in its own file (`Connector.rules`). GitHub's are in `src/connectors/github-rules.ts`: `review`, `mine`, `mentions`, `issues` (mentions plus your own issues) and `collaborators`. Each set (`BuiltInRules`) has a name and rules, each with a stable `id`. `review` and `mine` start with `old` (on `mine`, after `blocked`): a PR opened over a month ago goes to later, `final`.
 - Sets are code, read on every load. A release that changes a rule changes where items land on every desk whose board names the set, with nothing written to `config.toml`. A rule dropped from code is gone, and an `id` referring to it is a config error.
 
 The file holds only your part:
@@ -1163,7 +1163,7 @@ A review asked of you by name is a heavy default, not a forced push: the judge c
 - `fyi`: someone else has it, or nobody needs you; kept off your page.
 - `hide`: automated noise.
 
-Only rules fill `blocked`: the schema leaves it out and an answer of it is dropped. The prompt says less is more and to sort away what it's unsure of. It says how to weigh signals: the heaviest usually decides, several agreeing count more than one, at equal weight your rule beats GitHub's, and a hard signal, a floor and your pin bound the answer. Reading the facts, how you were asked counts most (by name far more than through a team), then whether you usually review the author and whether it builds on what you're building; a directory you've worked in is weak evidence on its own.
+Only rules fill `blocked`: the schema leaves it out and an answer of it is dropped. The prompt says less is more and to sort away what it's unsure of. It says how to weigh signals: the heaviest usually decides, several agreeing count more than one, at equal weight your rule beats GitHub's, and a hard signal, a floor and your pin bound the answer. Reading the facts, how you were asked counts most (by name far more than through a team), then whether you usually review the author and whether it builds on what you're building; a directory you've worked in is weak evidence on its own. Age counts too: a PR opened weeks ago, or quiet for days, is rarely now, and one nobody touched in a week is later at most unless someone just asked.
 
 An item's signals as the judge reads them:
 
