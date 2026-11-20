@@ -87,7 +87,7 @@ npm run app        # the desktop app from the repo
 npm run app:dev    # the app running from this checkout; restarts on electron/ changes
 npm run dev        # server --watch + Vite in a browser at :5173
 npm test           # node:test, no network
-npm run check      # everything CI runs: prettier, oxlint (type-aware), stylelint, tsc, knip, tests
+npm run check      # CI's checks but the web build: prettier, oxlint (type-aware), stylelint, tsc, knip, tests
 npm run format     # prettier --write
 ```
 
@@ -121,5 +121,5 @@ Settings → This device → Run from a checkout (`app.source`, or `DESK_SOURCE`
 - **TypeScript runs directly** (type stripping): no enums, namespaces or parameter properties; relative imports end in `.ts`; type-only imports use `import type`.
 - **Comments:** one line, only for a non-obvious why.
 - **Tests** for logic changes, in `test/` or `web/test/`. Tests never run a real agent: they put a fake `claude`, `codex` or `opencode` in a temp dir (`DESK_CLAUDE`, `DESK_CODEX`, `DESK_OPENCODE`). `scripts/agents-e2e/` runs Codex and OpenCode for real in a container, by hand.
-- **`npm run check` must pass** (the pre-push hook runs it; CI runs it on macOS, Linux and Windows). Fix findings, don't silence them. Use `// oxlint-disable-next-line <rule> -- <reason>` only where the rule is wrong for that line. Don't loosen `.oxlintrc.json` or the tsconfig flags.
+- **`npm run check` must pass** (the pre-push hook runs it; CI runs the same checks plus `npm run build`, with the tests on Linux and macOS, and on Windows after a merge to main). Fix findings, don't silence them. Use `// oxlint-disable-next-line <rule> -- <reason>` only where the rule is wrong for that line. Don't loosen `.oxlintrc.json` or the tsconfig flags.
 - TypeScript 7 (the Go compiler) has no JS API, so typescript-eslint can't run; type-aware linting is oxlint + tsgolint.
