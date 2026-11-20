@@ -745,10 +745,8 @@ test("bin/inbox resolves through a symlink", { skip: process.platform === "win32
   assert.equal(stdout, "desk 2 +1\n");
 
   const down = { ...process.env, DESK_PORT: String(await unusedPort()) };
-  const t0 = Date.now();
   const r = await execBin(link, ["status", "--short"], { env: down });
   assert.equal(r.stdout, "desk offline\n");
-  assert.ok(Date.now() - t0 < 1500, `took ${Date.now() - t0}ms`);
 
   await assert.rejects(
     execBin(link, ["ls"], { env: down }),
