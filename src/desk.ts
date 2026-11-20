@@ -45,7 +45,19 @@ import { linkRef, permalink } from "./links.ts";
 import { renderDoc, renderText } from "./render.ts";
 import { resolution, type Resolution } from "./resolve.ts";
 import { buildStacks, grouped, oneLinePerStack, stackRef, stackView, type Seat, type Stacks } from "./stacks.ts";
-import { andMore, askedAt, mergeLine, owesReply, peopleOf, reviewOptional, rerequestable, stage, standings, verdicts } from "./stage.ts";
+import {
+  andMore,
+  askedAt,
+  mergeLine,
+  mergeOwed,
+  owesReply,
+  peopleOf,
+  reviewOptional,
+  rerequestable,
+  stage,
+  standings,
+  verdicts,
+} from "./stage.ts";
 import { blockedOrder, dependencies, type DepFacts } from "./deps.ts";
 import { chains, loopThrough, NOTE, type Chains, type NodeState } from "./after.ts";
 import type {
@@ -1800,7 +1812,7 @@ export class Desk {
       const inflight = theirs && !rebasing;
       const freed = deps.get(item.id)?.merged.at(-1)?.at ?? "";
       const activityAt = freed > analysis.activity_at ? freed : analysis.activity_at;
-      const status = blocked.has(item.author.toLowerCase()) ? "muted" : statusOf(state, activityAt, now, analysis.signals.me.merge_owed);
+      const status = blocked.has(item.author.toLowerCase()) ? "muted" : statusOf(state, activityAt, now);
       const back = merging.get(item.id)?.handback;
       analysis.signals.me.handed_back =
         !!back && !inflight && status === "active" && item.state === "open" && (state.done_at ?? "") <= back.at;
@@ -3363,7 +3375,15 @@ export class Desk {
         );
         this.store.logWrite(id, "approve", this.now().toISOString());
         this.log(`approved ${id} on GitHub${url ? ` (${url})` : ""}`);
-        yield* this.doneAfterWrite(id);
+        // A merge that's now yours keeps it on the desk, for Hand off for merge; Done still puts it away.
+        const approved: Item["reviews"][number] = {
+          author: this.me(),
+          author_bot: false,
+          state: "approved",
+          at: this.now().toISOString(),
+          commit: head,
+        };
+        if (!mergeOwed({ ...e.item, reviews: [...e.item.reviews, approved] }, this.me())) yield* this.doneAfterWrite(id);
         this.refreshAfter(id);
         return { url };
       });
@@ -5060,10 +5080,9 @@ function countsOf(r: BoardResult): Record<Bucket, number> {
 // A date's day where the desk runs, as "2026-11-19".
 const localDay = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
-// Done doesn't hide a PR whose merge is yours (mergeOwed): approving it isn't the end of it. Mute or snooze still do.
-function statusOf(s: StateRow, activityAt: string, now: Date, mergeOwed = false): Status {
+function statusOf(s: StateRow, activityAt: string, now: Date): Status {
   if (s.muted) return "muted";
-  if (s.done_at && activityAt <= (s.acked_at ?? s.done_at) && !mergeOwed) return "done";
+  if (s.done_at && activityAt <= (s.acked_at ?? s.done_at)) return "done";
   if (s.snooze_when) return "snoozed"; // compute() ends it once it happens
   if (s.snooze_until && now.toISOString() < s.snooze_until && !(s.snooze_on_activity && activityAt > (s.acked_at ?? s.snoozed_at ?? "")))
     return "snoozed";
