@@ -298,6 +298,8 @@ interface Card {
   author: string;
   author_bot: boolean;
   by: string; // who the row says it's from: "you", the person a bot opened it for, else its author
+  attribution?: Attribution; // a bot's PR: who it was opened for, and the bot (see Opened for you)
+  people?: string[]; // everyone it involves, for the filter's involves:
   stage?: "draft" | "waiting for review" | "changes requested" | "approved" | "blocked" | "handed back" | "merged" | "closed";
   bucket: Bucket;
   why: string; // e.g. "vaind asked you directly"
@@ -305,6 +307,7 @@ interface Card {
   demoted?: string; // over a cap: "3 from PRs to review are urgent already"
   board: string;
   boards: string[]; // every board it's on
+  size?: { add: number; del: number }; // a PR's lines added and removed, for its row's size mark
   chips: string[]; // "draft", "CI red", "conflict", "3 unresolved", "+120 −30", …
   ci: "green" | "red" | "pending" | "none";
   review: "approved" | "changes_requested" | "required" | "none";
@@ -321,6 +324,7 @@ interface Card {
   wake_on?: Until[]; // what a snooze can wait on now
   done_at?: string; // while done: when
   verdict: "look" | "skim" | "skip" | null; // the current commit's AI review
+  risk?: "low" | "medium" | "high"; // the same review's
   preflight?: Preflight; // Now and Today only
   handed_back?: boolean; // your PR back on top; its why says why
   cta?: "ready" | "reply" | "reviewers" | "handoff"; // the row's one call to action
@@ -382,6 +386,7 @@ interface QueueView {
   paused: { who: "claude" | "ai"; why: string } | null; // shown once, as a bubble
   stacks: Record<string, Stack>; // each stack a card here carries
   inbox: { urgent: Card[]; standard: Card[]; fyi: Card[] }; // what the window draws (see Urgency)
+  notes: { due: Note[]; urgent: Note[]; open: Note[]; fyi: Note[]; later: Note[] }; // your notes, placed (see POST /api/notes)
   first_pass: FirstPass | null; // a new desk's first minutes (see The first pass)
 }
 // FirstPass: { step: "sync" | "sort"; done; total; found; line }, `line` in the desk's words for the Inbox.
@@ -461,6 +466,10 @@ interface ItemDetail {
   ai_stale: boolean; // new commits since
   generating: boolean;
   activity: ActivityEvent[]; // latest first
+  issue_ai?: IssueReview | null; // an issue's pre-review (see Issues)
+  issue_ai_state?: "running" | "failed" | "off" | null;
+  issue_ai_error?: string | null;
+  blocked_author?: boolean; // its author is on your blocklist: muted, and no agent reads their items
   log: PlacedEntry[]; // where it stood each time that changed, and why (src/placements.ts): Where, score, its row's why, the rule (with its when), Claude's answer, the criteria that said yes, your move, status, resolution; newest first, 100 kept
   stack: Stack | null;
 }
@@ -471,6 +480,7 @@ interface ReviewView {
   handoff_prompt: string;
   files: { path: string; previous_path: string | null; status: string; additions: number; deletions: number; patch: string | null }[];
   diff_head: string; // the commit the diff is at: what an inline comment pins to
+  viewed: string[]; // the marks of hunks (or files) you ticked Viewed
   files_error: string | null;
   order: ReviewOrder; // every hunk once, in reading order
   ai: AiReview | null; // the latest, even if stale
@@ -539,6 +549,8 @@ interface AiReview {
   skill?: string; // hash of the review instructions used
   doc?: string; // its review document's id
   refused?: string[]; // diagrams the grammar refused
+  code?: boolean; // it read the repo at this commit, not the diff alone
+  tags?: Record<string, string[]>; // by hunk mark: the tags whose ask it said yes to (see Your tags)
   head_oid: string; // the commit it read
   model: string; // as the agent reports it ("claude-opus-5[1m]"), else "claude-code", "codex", "opencode"
   at: string;
@@ -558,6 +570,7 @@ interface ReviewOrder {
 
 interface ReviewHunk {
   id: string; // h1, h2, … as the prompt numbered them
+  mark: string; // what it changes: kept across a rebase that only moves it, new once a push rewrites it
   path: string;
   file: number; // index in files
   header: string; // its @@ line
@@ -569,6 +582,7 @@ interface ReviewHunk {
   why: string | null;
   notes: number[]; // ai.notes to show with it
   looks?: number[]; // ai.look entries starting here
+  tags?: HunkTag[]; // your tags on it
 }
 
 interface ActivityEvent {
@@ -595,6 +609,7 @@ interface InflightView {
 
 interface InflightRow {
   card: Card;
+  theirs: boolean; // someone else's approved PR: the coordinator only merges it
   state: "open" | "merged" | "closed";
   base: string;
   stacked: boolean; // based on another PR
@@ -622,6 +637,8 @@ interface CoordinatorView {
   error: string | null; // why it last couldn't start or resume
   status: "busy" | "shell" | "waiting" | "idle" | "stopped" | null; // checked every 10 s while an ask waits
   queued: string[]; // your asks not handed over yet
+  activity: string[]; // while it works on Claude Code: its latest steps, oldest first; untrusted
+  saying: string; // while it works: what it's said this turn; untrusted
 }
 
 interface Ask {
@@ -632,6 +649,7 @@ interface Ask {
   thread_id: string | null;
   thread_url: string | null;
   lines?: AskLines | null;
+  fix?: boolean; // Make PR with fix on an issue
   answer: { text: string; at: string } | null; // untrusted
 }
 
@@ -650,6 +668,7 @@ interface AskPlace {
   head: string | null; // the PR's head at the last sync
   base: string | null; // removed lines are numbered there
   push: { repo: string; branch: string } | null; // only your own open PR
+  fix: { repo: string; base: string } | null; // Make PR with fix: a new branch off base and a draft PR in repo
 }
 
 interface StackRef {
