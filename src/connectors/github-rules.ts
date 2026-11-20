@@ -8,7 +8,7 @@ import type { BuiltInRules } from "../types.ts";
 const OLD = {
   id: "old",
   when: "item.created_hours >= 720",
-  bucket: "later",
+  bucket: "hide",
   why: "opened over a month ago",
   final: true,
   weight: 8,

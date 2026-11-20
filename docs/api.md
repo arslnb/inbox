@@ -1108,7 +1108,7 @@ Rules place each item first: they're cheap and say exactly what they do. Then yo
 
 A board's rules live in `config.toml` (`parseConfig()` in `src/config.ts`). They are yours, plus its plugin's set when the board names one with `builtin`.
 
-- A plugin declares its sets in its own file (`Connector.rules`). GitHub's are in `src/connectors/github-rules.ts`: `review`, `mine`, `mentions`, `issues` (mentions plus your own issues) and `collaborators`. Each set (`BuiltInRules`) has a name and rules, each with a stable `id`. `review` and `mine` start with `old` (on `mine`, after `blocked`): a PR opened over a month ago goes to later, `final`.
+- A plugin declares its sets in its own file (`Connector.rules`). GitHub's are in `src/connectors/github-rules.ts`: `review`, `mine`, `mentions`, `issues` (mentions plus your own issues) and `collaborators`. Each set (`BuiltInRules`) has a name and rules, each with a stable `id`. `review` and `mine` start with `old` (on `mine`, after `blocked`): a PR opened over a month ago is hidden, `final`, so it stays off the Inbox unless an urgent criterion says yes to it.
 - Sets are code, read on every load. A release that changes a rule changes where items land on every desk whose board names the set, with nothing written to `config.toml`. A rule dropped from code is gone, and an `id` referring to it is a config error.
 
 The file holds only your part:

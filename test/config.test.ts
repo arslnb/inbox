@@ -359,7 +359,7 @@ test("the template: Blocked is for your own PRs, first on My PRs, and no board o
     assert.deepEqual(rule(mine, changes + 2), ["len(pr.blocks) > 0 && me.owes_reply", "today", false, false]);
     const threads = index(mine, "pr.unresolved_threads > 0");
     assert.deepEqual(rule(mine, threads - 1), ["len(pr.waiting_on) > 0 && !me.owes_reply && pr.ci != 'red'", "blocked", true, false]);
-    assert.deepEqual(rule(`${space}-review`, 0), ["item.created_hours >= 720", "later", true, false], "a month-old PR first");
+    assert.deepEqual(rule(`${space}-review`, 0), ["item.created_hours >= 720", "hide", true, false], "a month-old PR first");
     assert.deepEqual(
       rule(`${space}-review`, 1),
       ["me.requested_direct && !me.requested_by_bot", "now", false, false],

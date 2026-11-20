@@ -260,7 +260,7 @@ test("migrating a copy of GitHub's rules keeps what's yours and places every ite
   // Copies had no weights, nor the month-old rule: the migration compares rules without weights and switches that one off.
   const old = defaultConfigText({ workOrgs: ["acme"], expanded: true })
     .replaceAll(/, weight = \d+/g, "")
-    .replaceAll(`  { when = "item.created_hours >= 720", bucket = "later", why = "opened over a month ago", final = true },\n`, "");
+    .replaceAll(`  { when = "item.created_hours >= 720", bucket = "hide", why = "opened over a month ago", final = true },\n`, "");
   const edited = old
     // Changed: GitHub's bot PR rule, made FYI.
     .replace(
@@ -376,8 +376,13 @@ test("a PR opened over a month ago stays off the Inbox, even asked of you by nam
     ["acme/api#2"],
   );
   assert.deepEqual(
-    board.sections.later.map((c) => [c.id, c.why]),
+    board.hidden.map((c) => [c.id, c.why]),
     [["acme/api#1", "opened over a month ago"]],
+  );
+  const inbox = Object.values(runSync(t.desk.queue()).inbox).flat();
+  assert.deepEqual(
+    inbox.map((c) => c.id),
+    ["acme/api#2"],
   );
   await t.cleanup();
 });

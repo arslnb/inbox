@@ -151,9 +151,9 @@ test("Searches and rules lists the final rules with the hard ones, in board orde
   assert.deepEqual(
     work.map((h) => [h.board, h.bucket, h.why, !!h.final]),
     [
-      ["PRs to review (acme)", "later", "opened over a month ago", true],
+      ["PRs to review (acme)", "hide", "opened over a month ago", true],
       ["My PRs (acme)", "blocked", "blocked by another PR, which waits on something", true],
-      ["My PRs (acme)", "later", "opened over a month ago", true],
+      ["My PRs (acme)", "hide", "opened over a month ago", true],
       ["My PRs (acme)", "today", "your draft: finish it", false],
       ["My PRs (acme)", "blocked", "waits on something", true],
     ],
