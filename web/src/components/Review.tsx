@@ -199,7 +199,7 @@ export function Review({
   me: string; // your login: Hand off for merge and Back to desk are for your own PRs
   now: number;
   flash: (text: string, error?: boolean) => void;
-  onCard: (c: Card, key: string) => void; // d Done, handoff Hand off for merge, b Back to desk: as in its row's menu
+  onCard: (c: Card, key: string) => void; // done, handoff (Hand off for merge), back (Back to desk), log, link: as in its row's menu
   onGithub: (c: Card, action: GitHubAction, head: string, body?: string) => Effect.Effect<boolean>; // the More menu's writes, and Request changes
   acted: Acted | undefined; // what you did on it from here: shown in place of the button you pressed
   row: InflightRow | null; // your PR in Merging: what it waits on and the coordinator's note go under the facts, as in Merging
@@ -724,7 +724,7 @@ export function Review({
 
   function run(k: string) {
     // With your comment unsent, what acts on the PR goes back to it first.
-    if (comment.trim() && ["a", "d", "handoff", "b", "."].includes(k)) {
+    if (comment.trim() && ["primary", "done", "handoff", "back", "more"].includes(k)) {
       setTalking(true); // its box is the Conversation tab's
       requestAnimationFrame(() => {
         document.querySelector<HTMLTextAreaElement>(".rv-comment textarea")?.focus();
@@ -732,15 +732,14 @@ export function Review({
       flash("Your comment isn't sent: Comment sends it, or empty the box");
       return;
     }
-    if (k === "o" && v) window.open(v.card.url, "_blank", "noopener,noreferrer");
-    else if (k === "a" && acted) flash(`${acted.what}: ${v ? shortRef(v.card) : ""} is off your desk`);
-    else if (k === "a" && readying && v) onReady(v.card, picked);
-    else if (k === "a" && asking && v) {
+    if (k === "primary" && acted) flash(`${acted.what}: ${v ? shortRef(v.card) : ""} is off your desk`);
+    else if (k === "primary" && readying && v) onReady(v.card, picked);
+    else if (k === "primary" && asking && v) {
       if (picked.length) onAskReviewers(v.card, picked);
       else document.querySelector<HTMLInputElement>(".rv-reviewers-input")?.focus();
-    } else if (k === "a") approve();
-    else if ((k === "d" || k === "handoff" || k === "b") && v) onCard(v.card, k);
-    else if (k === "." && v) setMore(true);
+    } else if (k === "primary") approve();
+    else if ((k === "done" || k === "handoff" || k === "back") && v) onCard(v.card, k);
+    else if (k === "more" && v) setMore(true);
   }
 
   // Esc goes back to where the review was opened from; a box you write in keeps its own Esc.
@@ -973,7 +972,7 @@ export function Review({
       )}
       {readying && !acted && (
         <ActButton
-          k="a"
+          k="primary"
           label="Ready for review"
           run={run}
           title={
@@ -986,7 +985,7 @@ export function Review({
       )}
       {asking && !acted && (
         <ActButton
-          k="a"
+          k="primary"
           label="Ask reviewers"
           run={run}
           title={
@@ -1005,7 +1004,7 @@ export function Review({
       )}
       {open && !isMine && !acted && !view.approve.approved && (
         <ActButton
-          k="a"
+          k="primary"
           label="Approve"
           run={run}
           title={view.approve.reason ?? "Approve on GitHub"}
@@ -1022,7 +1021,7 @@ export function Review({
         <MoreButton
           open={more}
           onClick={() => {
-            run(".");
+            run("more");
           }}
         />
         {more && (
@@ -1036,7 +1035,7 @@ export function Review({
                     {
                       label: card.status === "active" ? "Done" : "Back on the desk",
                       run: () => {
-                        run("d");
+                        run("done");
                       },
                     },
                   ]

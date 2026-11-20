@@ -147,10 +147,10 @@ export function Detail({ card, detail, ctx }: { card: Card; detail: ItemDetail |
           <ActButton k="fix" label="Make PR with fix" className="primary" title="Your agent opens a draft PR with this fix" run={run} />
         )}
         {card.kind === "issue" && !card.resolved && <ActButton k="comment" label="Comment" run={run} />}
-        {card.kind === "issue" && !card.resolved && !detail.blocked_author && <ActButton k="t" label="Ask your agent" run={run} />}
-        <ActButton k="o" label="Open on GitHub" run={run} />
+        {card.kind === "issue" && !card.resolved && !detail.blocked_author && <ActButton k="ask" label="Ask your agent" run={run} />}
+        <ActButton k="open" label="Open on GitHub" run={run} />
         {mine && <HandButton card={card} run={run} />}
-        <ActButton k="e" label={card.status === "active" ? "Done" : "Back on the desk"} run={run} />
+        <ActButton k="done" label={card.status === "active" ? "Done" : "Back on the desk"} run={run} />
         <button
           type="button"
           className="act"
@@ -161,7 +161,7 @@ export function Detail({ card, detail, ctx }: { card: Card; detail: ItemDetail |
         >
           Snooze
         </button>
-        {!mine && <ActButton k="m" label={muted ? "Unmute" : "Mute"} run={run} />}
+        {!mine && <ActButton k="mute" label={muted ? "Unmute" : "Mute"} run={run} />}
         {/* Last, so a pointer that read down to here closes it here. */}
         <ActButton k="close" label="Close" title="Close (Esc)" run={run} />
       </div>
@@ -235,7 +235,7 @@ export function HandButton({
   run: (k: string) => void;
   primary?: boolean;
 }) {
-  if (card.inflight) return <ActButton k="b" label="Back to desk" title={BACK_TITLE} run={run} />;
+  if (card.inflight) return <ActButton k="back" label="Back to desk" title={BACK_TITLE} run={run} />;
   if (!handsOff(card)) return null; // a draft, one nobody's asked to review where review is needed, one not approved yet
   return (
     <ActButton

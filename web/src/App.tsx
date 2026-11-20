@@ -1606,22 +1606,22 @@ export function App() {
     else if (k === "github-link") runUi(copyLink(c, true));
     else if (k === "log") go({ name: "log", id: c.id });
     else if (k === "close") setExpanded(null);
-    else if (k === "t") openAsk(c.id);
-    else if (k === "b") runUi(back(c));
+    else if (k === "ask") openAsk(c.id);
+    else if (k === "back") runUi(back(c));
     else if (k === "analyze" || k === "trust" || k === "fix" || k === "block" || k === "unblock") runUi(issueAct(c, k));
-    else if (k === "a" && c.cta === "ready") markReady(c);
-    else if (k === "a" && c.cta === "handoff") handOff(c);
-    else if (k === "a" && c.cta === "reviewers")
+    else if (k === "cta" && c.cta === "ready") markReady(c);
+    else if (k === "cta" && c.cta === "handoff") handOff(c);
+    else if (k === "cta" && c.cta === "reviewers")
       openCard(c); // its review, with the reviewers box ready
     // Yours (or a bot's for you), or anyone's approved PR, resolved by your approval or not; the desk says no to the rest.
     else if (k === "handoff" && c.kind === "pr") {
       if (awaitsReview(c)) flash(`${shortRef(c)} isn't approved yet`);
       else handOff(c);
-    } else if (k === "o") {
+    } else if (k === "open") {
       window.open(c.url, "_blank", "noopener,noreferrer");
       runUi(seen(c));
-    } else if (k === "e" || k === "d") runUi(act(c, c.status === "active" ? "done" : "restore"));
-    else if (k === "m") runUi(act(c, c.status === "muted" ? "unmute" : "mute"));
+    } else if (k === "done") runUi(act(c, c.status === "active" ? "done" : "restore"));
+    else if (k === "mute") runUi(act(c, c.status === "muted" ? "unmute" : "mute"));
     else if (k === "comment") {
       // An issue opened in place: Comment opens the comment bar.
       setAsking(null);
