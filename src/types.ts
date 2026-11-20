@@ -1116,8 +1116,8 @@ export interface Check {
 
 // A PR's checks as its review lists them, in the sidebar with its files.
 export interface Checks {
-  line: string; // all of them in one line: "CI passing · 14 checks", "2 failing of 14 checks", "3 running of 14 checks"
-  failing: boolean; // a check that counts is failing: the line is red, as "CI failing" is
+  said: string; // where CI stands: "Checks failing" (a required one), "Some checks failing", "Checks running", "Checks passing"
+  tone: "good" | "warn" | "bad"; // its colour: red only for a required check failing
   list: Check[]; // failing first, then cancelled, running, passing and skipped, each by name
 }
 

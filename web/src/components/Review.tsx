@@ -1834,17 +1834,6 @@ function Shell({
   );
 }
 
-type Tone = "good" | "warn" | "bad";
-
-// How the checks stand, in words and a colour: a required one failing is red; an optional one failing, one cancelled or
-// one still running is yellow.
-function checksState(checks: Checks): { said: string; tone: Tone } {
-  if (checks.failing) return { said: "Checks failing", tone: "bad" };
-  if (checks.list.some((c) => c.state === "failing" || c.state === "cancelled")) return { said: "Some checks failing", tone: "warn" };
-  if (checks.list.some((c) => c.state === "running")) return { said: "Checks running", tone: "warn" };
-  return { said: "Checks passing", tone: "good" };
-}
-
 // How big it is, in a word: by its lines changed and its files.
 function changesWord(add: number, del: number, files: number | null): string {
   const lines = add + del;
@@ -1912,7 +1901,6 @@ function StatusPart({
   };
   if (!ai && !checks && !checksError && !size && !pending) return null;
   const reasons = ai?.risk_reasons ?? [];
-  const cs = checks && checksState(checks);
   const passing = checks?.list.filter((c) => c.state === "passing").length ?? 0;
   return (
     <section className={cls("rv-part", tone)} data-part="status" aria-label="Status">
@@ -1944,13 +1932,13 @@ function StatusPart({
             )}
           </StatusRow>
         )}
-        {checks && cs && (
+        {checks && (
           <StatusRow
             id="checks"
-            said={cs.said}
+            said={checks.said}
             end={
               <span className="rv-status-count" title={`${passing} of ${checks.list.length} passing`}>
-                <span className={`c-${cs.tone}`}>{passing}</span>/{checks.list.length}
+                <span className={`c-${checks.tone}`}>{passing}</span>/{checks.list.length}
               </span>
             }
             open={!!open.checks}

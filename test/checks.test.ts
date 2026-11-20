@@ -1,5 +1,5 @@
 // A PR's checks in its review: read from GitHub one by one, only when a review is opened, kept until the desk next
-// refreshes the PR, and listed with what's wrong first under one line that says where CI stands.
+// refreshes the PR, and listed with what's wrong first under words that say where CI stands.
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { setTimeout as sleep } from "node:timers/promises";
@@ -81,11 +81,10 @@ test("a check is optional only where the base branch requires others and not it"
   );
 });
 
-test("the checks' one line says where CI stands, and the list has what's wrong first", () => {
+test("the checks say where CI stands in words and a colour, and the list has what's wrong first", () => {
   assert.equal(checksView([]), null, "nothing ran: no checks to show");
   const green = checksView([check("lint", "passing"), check("build", "passing"), check("deploy", "skipped")])!;
-  assert.deepEqual([green.line, green.failing], ["CI passing · 3 checks", false]);
-  assert.equal(checksView([check("build", "passing")])!.line, "CI passing · 1 check");
+  assert.deepEqual([green.said, green.tone], ["Checks passing", "good"]);
 
   const red = checksView([
     check("lint", "passing"),
@@ -96,21 +95,21 @@ test("the checks' one line says where CI stands, and the list has what's wrong f
     check("build", "passing"),
     check("api", "failing"),
   ])!;
-  assert.deepEqual([red.line, red.failing], ["2 failing, 1 cancelled, 1 running of 7 checks", true]);
+  assert.deepEqual([red.said, red.tone], ["Checks failing", "bad"]);
   assert.deepEqual(
     red.list.map((c) => `${c.name}: ${c.state}`),
     ["api: failing", "unit (2/3): failing", "old run: cancelled", "e2e: running", "build: passing", "lint: passing", "docs: skipped"],
   );
 
-  assert.deepEqual(
-    [checksView([check("e2e", "running"), check("build", "passing")])!.line, checksView([check("e2e", "running")])!.failing],
-    ["1 running of 2 checks", false],
-  );
-  // What the base branch doesn't require doesn't hold the merge back: counted, said to be so, and not red.
+  const running = checksView([check("e2e", "running"), check("build", "passing")])!;
+  assert.deepEqual([running.said, running.tone], ["Checks running", "warn"]);
+  const cancelled = checksView([check("old run", "cancelled"), check("build", "passing")])!;
+  assert.deepEqual([cancelled.said, cancelled.tone], ["Some checks failing", "warn"]);
+  // What the base branch doesn't require doesn't hold the merge back: not red.
   const optional = checksView([check("backend", "passing"), check("schema diff", "failing", true)])!;
-  assert.deepEqual([optional.line, optional.failing], ["1 failing (not required) of 2 checks", false]);
+  assert.deepEqual([optional.said, optional.tone], ["Some checks failing", "warn"]);
   const both = checksView([check("backend", "failing"), check("schema diff", "failing", true)])!;
-  assert.deepEqual([both.line, both.failing], ["2 failing of 2 checks", true]);
+  assert.deepEqual([both.said, both.tone], ["Checks failing", "bad"]);
 });
 
 test("GitHub.checks: every check on the PR's head commit, a page of 100 at a time, in queries only", async () => {
@@ -182,7 +181,7 @@ test("a review carries its PR's checks: asked of GitHub when it's opened, never 
   assert.deepEqual(t.gh.checkCalls, [], "a sync, and the reviews it fetches ahead, ask for no checks");
 
   const v = await run(t.desk.reviewView("api#4", true));
-  assert.deepEqual([v.checks?.line, v.checks?.failing, v.checks_error], ["1 failing, 1 running of 3 checks", true, null]);
+  assert.deepEqual([v.checks?.said, v.checks?.tone, v.checks_error], ["Checks failing", "bad", null]);
   assert.deepEqual(
     v.checks?.list.map((x) => x.name),
     ["unit", "e2e", "build"],
@@ -199,7 +198,7 @@ test("a review carries its PR's checks: asked of GitHub when it's opened, never 
   t.setNow(new Date(NOW.getTime() + 31 * 60_000));
   await run(t.desk.sync());
   assert.equal(t.gh.checkCalls.length, 1, "the sync itself still asks for none");
-  assert.equal((await run(t.desk.reviewView("api#4", true))).checks?.line, "CI passing · 3 checks");
+  assert.equal((await run(t.desk.reviewView("api#4", true))).checks?.said, "Checks passing");
   assert.equal(t.gh.checkCalls.length, 2);
 });
 
@@ -215,7 +214,7 @@ test("checks GitHub won't give are the review's checks_error, in its words, and 
   t.gh.checks = checks;
   t.gh.checkLists.set("PR_acme/api_4", [check("build", "passing")]);
   const again = await run(t.desk.reviewView("api#4", true));
-  assert.deepEqual([again.checks?.line, again.checks_error], ["CI passing · 1 check", null], "the failure wasn't kept");
+  assert.deepEqual([again.checks?.said, again.checks_error], ["Checks passing", null], "the failure wasn't kept");
   const none = await run(t.desk.reviewView("api#5", true));
   assert.deepEqual([none.checks, none.checks_error], [null, null]);
 });

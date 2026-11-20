@@ -510,8 +510,8 @@ interface Conversation {
 }
 
 interface Checks {
-  line: string; // "CI passing · 14 checks", "2 failing of 14 checks"
-  failing: boolean; // a required check fails: drawn red
+  said: string; // "Checks failing", "Some checks failing", "Checks running", "Checks passing"
+  tone: "good" | "warn" | "bad"; // red only for a required check failing
   list: { name: string; state: "failing" | "cancelled" | "running" | "passing" | "skipped"; optional: boolean; url: string }[];
 }
 
@@ -1012,7 +1012,7 @@ Opening a PR (`GET /api/review/:id`) asks for its AI review and has your agent r
 **Checks** (`ReviewView.checks`, `src/checks.ts`): every check run and commit status on the head commit.
 
 - Each has a name (untrusted), a state (`failing`, `cancelled`, `running`, `passing`, `skipped`), `optional` (the base branch requires other checks but not this one) and a `url` (https only, else `""`).
-- Ordered with what's wrong first, then by name, under one line: "CI passing · 14 checks", "2 failing, 1 running of 14 checks", "1 failing (not required) of 14 checks". `failing` means a required check fails; the window draws the line red.
+- Ordered with what's wrong first, then by name. `said` and `tone` are where CI stands, as the window's and the phone's Status draw it: "Checks failing" (red) while a required check fails; "Some checks failing" (amber) for one the base branch doesn't require failing or one cancelled; "Checks running" (amber); else "Checks passing" (green).
 - A GitHub read of its own (`PR_CHECKS`, 100 a page, one point), asked only when a review is opened or fetched ahead, never by a sync. Kept until a sync next reads that PR (within 3 minutes for your own PR, 30 for someone else's, or when GitHub says it changed), so it's never older than the facts' "CI passing".
 - A commit nothing ran on has `checks: null`. A fetch GitHub refuses is `checks_error`, asked again on the next open.
 

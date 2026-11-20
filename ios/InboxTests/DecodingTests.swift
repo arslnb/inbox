@@ -408,8 +408,8 @@ final class DecodingTests: XCTestCase {
     XCTAssertEqual(seq.notes.count, 1)
 
     let checks = try XCTUnwrap(r.checks)
-    XCTAssertEqual(checks.line, "CI passing · 11 checks")
-    XCTAssertEqual(checks.failing, false)
+    XCTAssertEqual(checks.said, "Checks passing")
+    XCTAssertEqual(checks.tone, "good")
     XCTAssertEqual(checks.list.count, 11)
     XCTAssertEqual([checks.list[1].name, checks.list[1].state], ["codecov/patch", "passing"])
     XCTAssertEqual(checks.list[1].optional, true)
