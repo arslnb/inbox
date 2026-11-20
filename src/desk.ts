@@ -49,6 +49,7 @@ import {
   adoptable,
   andMore,
   askedAt,
+  shortRef,
   mergeLine,
   mergeOwed,
   owesReply,
@@ -346,6 +347,15 @@ const AT: Record<Bucket, string> = { now: "Now", today: "Today", blocked: "Block
 
 // In Merging rather than anywhere in the queue: handed off, and not snoozed, muted or done.
 const laneOwned = (e: Entry) => e.inflight && e.status === "active";
+
+// Whom a row says it's by: you, the person a bot opened it for, or its author.
+const byOf = (e: Entry): string => {
+  const person = e.analysis.attribution?.person;
+  return e.analysis.signals.me.author ? "you" : person ? person.replace(/^@/, "") : e.item.author;
+};
+
+// Your notes on the Inbox, due ones first; not those whose reminder is still to come.
+const onInbox = (v: NotesView): Note[] => [...v.due, ...v.urgent, ...v.open, ...v.fyi];
 
 export interface DeskOptions {
   home: string;
@@ -1439,7 +1449,7 @@ export class Desk {
     // A chain's step coming onto the Inbox notifies once, pinned or not: what finished before it says it's next.
     const notes = this.notesView(snap);
     const shown = [...now, ...today].map((c) => c.id);
-    shown.push(...[...notes.due, ...notes.urgent, ...notes.open, ...notes.fyi].map((n) => `${NOTE}${n.id}`));
+    shown.push(...onInbox(notes).map((n) => `${NOTE}${n.id}`));
     const chained = new Set([...snap.links.keys(), ...[...snap.links.values()].flat()]);
     const was = strings(this.store.get("shown_chain")) ?? null;
     this.store.set("shown_chain", shown);
@@ -1472,7 +1482,7 @@ export class Desk {
   // A chain's next step, in its notification: what it is, and what finished before it when that's known.
   nextText(id: string, snap: Snapshot, notes: NotesView): string {
     const e = snap.entries.get(id);
-    const n = [...notes.due, ...notes.urgent, ...notes.open, ...notes.fyi].find((x) => `${NOTE}${x.id}` === id);
+    const n = onInbox(notes).find((x) => `${NOTE}${x.id}` === id);
     const what = e ? shortRef(e.item) : (n?.text.split("\n")[0] ?? "your note");
     const done = (state: Item["state"]) =>
       (snap.links.get(id) ?? []).flatMap((p) => {
@@ -1733,6 +1743,11 @@ export class Desk {
     }
     // A PR in Merging stays there; one the coordinator handed back tops your desk until done or m again.
     const needs = new Map<string, string>();
+    const raise = (id: string, why: string) => {
+      needs.set(id, why);
+      const board = [...boards.values()].map((b) => b.result.placements.get(id)?.board).find(Boolean) ?? "";
+      best.set(id, { board, bucket: "now", rule_bucket: "now", rule: null, why, trace: [] });
+    };
     for (const e of entries.values()) {
       const back = merging.get(e.item.id)?.handback;
       if (!back || !e.analysis.signals.me.handed_back) continue;
@@ -1741,10 +1756,7 @@ export class Desk {
       // Held until it unblocked: trackBlocked() logged when, and which PR merged.
       const freed = this.store.activity({ after: 0, limit: 20, item: e.item.id, latest: true }).find((x) => x.kind === "unblocked");
       const merged = freed && freed.at >= back.at ? wakeFor(freed) : "";
-      const why = `${merged ? `${merged} \u00b7 ` : ""}handed back: ${back.reason}`;
-      needs.set(e.item.id, why);
-      const board = [...boards.values()].map((b) => b.result.placements.get(e.item.id)?.board).find(Boolean) ?? "";
-      best.set(e.item.id, { board, bucket: "now", rule_bucket: "now", rule: null, why, trace: [] });
+      raise(e.item.id, `${merged ? `${merged} \u00b7 ` : ""}handed back: ${back.reason}`);
     }
     // Your ready PR nobody's asked to review: Add reviewers is its call to action, as m refuses it. Past the moments a
     // workflow takes, while a board lists it and it isn't quiet as Later counts it, it's back on top of your desk too.
@@ -1760,9 +1772,7 @@ export class Desk {
       if (needs.has(it.id) || !this.stuckUnasked(e)) continue; // handed back: its reason says so
       const quiet = quietHours > 0 && !e.state.pinned && sig.item.updated_hours >= quietHours;
       if (quiet || ![...boards.values()].some((b) => b.result.placements.has(it.id))) continue;
-      needs.set(it.id, UNASKED);
-      const board = [...boards.values()].map((b) => b.result.placements.get(it.id)?.board).find(Boolean) ?? "";
-      best.set(it.id, { board, bucket: "now", rule_bucket: "now", rule: null, why: UNASKED, trace: [] });
+      raise(it.id, UNASKED);
     }
     // A waiting step is on no list: its chain's head carries it.
     for (const id of after.head.keys()) {
@@ -1825,8 +1835,6 @@ export class Desk {
     if (n) return { id, kind: "note", ref: "", repo: "", title: n.text, url: "", by: "", since: n.at, after: waits, note: n };
     const e = entries.get(id)!;
     const it = e.item;
-    const person = e.analysis.attribution?.person;
-    const by = e.analysis.signals.me.author ? "you" : person ? person.replace(/^@/, "") : it.author;
     return {
       id,
       kind: it.kind,
@@ -1834,7 +1842,7 @@ export class Desk {
       repo: it.repo,
       title: it.title,
       url: it.url,
-      by,
+      by: byOf(e),
       since: e.analysis.waiting_since,
       after: waits,
       ...(it.draft && { draft: true as const }),
@@ -1936,7 +1944,7 @@ export class Desk {
       url: it.url,
       author: it.author,
       author_bot: e.analysis.signals.author.bot,
-      by: me.author ? "you" : attribution?.person ? attribution.person.replace(/^@/, "") : it.author,
+      by: byOf(e),
       ...(attribution && { attribution }),
       people: peopleOf(it),
       ...(shown && { stage: shown }),
@@ -2386,7 +2394,6 @@ export class Desk {
       const placements = boardsOf(loaded)
         .map((b) => snap.boards.get(b.config.id)!.result.placements.get(id))
         .filter((p): p is Placement => p !== undefined);
-      const { snoozed_at: _, acked_at: __, ...state } = e.state;
       const j = snap.judging.get(id);
       const a = j ? this.store.read(`judge:${id}`, JudgeAnswerSchema) : null;
       return {
@@ -2395,7 +2402,7 @@ export class Desk {
         signals: e.analysis.signals,
         placements,
         ...(j && { judge: { signals: j.signals, saw: a?.signals ?? null, at: a?.at ?? null, fresh: a?.key === j.key } }),
-        state,
+        state: stateOf(e.state),
         handoff_prompt: renderTemplate(
           e.item.kind === "issue"
             ? loaded.config.handoff.issue
@@ -3236,12 +3243,7 @@ export class Desk {
   }
 
   // `agent`: not the desk's own window. Hand-offs are yours. An automation's ("automation:<id>") is logged as its own.
-  act(
-    ref: string,
-    action: Action,
-    until?: string,
-    agent?: string,
-  ): Effect.Effect<{ state: ItemState; undo_seq: number }, RefError | Forbidden | Conflict | BadRequest> {
+  act(ref: string, action: Action, until?: string, agent?: string): Effect.Effect<{ state: ItemState; undo_seq: number }, ActError> {
     if (isSessionRef(ref)) return this.sessionAct(ref, action, until, agent);
     return Effect.gen({ self: this }, function* () {
       const id = yield* this.resolve(ref);
@@ -3366,8 +3368,7 @@ export class Desk {
       if (action !== "seen" && !auto) for (const k of [`sorted:${id}`, `acted:${id}`]) this.store.unset(k);
       this.changed();
       if (action === "inflight") this.coordinator.wake(id, "handed off");
-      const { snoozed_at: _, acked_at: __, ...state } = s;
-      return { state, undo_seq: seq };
+      return { state: stateOf(s), undo_seq: seq };
     });
   }
 
@@ -3470,8 +3471,7 @@ export class Desk {
       this.store.putState(restored);
       this.store.markUndone(ev.seq);
       this.changed();
-      const { snoozed_at: _, acked_at: __, ...state } = restored;
-      return { id: ev.item_id, state, action: ev.action };
+      return { id: ev.item_id, state: stateOf(restored), action: ev.action };
     });
   }
 
@@ -3510,7 +3510,7 @@ export class Desk {
   push(ref: string, why: string, a: Automation): Effect.Effect<AutomationItem, RefError | BadRequest | Upstream> {
     return Effect.gen({ self: this }, function* () {
       const id = yield* this.hold(ref);
-      const note = yield* this.line(why, "why", 300);
+      const note = yield* this.line(why, "why");
       const once = { ...this.store.read(`pushed:${id}`, PushedSchema)?.once };
       const snap = this.snapshot();
       const e = snap.entries.get(id)!;
@@ -3548,7 +3548,7 @@ export class Desk {
   ): Effect.Effect<AutomationItem, RefError | BadRequest> {
     return Effect.gen({ self: this }, function* () {
       const id = yield* this.resolve(ref);
-      const note = yield* this.line(why, "why", 300);
+      const note = yield* this.line(why, "why");
       const said = { item_id: id, why: note, do: bucket };
       const snap = this.snapshot();
       const e = snap.entries.get(id)!;
@@ -3587,7 +3587,7 @@ export class Desk {
   ): Effect.Effect<AutomationItem, ActError> {
     return Effect.gen({ self: this }, function* () {
       const id = yield* this.resolve(ref);
-      const note = yield* this.line(why, "why", 300);
+      const note = yield* this.line(why, "why");
       const said = { item_id: id, why: note, do: action, ...(action === "snooze" && { until: until ?? "tomorrow" }) };
       const snap = this.snapshot();
       const e = snap.entries.get(id)!;
@@ -4853,10 +4853,6 @@ function lead(text: string): string {
     .join(" ")
     .replaceAll(/\*\*|`/g, "")
     .trim();
-}
-
-function shortRef(c: { repo: string; number: number }): string {
-  return `${c.repo.split("/")[1]}#${c.number}`;
 }
 
 export function parseUntil(until: string, now: Date): Effect.Effect<Date, BadRequest> {

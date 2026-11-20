@@ -6,7 +6,7 @@ import { readFileSync, realpathSync, watchFile, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { parseArgs, type ParseArgsConfig } from "node:util";
 import { Cause, Data, Effect, Exit, Option } from "effect";
-import { aiPending } from "./stage.ts";
+import { aiPending, shortRef } from "./stage.ts";
 import * as agents from "./agents.ts";
 import * as api from "./client.ts";
 import { untilText } from "./client.ts";
@@ -168,7 +168,6 @@ function ctxFor(io: IO, args: string[], opts: Record<string, unknown>) {
 }
 type Ctx = ReturnType<typeof ctxFor>;
 
-const shortRef = (card: Card) => `${card.repo.split("/")[1]}#${card.number}`;
 // GitHub titles are untrusted: strip control chars so they can't emit terminal escapes.
 const plain = (s: string) => s.replaceAll(/\p{Cc}+/gu, " ");
 const clip = (s: string, n: number) => (s.length <= n ? s : n <= 1 ? "" : s.slice(0, n - 1) + "…");

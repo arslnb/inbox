@@ -61,6 +61,9 @@ export function andMore(xs: string[], extra = 0): string {
 
 const lc = (s: string) => s.toLowerCase();
 
+// A PR's or issue's ref as a row says it: "repo#123".
+export const shortRef = (c: { repo: string; number: number }): string => `${c.repo.split("/")[1]}#${c.number}`;
+
 const STANDING: Standing["state"][] = ["changes requested", "asked", "approved", "commented"];
 
 // Who reviews a PR and where each stands, for its review's sidebar, bots and its author left out. verdicts() says who
