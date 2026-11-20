@@ -757,20 +757,19 @@ test("config preview and save", async () => {
   const t = await setup();
   const cfg = await t.json("/api/config");
   assert.ok(cfg.text.includes("[[boards]]"));
-  assert.deepEqual(cfg.warnings, []);
   const prev = await t.json("/api/config/preview", {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ text: "bogus = [" }),
   });
   assert.ok(prev.errors.length > 0);
-  const legacy = await t.json("/api/config/preview", {
+  const same = await t.json("/api/config/preview", {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ text: `poll_seconds = 60\n${cfg.text}` }),
+    body: JSON.stringify({ text: cfg.text }),
   });
-  assert.deepEqual([legacy.errors, legacy.warnings.map((w: { path: string }) => w.path)], [[], ["poll_seconds"]]);
-  assert.ok(legacy.boards.length > 0);
+  assert.deepEqual(same.errors, []);
+  assert.ok(same.boards.length > 0);
   const put = await t.json("/api/config", {
     method: "PUT",
     headers: { "content-type": "application/json" },

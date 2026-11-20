@@ -31,7 +31,6 @@ export function Rules({
   const [loadError, setLoadError] = useState("");
   const [text, setText] = useState("");
   const [errors, setErrors] = useState<ConfigError[]>([]);
-  const [warnings, setWarnings] = useState<ConfigError[]>([]);
   const [hard, setHard] = useState<ConfigDoc["hard"]>([]);
   const [builtins, setBuiltins] = useState<ConfigDoc["builtins"]>([]);
   const [flipped, setFlipped] = useState<Record<string, boolean>>({}); // built-ins switched here by `board rule`, until the file read again agrees
@@ -60,7 +59,6 @@ export function Rules({
               setPreview(null);
             }
             setErrors(c.errors);
-            setWarnings(c.warnings ?? []);
             setHard(c.hard);
             setBuiltins(c.builtins);
             setFlipped((f) =>
@@ -372,18 +370,6 @@ export function Rules({
         </div>
 
         <div className="side-col">
-          {warnings.length > 0 && (
-            <section className="side-block">
-              <h2 className="s-sub t-warn">Moved to Settings</h2>
-              <ul className="plain">
-                {warnings.map((w) => (
-                  <li key={w.path}>
-                    <code>{w.path}</code> is ignored here now; it lives in Settings. Delete it from this file.
-                  </li>
-                ))}
-              </ul>
-            </section>
-          )}
           {errors.length > 0 && (
             <section className="side-block errors">
               <h2 className="s-sub t-bad">

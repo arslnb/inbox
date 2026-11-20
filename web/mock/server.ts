@@ -30,7 +30,7 @@ import { buildStacks, grouped, oneLinePerStack, stackRef, stackView, type Seat, 
 import { CHUNK_FIELDS, FIELDS, plainWhy, waitable, weekdayHours } from "../../src/signals.ts";
 import { mergeLine, peopleOf, stage, standings } from "../../src/stage.ts";
 import { CLAUDE_MODELS, type AgentModels } from "../../src/models.ts";
-import { agentDefs, agentName, checkSetting, DEFAULTS, LEGACY_TABLES, masked, SECTIONS, settingDef } from "../../src/settings.ts";
+import { agentDefs, agentName, checkSetting, DEFAULTS, masked, SECTIONS, settingDef } from "../../src/settings.ts";
 import { GitHubAuthError, type ErrorBody } from "../../src/errors.ts";
 import { canned } from "./diffs.ts";
 import type {
@@ -224,10 +224,9 @@ let overrides: Record<string, SettingValue> = {
 };
 
 // The config fields that come from settings (src/config.ts does the same).
-function fromSettings(): Pick<Config, "poll_seconds" | "signals" | "handoff"> {
+function fromSettings(): Pick<Config, "signals" | "handoff"> {
   const s = { ...DEFAULTS, ...overrides };
   return {
-    poll_seconds: s["github.poll_seconds"],
     signals: {
       close_collaborator_min: s["github.close_collaborator_min"],
       bots: s["github.bots"],
@@ -3766,7 +3765,7 @@ function sync() {
   }, 1200);
 }
 // The shots turn it off: a push it brings would make a review they read stale at a time that depends on how long a run took.
-if (!process.env.MOCK_NO_POLL) setInterval(sync, config.poll_seconds * 1000);
+if (!process.env.MOCK_NO_POLL) setInterval(sync, { ...DEFAULTS, ...overrides }["github.poll_seconds"] * 1000);
 
 // ---------------------------------------------------------------------------
 // Config text: generated from `config`, parsed back with a small line-based TOML reader.
@@ -3932,10 +3931,6 @@ function parseToml(text: string): { cfg: Config; errors: ConfigError[] } {
         b.rules.push(rule);
         cur = rule;
         path = `boards[${cfg.boards.length - 1}].rules[${b.rules.length - 1}]`;
-      } else if (!arr && LEGACY_TABLES.includes(t)) {
-        errors.push({ path: t, message: `"${t}" moved to Settings (settings.json); delete it here` });
-        cur = {};
-        path = t;
       } else errors.push({ path: path || t, message: `unknown table ${line}` });
       continue;
     }
@@ -3945,10 +3940,6 @@ function parseToml(text: string): { cfg: Config; errors: ConfigError[] } {
       continue;
     }
     const key = kv[1] ?? "";
-    if (!path && key === "poll_seconds") {
-      errors.push({ path: key, message: `"${key}" moved to Settings (settings.json); delete it here` });
-      continue;
-    }
     let raw = kv[2] ?? "";
     if (raw.startsWith('"""')) {
       const body: string[] = [raw.slice(3)];

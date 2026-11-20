@@ -198,7 +198,6 @@ import {
   checkSetting,
   effective,
   RENAMED,
-  migrateLegacy,
   isSecret,
   readSecrets,
   readSettings,
@@ -716,7 +715,6 @@ export class Desk {
   loaded: LoadedConfig | null = null;
   configText = "";
   configErrors: ConfigError[] = [];
-  configWarnings: ConfigError[] = [];
   rev = 0;
   listeners = new Set<(rev: number) => void>();
   notifyListeners = new Set<(title: string, body: string) => void>();
@@ -831,7 +829,6 @@ export class Desk {
       if (this.store.get("first_pass") === null) this.store.set("first_pass", this.syncedAt ? "done" : "running");
       if (first) yield* this.connectGitHub();
       else yield* Effect.forEach(this.connectors, (c) => c.init(false), { discard: true });
-      yield* this.migrateSettings();
       yield* this.migrateRenamed();
       yield* this.migrateSecrets();
       this.oldPolicy();
@@ -1028,10 +1025,9 @@ export class Desk {
 
   reloadConfig(sync = false): Effect.Effect<void, FsError> {
     return Effect.map(this.readConfig(), (text) => {
-      const { loaded, errors, warnings } = parseConfig(text, this.settings, this.connectors);
+      const { loaded, errors } = parseConfig(text, this.settings, this.connectors);
       this.configText = text;
       this.configErrors = errors;
-      this.configWarnings = warnings;
       if (loaded) this.loaded = loaded;
       else this.log(`config has ${errors.length} error(s); keeping the last good config`);
       this.changed();
@@ -1224,34 +1220,6 @@ export class Desk {
         ),
       ),
     );
-  }
-
-  // Settings used to live in config.toml; move them to settings.json once.
-  migrateSettings(): Effect.Effect<void, FsError> {
-    return Effect.gen({ self: this }, function* () {
-      if (this.store.get("settings_migrated") || !fs.existsSync(this.configPath)) return;
-      const text = yield* this.readConfig();
-      const m = migrateLegacy(text);
-      if (!m) {
-        // Nothing to move, so it's done: legacy keys saved later (inbox_config save, an agent) only warn, never become settings.
-        if (parseConfig(text, this.settings, this.connectors).loaded) this.store.set("settings_migrated", this.now().toISOString());
-        return;
-      }
-      if (this.settingsErrors.some((e) => e.path === "settings.json")) {
-        this.log("settings.json can't be read; not moving settings out of config.toml until it's fixed");
-        return;
-      }
-      const merged = { ...m.moved, ...this.settingsRaw };
-      if (Object.keys(merged).length) yield* writeSettings(this.settingsPath, merged);
-      this.store.set("settings_migrated", this.now().toISOString());
-      this.settings = this.readSettings();
-      if (m.text === null) {
-        this.log("config.toml still has settings sections; delete them (they now live in settings.json)");
-        return;
-      }
-      yield* replaceFile(this.configPath, m.text, true);
-      this.log(`moved settings from config.toml to ${this.settingsPath} (backup: config.toml.bak)`);
-    });
   }
 
   // Once each: the direct-ask rule of a config written before hard rules becomes hard (migrateHard), a direct ask a bot
@@ -4979,7 +4947,7 @@ export class Desk {
       });
       return [{ board: b.id, name: label(b), source, set: b.builtin, set_name: set.name, rules }];
     });
-    return { path: this.configPath, text, hash: textHash(text), errors: this.configErrors, warnings: this.configWarnings, hard, builtins };
+    return { path: this.configPath, text, hash: textHash(text), errors: this.configErrors, hard, builtins };
   }
 
   // Switches one of a board's built-in rules on or off: its `off` in config.toml, saved as an edit of yours would be.
@@ -4988,7 +4956,7 @@ export class Desk {
     rule: string,
     on: boolean,
     base?: string,
-  ): Effect.Effect<{ ok: boolean; errors: ConfigError[]; warnings: ConfigError[] }, Stale | FsError | BadRequest> {
+  ): Effect.Effect<{ ok: boolean; errors: ConfigError[] }, Stale | FsError | BadRequest> {
     return Effect.gen({ self: this }, function* () {
       const text = switchBuiltIn(this.configText, board, rule, on);
       if (text === null)
@@ -4998,13 +4966,12 @@ export class Desk {
   }
 
   preview(text: string): PreviewResult {
-    const { loaded, errors, warnings } = parseConfig(text, this.settings, this.connectors);
-    if (!loaded) return { errors, warnings, boards: [] };
+    const { loaded, errors } = parseConfig(text, this.settings, this.connectors);
+    if (!loaded) return { errors, boards: [] };
     const cur = this.loaded ? this.snapshot() : null;
     const next = this.compute(loaded, -1);
     return {
       errors,
-      warnings,
       boards: loaded.boards.map((b) => {
         const id = b.config.id;
         const after = next.boards.get(id)!;
@@ -5030,17 +4997,15 @@ export class Desk {
   }
 
   // `base`: the text you started from, or its hash from GET /api/config.
-  putConfig(text: string, base?: string): Effect.Effect<{ ok: boolean; errors: ConfigError[]; warnings: ConfigError[] }, Stale | FsError> {
+  putConfig(text: string, base?: string): Effect.Effect<{ ok: boolean; errors: ConfigError[] }, Stale | FsError> {
     return Effect.gen({ self: this }, function* () {
       if (base !== undefined && base !== this.configText && base !== textHash(this.configText))
         return yield* new Stale({ message: "config.toml changed on disk since you opened it; reload to see it, then reapply your edit" });
-      const { loaded, errors, warnings } = parseConfig(text, this.settings, this.connectors);
-      if (!loaded) return { ok: false, errors, warnings };
-      // A save never brings settings back into config.toml: an unmigrated desk would move them to settings.json on its next start.
-      if (warnings.length) return { ok: false, errors: warnings, warnings: [] };
+      const { loaded, errors } = parseConfig(text, this.settings, this.connectors);
+      if (!loaded) return { ok: false, errors };
       yield* replaceFile(this.configPath, text);
       yield* this.reloadConfig(true);
-      return { ok: true, errors: [], warnings };
+      return { ok: true, errors: [] };
     });
   }
 

@@ -575,7 +575,6 @@ test("settings: saving changes the live config; bad values write nothing", async
   const r = runSync(t.desk.putSettings({ set: { "handoff.prompt": "Look at {item.url} please", "github.poll_seconds": 120 } }));
   assert.equal(r.ok, true);
   assert.deepEqual(r.settings.overridden.sort(), [...Object.keys(UNSCORED), "github.poll_seconds", "handoff.prompt"]);
-  assert.equal(t.desk.loaded!.config.poll_seconds, 120);
   assert.equal(runSync(t.desk.item("api#1")).handoff_prompt, "Look at https://github.com/acme/api/pull/1 please");
   const bad = runSync(t.desk.putSettings({ set: { "github.poll_seconds": 5, "notify.enabled": false } }));
   assert.equal(bad.ok, false);
@@ -600,22 +599,6 @@ test("a removed setting is ignored: no settings problem, and a save keeps it for
     "github.poll_seconds": 120,
   });
   await t.cleanup();
-});
-
-test("settings move out of an old config.toml on start", async () => {
-  const home = fs.mkdtempSync(path.join(os.tmpdir(), "desk-test-"));
-  const boards = (await import("../src/config.ts")).defaultConfigText({ workOrgs: ["acme"] });
-  fs.writeFileSync(path.join(home, "config.toml"), `poll_seconds = 300\n\n[notify]\nenabled = false\n\n${boards}`);
-  const gh = new FakeGitHub([], () => []);
-  const desk = new Desk({ home, github: gh, now: () => NOW, notify: () => {}, log: () => {} });
-  await run(desk.init());
-  assert.deepEqual(desk.configErrors, []);
-  assert.equal(desk.settings["github.poll_seconds"], 300);
-  assert.equal(desk.settings["notify.enabled"], false);
-  assert.doesNotMatch(fs.readFileSync(path.join(home, "config.toml"), "utf8"), /poll_seconds|\[notify\]/);
-  assert.match(fs.readFileSync(path.join(home, "config.toml.bak"), "utf8"), /poll_seconds = 300/);
-  desk.stop();
-  fs.rmSync(home, { recursive: true });
 });
 
 test("queue: every item once at its best placement, plus hidden and cleared", async () => {
@@ -831,54 +814,20 @@ test("a desk started on the oldest config migrates its rules once, with one back
   fs.rmSync(home, { recursive: true, force: true });
 });
 
-test("an unreadable settings.json is never overwritten: saving and moving settings both wait", async () => {
+test("an unreadable settings.json is never overwritten", async () => {
   const home = fs.mkdtempSync(path.join(os.tmpdir(), "desk-test-"));
-  const config = path.join(home, "config.toml");
   const file = path.join(home, "settings.json");
-  fs.writeFileSync(config, `poll_seconds = 300\n\n${defaultConfigText({ workOrgs: ["acme"] })}`);
+  fs.writeFileSync(path.join(home, "config.toml"), defaultConfigText({ workOrgs: ["acme"] }));
   fs.writeFileSync(file, "{ oops");
   const desk = new Desk({ home, github: new FakeGitHub([], () => []), now: () => NOW, notify: () => {}, log: () => {} });
   await run(desk.init());
-  assert.match(fs.readFileSync(config, "utf8"), /^poll_seconds = 300/);
-  assert.equal(desk.store.get("settings_migrated"), null);
   assert.ok(desk.loaded);
-  assert.deepEqual(
-    desk.configWarnings.map((w) => w.path),
-    ["poll_seconds"],
-  );
   const r = runSync(desk.putSettings({ set: { "notify.enabled": false } }));
   assert.equal(r.ok, false);
   assert.deepEqual(r.errors, [
     { path: "settings.json", message: "settings.json can't be read, so saving now would overwrite it. Fix or delete the file first." },
   ]);
   assert.equal(fs.readFileSync(file, "utf8"), "{ oops");
-  desk.stop();
-  fs.rmSync(home, { recursive: true });
-});
-
-test("settings move once: leftovers in config.toml only warn, and a later reset sticks", async () => {
-  const home = fs.mkdtempSync(path.join(os.tmpdir(), "desk-test-"));
-  const config = path.join(home, "config.toml");
-  const legacy = `poll_seconds = 300\n\n${defaultConfigText({ workOrgs: ["acme"] })}`;
-  fs.writeFileSync(config, legacy);
-  const open = async () => {
-    const d = new Desk({ home, github: new FakeGitHub([], () => []), now: () => NOW, notify: () => {}, log: () => {} });
-    await run(d.init());
-    return d;
-  };
-  let desk = await open();
-  assert.equal(desk.settings["github.poll_seconds"], 300);
-  runSync(desk.putSettings({ reset: ["github.poll_seconds"] }));
-  await idle(desk);
-  desk.stop();
-  fs.writeFileSync(config, legacy); // e.g. restored from a backup
-  desk = await open();
-  assert.equal(desk.settings["github.poll_seconds"], 90);
-  assert.deepEqual(desk.configErrors, []);
-  assert.ok(desk.loaded);
-  assert.deepEqual(desk.getConfig().warnings, [
-    { path: "poll_seconds", message: '"poll_seconds" moved to Settings (settings.json); delete it here' },
-  ]);
   desk.stop();
   fs.rmSync(home, { recursive: true });
 });

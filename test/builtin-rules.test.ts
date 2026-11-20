@@ -91,7 +91,7 @@ test("switching a built-in rule off writes the board's off, and on again takes i
   const file = path.join(t.home, "config.toml");
   const before = fs.readFileSync(file, "utf8");
   const r = runSync(t.desk.switchRule("acme-review", "asked-directly", false, t.desk.getConfig().hash));
-  assert.deepEqual(r, { ok: true, errors: [], warnings: [] });
+  assert.deepEqual(r, { ok: true, errors: [] });
   assert.match(fs.readFileSync(file, "utf8"), /^builtin = "review"\noff = \["asked-directly"\]\n/m);
   // No other rule of GitHub's matches a person's ask: the board's default, Later.
   assert.deepEqual(
