@@ -108,24 +108,43 @@ test("closing the desk stops the judge and an AI review, what they started, and 
   assert.ok(took < 4000, `took ${took} ms`);
 });
 
+// The clock is the test's: the call's timeout and the SIGKILL after it fire once the fake has started, however slow a
+// loaded machine is to start it. setTimeout is mocked meanwhile, so the wait sleeps the thread between looks.
+async function started(fake: ReturnType<typeof stuckClaude>): Promise<number[]> {
+  for (let i = 0; i < 1000 && fake.pids().length < 2; i++) {
+    await new Promise((r) => {
+      setImmediate(r);
+    });
+    Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 10);
+  }
+  assert.equal(fake.pids().length, 2, "the fake started");
+  return fake.pids();
+}
+
 test("a call that times out takes what it started with it", posix, async (c) => {
   const fake = stuckClaude(c);
-  const err = await failure(runCommand({ file: fake.bin, args: [], shell: false }, { timeout: 4000, missing: "missing" }));
+  c.mock.timers.enable({ apis: ["setTimeout"] });
+  const call = failure(runCommand({ file: fake.bin, args: [], shell: false }, { timeout: 4000, missing: "missing" }));
+  const pids = await started(fake);
+  c.mock.timers.tick(4000); // SIGTERM, which it ignores
+  c.mock.timers.tick(2000); // SIGKILL
+  const err = await call;
+  c.mock.timers.reset();
   assert.deepEqual([err._tag, err.message], ["CommandTimeout", "no answer in 4 seconds, so it was stopped"]);
-  const pids = fake.pids();
-  assert.equal(pids.length, 2);
   await until(() => !pids.some(running));
 });
 
 test("an interrupted call takes what it started with it, and ends only once it has exited", posix, async (c) => {
   const fake = stuckClaude(c);
+  c.mock.timers.enable({ apis: ["setTimeout"] });
   const ac = new AbortController();
   const call = runCommand({ file: fake.bin, args: [], shell: false }, { timeout: 60_000, missing: "missing" });
   const exit = Effect.runPromiseExit(call, { signal: ac.signal });
-  await until(() => fake.pids().length === 2);
-  const pids = fake.pids();
+  const pids = await started(fake);
   ac.abort();
+  c.mock.timers.tick(2000); // SIGKILL
   const e = await exit;
+  c.mock.timers.reset();
   assert.ok(Exit.isFailure(e) && Cause.hasInterruptsOnly(e.cause), "interrupted: nothing to store or report");
   assert.ok(!alive(pids[0]!), "the claude itself has exited when the call ends");
   await until(() => !pids.some(running));
