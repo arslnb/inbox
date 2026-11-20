@@ -421,6 +421,35 @@ const S = {
   dead: "88888888-0000-4000-8000-000000000008",
 };
 
+test("a session another session started is left to that one; your forks and hand-offs are yours", (c) => {
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), "desk-spawned-"));
+  c.after(() => {
+    fs.rmSync(root, { recursive: true, force: true });
+  });
+  const dir = path.join(root, "sessions", "org", "acct");
+  fs.mkdirSync(dir, { recursive: true });
+  const now = Date.now();
+  const write = (id: string, spawnedFrom?: Record<string, unknown>) => {
+    const o = { sessionId: id, cliSessionId: `cli-${id}`, title: id, cwd: root, isArchived: false, lastActivityAt: now, spawnedFrom };
+    fs.writeFileSync(path.join(dir, `${id}.json`), JSON.stringify(o));
+  };
+  write("local_mine");
+  write("local_side", { sessionId: "local_parent", taskId: "task_1", sideSession: true, sharedFolder: true });
+  write("local_fork", { sessionId: "local_parent", sideSession: true, userFork: true });
+  write("local_handoff", { sessionId: "local_parent", sideSession: true, handOff: true });
+  const s = new Sessions({ home: path.join(root, "home") } as never, {
+    claude: path.join(root, ".claude"),
+    desktop: [path.join(root, "sessions")],
+    codex: path.join(root, ".codex"),
+  });
+  const row = { cwd: root, kind: "interactive", startedAt: 1, sessionId: "cli-local_side", name: "side", status: "waiting" };
+  const names = s
+    .look([row as never], now)
+    .map((x) => x.name)
+    .sort();
+  assert.deepEqual(names, ["local_fork", "local_handoff", "local_mine"], "nor does its running process bring it back");
+});
+
 test(
   "sessions that need you lead the Inbox, blocked first; the desk's own aren't there, and a directional question never is",
   posix,

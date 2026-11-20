@@ -1419,7 +1419,7 @@ The second source (`src/connectors/sessions.ts`, [plugins.md](plugins.md)): your
 
 - `claude agents --json --all`: every live session and the background ones. A pass whose list can't be read changes nothing.
 - The last 64 KB of each one's transcript (`~/.claude/projects/*/<session id>.jsonl`).
-- The desktop app's records (`~/Library/Application Support/Claude-3p` and `Claude`, `claude-code-sessions/*/*/local_*.json`: `postTurnSummary`, `priorErrorMark`).
+- The desktop app's records (`~/Library/Application Support/Claude-3p` and `Claude`, `claude-code-sessions/*/*/local_*.json`: `postTurnSummary`, `priorErrorMark`). A session another session started (`spawnedFrom`, not your fork or a hand-off) is left to that session and never listed, its process neither.
 - A terminal transcript written in the last day that's in no list (its process is gone), unless it's a background one you removed (`~/.claude/jobs/*/state.json`).
 - Codex's `state_5.sqlite`, opened read only and immutable: your unarchived `cli` and `vscode` threads from the last 3 days (never `codex exec` or sub-agents), with each rollout's last 64 KB.
 

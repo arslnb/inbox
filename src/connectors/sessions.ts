@@ -263,6 +263,7 @@ export interface DesktopRecord {
   summary: { category: string; detail: string; uuid: string } | null; // the app's own read of the last turn
   error_mark: { category: string; at: number; pending: boolean } | null;
   turn_at: number; // lastTurnEdgeAt
+  spawned: boolean; // started by another session (not your fork or hand-off): that session follows it, not you
 }
 
 export function readDesktopRecord(text: string): DesktopRecord | null {
@@ -272,6 +273,7 @@ export function readDesktopRecord(text: string): DesktopRecord | null {
   if (!o || !local?.startsWith("local_") || !session) return null;
   const s = obj(o.postTurnSummary);
   const mark = obj(o.priorErrorMark);
+  const from = obj(o.spawnedFrom);
   return {
     local_id: local,
     session_id: session,
@@ -286,6 +288,7 @@ export function readDesktopRecord(text: string): DesktopRecord | null {
     error_mark:
       mark && str(mark.category) ? { category: str(mark.category)!, at: num(mark.at) ?? 0, pending: mark.hadPendingTurn === true } : null,
     turn_at: num(o.lastTurnEdgeAt) ?? 0,
+    spawned: !!from && from.userFork !== true && from.handOff !== true,
   };
 }
 
@@ -576,11 +579,13 @@ export class Sessions {
   look(rows: AgentRow[], now: number): Seen[] {
     const home = this.desk.home;
     const since = now - RECENT;
-    const records = this.desktopRecords(since).filter((r) => !r.archived && r.active_at >= since);
+    const all = this.desktopRecords(since);
+    const spawned = new Set(all.filter((r) => r.spawned).map((r) => r.session_id));
+    const records = all.filter((r) => !r.archived && !r.spawned && r.active_at >= since);
     const byTranscript = new Map(records.map((r) => [r.session_id, r]));
     const transcripts = transcriptIndex(path.join(this.roots.claude, "projects"));
     const out: Seen[] = [];
-    const ids = new Set<string>();
+    const ids = new Set<string>(spawned);
     const claudeSeen = (
       sessionId: string,
       row: AgentRow | null,
