@@ -562,7 +562,7 @@ export class Coordinator {
       }
       if (this.own) return; // a Codex or OpenCode turn says its own, as its events come
       const busy = this.status === "busy" || this.status === "shell";
-      const tail = busy && this.session ? readTail(transcriptPath(this.session)) : "";
+      const tail = busy && this.session ? (readTail(transcriptPath(this.session), TAIL) ?? "") : "";
       const lines = activityOf(tail);
       const saying = sayingOf(tail);
       if (lines.join("\n") === this.activity.join("\n") && saying === this.saying) return;
@@ -1184,27 +1184,25 @@ function readFrom(file: string, from: number): { text: string; end: number } | n
   );
 }
 
-// The file's last TAIL bytes from its first whole line; "" when it isn't there (yet).
-function readTail(file: string): string {
-  return Result.getOrElse(
-    Result.try({
-      try: () => {
-        const fd = fs.openSync(file, "r");
-        try {
-          const size = fs.fstatSync(fd).size;
-          const at = Math.max(0, size - TAIL);
-          const buf = Buffer.alloc(size - at);
-          fs.readSync(fd, buf, 0, buf.length, at);
-          const text = buf.toString("utf8");
-          return at === 0 ? text : text.slice(text.indexOf("\n") + 1);
-        } finally {
-          fs.closeSync(fd);
-        }
-      },
-      catch: () => "",
-    }),
-    () => "",
-  );
+// The last `bytes` of a file, from its first whole line; null when it can't be read (it isn't there yet).
+export function readTail(file: string, bytes: number): string | null {
+  const read = Result.try({
+    try: () => {
+      const fd = fs.openSync(file, "r");
+      try {
+        const size = fs.fstatSync(fd).size;
+        const at = Math.max(0, size - bytes);
+        const buf = Buffer.alloc(size - at);
+        fs.readSync(fd, buf, 0, buf.length, at);
+        const text = buf.toString("utf8");
+        return at === 0 ? text : text.slice(text.indexOf("\n") + 1);
+      } finally {
+        fs.closeSync(fd);
+      }
+    },
+    catch: () => null,
+  });
+  return Result.getOrElse(read, () => null);
 }
 
 // Its steps since the latest prompt it was given, as Claude Code lists them: each tool it used, said plainly, and what it
