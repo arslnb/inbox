@@ -1,4 +1,4 @@
-import type { Attribution, Item, Preflight, Stage, Standing, Standings } from "./types.ts";
+import type { Attribution, InflightRow, Item, Preflight, Stage, Standing, Standings } from "./types.ts";
 
 // Only a collaborator's approval counts (the coordinator merges on it); anyone's change request holds the PR.
 export function verdicts(it: Item, self: string): { approved_by: string[]; changes_by: string[] } {
@@ -214,6 +214,34 @@ export function waitsOf(it: Item, me: string, o: { mine: boolean; unasked: boole
   if (o.mine) return "is ready to merge";
   if (mergeOwed(it, me)) return `is yours to merge: ${it.author} can't`;
   return it.author_can_merge === false ? "is approved, for a maintainer to merge" : `is approved, for ${it.author} to merge`;
+}
+
+// The desk's ready rule: what o merges on GitHub, and what the More menu's merge needs.
+export function readyToMerge(it: Item, me: string): boolean {
+  return mergeReviewed(it, me) && it.ci === "green" && it.mergeable === "clean" && !it.draft;
+}
+
+// Approved, or in a repo that needs no review with nobody asking for changes.
+export const mergeReviewed = (it: Item, me: string) =>
+  it.review_decision === "approved" || (reviewOptional(it) && !verdicts(it, me).changes_by.length);
+
+// What a PR in Merging waits on, the first thing between it and a merge.
+export function waitsOn(r: Omit<InflightRow, "card" | "waits_on" | "note">): string | null {
+  const names = (xs: string[]) => (xs.length > 2 ? `${xs.slice(0, 2).join(", ")} and ${xs.length - 2} more` : xs.join(", "));
+  const threads = r.threads_unresolved;
+  if (r.state !== "open") return null;
+  if (r.rebase) return "rebasing";
+  if (r.blocked_by) return `waits on ${r.blocked_by.ref} to merge first`;
+  if (r.requires_closed.length) return `needs ${r.requires_closed.join(", ")}, closed without merging`;
+  if (r.ci === "red") return "waits on a CI fix";
+  if (r.mergeable === "conflict") return "waits on a merge conflict fix";
+  if (r.changes_by.length) return `waits on a second look from ${names(r.changes_by)}`;
+  if (r.ci === "pending") return r.review_optional ? "can merge once CI passes: no review needed" : "waits on CI";
+  if (threads) return `waits on ${threads} unresolved ${threads === 1 ? "thread" : "threads"}`;
+  if (!r.approved_by.length && !r.review_optional)
+    return r.waiting_on.length ? `waits on a review from ${names(r.waiting_on)}` : "waits on a review";
+  if (r.stacked) return `waits on ${r.base} to merge first`;
+  return "ready to merge";
 }
 
 // A PR on the Inbox whose first AI review isn't written yet says where that review is, in place of what it would say.

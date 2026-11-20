@@ -60,7 +60,7 @@ What the home holds:
 - **Bucket**: `now`, `today`, `blocked`, `later`, `fyi`, `hide`. Only rules fill `blocked` (what waits on another PR merging or on reviewers; facts in `src/deps.ts`). Hidden items stay listed with the rule that hid them.
 - **Resolved**: `resolution()` in `src/resolve.ts` says the world dealt with an item (merged, closed, approved, no longer requested). Derived per snapshot, never stored.
 - **Local state** (never sent to GitHub): `done` (until someone else acts), `snooze` (until a time, activity, or an event: `snooze_when`, checked by `happened()` in `src/signals.ts`), `mute`, `pin`, `seen`, and `inflight` (handed off to Merging).
-- **Merging** (internally `inflight`): your PRs handed off for merge. They leave the queue until the coordinator hands them back to the top. `Desk.inflight()` builds it; `waitsOn()` says what each waits on. Notes and hand-backs are kv `sitter:<id>`.
+- **Merging** (internally `inflight`): your PRs handed off for merge. They leave the queue until the coordinator hands them back to the top. `Desk.inflight()` builds it; `waitsOn()` in `src/stage.ts` says what each waits on. Notes and hand-backs are kv `sitter:<id>`.
 - **Stack** (`src/stacks.ts`, pure): PRs in one repo, each based on the branch of the one below. Worked out from stored PRs on every snapshot. The queue lists a stack once (`oneLinePerStack()`).
 - **Event log**: the `activity` table. Each fresh snapshot is diffed against the stored one (`src/connectors/github-events.ts`, pure) into events: review requested, reviewed, pushed, CI, commented, merged…
 - **Settings**: `SETTINGS` in `src/settings.ts` is the schema. The Settings page and `inbox settings` render from it.
