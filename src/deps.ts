@@ -1,5 +1,5 @@
 // What a PR needs merged before it, and who blocks whom: from its description and its git stack. Pure.
-import { andMore } from "./stage.ts";
+import { andMore, shortRef } from "./stage.ts";
 import type { Stacks } from "./stacks.ts";
 import type { Card, Item } from "./types.ts";
 
@@ -83,7 +83,6 @@ export interface DepFacts {
   blocks: string[]; // repo#number: open PRs that need this one, directly or not
 }
 
-const short = (it: Item) => `${it.repo.split("/")[1]}#${it.number}`;
 const orgOf = (ref: string) => ref.slice(0, ref.indexOf("/")).toLowerCase();
 // Its author can't pick a blocker in another org, nor one that reads like your org's: only its own org's refs count.
 export const sameOrg = (ref: string, it: Item) => orgOf(ref) === orgOf(it.repo);
@@ -103,10 +102,10 @@ export function dependencies(items: Item[], stacks: Stacks): Map<string, DepFact
       seen.add(ref.toLowerCase());
       const ours = sameOrg(ref, x);
       const y = ours ? prs.get(ref.toLowerCase()) : undefined;
-      f.requires.push(y ? short(y) : ours ? ref.slice(ref.indexOf("/") + 1) : ref);
+      f.requires.push(y ? shortRef(y) : ours ? ref.slice(ref.indexOf("/") + 1) : ref);
       if (y?.state === "open") out.push(y);
-      else if (y?.state === "closed") f.closed.push(short(y));
-      else if (y) f.merged.push({ ref: short(y), at: y.closed_at ?? y.updated_at });
+      else if (y?.state === "closed") f.closed.push(shortRef(y));
+      else if (y) f.merged.push({ ref: shortRef(y), at: y.closed_at ?? y.updated_at });
     }
     f.merged.sort((a, b) => a.at.localeCompare(b.at));
     facts.set(x.id, f);
@@ -132,14 +131,14 @@ export function dependencies(items: Item[], stacks: Stacks): Map<string, DepFact
     if (memo.has(id)) return memo.get(id)!;
     const [y] = kept.get(id)!;
     const up = y ? rootOf(y.id) : null;
-    const r = !y ? null : up ? { root: up.root, through: short(y) } : { root: y.id, through: null };
+    const r = !y ? null : up ? { root: up.root, through: shortRef(y) } : { root: y.id, through: null };
     memo.set(id, r);
     return r;
   };
   for (const x of live) {
     const f = facts.get(x.id)!;
     const r = rootOf(x.id);
-    f.open = kept.get(x.id)!.map(short);
+    f.open = kept.get(x.id)!.map(shortRef);
     f.needs = kept.get(x.id)!.map((y) => y.id);
     f.root = r?.root ?? null;
     f.through = r?.through ?? null;
@@ -149,7 +148,7 @@ export function dependencies(items: Item[], stacks: Stacks): Map<string, DepFact
       if (reached.has(y.id)) continue;
       reached.add(y.id);
       const blocks = facts.get(y.id)!.blocks;
-      if (!blocks.includes(short(x))) blocks.push(short(x));
+      if (!blocks.includes(shortRef(x))) blocks.push(shortRef(x));
       todo.push(...kept.get(y.id)!);
     }
   }
