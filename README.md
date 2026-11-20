@@ -324,13 +324,13 @@ Everything else is read-only: GraphQL queries, GETs of your notifications (never
 npm run app:dev     # the app from this checkout: src/ restarts the desk, web/ hot-reloads, electron/ restarts the app
 npm run dev         # server + Vite in a browser at :5173
 npm test            # node:test, no network
-npm run check       # what CI runs: format, type-aware lint, CSS lint, types, dead code, tests
+npm run check       # what CI runs but the web build: format, type-aware lint, CSS lint, types, dead code, tests
 npm run smoke:app   # launches the app on a scratch home and checks it end to end
 npm run shots       # screenshots of every key state, light and dark and each theme (.shots/index.html)
 npm run icons       # every icon (app, tray, favicon) from assets/brand/mark.svg
 ```
 
-A pre-commit hook formats and lints staged files. A pre-push hook runs `npm run check`, and CI ([.github/workflows/ci.yml](.github/workflows/ci.yml)) runs it on macOS, Linux and Windows.
+A pre-commit hook formats and lints staged files. A pre-push hook runs `npm run check`, and CI ([.github/workflows/ci.yml](.github/workflows/ci.yml)) runs the same checks plus `npm run build`: the tests on Linux and macOS for a PR, and on Windows too once it's on main.
 
 Set `DESK_HOME` and `DESK_PORT` to work on a scratch desk, and `DESK_SENTRY=0` to keep it out of Sentry. Where to make a change: [AGENTS.md](AGENTS.md).
 
