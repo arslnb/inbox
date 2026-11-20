@@ -7,7 +7,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { after, before, test } from "node:test";
 import { promisify } from "node:util";
-import { Cause, Effect, Exit } from "effect";
+import { Cause, Clock, Duration, Effect, Exit } from "effect";
 import { main } from "../src/cli.ts";
 import * as api from "../src/client.ts";
 import { install, plistFor, uninstall } from "../src/launchd.ts";
@@ -625,6 +625,18 @@ test("install and uninstall are macOS-only", async () => {
   }
 });
 
+// Effect's clock, but each sleep is over at once and kept: what install waits, without the waiting.
+function instantSleeps() {
+  const slept: number[] = [];
+  const clock = Object.assign(Object.create(Clock.Clock.defaultValue()) as Clock.Clock, {
+    sleep: (d: Duration.Duration) =>
+      Effect.sync(() => {
+        slept.push(Duration.toMillis(d));
+      }),
+  });
+  return { slept, instant: Effect.provideService(Clock.Clock, clock) };
+}
+
 test(
   "install boots out the job from before the rename, moves ~/.review-desk to ~/.inbox, retries launchctl bootstrap 5 times, 500 ms apart, then says its words; uninstall removes the plists",
   { skip: process.platform !== "darwin" },
@@ -656,12 +668,14 @@ test(
     mkdirSync(join(home, ".review-desk"));
     writeFileSync(join(home, ".review-desk", "config.toml"), "# mine\n");
     const said: string[] = [];
+    const { slept, instant } = instantSleeps();
     const e = await failure(
       install("/x/cli.ts", await unusedPort(), (m) => {
         said.push(m);
-      }),
+      }).pipe(instant),
     );
     assert.deepEqual([e._tag, e.message], ["CommandFailed", "launchctl bootstrap failed: Bootstrap failed: 5: Input/output error"]);
+    assert.deepEqual(slept, [500, 500, 500, 500]);
     const uid = process.getuid!();
     const plist = join(agents, "dev.inbox.desk.plist");
     const calls = () => readFileSync(join(home, "calls"), "utf8").trim().split("\n");
@@ -695,7 +709,7 @@ test(
 
 test(
   "install with a desk still running from ~/.review-desk installs nothing: its job's desk would move the folder its log is in",
-  { skip: process.platform !== "darwin", timeout: 20_000 },
+  { skip: process.platform !== "darwin" },
   async (c) => {
     const saved = { HOME: process.env.HOME, PATH: process.env.PATH };
     const bin = mkdtempSync(join(tmpdir(), "desk-launchctl-"));
@@ -719,7 +733,8 @@ test(
     process.env.PATH = bin;
     const old = join(home, ".review-desk");
     mkdirSync(old);
-    const e = await failure(install("/x/cli.ts", (desk.address() as AddressInfo).port));
+    const { slept, instant } = instantSleeps();
+    const e = await failure(install("/x/cli.ts", (desk.address() as AddressInfo).port).pipe(instant));
     assert.deepEqual(
       [e._tag, e.message],
       [
@@ -730,6 +745,11 @@ test(
     assert.ok(!existsSync(join(home, "Library", "LaunchAgents", "dev.inbox.desk.plist")), "no plist naming a log in the old folder");
     assert.ok(!readFileSync(join(home, "calls"), "utf8").includes("bootstrap"));
     assert.ok(lstatSync(old).isDirectory() && !existsSync(join(home, ".inbox")));
+    assert.equal(
+      slept.reduce((a, b) => a + b, 0),
+      5000,
+      "it gave the port 5 s to come free",
+    );
   },
 );
 
