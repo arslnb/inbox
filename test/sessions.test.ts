@@ -14,7 +14,6 @@ import {
   parseAgents,
   readDesktopRecord,
   readRollout,
-  readTail,
   readTranscript,
   Sessions,
   TAIL,
@@ -22,6 +21,7 @@ import {
   type AgentRow,
   type Seen,
 } from "../src/connectors/sessions.ts";
+import { readTail } from "../src/coordinator.ts";
 import { createApp } from "../src/server.ts";
 import { setup } from "./helpers/desk.ts";
 import { NOW } from "./helpers/items.ts";
@@ -112,11 +112,11 @@ test("only the tail is read: the last 64 KB, from a whole line", (c) => {
   const file = path.join(dir, "s.jsonl");
   const l = lines("bbbb-1", "/w");
   fs.writeFileSync(file, Array.from({ length: 2000 }, () => l.prompt("x".repeat(100))).join("\n") + "\n" + l.said("Last.") + "\n");
-  const text = readTail(file)!;
+  const text = readTail(file, TAIL)!;
   assert.ok(fs.statSync(file).size > 3 * TAIL && text.length <= TAIL);
   assert.ok(text.startsWith("{"), "from the first whole line");
   assert.equal(readTranscript(text)?.text, "Last.");
-  assert.equal(readTail(path.join(dir, "gone.jsonl")), null);
+  assert.equal(readTail(path.join(dir, "gone.jsonl"), TAIL), null);
 });
 
 test("claude agents --json: rows without what every row has are dropped, and anything but a list reads as nothing", () => {

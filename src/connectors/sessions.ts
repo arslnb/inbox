@@ -7,7 +7,7 @@ import os from "node:os";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { Effect, Result } from "effect";
-import { alive, claude, halt, type Agent } from "../coordinator.ts";
+import { alive, claude, halt, readTail, type Agent } from "../coordinator.ts";
 import type { Desk } from "../desk.ts";
 import { Conflict, NotFound, type CommandError } from "../errors.ts";
 import { isRecord, num, str } from "../narrow.ts";
@@ -93,24 +93,6 @@ export function parseAgents(out: string): AgentRow[] | null {
 }
 
 // ---------------------------------------------------------------- a transcript's tail
-
-// The last `bytes` of a file, from its first whole line; null when it can't be read.
-export function readTail(file: string, bytes = TAIL): string | null {
-  const read = Result.try({
-    try: () => {
-      const fd = fs.openSync(file, "r");
-      const size = fs.fstatSync(fd).size;
-      const at = Math.max(0, size - bytes);
-      const buf = Buffer.alloc(size - at);
-      fs.readSync(fd, buf, 0, buf.length, at);
-      fs.closeSync(fd);
-      const text = buf.toString("utf8");
-      return at > 0 ? text.slice(text.indexOf("\n") + 1) : text;
-    },
-    catch: () => null,
-  });
-  return Result.getOrElse(read, () => null);
-}
 
 const readText = (file: string): string | null =>
   Result.getOrElse(Result.try({ try: () => fs.readFileSync(file, "utf8"), catch: () => null }), () => null);
@@ -635,7 +617,7 @@ export class Sessions {
     }
     for (const th of codexThreads(path.join(this.roots.codex, "state_5.sqlite"), since) ?? []) {
       if (desksOwn(th.cwd, undefined, home)) continue;
-      const text = readTail(th.rollout);
+      const text = readTail(th.rollout, TAIL);
       out.push({
         kind: "codex",
         session_id: th.id,
@@ -672,7 +654,7 @@ export class Sessions {
   }
 
   tailOf(file: string | undefined): Tail | null {
-    const text = file ? readTail(file) : null;
+    const text = file ? readTail(file, TAIL) : null;
     return text === null ? null : readTranscript(text);
   }
 
