@@ -491,8 +491,8 @@ export type Action =
 // merge your open PR, reopen your closed one, request changes on someone else's (in its review, with what you wrote).
 export type GitHubAction = "close" | "draft" | "ready" | "merge" | "reopen" | "request_changes" | "rerequest" | "unrequest";
 export const GITHUB_ACTIONS: GitHubAction[] = ["close", "draft", "ready", "merge", "reopen", "request_changes", "rerequest", "unrequest"];
-// snooze `until`: "1h" | "3h" | "tomorrow" (09:00) | "monday" (09:00) | "activity" | ISO time | an Until
-// What a snooze can wait on instead of a time: the item stays in Later until it happens.
+// snooze `until`: "1h" | "2d" | "tomorrow" (09:00) | "monday" (09:00) | "YYYY-MM-DD" (09:00) | ISO time | "activity" | an Until
+// What a snooze can wait on instead of a time: the item stays in the Archive until it happens.
 export type Until = "ci" | "push" | "approved" | "ready" | "conflict";
 export const UNTIL: Record<Until, string> = {
   ci: "CI passes",

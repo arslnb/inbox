@@ -206,7 +206,7 @@ const addsOnly = (can: readonly Verb[]) => can.length === 1 && can[0] === "add";
 
 // A snooze's `until`, in inbox_act's words.
 const UNTILS =
-  "1h, 3h, tomorrow (the default), monday, activity, an ISO time, or until it happens: ci (CI passes), push (new commits), approved, ready (out of draft), conflict (fixed)";
+  "1h, 3h, 2d, tomorrow (the default), monday, a date (YYYY-MM-DD), an ISO time, activity, or until it happens: ci (CI passes), push (new commits), approved, ready (out of draft), conflict (fixed)";
 // What each verb does, as a run is told.
 const DOES: Record<Verb, string> = {
   add: "put it on my desk, in Today, with your why: it needs me now",

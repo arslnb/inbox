@@ -492,7 +492,7 @@ export function createMcpServer(
           .string()
           .optional()
           .describe(
-            "snooze only: 1h, 3h, tomorrow (default), monday, activity, an ISO time, or until it happens: ci (CI passes), push (new commits), approved, ready (out of draft), conflict (fixed); the item's card lists which in wake_on",
+            "snooze only: 1h, 3h, 2d, tomorrow (default), monday, a date (YYYY-MM-DD), an ISO time, activity, or until it happens: ci (CI passes), push (new commits), approved, ready (out of draft), conflict (fixed); the item's card lists which in wake_on",
           ),
       },
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },

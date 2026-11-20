@@ -49,7 +49,8 @@ const USAGE = `usage: inbox <command>
                                       sent to GitHub; a note is note:<id>, as ls lists it
   done|mute|unmute|pin|unpin|restore <ref>
   urgent|standard|fyi <ref>           move it to that section of the Inbox, until you're done with it, snooze or mute it
-  snooze <ref> [until]                1h, 3h, tomorrow (default), monday, activity, ISO time, or ci|push|approved|ready|conflict
+  snooze <ref> [until]                1h, 3h, 2d, tomorrow (default), monday, YYYY-MM-DD, ISO time, activity,
+                                      or ci|push|approved|ready|conflict
   undo [seq]                          undo the last action (or the one with that number)
   sync                                sync with GitHub now (read only)
   prompt <ref>                        print the review hand-off prompt
