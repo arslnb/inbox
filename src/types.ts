@@ -808,7 +808,6 @@ export interface FocusView {
   sessions: SessionCard[]; // sessions that need you, after agents' questions: blocked, then stalled
   sections: { now: Card[]; today: Card[] }; // one list on screen: now first, then today
   notes?: Note[]; // your notes on the Inbox (not the ones whose reminder is still to come); an agent names one as note:<id>
-  reviewing: number; // always 0: nothing waits off the queue for its review now; kept for older clients
   paused: Paused | null; // said once above the queue instead of on every card
 }
 
@@ -825,7 +824,6 @@ export interface QueueView {
   sessions: SessionCard[]; // every session that needs you, with your triage on it; the active ones follow the questions
   // blocked: what your rules put in Blocked, and your PRs in Merging that another PR blocks; a chain's rows together, longest wait first
   sections: Record<Exclude<Bucket, "hide">, Card[]>;
-  reviewing: number; // as in FocusView
   hidden: Card[]; // a rule put it in "hide"
   cleared: Card[]; // done, snoozed, muted
   resolved: Card[]; // merged, closed, approved by someone else, no longer requested; newest first
@@ -1045,7 +1043,6 @@ export interface ItemDetail {
   ai: AiReview | null;
   ai_stale: boolean;
   generating: boolean;
-  held: boolean; // always false, as FocusView.reviewing
   activity: ActivityEvent[]; // the latest events for this item, newest first
   log: PlacedEntry[]; // how it got where it is: each change of where it stood and why, newest first
   stack: Stack | null; // its stack, with it current

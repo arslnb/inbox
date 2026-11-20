@@ -2436,7 +2436,6 @@ export class Desk {
         sessions: this.sessions.active(),
         sections,
         notes: [...notes.due, ...notes.urgent, ...notes.open, ...notes.fyi],
-        reviewing: 0, // nothing waits on its review now: kept for older clients
         paused: this.paused(),
       };
     });
@@ -2548,7 +2547,6 @@ export class Desk {
         notes: this.notesView(snap),
         sessions: this.sessions.cards(),
         sections,
-        reviewing: 0, // as in focus()
         hidden: kept,
         cleared,
         resolved: resolved.sort((a, b) => (b.resolved_at ?? "").localeCompare(a.resolved_at ?? "")),
@@ -2684,7 +2682,6 @@ export class Desk {
         ai: snap.reviews.get(id) ?? null,
         ai_stale: (snap.reviews.get(id)?.head_oid ?? e.item.head_oid) !== e.item.head_oid,
         generating: this.aiRunning(id),
-        held: false, // as reviewing in focus()
         activity: this.store.activity({ after: 0, limit: ITEM_ACTIVITY, item: id, latest: true }),
         log: this.placements.log(id),
         stack: this.stack(id, snap),

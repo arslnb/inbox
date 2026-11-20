@@ -2105,7 +2105,6 @@ function focus(): FocusView {
   return {
     sessions: activeSessions(),
     sections,
-    reviewing: 0,
     paused: aiPaused ? { who: "claude", why: CLAUDE_PAUSED } : null,
   };
 }
@@ -2214,7 +2213,6 @@ function queue(): QueueView {
     notes: notesView(),
     sessions: sessionCards(),
     sections,
-    reviewing: 0,
     hidden,
     cleared: clearedCards,
     resolved: resolvedCards,
@@ -3192,7 +3190,6 @@ function detail(r: Rec): ItemDetail {
     ai,
     ai_stale: !!ai && ai.head_oid !== item.head_oid,
     generating: generating.has(r.id),
-    held: false,
     activity: EVENTS.filter((e) => e.item_id === r.id)
       .toReversed()
       .slice(0, 8),

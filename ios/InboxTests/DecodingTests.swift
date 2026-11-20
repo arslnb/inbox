@@ -30,7 +30,6 @@ final class DecodingTests: XCTestCase {
     XCTAssertEqual(q.sections?.blocked.count, 11)
     XCTAssertEqual([q.hidden.count, q.cleared.count, q.resolved.count], [1, 10, 3])
     XCTAssertEqual(q.stacks?.count, 4)
-    XCTAssertEqual(q.reviewing, 0)
     XCTAssertNil(q.paused)
     XCTAssertNil(q.firstPass)
 

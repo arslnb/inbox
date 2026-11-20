@@ -241,12 +241,10 @@ test("what you pin yourself, or an agent adds, is on your desk at once, reviewed
   assert.equal(onDesk("acme/api#2"), false, "a team ping is FYI");
   runSync(t.desk.act("api#2", "pin"));
   assert.equal(onDesk("acme/api#2"), true);
-  assert.equal(runSync(t.desk.item("api#2")).held, false);
 
   t.gh.items.set(ID, unknown());
   await run(t.desk.add(ID, "your call on the token transport", "seer write gate"));
   assert.equal(onDesk(ID), true);
-  assert.equal(runSync(t.desk.item(ID)).held, false, "kept for older clients: nothing is held now");
 });
 
 test("adding several PRs at once starts their AI reviews two at a time, as the background ones run", async (c) => {

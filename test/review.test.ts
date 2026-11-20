@@ -2084,7 +2084,6 @@ test("someone else's PR is on the queue at once, saying its review is on the way
   assert.deepEqual(t.f.started, ["acme/api#3", "acme/api#2"]);
   assert.equal(aiPending(pf("acme/api#3")), "AI reviewing", "being reviewed: on the queue, saying so");
   assert.equal(aiPending(pf("acme/api#1")), "AI review queued", "waiting its turn");
-  assert.equal(runSync(t.desk.queue()).reviewing, 0, "kept for older clients: nothing is held now");
   assert.deepEqual(pf("acme/api#9"), { state: "none" }, "an issue");
 
   await t.f.release("acme/api#3");

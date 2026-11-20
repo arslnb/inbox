@@ -143,7 +143,6 @@ const queue = (): QueueView => ({
     later: [card("acme/api#3")],
     fyi: [],
   },
-  reviewing: 0,
   hidden: [card("acme/api#4")],
   cleared: [card("acme/api#5", { status: "muted" })],
   resolved: [card("acme/api#6", { resolved: "merged", why: "merged" })],
