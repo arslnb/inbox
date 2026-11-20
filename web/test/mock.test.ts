@@ -314,7 +314,7 @@ test("resolved items sit apart from the queue's groups and boards; items carry t
 test("a review's checks agree with its PR's CI: failing first on a red one, with one running and the rest passing", async () => {
   const checks = async (id: string) => (await call<ReviewView>("GET", `/api/review/${encodeURIComponent(id)}?ahead=1`)).data.checks;
   const red = (await checks("oss/tinyhttp#205"))!;
-  assert.deepEqual([red.line, red.failing], ["3 failing, 1 running of 11 checks", true]);
+  assert.deepEqual([red.said, red.tone], ["Checks failing", "bad"]);
   const states = red.list.map((c) => c.state);
   assert.deepEqual(
     states,
@@ -335,8 +335,8 @@ test("a review's checks agree with its PR's CI: failing first on a red one, with
       url: "https://github.com/oss/tinyhttp/runs/20521",
     },
   );
-  assert.equal((await checks("acme/api#4127"))?.line, "CI passing · 11 checks");
-  assert.equal((await checks("acme/web#2301"))?.line, "3 running of 11 checks");
+  assert.equal((await checks("acme/api#4127"))?.said, "Checks passing");
+  assert.equal((await checks("acme/web#2301"))?.said, "Checks running");
   // Merging's failing check is the review's.
   const { data: lane } = await call<InflightView>("GET", "/api/inflight");
   const flying = lane.rows.find((r) => r.failing.length)!;

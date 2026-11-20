@@ -447,8 +447,8 @@
     ],
     "stack": null,
     "checks": {
-        "line": "CI passing \u00b7 11 checks",
-        "failing": false,
+        "said": "Checks passing",
+        "tone": "good",
         "list": [
             {
                 "name": "build",

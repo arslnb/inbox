@@ -310,16 +310,13 @@ struct ReviewState: View {
   }
 }
 
-// Status's words, the window's own (Review.tsx's checksState(), changesWord() and StatusPart), and the reviewers' actions.
+// Status's words, the window's own (Review.tsx's changesWord() and StatusPart), and the reviewers' actions.
 enum Status {
   enum Tone { case good, warn, bad }
 
-  // A required check failing is red; an optional one failing, one cancelled or one still running is amber.
+  // Where CI stands, as the desk says it (src/checks.ts).
   static func checks(_ c: Checks) -> (said: String, tone: Tone) {
-    if c.failing == true { return ("Checks failing", .bad) }
-    if c.list.contains(where: { $0.state == "failing" || $0.state == "cancelled" }) { return ("Some checks failing", .warn) }
-    if c.list.contains(where: { $0.state == "running" }) { return ("Checks running", .warn) }
-    return ("Checks passing", .good)
+    (c.said ?? "", c.tone == "bad" ? .bad : c.tone == "warn" ? .warn : .good)
   }
 
   // How big it is in a word, by its lines changed and its files.

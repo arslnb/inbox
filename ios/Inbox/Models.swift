@@ -971,8 +971,8 @@ struct Ask: Decodable, Identifiable, Sendable {
 
 // A PR's checks on its head commit. A check's name is untrusted GitHub text.
 struct Checks: Decodable, Sendable {
-  var line: String?  // "CI passing · 14 checks", "2 failing of 14 checks"
-  var failing: Bool?  // a check that counts is failing: the line is red
+  var said: String?  // where CI stands: "Checks failing", "Some checks failing", "Checks running", "Checks passing"
+  var tone: String?  // "good" | "warn" | "bad": red only for a required check failing
   @Lossy var list: [Check]  // failing first
 
   struct Check: Decodable, Sendable, Equatable {

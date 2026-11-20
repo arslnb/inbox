@@ -881,14 +881,12 @@ final class FormatTests: XCTestCase {
     XCTAssertEqual(Blocks.saidLine(""), "")
   }
 
-  // Status's words and thresholds, the window's (Review.tsx's checksState(), changesWord()).
+  // Status's words and thresholds, the window's (the desk's checks, Review.tsx's changesWord()).
   func testStatusWords() {
-    let check = { (state: String) in Checks.Check(name: state, state: state) }
-    XCTAssertEqual(Status.checks(Checks(failing: true, list: Lossy(wrappedValue: [check("failing")]))).said, "Checks failing")
-    XCTAssertEqual(Status.checks(Checks(failing: false, list: Lossy(wrappedValue: [check("passing"), check("cancelled")]))).said, "Some checks failing")
-    XCTAssertEqual(Status.checks(Checks(failing: false, list: Lossy(wrappedValue: [check("passing"), check("failing")]))).tone, .warn, "an optional one failing")
-    XCTAssertEqual(Status.checks(Checks(failing: false, list: Lossy(wrappedValue: [check("running"), check("passing")]))).said, "Checks running")
-    XCTAssertEqual(Status.checks(Checks(failing: false, list: Lossy(wrappedValue: [check("passing"), check("skipped")]))).said, "Checks passing")
+    let checks = { (said: String, tone: String) in Checks(said: said, tone: tone, list: Lossy(wrappedValue: [])) }
+    XCTAssertEqual(Status.checks(checks("Checks failing", "bad")).tone, .bad)
+    XCTAssertEqual(Status.checks(checks("Some checks failing", "warn")).tone, .warn)
+    XCTAssertEqual(Status.checks(checks("Checks passing", "good")).said, "Checks passing")
     XCTAssertEqual(Status.changes(add: 60, del: 40, files: 5), "Small changes", "100 lines in 5 files is small")
     XCTAssertEqual(Status.changes(add: 60, del: 41, files: 5), "Moderate changes")
     XCTAssertEqual(Status.changes(add: 10, del: 0, files: 6), "Moderate changes", "more than 5 files")
