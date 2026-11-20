@@ -17,8 +17,8 @@ import { hoursAgo, makeItem } from "./helpers/items.ts";
 import { refuseWrites } from "./helpers/writer.ts";
 import { run, runSync } from "./helpers/run.ts";
 import { Cache, Effect } from "effect";
-
-const posix = { skip: process.platform === "win32" };
+import { posix } from "./helpers/platform.ts";
+import { until } from "./helpers/wait.ts";
 
 const say = (id: string, author: string, body: string, h: number) => ({
   id,
@@ -272,14 +272,6 @@ echo "{\\"type\\":\\"result\\",\\"is_error\\":false,\\"structured_output\\":{\\"
     stdin: (n: number) => fs.readFileSync(path.join(dir, `stdin.${n}`), "utf8"),
     args: (n: number) => fs.readFileSync(path.join(dir, `args.${n}`), "utf8").split("\n"),
   };
-}
-
-async function until(cond: () => boolean): Promise<void> {
-  for (let i = 0; i < 500 && !cond(); i++)
-    await new Promise((r) => {
-      setTimeout(r, 10);
-    });
-  assert.ok(cond(), "timed out waiting");
 }
 
 function fakeWriter() {

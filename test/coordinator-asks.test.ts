@@ -11,7 +11,9 @@ import type { Ask, AsksView } from "../src/types.ts";
 import { myPr, setup } from "./helpers/desk.ts";
 import { NOW } from "./helpers/items.ts";
 import { failure, failureSync, run, runSync } from "./helpers/run.ts";
-import { posix, until, settle, starts, resumes, stops, ROLE, AGENT_ROLE, coordinated, OWNER, asking } from "./helpers/coordinator.ts";
+import { settle, starts, resumes, stops, ROLE, AGENT_ROLE, coordinated, OWNER, asking } from "./helpers/coordinator.ts";
+import { posix } from "./helpers/platform.ts";
+import { until } from "./helpers/wait.ts";
 
 test(
   "the desk stopping interrupts a run in flight: its claude is stopped, and nothing starts, is kept or notifies after",

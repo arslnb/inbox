@@ -9,8 +9,7 @@ import { as, claudeUsage, meterTo, transcriptUsage } from "../src/usage.ts";
 import { reviewAsk, setup } from "./helpers/desk.ts";
 import { NOW } from "./helpers/items.ts";
 import { run, runSync } from "./helpers/run.ts";
-
-const posix = { skip: process.platform === "win32" };
+import { posix } from "./helpers/platform.ts";
 
 test("claude's own modelUsage is a call's tokens and cost, by model", () => {
   assert.deepEqual(

@@ -9,8 +9,8 @@ import { Light } from "../src/light.ts";
 import { DEFAULTS, type Settings } from "../src/settings.ts";
 import { setup } from "./helpers/desk.ts";
 import { run } from "./helpers/run.ts";
+import { posix } from "./helpers/platform.ts";
 
-const posix = { skip: process.platform === "win32" };
 const SCHEMA = { type: "object", properties: { ok: { type: "boolean" } } };
 
 // A claude and a codex that record each call's args; codex refuses gpt-5.6-luna while `noluna` exists, as an account without it does.

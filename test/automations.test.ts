@@ -18,14 +18,7 @@ import { idle, myPr, reviewAsk, setup, teamPing, UNSCORED } from "./helpers/desk
 import { unixOnly } from "./helpers/platform.ts";
 import { hoursAgo, makeItem, NOW } from "./helpers/items.ts";
 import { run as runFx, runSync } from "./helpers/run.ts";
-
-async function until(cond: () => boolean): Promise<void> {
-  for (let i = 0; i < 500 && !cond(); i++)
-    await new Promise((r) => {
-      setTimeout(r, 10);
-    });
-  assert.ok(cond(), "timed out waiting");
-}
+import { until } from "./helpers/wait.ts";
 
 const DESK = { origin: "http://localhost:47823", "sec-fetch-site": "same-origin" };
 // The event log's kinds, as an automation may name them.

@@ -12,8 +12,9 @@ import { idle, myPr, reviewAsk, setup, teamPing } from "./helpers/desk.ts";
 import { hoursAgo, makeItem } from "./helpers/items.ts";
 import { run, runSync } from "./helpers/run.ts";
 import { Effect } from "effect";
+import { posix } from "./helpers/platform.ts";
+import { until } from "./helpers/wait.ts";
 
-const posix = { skip: process.platform === "win32" };
 const QUIET = { "policy.judge": false, "review.auto_ai": false, "notify.quiet": "" };
 const SVC = { name: "Service accounts", ask: "Is it about service accounts?", when: "!me.author", urgent: true };
 
@@ -50,10 +51,7 @@ printf '{"type":"result","is_error":false,"structured_output":%s}' "$(cat "$d/$k
 
 async function settled(t: Awaited<ReturnType<typeof setup>>) {
   await idle(t.desk);
-  for (let i = 0; i < 500 && (t.desk.urgency.running || (!t.desk.urgency.held && t.desk.urgency.next())); i++)
-    await new Promise((r) => {
-      setTimeout(r, 10);
-    });
+  await until(() => !(t.desk.urgency.running || (!t.desk.urgency.held && t.desk.urgency.next())));
 }
 
 const inbox = (t: Awaited<ReturnType<typeof setup>>) => runSync(t.desk.queue()).inbox;

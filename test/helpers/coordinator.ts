@@ -1,6 +1,5 @@
 // The coordinator tests' fake claude and helpers, shared by test/coordinator*.test.ts.
 import type { TestContext } from "node:test";
-import assert from "node:assert/strict";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -11,8 +10,6 @@ import type { AsksView } from "../../src/types.ts";
 import { myPr, setup } from "./desk.ts";
 import { NOW } from "./items.ts";
 import { run } from "./run.ts";
-
-export const posix = { skip: process.platform === "win32" };
 
 interface Session {
   id: string;
@@ -190,14 +187,6 @@ if (args[0] !== "agents" && args[0] !== "logs") {
       fs.renameSync(path.join(dir, "state.tmp"), path.join(dir, "state.json"));
     },
   };
-}
-
-export async function until(cond: () => boolean): Promise<void> {
-  for (let i = 0; i < 500 && !cond(); i++)
-    await new Promise((r) => {
-      setTimeout(r, 10);
-    });
-  assert.ok(cond(), "timed out waiting");
 }
 
 export const alive = (pid: number) => {

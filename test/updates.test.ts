@@ -13,9 +13,9 @@ import { createHash } from "node:crypto";
 import { bundleOf, macDmg, selfUpdates } from "../electron/lib.ts";
 import { download, release, swap } from "../electron/mac-update.ts";
 import { failure, run } from "./helpers/run.ts";
+import { posix } from "./helpers/platform.ts";
 
 // The Mac updater runs only on a Mac: its rm is the system's.
-const posix = { skip: process.platform === "win32" };
 
 test("newer compares x.y.z, a v allowed, a prerelease before its release", () => {
   assert.equal(newer("v0.2.0", "0.1.0"), true);

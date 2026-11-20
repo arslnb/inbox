@@ -11,10 +11,11 @@ import { analyze } from "../src/signals.ts";
 import type { AiReview, BoardConfig, Item, JudgeStep } from "../src/types.ts";
 import { FakeGitHub, hoursAgo, makeContext, makeItem, NOW } from "./helpers/items.ts";
 import { run, runSync } from "./helpers/run.ts";
+import { posix } from "./helpers/platform.ts";
+import { until } from "./helpers/wait.ts";
 
 const cfg = parseConfig(defaultConfigText({ workOrgs: ["acme"] })).loaded!.config;
 const ctx = makeContext();
-const posix = { skip: process.platform === "win32" };
 
 const entry = (item: Item): Entry => {
   const a = analyze(item, ctx, cfg, NOW);
@@ -772,14 +773,6 @@ printf '{"items":[%s]}' "$items" > "$out"
 const gray = (n: number, o: Partial<Item> = {}) =>
   makeItem({ number: n, author: "carol", review_requests: [{ reviewer: "ml-team", type: "team", codeowner: false }], ...o });
 
-async function until(cond: () => boolean): Promise<void> {
-  for (let i = 0; i < 500 && !cond(); i++)
-    await new Promise((r) => {
-      setTimeout(r, 10);
-    });
-  assert.ok(cond(), "timed out waiting");
-}
-
 async function setup(c: TestContext, items: Item[], o: { settings?: Record<string, unknown>; config?: string; home?: string } = {}) {
   const home = o.home ?? fs.mkdtempSync(path.join(os.tmpdir(), "desk-judge-"));
   const fake = fakeClaude();
@@ -801,12 +794,7 @@ async function setup(c: TestContext, items: Item[], o: { settings?: Record<strin
   });
   await run(desk.init());
   // Waits for the judge to go quiet: no call running.
-  const settle = async () => {
-    for (let i = 0; i < 500 && desk.judge.running; i++)
-      await new Promise((r) => {
-        setTimeout(r, 10);
-      });
-  };
+  const settle = () => until(() => !desk.judge.running);
   const sync = async () => {
     await run(desk.sync());
     await settle();
