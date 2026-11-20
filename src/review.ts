@@ -682,7 +682,25 @@ export function agentDir(home: string): string {
 export const makeAgentDir = (home: string): Effect.Effect<string, FsError> =>
   Effect.try({ try: () => agentDir(home), catch: fsError("mkdir", path.join(home, "agent")) });
 
-// No --restricted: with no tools and no MCP servers, your settings only bring your model, effort and plugins.
+// Your own claude with no tools and no MCP servers: no --restricted, so your settings only bring your model, effort and plugins.
+// With `read`, in a repo's code (your clone, or a PR's head checked out from it) with Read, Grep and Glob, and of Bash only
+// GitHub reads on your gh login (GETs and code search), so a review can open another repo's code or config: no MCP servers,
+// no hooks, and no settings of the repo's (a PR's author wrote them). -p asks for no permission, so anything else, a read
+// outside the repo included, is refused; the mode is set here so a default of yours can't widen it.
+const GITHUB_READS = "Bash(gh api -X GET:*),Bash(gh search code:*)";
+const READ_ONLY = [
+  "--tools",
+  "Read,Grep,Glob,Bash",
+  "--allowedTools",
+  GITHUB_READS,
+  "--permission-mode",
+  "default",
+  "--setting-sources",
+  "user",
+  "--settings",
+  JSON.stringify({ disableAllHooks: true }),
+];
+
 export const askClaude = Effect.fn("askClaude")(function* (
   prompt: string,
   opts: { command?: string } & AskOpts,
@@ -692,8 +710,7 @@ export const askClaude = Effect.fn("askClaude")(function* (
     "-p",
     "--output-format",
     "json",
-    "--tools",
-    "",
+    ...(opts.read ? READ_ONLY : ["--tools", ""]),
     "--strict-mcp-config",
     "--no-session-persistence",
     "--json-schema",
@@ -712,57 +729,10 @@ export const askClaude = Effect.fn("askClaude")(function* (
   return yield* metered(claudeEnvelope(out));
 });
 
-// Your own claude in a repo's code (your clone, or a PR's head checked out from it) with Read, Grep and Glob, and of Bash
-// only GitHub reads on your gh login (GETs and code search), so a review can open another repo's code or config: no MCP
-// servers, no hooks, and no settings of the repo's (a PR's author wrote them). -p asks for no permission, so anything else,
-// a read outside the repo included, is refused; the mode is set here so a default of yours can't widen it.
-const GITHUB_READS = "Bash(gh api -X GET:*),Bash(gh search code:*)";
-
-export const askClaudeIn = Effect.fn("askClaudeIn")(function* (
-  prompt: string,
-  dir: string,
-  schema: object = SCHEMA,
-  command: string = claudeCommand(),
-): Effect.fn.Return<ClaudeAnswer, CommandError | ClaudeError> {
-  const args = [
-    "-p",
-    "--output-format",
-    "json",
-    "--tools",
-    "Read,Grep,Glob,Bash",
-    "--allowedTools",
-    GITHUB_READS,
-    "--permission-mode",
-    "default",
-    "--strict-mcp-config",
-    "--setting-sources",
-    "user",
-    "--settings",
-    JSON.stringify({ disableAllHooks: true }),
-    "--no-session-persistence",
-    "--json-schema",
-    JSON.stringify(schema),
-  ];
-  const out = yield* runCommand(yield* claudeSpawn(command, args), {
-    input: prompt,
-    cwd: dir,
-    timeout: TIMEOUT,
-    stdoutOnError: true,
-    missing: claudeMissing(command),
-  });
-  return yield* metered(claudeEnvelope(out));
-});
-
 // The tool-less call on the agent you chose (Settings → Agent): the judge, the AI review and its check, the conversation
 // read and automations' questions all go through here, so they follow the setting from their next call.
 export const askAgent = (prompt: string, opts: { command?: string } & AskOpts): Effect.Effect<ClaudeAnswer, CommandError | ClaudeError> =>
-  opts.agent === "codex"
-    ? askCodex(prompt, opts)
-    : opts.agent === "opencode"
-      ? askOpencode(prompt, opts)
-      : opts.read
-        ? askClaudeIn(prompt, opts.dir, opts.schema, opts.command)
-        : askClaude(prompt, opts);
+  opts.agent === "codex" ? askCodex(prompt, opts) : opts.agent === "opencode" ? askOpencode(prompt, opts) : askClaude(prompt, opts);
 
 // The owner's own codex, as claude is: DESK_CODEX points tests and QA at a fake.
 export const codexCommand = () => (process.env.DESK_CODEX?.trim() ? process.env.DESK_CODEX : "codex");
