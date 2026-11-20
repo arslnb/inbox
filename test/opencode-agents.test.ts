@@ -22,8 +22,9 @@ import { agentDefs, agentName } from "../src/settings.ts";
 import { myPr, setup } from "./helpers/desk.ts";
 import { makeItem } from "./helpers/items.ts";
 import { failure, run, runSync } from "./helpers/run.ts";
+import { posix } from "./helpers/platform.ts";
+import { until } from "./helpers/wait.ts";
 
-const posix = { skip: process.platform === "win32" };
 const MCP = "http://localhost:49402/mcp";
 const ROLE =
   "You are my Inbox coordinator: the desk keeps you running and wakes you with a message when something changes on a PR in Merging. Follow the Coordinator section of the inbox skill.";
@@ -100,14 +101,6 @@ const DENY_ALL = Object.fromEntries(
     .concat(["question", "webfetch", "websearch", "codesearch", "lsp", "skill", "doom_loop"])
     .map((k) => [k, "deny"]),
 );
-
-async function until(cond: () => boolean): Promise<void> {
-  for (let i = 0; i < 500 && !cond(); i++)
-    await new Promise((r) => {
-      setTimeout(r, 10);
-    });
-  assert.ok(cond(), "timed out waiting");
-}
 
 // ---------------------------------------------------------------- the tool-less call
 

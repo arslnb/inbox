@@ -57,9 +57,8 @@ import { analyze } from "../src/signals.ts";
 import type { AiReview, Item, ReviewFile } from "../src/types.ts";
 import { FakeGitHub, hoursAgo, makeContext, makeItem, NOW } from "./helpers/items.ts";
 import { failure, failureSync, run, runSync } from "./helpers/run.ts";
+import { posix } from "./helpers/platform.ts";
 import { refuseWrites } from "./helpers/writer.ts";
-
-const posix = { skip: process.platform === "win32" };
 
 const PATCH = [
   "@@ -10,3 +10,4 @@ export function plan(q: Query) {",

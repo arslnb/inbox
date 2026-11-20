@@ -1,5 +1,8 @@
 import type { TestContext } from "node:test";
 
+// A test whose fake CLI is a #! script, or that needs POSIX paths or signals: skipped on Windows.
+export const posix = { skip: process.platform === "win32" };
+
 // A fake CLI written as a #! script can't run on Windows: a test that has one answer skips there.
 export function unixOnly(c: TestContext): boolean {
   if (process.platform !== "win32") return false;

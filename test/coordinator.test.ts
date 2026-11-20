@@ -13,7 +13,9 @@ import type { Ask, AskLines, AskPlace } from "../src/types.ts";
 import { myPr, reviewAsk, setup } from "./helpers/desk.ts";
 import { hoursAgo, makeItem, NOW } from "./helpers/items.ts";
 import { run, runSync } from "./helpers/run.ts";
-import { posix, until, alive, settle, starts, resumes, stops, ROLE, AGENT_ROLE, coordinated, asking } from "./helpers/coordinator.ts";
+import { alive, settle, starts, resumes, stops, ROLE, AGENT_ROLE, coordinated, asking } from "./helpers/coordinator.ts";
+import { posix } from "./helpers/platform.ts";
+import { until } from "./helpers/wait.ts";
 
 test(
   "a desk starting with nothing waiting only looks; the first hand-off starts one background session, its deny list, its link",

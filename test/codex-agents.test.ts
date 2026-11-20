@@ -9,8 +9,9 @@ import { loggedIn } from "../src/review.ts";
 import { myPr, setup } from "./helpers/desk.ts";
 import { makeItem } from "./helpers/items.ts";
 import { run, runSync } from "./helpers/run.ts";
+import { posix } from "./helpers/platform.ts";
+import { until } from "./helpers/wait.ts";
 
-const posix = { skip: process.platform === "win32" };
 const MCP = "http://localhost:49401/mcp";
 const ROLE =
   "You are my Inbox coordinator: the desk keeps you running and wakes you with a message when something changes on a PR in Merging. Follow the Coordinator section of the inbox skill.";
@@ -114,14 +115,6 @@ case "$1" in agents) echo '${row}';; --resume) echo "backgrounded · c0ffee01";;
   return {
     calls: () => (fs.existsSync(path.join(dir, "calls")) ? fs.readFileSync(path.join(dir, "calls"), "utf8").trim().split("\n") : []),
   };
-}
-
-async function until(cond: () => boolean): Promise<void> {
-  for (let i = 0; i < 500 && !cond(); i++)
-    await new Promise((r) => {
-      setTimeout(r, 10);
-    });
-  assert.ok(cond(), "timed out waiting");
 }
 
 // ---------------------------------------------------------------- an automation's agent run

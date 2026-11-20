@@ -8,7 +8,9 @@ import { Effect } from "effect";
 import { createApp } from "../src/server.ts";
 import { myPr, setup } from "./helpers/desk.ts";
 import { failure, run, runSync } from "./helpers/run.ts";
-import { posix, until, settle, starts, resumes, stops, ROLE, coordinated, NAME, ids, copying } from "./helpers/coordinator.ts";
+import { settle, starts, resumes, stops, ROLE, coordinated, NAME, ids, copying } from "./helpers/coordinator.ts";
+import { posix } from "./helpers/platform.ts";
+import { until } from "./helpers/wait.ts";
 
 test("bypass on: it starts in bypass mode, and wakes resume it with no flags, so it keeps that mode", posix, async (c) => {
   const t = await coordinated(c, { "agent.coordinator_bypass": true });

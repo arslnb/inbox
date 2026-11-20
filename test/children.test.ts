@@ -10,8 +10,8 @@ import { CommandTimeout } from "../src/errors.ts";
 import { generateReview, runCommand } from "../src/review.ts";
 import { FakeGitHub, makeItem, NOW } from "./helpers/items.ts";
 import { failure, run } from "./helpers/run.ts";
-
-const posix = { skip: process.platform === "win32" };
+import { posix } from "./helpers/platform.ts";
+import { until } from "./helpers/wait.ts";
 
 // A claude that never answers: it ignores SIGTERM, starts a child that outlives it unless its group is killed (as a hook
 // would), and records both pids.
@@ -62,14 +62,6 @@ const running = (pid: number) => {
   const stat = spawnSync("ps", ["-o", "stat=", "-p", String(pid)], { encoding: "utf8" }).stdout.trim();
   return stat !== "" && !stat.startsWith("Z");
 };
-
-async function until(cond: () => boolean, what = "timed out waiting"): Promise<void> {
-  for (let i = 0; i < 500 && !cond(); i++)
-    await new Promise((r) => {
-      setTimeout(r, 10);
-    });
-  assert.ok(cond(), what);
-}
 
 test("closing the desk stops the judge and an AI review, what they started, and what ignores SIGTERM", posix, async (c) => {
   const fake = stuckClaude(c);

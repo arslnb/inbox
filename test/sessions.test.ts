@@ -26,8 +26,8 @@ import { createApp } from "../src/server.ts";
 import { setup } from "./helpers/desk.ts";
 import { NOW } from "./helpers/items.ts";
 import { failure, run } from "./helpers/run.ts";
+import { posix } from "./helpers/platform.ts";
 
-const posix = { skip: process.platform === "win32" };
 const MIN = 60_000;
 const at = (mins: number) => new Date(NOW.getTime() + mins * MIN).toISOString();
 

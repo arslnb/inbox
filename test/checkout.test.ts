@@ -6,8 +6,8 @@ import os from "node:os";
 import path from "node:path";
 import { checkoutFor, prCheckout } from "../src/checkout.ts";
 import { failure, run } from "./helpers/run.ts";
+import { posix } from "./helpers/platform.ts";
 
-const posix = { skip: process.platform === "win32" };
 // Run from a git hook (pre-push), GIT_DIR and the like point every git here at the desk's own repo.
 for (const k of Object.keys(process.env)) if (k.startsWith("GIT_")) delete process.env[k];
 const git = (cwd: string, ...args: string[]) =>

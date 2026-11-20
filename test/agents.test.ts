@@ -10,6 +10,7 @@ import { setTimeout as sleep } from "node:timers/promises";
 import { Cause, Effect, Exit, Fiber } from "effect";
 import { connect, plan, refreshSkills, serverName, status } from "../src/agents.ts";
 import { failure, failureSync, run, runSync } from "./helpers/run.ts";
+import { posix } from "./helpers/platform.ts";
 
 const SKILL = readFileSync(join(import.meta.dirname, "..", "skills", "inbox", "SKILL.md"), "utf8");
 const MCP = "http://localhost:47961/mcp";
@@ -407,7 +408,6 @@ fs.writeFileSync(file, JSON.stringify(cfg));
 }
 const claudeServers = () =>
   (JSON.parse(readFileSync(join(home, ".claude.json"), "utf8")) as { mcpServers: Record<string, unknown> }).mcpServers;
-const posix = { skip: process.platform === "win32" };
 
 test("a desk's inbox that no longer answers is left from a gone desk: Connect replaces it with this desk", posix, async () => {
   fakeClaude();

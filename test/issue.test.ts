@@ -19,8 +19,9 @@ import type { IssueReview, Item } from "../src/types.ts";
 import { setup } from "./helpers/desk.ts";
 import { hoursAgo, makeItem } from "./helpers/items.ts";
 import { run, runSync } from "./helpers/run.ts";
+import { posix } from "./helpers/platform.ts";
+import { until } from "./helpers/wait.ts";
 
-const posix = { skip: process.platform === "win32" };
 const issue = (o: Partial<Item> = {}) =>
   makeItem({
     number: 9,
@@ -280,11 +281,3 @@ test("Make PR with fix asks your agent with our analysis, not the issue's words,
   const plain = await run(t.desk.ask({ text: "what do you think?", item_id: "api#9" }));
   assert.equal((await run(t.desk.askPlace(plain.id))).fix, null);
 });
-
-async function until(ok: () => boolean) {
-  for (let i = 0; i < 200 && !ok(); i++)
-    await new Promise((r) => {
-      setTimeout(r, 5);
-    });
-  assert.ok(ok());
-}

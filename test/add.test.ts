@@ -8,6 +8,7 @@ import { createApp } from "../src/server.ts";
 import { reviewAsk, setup, teamPing } from "./helpers/desk.ts";
 import { hoursAgo, makeItem, NOW } from "./helpers/items.ts";
 import { run, runSync } from "./helpers/run.ts";
+import { until } from "./helpers/wait.ts";
 
 // Adding starts Claude's read: never the real claude, even when run without the no-agent preload.
 process.env.DESK_CLAUDE = "/nonexistent/claude";
@@ -44,14 +45,6 @@ function fakeReview() {
     });
   };
   return { review, fetched, started, finish };
-}
-
-async function until(cond: () => boolean): Promise<void> {
-  for (let i = 0; i < 500 && !cond(); i++)
-    await new Promise((r) => {
-      setTimeout(r, 10);
-    });
-  assert.ok(cond(), "timed out waiting");
 }
 
 test("adding a PR the desk doesn't hold fetches it, pins it on the main page and starts its pre-review", async (c) => {

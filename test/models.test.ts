@@ -7,8 +7,7 @@ import { CLAUDE_MODELS, codexModels, opencodeModels } from "../src/models.ts";
 import { lightModel } from "../src/light.ts";
 import { agentDefs, DEFAULTS } from "../src/settings.ts";
 import { run } from "./helpers/run.ts";
-
-const posix = { skip: process.platform === "win32" };
+import { posix } from "./helpers/platform.ts";
 
 test(
   "Codex's models are what `codex debug models` lists and reasons with, in its order; its efforts are the levels any takes",

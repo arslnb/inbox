@@ -9,8 +9,8 @@ import type { Item } from "../src/types.ts";
 import { idle, reviewAsk, setup, teamPing } from "./helpers/desk.ts";
 import { hoursAgo } from "./helpers/items.ts";
 import { run, runSync } from "./helpers/run.ts";
+import { posix } from "./helpers/platform.ts";
 
-const posix = { skip: process.platform === "win32" };
 const QUIET = { "policy.judge": false, "review.auto_ai": false, "notify.quiet": "" };
 
 // A claude that answers answer.json's items and keeps each call's prompt.

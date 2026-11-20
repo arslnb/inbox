@@ -19,6 +19,7 @@ import { FakeGitHub, makeItem, NOW } from "./helpers/items.ts";
 import { unixOnly } from "./helpers/platform.ts";
 import { run } from "./helpers/run.ts";
 import { refuseWrites } from "./helpers/writer.ts";
+import { until } from "./helpers/wait.ts";
 
 delete process.env.DESK_UI_ORIGIN;
 delete process.env.DESK_DEV;
@@ -404,11 +405,6 @@ const RUNNING = {
   CertDomains: [NAME],
   User: { 42: { ID: 42, LoginName: OWNER } },
 };
-
-async function until(f: () => boolean, what: string) {
-  for (let i = 0; i < 200 && !f(); i++) await sleep(20);
-  assert.ok(f(), what);
-}
 
 const get = (target: string, p: string, headers: Record<string, string>) =>
   new Promise<number>((resolve, reject) => {

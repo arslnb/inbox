@@ -12,8 +12,8 @@ import { idle, myPr, reviewAsk, setup, teamPing } from "./helpers/desk.ts";
 import { hoursAgo, makeItem } from "./helpers/items.ts";
 import { run, runSync } from "./helpers/run.ts";
 import { Effect } from "effect";
+import { posix } from "./helpers/platform.ts";
 
-const posix = { skip: process.platform === "win32" };
 const QUIET = { "policy.judge": false, "review.auto_ai": false, "notify.quiet": "" };
 const SVC = { name: "Service accounts", ask: "Is it about service accounts?", when: "!me.author", urgent: true };
 
