@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { cls } from "../format.ts";
 import type { Fix, Notice } from "../notices.ts";
-import { withCode } from "./Review.tsx";
+import { withCode } from "./Prose.tsx";
 
 const FADE_MS = 8000;
 

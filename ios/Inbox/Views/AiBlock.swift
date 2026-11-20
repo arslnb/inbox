@@ -1,6 +1,6 @@
 import SwiftUI
 
-// The AI review's read of a PR, as the window's AiSection (web/src/components/Review.tsx): the goal; what it says of the
+// The AI review's read of a PR, as the window's AiSection (web/src/components/AiSection.tsx): the goal; what it says of the
 // stack and of the description; the rest of the summary folded, its first lines fading into Show more; what changed
 // since your review; its concerns only when they can't sit in the code. Its verdict is the header's tag and its risk
 // Status's. Or where the review stands: being written, failed, none. Every word of it is the model's: plain text, a URL
