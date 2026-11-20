@@ -1,4 +1,4 @@
-import type { Item, Preflight, Stage, Standing, Standings } from "./types.ts";
+import type { Attribution, Item, Preflight, Stage, Standing, Standings } from "./types.ts";
 
 // Only a collaborator's approval counts (the coordinator merges on it); anyone's change request holds the PR.
 export function verdicts(it: Item, self: string): { approved_by: string[]; changes_by: string[] } {
@@ -37,6 +37,10 @@ export function mergeOwed(it: Item, me: string): boolean {
   const mine = it.reviews.findLast((r) => lc(r.author) === lc(me) && r.state !== "commented" && r.state !== "pending");
   return mine?.state === "approved" && !verdicts(it, it.author).changes_by.length && it.review_decision !== "required";
 }
+
+// A bot's PR opened for nobody (a dependency bump), from a branch in a repo you maintain: you may push to it to get it merged.
+export const adoptable = (it: Item, attribution: Attribution | undefined): boolean =>
+  it.kind === "pr" && !!attribution && !attribution.person && !!it.maintains && lc(it.head_repo ?? "") === lc(it.repo);
 
 // `self` is the person whose own review doesn't count: the PR's author, or you on yours.
 export function stage(it: Item, self: string): Stage | undefined {

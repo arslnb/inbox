@@ -524,6 +524,26 @@ test("an ask says whose it is in the desk's words: my PR not handed off or in Me
   assert.equal(await about("web#5"), "about my PR acme/web#5 (https://github.com/acme/web/pull/5), merged");
 });
 
+test("a bot's PR opened for nobody from a branch in a repo you maintain is yours to push to, asked about or in Merging; elsewhere it's someone else's", async (c) => {
+  const bump = { author: "dependabot[bot]", author_bot: true, head_author: "dependabot[bot]", review_decision: "approved" } as const;
+  const t = await telling(c, [myPr(10, { ...bump, maintains: true }), myPr(11, bump)]);
+  const about = async (item_id: string) => {
+    const a = await run(t.desk.ask({ text: "x", item_id }));
+    return { line: /, (about .*): "x"/.exec(t.told.at(-1)!)?.[1], push: (await run(t.desk.askPlace(a.id))).push };
+  };
+  assert.deepEqual(await about("web#10"), {
+    line: "about a bot's PR in my repo acme/web#10 (https://github.com/acme/web/pull/10), not handed off",
+    push: { repo: "acme/web", branch: "change-10" },
+  });
+  assert.deepEqual(await about("web#11"), {
+    line: "about someone else's PR acme/web#11 (https://github.com/acme/web/pull/11), read only: don't push to it or post on it",
+    push: null,
+  });
+  for (const n of [10, 11]) runSync(t.desk.act(`web#${n}`, "inflight"));
+  const rows = (await run(t.desk.inflight())).rows;
+  assert.deepEqual(Object.fromEntries(rows.map((r) => [r.card.id, r.theirs])), { "acme/web#10": false, "acme/web#11": true });
+});
+
 test("askLine says where lines are by number and side only, and fails closed on an item that left the desk", () => {
   const a = (lines: AskLines | null, item_id: string | null = "acme/web#3"): Ask => ({
     id: "9c1e2f3a",

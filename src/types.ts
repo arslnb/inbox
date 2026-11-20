@@ -1237,7 +1237,7 @@ export interface InflightRow {
   mergeable: Mergeable;
   draft: boolean; // a draft PR
   rebase: boolean; // the desk gave it to the coordinator only to rebase (ready to merge but conflicts); it stays on your Inbox, not in the window's Merging, and leaves once mergeable
-  theirs: boolean; // someone else's approved PR you handed off: the coordinator merges it and nothing else
+  theirs: boolean; // someone else's approved PR you handed off: the coordinator merges it and nothing else (not adoptable())
   blocked_by: { ref: string; waits: string } | null; // another PR must merge first: pr.blocker and pr.blocker_waits
   requires_closed: string[]; // PRs it needs that were closed without merging, as repo#number: pr.requires_closed
   waits_on: string | null; // what it waits on, in Merging's words: "waits on CI", "ready to merge"; null once merged or closed
@@ -1331,7 +1331,7 @@ export interface AskLines extends InlineAt {
 // What an ask is about, in the desk's words: never PR text.
 export interface AskAbout {
   url: string;
-  whose: "mine" | "theirs" | "issue"; // `me.author` (yours, or a bot's opened for you: onBehalf()), or in Merging
+  whose: "mine" | "bot" | "theirs" | "issue"; // mine: `me.author` (yours, or a bot's opened for you: onBehalf()); bot: adoptable()
   merging: boolean;
   state: "open" | "closed" | "merged";
 }
@@ -1342,7 +1342,7 @@ export interface AskPlace {
   about: AskAbout | null; // null: about nothing, or the item left the desk
   head: string | null; // the PR's head at the desk's last sync
   base: string | null; // the PR's base branch: removed lines are numbered there
-  push: { repo: string; branch: string } | null; // only your own open PR's branch, in Merging or not; else null
+  push: { repo: string; branch: string } | null; // only your own open PR's branch, or an adoptable() bot's, in Merging or not; else null
   fix: { repo: string; base: string } | null; // Make PR with fix on an open issue: a new branch off base and a draft PR in repo; else null
 }
 

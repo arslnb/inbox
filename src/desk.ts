@@ -46,6 +46,7 @@ import { renderDoc, renderText } from "./render.ts";
 import { resolution, type Resolution } from "./resolve.ts";
 import { buildStacks, grouped, oneLinePerStack, stackRef, stackView, type Seat, type Stacks } from "./stacks.ts";
 import {
+  adoptable,
   andMore,
   askedAt,
   mergeLine,
@@ -3964,7 +3965,7 @@ export class Desk {
           mergeable: it.mergeable,
           draft: it.draft,
           rebase: !!m.rebase,
-          theirs: !e.analysis.signals.me.author,
+          theirs: !e.analysis.signals.me.author && !adoptable(it, e.analysis.attribution),
           blocked_by: e.analysis.signals.pr.blocked
             ? { ref: e.analysis.signals.pr.blocker, waits: e.analysis.signals.pr.blocker_waits }
             : null,
@@ -4350,7 +4351,8 @@ export class Desk {
     if (!e) return null;
     const it = e.item;
     // Someone else's PR in Merging is still theirs: the coordinator only merges it.
-    const whose = it.kind === "issue" ? "issue" : e.analysis.signals.me.author ? "mine" : "theirs";
+    const whose =
+      it.kind === "issue" ? "issue" : e.analysis.signals.me.author ? "mine" : adoptable(it, e.analysis.attribution) ? "bot" : "theirs";
     return { url: it.url, whose, merging: e.inflight, state: it.state };
   }
 
@@ -4363,7 +4365,7 @@ export class Desk {
       const about = this.askAbout(ask.item_id);
       const it = about && ask.item_id ? this.snapshot().entries.get(ask.item_id)?.item : undefined;
       const pr = it?.kind === "pr" ? it : null;
-      const mayPush = !!pr && about?.whose === "mine" && pr.state === "open" && !!pr.head_ref && !!pr.head_repo;
+      const mayPush = !!pr && (about?.whose === "mine" || about?.whose === "bot") && pr.state === "open" && !!pr.head_ref && !!pr.head_repo;
       // Make PR with fix: only while the issue is open and its pre-review still has the fix.
       const r = ask.fix && it?.kind === "issue" && it.state === "open" ? this.issueReview(it.id) : null;
       return {

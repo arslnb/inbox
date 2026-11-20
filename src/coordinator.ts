@@ -318,13 +318,13 @@ export function linesText(l: AskLines): string {
       : `${span(s.side)}line ${s.line} to ${span(l.side)}line ${l.line}`;
   return l.note ? `Claude's note at ${at}` : at;
 }
-const WHOSE = { mine: "my PR ", theirs: "someone else's PR ", issue: "the issue " };
+const WHOSE = { mine: "my PR ", bot: "a bot's PR in my repo ", theirs: "someone else's PR ", issue: "the issue " };
 const READ_ONLY = ", read only: don't push to it or post on it";
 function stateText(b: AskAbout): string {
   if (b.merging) return ", in Merging";
   const done = b.state === "open" ? "" : `, ${b.state}`;
   if (b.whose === "theirs") return `${done}${READ_ONLY}`;
-  return b.whose === "mine" && !done ? ", not handed off" : done;
+  return b.whose !== "issue" && !done ? ", not handed off" : done;
 }
 // The owner's words as they wrote them (they're trusted), on one line (cmd.exe can't pass a newline); the rest in the desk's words, never PR text.
 export function askLine(a: Ask, about: AskAbout | null): string {

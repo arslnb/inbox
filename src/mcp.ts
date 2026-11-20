@@ -928,7 +928,7 @@ const ago = (iso: string) => {
   const m = Math.round((Date.now() - Date.parse(iso)) / 60_000);
   return m < 1 ? "just now" : m < 60 ? `${m}m ago` : m < 2880 ? `${Math.round(m / 60)}h ago` : `${Math.round(m / 1440)}d ago`;
 };
-const WHOSE = { mine: "my PR", theirs: "someone else's PR", issue: "the issue" };
+const WHOSE = { mine: "my PR", bot: "a bot's PR in my repo", theirs: "someone else's PR", issue: "the issue" };
 // Single quotes keep $, globs and $(...) inert in a shell; ./ keeps a name that starts with a dash from reading as an option.
 const shellArg = (s: string) => `'${(s.startsWith("-") ? `./${s}` : s).replaceAll("'", "'\\''")}'`;
 
@@ -968,7 +968,7 @@ function askText(p: AskPlace): string {
   const { ask: a, about: b } = p;
   const l = a.lines ?? null;
   const id = a.item_id ? oneLine(a.item_id) : null;
-  const mine = b?.whose === "mine" && b.state === "open" ? ", not handed off" : "";
+  const mine = (b?.whose === "mine" || b?.whose === "bot") && b.state === "open" ? ", not handed off" : "";
   const about = !id
     ? "about nothing in particular"
     : b
