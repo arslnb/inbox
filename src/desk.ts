@@ -4781,11 +4781,14 @@ export class Desk {
   }
 
   // The tray's and the dock's count: an agent's question waiting on you counts as now.
+  // The menu bar and dock's count, the window's (inboxCount()): Urgent with the questions and sessions that need you, as `now`; Standard as `today`.
   status(): Effect.Effect<{ now: number; today: number; new: number; text: string }, Unavailable> {
-    return Effect.map(this.overview(), ({ focus: f }) => {
-      const now = f.now + f.asks;
-      const parts = [`${now + f.today}`, f.new ? `+${f.new}` : ""].filter(Boolean);
-      return { now, today: f.today, new: f.new, text: now || f.today ? `desk ${parts.join(" ")}` : "" };
+    return Effect.map(this.queue(), (v) => {
+      const now = v.inbox.urgent.length + v.inquiries.length + v.sessions.filter((s) => s.status === "active").length;
+      const today = v.inbox.standard.length;
+      const fresh = [...v.inbox.urgent, ...v.inbox.standard].filter((c) => c.new).length;
+      const parts = [`${now + today}`, fresh ? `+${fresh}` : ""].filter(Boolean);
+      return { now, today, new: fresh, text: now || today ? `desk ${parts.join(" ")}` : "" };
     });
   }
 }

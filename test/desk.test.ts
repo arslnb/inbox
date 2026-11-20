@@ -1483,3 +1483,17 @@ test("a file edited outside the desk is read again through the runner: one it ca
   t.desk.edited("settings.json");
   assert.deepEqual(t.desk.getSettings().errors, [], "gone, so no problem");
 });
+
+test("the menu bar and dock count what the window's Inbox counts", async (c) => {
+  const quietDraft = myPr(2, { draft: true, updated_at: hoursAgo(400) });
+  const t = await setup([reviewAsk(1), quietDraft, teamPing(3), myPr(4, { ci: "red" })]);
+  c.after(t.cleanup);
+  await run(t.desk.sync());
+  const v = runSync(t.desk.queue());
+  // inboxCount() in web/src/view.ts
+  const counted =
+    v.inbox.urgent.length + v.inbox.standard.length + v.inquiries.length + v.sessions.filter((x) => x.status === "active").length;
+  const s = runSync(t.desk.status());
+  assert.equal(s.now + s.today, counted);
+  assert.equal(s.text, `desk ${counted}${s.new ? ` +${s.new}` : ""}`);
+});
