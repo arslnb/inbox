@@ -7,10 +7,13 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { Effect } from "effect";
+import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { dueAt, nextAt, parseSchedule, scheduleWords, type Schedule } from "../src/automations.ts";
 import { GITHUB_AUTOMATIONS } from "../src/connectors/github-automations.ts";
 import { Desk } from "../src/desk.ts";
 import { judgeText } from "../src/judge.ts";
+import { createMcpServer } from "../src/mcp.ts";
 import { createApp } from "../src/server.ts";
 import type { Automation } from "../src/types.ts";
 import { fakeDecisions } from "./helpers/decisions.ts";
@@ -246,6 +249,17 @@ test("a run puts what it lists on the desk with its why; what's on your queue, d
     "mcp__inbox__inbox_inquiry", // reading your answer marks it picked up, and a run asked nothing
   ])
     assert.ok(deny.includes(r), r);
+  // Every desk tool is one of a run's reads or denied, however the owner's own settings allow it.
+  const [server, side] = InMemoryTransport.createLinkedPair();
+  await createMcpServer().connect(server);
+  const mcp = new Client({ name: "test", version: "0" });
+  await mcp.connect(side);
+  const tools = (await mcp.listTools()).tools.map((x) => `mcp__inbox__${x.name}`);
+  await mcp.close();
+  assert.deepEqual(
+    tools.filter((r) => !allowed.includes(r) && !deny.includes(r)),
+    [],
+  );
   assert.match(fake.stdin(1), /Look at getsentry\/warden's new issues/);
   assert.match(fake.stdin(1), /Read only\. Never write anywhere/);
   assert.match(fake.stdin(1), /This is its first run/);
