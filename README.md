@@ -59,7 +59,7 @@ The macOS build is ad-hoc signed and not notarized: the first time, right-click 
 
 The sidebar has four pages, plus **Ask your agent** and **Settings** in its footer.
 
-- **Inbox**: what needs you, in three sections, **Urgent**, **Standard** and **FYI** (see [Urgency](#urgency)). Each row is one line: the title, why it's there, who it's from, its age and at most one call to action, such as Ready for review on your draft or Merge on your PR that's ready. Agents' questions and sessions that need you lead Urgent. Someone else's PR arrives once its AI review is done. Anything untouched for two weeks drops to FYI.
+- **Inbox**: what needs you, in three sections, **Urgent**, **Standard** and **FYI** (see [Urgency](#urgency)). Each row is one line: the title, why it's there, who it's from, its age and at most one call to action, such as Ready for review on your draft or Hand off for merge on your PR that's ready. Agents' questions and sessions that need you lead Urgent. Someone else's PR shows at once; until its AI review is written, its row says so. Anything untouched for two weeks drops to FYI.
 - **Blocked**: your PRs that can't move yet, such as one that needs another PR merged first, or one waiting on reviewers. Each says what it waits on, down the chain. It comes back to your Inbox when that changes.
 - **Merging**: your PRs the coordinator is getting merged, each with what it waits on and the coordinator's latest note. Merged ones stay for 3 days. **Back to desk** takes one back.
 - **Archive**: what's done (by you, or resolved by GitHub: merged, closed, approved), then what you snoozed or muted and what your rules hid.
@@ -286,7 +286,7 @@ A run that added something, couldn't, or failed notifies you. When a question's 
 - Comment on a PR or an open issue, and comment on a line of a diff (the `+` by the line).
 - Reply under a conversation in a PR's review.
 - Ready for review on your draft (asking the reviewers you picked), and Ask reviewers on your ready PR.
-- Merge on your PR's row, when it's approved (or needs no review), green, not a draft, not stacked and mergeable. It uses the repo's merge method, pinned to the commit the desk checked.
+- Merge now in a PR's review (More), when it's approved (or needs no review), green, not a draft, not stacked and mergeable. It uses the repo's merge method, pinned to the commit the desk checked.
 - The More menu, when the desk allows it for that item: close, reopen, convert to draft or merge your PR, or re-request review from who reviewed it; request changes on someone else's, or take yourself off its reviewers; close an issue you opened or are assigned. The toast's Undo reopens or marks ready again.
 
 Everything else is read-only: GraphQL queries, GETs of your notifications (never marking them read) and of a PR's files. Agents can't reach the writer through MCP, the CLI or a paired machine's token; a tap on your paired phone counts as your click. (A program running as you on the desk's machine is not held back by this: [Security model](docs/api.md#security-model).) Hand off for merge, Back to desk and hand-backs write nothing. The coordinator pushes and merges with your own `git` and `gh`.

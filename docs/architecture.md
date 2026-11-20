@@ -103,14 +103,14 @@ Used by `when`, `filter` and criteria. No JS eval; only known signal fields.
 
 **Writes.** `src/github/write.ts` is the only module that writes. Its `ALLOWED` map is the complete list of mutations:
 
-| Mutation                                           | Sent when you…                                                                |
-| -------------------------------------------------- | ----------------------------------------------------------------------------- |
-| approve (pinned to the commit you saw)             | press Approve in a review                                                     |
-| reply, comment                                     | reply to a conversation, or comment on a PR or issue                          |
-| inline comment (pinned to the commit)              | comment on a line of the diff                                                 |
-| ready, request reviews                             | press Ready for review on your draft, or Ask reviewers                        |
-| merge (pinned with `expectedHeadOid`)              | press Merge on your own ready PR (its row's call to action, or the More menu) |
-| close, draft, reopen, request changes, close issue | use the More menu or a row's right-click menu                                 |
+| Mutation                                           | Sent when you…                                         |
+| -------------------------------------------------- | ------------------------------------------------------ |
+| approve (pinned to the commit you saw)             | press Approve in a review                              |
+| reply, comment                                     | reply to a conversation, or comment on a PR or issue   |
+| inline comment (pinned to the commit)              | comment on a line of the diff                          |
+| ready, request reviews                             | press Ready for review on your draft, or Ask reviewers |
+| merge (pinned with `expectedHeadOid`)              | press Merge now in a review's More menu                |
+| close, draft, reopen, request changes, close issue | use the More menu or a row's right-click menu          |
 
 Every write comes from a click in the desk's own window or a tap on your paired phone, is logged, and is recorded in the action log as something undo can't reverse. `Desk.actions()` decides which More-menu writes an item allows; anything else is a 409. No MCP tool or CLI command reaches `write.ts`. Adding a mutation is a product decision (AGENTS.md → Rules).
 
