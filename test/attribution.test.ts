@@ -10,6 +10,7 @@ import { idle, reviewAsk, setup, teamPing } from "./helpers/desk.ts";
 import { hoursAgo } from "./helpers/items.ts";
 import { run, runSync } from "./helpers/run.ts";
 import { posix } from "./helpers/platform.ts";
+import { until } from "./helpers/wait.ts";
 
 const QUIET = { "policy.judge": false, "review.auto_ai": false, "notify.quiet": "" };
 
@@ -39,10 +40,7 @@ function fakeClaude(c: TestContext) {
 
 async function settled(t: Awaited<ReturnType<typeof setup>>) {
   await idle(t.desk);
-  for (let i = 0; i < 500 && (t.desk.attributions.running || t.desk.attributions.due().length); i++)
-    await new Promise((r) => {
-      setTimeout(r, 10);
-    });
+  await until(() => !t.desk.attributions.running && !t.desk.attributions.due().length);
 }
 
 const claudePr = (o: Partial<Item> = {}) =>

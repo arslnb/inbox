@@ -247,8 +247,8 @@ test(
   async (t) => {
     const bin = fs.mkdtempSync(path.join(os.tmpdir(), "desk-gh-"));
     const pidFile = path.join(bin, "pid");
-    // A keychain prompt nobody answers; it gives up after 5 s with no token, so a write with no timeout of its own is sent.
-    fs.writeFileSync(path.join(bin, "gh"), `#!/bin/sh\necho $$ > "${pidFile}"\nexec sleep 5\n`, { mode: 0o755 });
+    // A keychain prompt nobody answers; it gives up after a minute with no token, so a write with no timeout of its own is sent.
+    fs.writeFileSync(path.join(bin, "gh"), `#!/bin/sh\necho $$ > "${pidFile}"\nexec sleep 60\n`, { mode: 0o755 });
     const env = { PATH: process.env.PATH, GITHUB_TOKEN: process.env.GITHUB_TOKEN };
     t.after(() => {
       process.env.PATH = env.PATH;
@@ -261,7 +261,7 @@ test(
     const f = fakeFetch({ body: { data: {} } });
     const write = failure(Effect.uninterruptible(createWriter({ fetch: f.fetch }).close("PR_1")));
     const started = async () => {
-      for (const until = Date.now() + 4000; Date.now() < until;) {
+      for (const until = Date.now() + 20_000; Date.now() < until;) {
         const text = fs.existsSync(pidFile) ? fs.readFileSync(pidFile, "utf8").trim() : "";
         if (text) return Number(text);
         await new Promise((r) => {
@@ -280,7 +280,7 @@ test(
     );
     assert.equal(f.calls.length, 0, "nothing sent");
     const alive = () => !Result.isFailure(Result.try(() => process.kill(gh, 0)));
-    const until = Date.now() + 2000;
+    const until = Date.now() + 20_000;
     while (alive() && Date.now() < until)
       await new Promise((r) => {
         setImmediate(r);

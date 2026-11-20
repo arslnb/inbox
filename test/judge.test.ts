@@ -794,12 +794,7 @@ async function setup(c: TestContext, items: Item[], o: { settings?: Record<strin
   });
   await run(desk.init());
   // Waits for the judge to go quiet: no call running.
-  const settle = async () => {
-    for (let i = 0; i < 500 && desk.judge.running; i++)
-      await new Promise((r) => {
-        setTimeout(r, 10);
-      });
-  };
+  const settle = () => until(() => !desk.judge.running);
   const sync = async () => {
     await run(desk.sync());
     await settle();
