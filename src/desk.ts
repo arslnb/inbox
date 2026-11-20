@@ -50,13 +50,15 @@ import {
   askedAt,
   mergeLine,
   mergeOwed,
+  mergeReviewed,
   owesReply,
   peopleOf,
-  reviewOptional,
+  readyToMerge,
   rerequestable,
   stage,
   standings,
   verdicts,
+  waitsOn,
 } from "./stage.ts";
 import { blockedOrder, dependencies, type DepFacts } from "./deps.ts";
 import { chains, loopThrough, NOTE, type Chains, type NodeState } from "./after.ts";
@@ -5057,15 +5059,6 @@ export class Desk {
   }
 }
 
-// The desk's ready rule: what o merges on GitHub, and what the More menu's merge needs.
-function readyToMerge(it: Item, me: string): boolean {
-  return mergeReviewed(it, me) && it.ci === "green" && it.mergeable === "clean" && !it.draft;
-}
-
-// Approved, or in a repo that needs no review with nobody asking for changes.
-const mergeReviewed = (it: Item, me: string) =>
-  it.review_decision === "approved" || (reviewOptional(it) && !verdicts(it, me).changes_by.length);
-
 function countsOf(r: BoardResult): Record<Bucket, number> {
   return {
     now: r.order.now.length,
@@ -5087,25 +5080,6 @@ function statusOf(s: StateRow, activityAt: string, now: Date): Status {
   if (s.snooze_until && now.toISOString() < s.snooze_until && !(s.snooze_on_activity && activityAt > (s.acked_at ?? s.snoozed_at ?? "")))
     return "snoozed";
   return "active";
-}
-
-// What a PR in Merging waits on, the first thing between it and a merge.
-function waitsOn(r: Omit<InflightRow, "card" | "waits_on" | "note">): string | null {
-  const names = (xs: string[]) => (xs.length > 2 ? `${xs.slice(0, 2).join(", ")} and ${xs.length - 2} more` : xs.join(", "));
-  const threads = r.threads_unresolved;
-  if (r.state !== "open") return null;
-  if (r.rebase) return "rebasing";
-  if (r.blocked_by) return `waits on ${r.blocked_by.ref} to merge first`;
-  if (r.requires_closed.length) return `needs ${r.requires_closed.join(", ")}, closed without merging`;
-  if (r.ci === "red") return "waits on a CI fix";
-  if (r.mergeable === "conflict") return "waits on a merge conflict fix";
-  if (r.changes_by.length) return `waits on a second look from ${names(r.changes_by)}`;
-  if (r.ci === "pending") return r.review_optional ? "can merge once CI passes: no review needed" : "waits on CI";
-  if (threads) return `waits on ${threads} unresolved ${threads === 1 ? "thread" : "threads"}`;
-  if (!r.approved_by.length && !r.review_optional)
-    return r.waiting_on.length ? `waits on a review from ${names(r.waiting_on)}` : "waits on a review";
-  if (r.stacked) return `waits on ${r.base} to merge first`;
-  return "ready to merge";
 }
 
 // A question's link: https, the one scheme the desktop app's window opens; nothing a click would run.
