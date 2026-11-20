@@ -141,6 +141,35 @@ test("in a repo that needs no review, your approval is what hands someone else's
   assert.equal((await run(t.desk.inflight())).rows.find((r) => r.card.id === "acme/api#2")?.theirs, true);
 });
 
+test("the desk offers Hand off for merge on your open PR through its review and on anyone's approved one, never in Merging", async (c) => {
+  const t = await setup(
+    [
+      myPr(3, { review_decision: "approved" }),
+      myPr(4, { review_decision: "none" }),
+      myPr(5, { review_decision: "required" }), // getsentry/sentry#129460: still waits on its review
+      myPr(6, { review_decision: "changes_requested" }),
+      myPr(7, { review_decision: "approved", draft: true }),
+      reviewAsk(1),
+      reviewAsk(2, { review_decision: "approved" }),
+    ],
+    { settings: { "policy.judge": false } },
+  );
+  c.after(t.cleanup);
+  await run(t.desk.sync());
+  const offered = (ref: string) => runSync(t.desk.item(ref)).card.hands_off ?? false;
+  assert.deepEqual(["web#3", "web#4", "web#5", "web#6", "web#7", "api#1", "api#2"].map(offered), [
+    true,
+    true,
+    false,
+    false,
+    false,
+    false,
+    true,
+  ]);
+  runSync(t.desk.act("web#3", "inflight"));
+  assert.equal(offered("web#3"), false, "in Merging: Back to desk instead");
+});
+
 test("in Merging, the coordinator owns it: done, snooze and mute are refused, and the judge leaves it alone", async (c) => {
   process.env.DESK_CLAUDE = "/nonexistent/claude";
   const t = await setup([myPr(3, { ci: "pending" })]);
@@ -686,12 +715,12 @@ test("in a repo that needs no review, your ready PR nobody's asked is handed off
   await run(t.desk.sync());
   const d = (ref: string) => runSync(t.desk.item(ref));
   assert.deepEqual(
-    ["web#3", "web#4", "web#5", "web#6"].map((r) => [d(r).card.cta, d(r).card.review_optional, d(r).signals.pr.review_optional]),
+    ["web#3", "web#4", "web#5", "web#6"].map((r) => [d(r).card.cta, d(r).card.hands_off, d(r).signals.pr.review_optional]),
     [
       ["reviewers", true, true],
       ["reviewers", undefined, false],
       ["reviewers", undefined, false],
-      ["ready", true, true],
+      ["ready", undefined, true],
     ],
     "Add reviewers stays its call to action; a draft is Ready for review first",
   );

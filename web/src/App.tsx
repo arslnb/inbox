@@ -34,7 +34,6 @@ import { dropKey, settleNoteEdits, withNoteEdits, type NoteEdits } from "./pendi
 import {
   attachCommand,
   beside,
-  awaitsReview,
   DEFAULT_OPEN,
   filterPeople,
   groupsOf,
@@ -1613,11 +1612,8 @@ export function App() {
     else if (k === "a" && c.cta === "handoff") handOff(c);
     else if (k === "a" && c.cta === "reviewers")
       openCard(c); // its review, with the reviewers box ready
-    // Yours (or a bot's for you), or anyone's approved PR, resolved by your approval or not; the desk says no to the rest.
-    else if (k === "handoff" && c.kind === "pr") {
-      if (awaitsReview(c)) flash(`${shortRef(c)} isn't approved yet`);
-      else handOff(c);
-    } else if (k === "o") {
+    else if (k === "handoff") handOff(c);
+    else if (k === "o") {
       window.open(c.url, "_blank", "noopener,noreferrer");
       runUi(seen(c));
     } else if (k === "e" || k === "d") runUi(act(c, c.status === "active" ? "done" : "restore"));

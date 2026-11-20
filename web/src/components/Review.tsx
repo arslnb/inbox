@@ -196,7 +196,7 @@ export function Review({
   id: string;
   known: Card | null; // its row's card, drawn at once while the review is on its way
   loads: number; // bumped on every refresh, so the review follows the server's updates
-  me: string; // your login: Hand off for merge and Back to desk are for your own PRs
+  me: string; // your login
   now: number;
   flash: (text: string, error?: boolean) => void;
   onCard: (c: Card, key: string) => void; // d Done, handoff Hand off for merge, b Back to desk: as in its row's menu
@@ -797,7 +797,6 @@ export function Review({
 
   const { card, item, files } = view;
   const isMine = card.by === "you"; // yours, or a bot's opened for you
-  const mine = item.state === "open" && isMine;
   const size = item.changed_files ? { add: item.additions, del: item.deletions } : null;
   const deps = depFacts(card);
   const resolved = card.resolved ? resolvedHead(view.activity, card.resolved, me) : null;
@@ -1013,11 +1012,9 @@ export function Review({
         />
       )}
       {/* While you owe replies, Reply is the one filled button. */}
-      {/* Yours, or anyone's approved PR: your agent gets it merged (someone else's, by merging it alone). */}
-      {(mine || (item.state === "open" && (card.inflight || card.review === "approved" || card.stage === "approved"))) &&
-        !(acted?.where === "inflight" && !card.inflight) && (
-          <HandButton card={card} run={run} primary={card.cta !== "reply" && !asking && !acted} />
-        )}
+      {!(acted?.where === "inflight" && !card.inflight) && (
+        <HandButton card={card} run={run} primary={card.cta !== "reply" && !asking && !acted} />
+      )}
       <span className="more-wrap">
         <MoreButton
           open={more}

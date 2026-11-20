@@ -598,7 +598,7 @@ final class Store {
     }
   }
 
-  // Hand off for merge: your agent gets it merged. Offer it when card.handsOff. No Undo: Back to desk is the undo.
+  // Hand off for merge: your agent gets it merged. Offered where the desk says (card.handsOff). No Undo: Back to desk is the undo.
   @discardableResult
   func handOff(_ c: Card) async -> Bool {
     await write(c.id, leaves: true) { client in

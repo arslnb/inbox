@@ -256,7 +256,7 @@ struct ItemPage: View {
     if open, c.isPR, c.mine, c.inflight != true, main != "reviewers" {
       Button(c.draft == true ? "Ready for review, asking reviewers" : "Add reviewers") { box = .reviewers }
     }
-    if open, c.handsOff, c.mine || c.review == "approved", main != "handoff" { Button("Hand off for merge") { press("handoff", c) } }
+    if open, c.handsOff == true, main != "handoff" { Button("Hand off for merge") { press("handoff", c) } }
     // Your chat with your agent, about this PR or issue. Nothing is sent until you send it there.
     if store.asksAgent, Asking.offered(c, blockedAuthor: detail?.blockedAuthor, landed: landed) {
       Button("Ask your agent") { store.openChat(ChatAbout(item: c.id)) }
