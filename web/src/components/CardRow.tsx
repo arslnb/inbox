@@ -104,7 +104,7 @@ export function CardRow({ card, variant, ctx, why, tree }: { card: Card; variant
       data-tip={CTA[card.cta].title}
       onClick={() => {
         if (card.cta === "reply") ctx.click(card);
-        else ctx.run(card, "a");
+        else ctx.run(card, "cta");
       }}
     >
       {CTA[card.cta].label}

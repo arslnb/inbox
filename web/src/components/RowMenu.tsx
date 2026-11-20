@@ -55,7 +55,7 @@ export function RowMenu({ card, x, y, snooze, run, act, github, reopen, onClose 
   // a click on the row, its call to action, or its review.
   const groups: Entry[][] = [
     card.inflight
-      ? [go("Back to the desk", "b")]
+      ? [go("Back to the desk", "back")]
       : [card.status === "active" ? DONE : { label: "Back on the desk", do: { act: "restore" as const } }],
     card.section && card.status === "active" && !card.inflight
       ? MOVES[card.section].map((to) => ({ label: `Move to ${SECTION_NAME[to]}`, do: { act: to } }))
