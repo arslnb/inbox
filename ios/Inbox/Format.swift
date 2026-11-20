@@ -230,7 +230,7 @@ enum Words {
     return parts.joined(separator: ", ")
   }
 
-  // MARK: The AI review's words (src/sections.ts, AiSection in web/src/components/Review.tsx)
+  // MARK: The AI review's words (src/sections.ts, AiSection in web/src/components/AiSection.tsx)
 
   static let fit: [String: String] = ["partial": "Not quite what the description says", "differs": "Not what the description says"]
 

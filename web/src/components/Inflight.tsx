@@ -1,7 +1,7 @@
 import { JOB_ATTEMPTS, type CoordinatorView, type InflightRow, type InflightView, type Work } from "../../../src/types.ts";
 import { age, cls, fromName, aiName } from "../format.ts";
 import { Dots } from "./Detail.tsx";
-import { withCode } from "./Review.tsx";
+import { withCode } from "./Prose.tsx";
 import { SkRows } from "./Skeleton.tsx";
 import { attachCommand } from "../view.ts";
 

@@ -32,7 +32,7 @@ import { AutomationRows, AutomationView, NewAutomation, useAutomations } from ".
 import { Usage } from "./Usage.tsx";
 import { Criteria } from "./Criteria.tsx";
 import { Rules, type RuleFocus } from "./Rules.tsx";
-import { withCode } from "./Review.tsx";
+import { withCode } from "./Prose.tsx";
 import { SkLines } from "./Skeleton.tsx";
 import { SourceLine } from "./Source.tsx";
 import {
