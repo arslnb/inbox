@@ -2518,6 +2518,7 @@ const SHOTS: Shot[] = [
       await reviewAs((v) => {
         if (v.card.id !== "acme/api#3051") return;
         Object.assign(v.card, { cta: "reviewers", handed_back: true, why: "nobody's asked to review it: add reviewers" });
+        delete v.card.hands_off;
         v.item = { ...v.item, review_requests: [] };
       })(page);
       await at(`#/review/${encodeURIComponent("acme/api#3051")}`)(page);
@@ -2546,7 +2547,7 @@ const SHOTS: Shot[] = [
           handed_back: true,
           why: "nobody's asked to review it: add reviewers",
           review: "none",
-          review_optional: true,
+          hands_off: true,
         });
         v.item = { ...v.item, review_requests: [], review_decision: "none" };
       })(page);

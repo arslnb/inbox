@@ -549,7 +549,7 @@ final class FormatTests: XCTestCase {
     XCTAssertEqual(Words.act["ready"], Words.cta["ready"], "a row's call to action keeps the row's words")
     // Your ready PR's row asks to hand it off; a cta this app doesn't know falls back to what the item is there for.
     let row = { (cta: String) in
-      try DeskJSON.decoder().decode(Card.self, from: Data(#"{"id":"me/a#1","kind":"pr","repo":"me/a","number":1,"title":"t","by":"you","review":"approved","cta":"\#(cta)"}"#.utf8))
+      try DeskJSON.decoder().decode(Card.self, from: Data(#"{"id":"me/a#1","kind":"pr","repo":"me/a","number":1,"title":"t","by":"you","review":"approved","hands_off":true,"cta":"\#(cta)"}"#.utf8))
     }
     XCTAssertEqual(try row("handoff").act(open: true), "handoff")
     XCTAssertEqual(Words.act["handoff"], "Hand off for merge")

@@ -557,21 +557,13 @@ final class DecodingTests: XCTestCase {
     XCTAssertEqual(Words.andMore(["a", "b", "c"]), "a, b and 1 more")
   }
 
-  // view.ts's handsOff(): through its review, not a draft, and somebody asked (or nobody needed).
+  // Hand off for merge is the desk's call (Desk.handsOff()): offered only where the card says so.
   func testWhatIsHandedOffForMerge() throws {
     let card = { (more: String) in
       try DeskJSON.decoder().decode(Card.self, from: Data(#"{"id":"a/b#1","kind":"pr","repo":"a/b","number":1,"title":"t"\#(more)}"#.utf8))
     }
-    XCTAssertTrue(try card(#","review":"approved""#).handsOff)
-    XCTAssertTrue(try card(#","review":"none""#).handsOff)
-    XCTAssertFalse(try card(#","review":"required""#).handsOff)
-    XCTAssertFalse(try card(#","review":"changes_requested""#).handsOff)
-    XCTAssertFalse(try card(#","review":"approved","draft":true"#).handsOff)
-    XCTAssertFalse(try card(#","review":"none","cta":"reviewers""#).handsOff, "add reviewers first")
-    XCTAssertTrue(try card(#","review":"none","cta":"reviewers","review_optional":true"#).handsOff, "its repo needs no review")
-    XCTAssertFalse(try card(#","review":"approved","inflight":true"#).handsOff, "in Merging already: Back to desk")
-    let issue = try DeskJSON.decoder().decode(Card.self, from: Data(#"{"id":"a/b#2","kind":"issue","repo":"a/b","number":2,"title":"t"}"#.utf8))
-    XCTAssertFalse(issue.handsOff)
+    XCTAssertEqual(try card(#","hands_off":true"#).handsOff, true)
+    XCTAssertNil(try card(#","review":"approved""#).handsOff)
   }
 
   // What reviewers said, as the mock's reply-only PR has it: read and unread, on a line and on the PR, outdated, resolved.

@@ -2253,7 +2253,7 @@ export class Desk {
         !e.inflight &&
         actions.includes("merge") &&
         readyToMerge(it, this.me()) && { cta: "handoff" as const }),
-      ...(me.author && sig.review_optional && { review_optional: true as const }),
+      ...(this.handsOff(e) && { hands_off: true as const }),
       ...(talked(it, this.me()) && { talk: true as const }),
       ...(actions.length > 0 && { actions }),
       ...(by && { placed_by: by }),
@@ -2265,6 +2265,16 @@ export class Desk {
       ...(sig.blocks.length > 0 && { blocks: sig.blocks }),
       ...(snap.steps.has(it.id) && { waiting: snap.steps.get(it.id)! }),
     };
+  }
+
+  // Hand off for merge, offered on an open PR through its review that isn't a draft or in Merging: yours once no review holds
+  // it and someone's asked (unless its repo needs no review), anyone else's once approved. act() takes more (docs/api.md).
+  private handsOff(e: Entry): boolean {
+    const it = e.item;
+    if (it.kind !== "pr" || it.state !== "open" || it.draft || e.inflight) return false;
+    const sig = e.analysis.signals;
+    if (!sig.me.author) return it.review_decision === "approved" || stage(it, it.author) === "approved";
+    return (!sig.pr.unasked || sig.pr.review_optional) && it.review_decision !== "required" && it.review_decision !== "changes_requested";
   }
 
   // A stack member's place on the queue, for the stack's views.

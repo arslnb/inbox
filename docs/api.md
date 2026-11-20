@@ -324,7 +324,7 @@ interface Card {
   preflight?: Preflight; // Now and Today only
   handed_back?: boolean; // your PR back on top; its why says why
   cta?: "ready" | "reply" | "reviewers" | "handoff"; // the row's one call to action
-  review_optional?: true; // your PR's repo needs no review: Hand off for merge beside Add reviewers
+  hands_off?: true; // Hand off for merge is offered: an open PR through its review, yours or approved
   talk?: true; // people said something on it
   actions?: GitHubAction[]; // the More menu's writes allowed now
   resolved: string | null; // "merged", "approved by alice", …; null while open
@@ -1742,7 +1742,7 @@ Your own open PR, once you're done with it, goes to Merging with **Hand off for 
 
 - A draft answers 409: Ready for review is yours, so it would wait on you in Merging.
 - Someone else's PR that isn't approved answers 409.
-- The window offers Hand off for merge only on a PR through its review (`review` `approved` or `none`: `handsOff()` in `web/src/view.ts`), and, in a repo that needs no review, beside Add reviewers ([below](#nobodys-asked-to-review-it)). The API also takes one still waiting on its review, as the coordinator's tests and a PR whose approval a push dismissed need.
+- The desk offers Hand off for merge (`hands_off: true` on the card, `Desk.handsOff()`; the window and the phone draw it from that) only on an open PR through its review that isn't a draft or in Merging: your own once no review holds it (`review` `approved` or `none`) and someone's asked to review it, or, in a repo that needs no review, beside Add reviewers ([below](#nobodys-asked-to-review-it)); anyone else's once approved. The API also takes your own still waiting on its review, as the coordinator's tests and a PR whose approval a push dismissed need.
 - **Back to desk** (`takeback`) brings it back. Undo (the toast's, or the API's from the own page) reverses either. Handing it off again starts afresh, without the last note or hand-back.
 - Neither writes to GitHub. Done on your own PR is plain done, as anywhere.
 
@@ -1792,7 +1792,7 @@ Your open PR that isn't a draft, that nobody is asked to review, and that nobody
 
 **A repo that needs no review** (`pr.review_optional`: GitHub gives no review decision, `review: "none"`, on a PR based on the default branch, as with no branch protection or ruleset asking for one; a stacked PR's base never asks, so it doesn't count) isn't held back by any of that:
 
-- Add reviewers stays its call to action, with Hand off for merge beside it (`review_optional: true` on your card; Ask reviewers stays the filled button in its review).
+- Add reviewers stays its call to action, with Hand off for merge beside it (`hands_off: true` on your card; Ask reviewers stays the filled button in its review).
 - A hand-off takes it, and the desk doesn't hand it back for having nobody asked.
 - Its `pr.waits` doesn't wait on a review, and Merging says it can merge once CI passes.
 - The coordinator's wake says so on each of its lines (`NO_REVIEW` in `src/coordinator.ts`: merging on green CI is expected and low stakes), as `inbox_merging` does ("no review needed").

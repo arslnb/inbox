@@ -1997,7 +1997,7 @@ function cardOf(r: Rec, p: Placement): Card {
     inflight: inFlight(r),
     ...(handedBack(r) && { handed_back: true }),
     ...(me.author && s.draft && !s.resolved && sig.item.kind === "pr" && { cta: "ready" as const }),
-    ...(me.author && sig.pr.review_optional && { review_optional: true as const }),
+    ...(handsOff(r) && { hands_off: true as const }),
     ...(!!TALK.get(r.id)?.length && { talk: true as const }),
     ...(actions.length > 0 && { actions }),
     ...(!inFlight(r) && !handedBack(r) && by && { placed_by: by }),
@@ -2363,6 +2363,14 @@ for (const r of recs) if (r.seed.fly?.note) laneNotes.set(r.id, { text: r.seed.f
 
 const inFlight = (r: Rec) => !!r.state.inflight_at && !r.seed.resolved && (r.seed.kind ?? "pr") === "pr";
 const laneOwned = (r: Rec) => inFlight(r) && status(r) === "active";
+// As Desk.handsOff(): an open PR through its review, not a draft nor in Merging; yours, or anyone's approved.
+function handsOff(r: Rec): boolean {
+  const it = itemOf(r);
+  const sig = signals(r);
+  if (it.kind !== "pr" || it.state !== "open" || it.draft || inFlight(r)) return false;
+  if (!sig.me.author) return it.review_decision === "approved" || stage(it, it.author) === "approved";
+  return (!sig.pr.unasked || sig.pr.review_optional) && it.review_decision !== "required" && it.review_decision !== "changes_requested";
+}
 // Another PR blocks it and the rules keep it in Blocked: the hand-back waits there until that PR merges.
 const handedBack = (r: Rec) =>
   !!r.seed.back && !inFlight(r) && !r.seed.resolved && status(r) === "active" && !(r.seed.blocker && bestPlacement(r).bucket === "blocked");

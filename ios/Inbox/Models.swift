@@ -179,7 +179,7 @@ struct Card: Decodable, Identifiable, Sendable {
   var wakeOn: [String]?
   var doneAt: String?
   var cta: String?  // "ready" | "reply" | "reviewers" | "handoff"
-  var reviewOptional: Bool?
+  var handsOff: Bool?  // the desk offers Hand off for merge on it
   var actions: [String]?  // the GitHub writes the desk allows on it now (Words.more names them); absent when none
   var resolved: String?
   var resolvedAt: String?
@@ -250,11 +250,6 @@ struct Card: Decodable, Identifiable, Sendable {
     return "\(person.hasPrefix("@") ? String(person.dropFirst()) : person) via \(agent)"
   }
   var active: Bool { (status ?? "active") == "active" }
-  // Hand off for merge is for a PR through its review (view.ts's handsOff()): not a draft, not one awaiting review, nor
-  // one nobody's asked unless its repo needs no review. Offered on your own open PR; the desk refuses the rest in words.
-  var handsOff: Bool {
-    isPR && draft != true && inflight != true && (cta != "reviewers" || reviewOptional == true) && !["required", "changes_requested"].contains(review ?? "")
-  }
   // The one thing its page is there for (Words.act names it): the row's own call to action, else Approve on someone's
   // PR, Comment on an issue, Hand off for merge on yours once it's through review. None in Merging or once it's closed.
   // `open` is GitHub's state alone, as the window's review has it: an open PR the desk resolved ("approved by alice",
@@ -264,7 +259,7 @@ struct Card: Decodable, Identifiable, Sendable {
     if let cta, Words.cta[cta] != nil { return cta }
     if !isPR { return "comment" }
     if !mine { return "approve" }
-    return handsOff ? "handoff" : nil
+    return handsOff == true ? "handoff" : nil
   }
 
   var shortRef: String { "\(repo.split(separator: "/").last.map(String.init) ?? repo)#\(number)" }

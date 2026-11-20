@@ -1,7 +1,7 @@
 import { useState, type ReactNode } from "react";
 import type { Bucket, Card, IssueReview, ItemDetail, Placement, ReviewDecision, Signals } from "../../../src/types.ts";
 import { age, BUCKET_LABEL, cls, eventText, handoffLabel, aiName } from "../format.ts";
-import { cardFacts, handsOff, judgeStepText, says } from "../view.ts";
+import { cardFacts, judgeStepText, says } from "../view.ts";
 import type { RowCtx } from "./CardRow.tsx";
 import { Prose } from "./Prose.tsx";
 import { SkLines } from "./Skeleton.tsx";
@@ -224,19 +224,19 @@ export function Dots({ parts }: { parts: ReactNode[] }) {
 
 const BACK_TITLE = "Out of Merging and back on your desk; your agent leaves it alone";
 
-// Your own open PR: Hand off for merge (green: a yes, like Approve), or Back to desk from Merging. The same on an opened
-// item and a review.
+// Hand off for merge where the desk offers it (green: a yes, like Approve), or Back to desk from Merging. The same on an
+// opened item and a review.
 export function HandButton({
   card,
   run,
   primary,
 }: {
-  card: Pick<Card, "inflight" | "draft" | "cta" | "review" | "review_optional">;
+  card: Pick<Card, "inflight" | "hands_off">;
   run: (k: string) => void;
   primary?: boolean;
 }) {
   if (card.inflight) return <ActButton k="b" label="Back to desk" title={BACK_TITLE} run={run} />;
-  if (!handsOff(card)) return null; // a draft, one nobody's asked to review where review is needed, one not approved yet
+  if (!card.hands_off) return null;
   return (
     <ActButton
       k="handoff"
