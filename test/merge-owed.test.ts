@@ -71,7 +71,7 @@ test("a merge you owe isn't resolved by your approval, Done puts it away, and it
   assert.equal(card("api#67").resolved, "you approved", "a collaborator's: your part is done");
   assert.equal(card("api#66").cta, "handoff");
   assert.ok(card("api#66").actions?.includes("merge"), "More merges it now");
-  await run(t.desk.approve("api#68", fresh.head_oid));
+  assert.deepEqual(await run(t.desk.approve("api#68", fresh.head_oid)), { url: "", stays: true }, "the window keeps its row");
   assert.equal(card("api#68").status, "active", "approving a merge that's now yours keeps it on your desk");
   runSync(t.desk.act("api#68", "done"));
   await run(t.desk.sync());

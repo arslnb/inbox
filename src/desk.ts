@@ -3102,7 +3102,7 @@ export class Desk {
   }
 
   // POST /api/review/:id/approve: one of the desk's GitHub writes (with Send), on your click; `head` is the commit the view showed, so a newer push isn't approved unread.
-  approve(ref: string, head: string, body?: string): Effect.Effect<{ url: string }, WriteError> {
+  approve(ref: string, head: string, body?: string): Effect.Effect<{ url: string; stays: boolean }, WriteError> {
     return Effect.gen({ self: this }, function* () {
       yield* this.notStopped();
       const e = yield* this.pr(ref);
@@ -3124,9 +3124,10 @@ export class Desk {
           at: this.now().toISOString(),
           commit: head,
         };
-        if (!mergeOwed({ ...e.item, reviews: [...e.item.reviews, approved] }, this.me())) yield* this.doneAfterWrite(id);
+        const stays = mergeOwed({ ...e.item, reviews: [...e.item.reviews, approved] }, this.me());
+        if (!stays) yield* this.doneAfterWrite(id);
         this.refreshAfter(id);
-        return { url };
+        return { url, stays };
       });
       return yield* this.locked(this.approving, id, `already approving ${id}`, write);
     });

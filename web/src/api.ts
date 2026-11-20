@@ -223,7 +223,7 @@ export const api = {
   aiReview: (id: string, force = false) => call<{ ok: true; ai: AiReview }>("POST", `/api/review/${encodeURIComponent(id)}/ai`, { force }),
   // The calls that write to GitHub: the review's Approve and replies, and Ready for review on your own draft.
   approve: (id: string, head_oid: string) =>
-    call<{ ok: true; url: string }>("POST", `/api/review/${encodeURIComponent(id)}/approve`, { head_oid }),
+    call<{ ok: true; url: string; stays: boolean }>("POST", `/api/review/${encodeURIComponent(id)}/approve`, { head_oid }),
   comment: (id: string, body: string) => call<{ ok: true; url: string }>("POST", `/api/review/${encodeURIComponent(id)}/comment`, { body }),
   // head_oid: the commit the review showed, so the line numbers are the ones you read.
   inline: (id: string, at: InlineAt, body: string, head_oid: string) =>

@@ -1413,9 +1413,9 @@ export function App() {
     return finish(c, `Commenting on ${shortRef(c)}…`, { what: "Commented", where: "archive" }, write, false);
   }
 
-  // Approve in a review: approved on GitHub, pinned to the commit the review showed.
+  // Approve in a review: approved on GitHub, pinned to the commit the review showed. A merge that's now yours keeps its row.
   function approve(c: Card, head: string) {
-    const write = api.approve(c.id, head).pipe(Effect.as({ text: `Approved ${shortRef(c)} on GitHub` }));
+    const write = api.approve(c.id, head).pipe(Effect.map((r) => ({ text: `Approved ${shortRef(c)} on GitHub`, stays: r.stays })));
     runUi(finish(c, `Approving ${shortRef(c)}…`, { what: "Approved", where: "archive" }, write));
   }
 

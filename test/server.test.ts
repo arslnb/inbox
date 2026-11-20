@@ -1125,7 +1125,7 @@ test("the desk's GitHub writes answer through respond: GitHub's refusal is Upstr
     no("Busy", "already approving acme/api#1"),
   ]);
   release();
-  assert.deepEqual(await first, [200, { ok: true, url: "https://github.com/acme/api/pull/1#pullrequestreview-1" }]);
+  assert.deepEqual(await first, [200, { ok: true, url: "https://github.com/acme/api/pull/1#pullrequestreview-1", stays: false }]);
 });
 
 test("a desk whose config never loaded answers 503: starting until the config's errors say why, and Focus says so too", async (c) => {
