@@ -65,7 +65,7 @@ The sidebar has four pages, plus **Ask your agent** and **Settings** in its foot
 - **Archive**: what's done (by you, or resolved by GitHub: merged, closed, approved), then what you snoozed or muted and what your rules hid.
 - **Settings** (⌘, in the app), in two groups. App: Inbox and notifications, Automations (your automations and urgency), Agent, Usage (what its model calls would cost at API prices), This device (theme, shortcut, menu bar count), Network (Tailscale to use it from your other devices; the local network to read it there with a token), then Integrations: GitHub (account, searches and rules, the AI review, its automations) and Sessions. Changes save as you go.
 
-Everything is a click. A row opens its review (an issue opens in place). Right-click a row for Done, Snooze, Close on GitHub and Copy link. Platform keys still work: Esc goes back, ⌘↵ sends what you wrote, ⌘S saves an editor, Tab moves between controls.
+Everything is a click. A row opens its review (an issue opens in place). Right-click a row for Done, Snooze, Move to another section, Close on GitHub, Show log, Copy link and Copy GitHub link. Platform keys still work: Esc goes back, ⌘↵ sends what you wrote, ⌘S saves an editor, Tab moves between controls.
 
 **Snooze** hides an item in the Archive until a time, until someone acts, or until the PR changes as you need: CI passes, new commits, approved, out of draft, conflict fixed. Done, snooze, mute and pin are local; nothing goes to GitHub.
 

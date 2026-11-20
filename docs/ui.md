@@ -195,9 +195,9 @@ Right-click any row (Inbox, Blocked, Merging, Archive) for a menu at the pointer
 - **Show log**: the item's log (below).
 - **Copy link**, **Copy GitHub link** (the PR or issue on GitHub).
 
-On Merging the menu is **Back to the desk**, **Copy link** and **Copy GitHub link**. A chain's waiting step's is **Stop waiting**. A question's is **Answer**, **Copy link**, **Dismiss**. A session's is **Done**, **Snooze** and its call to action. A note's is **Done**, its moves (**Move to Urgent**, **Move to Standard**, **Move to FYI**, one section up or down as a row's; a due reminder counts as Urgent, and a move drops the reminder), **Snooze** (a time, which becomes its reminder), **Change note** and **Copy text**. Every kind of row starts with Done and Snooze, from one place in `RowMenu.tsx`. Arrows move, → opens Snooze, Enter picks, Esc closes.
+On Merging the menu is **Back to the desk**, **Show log**, **Copy link** and **Copy GitHub link**. A chain's waiting step's is **Stop waiting**. A question's is **Answer**, **Copy link**, **Dismiss**. A session's is **Done**, **Snooze** and its call to action. A note's is **Done**, its moves (**Move to Urgent**, **Move to Standard**, **Move to FYI**, one section up or down as a row's; a due reminder counts as Urgent, and a move drops the reminder), **Snooze** (a time, which becomes its reminder), **Change note** and **Copy text**. Every menu is the one `Menu` in `RowMenu.tsx`. Arrows move, → opens Snooze, Enter picks, Esc closes.
 
-On the Inbox, Blocked and the Archive, and in their list beside a review, shift-click picks the PRs and issues from the selected row (beside a review, the open one) to the one you click, and ⌘-click (Ctrl-click off the Mac) adds or drops one. Right-click a picked row for what all of them allow, done to each: **Done with 3** (or **Back on the desk**), **Snooze** with the options they share, the moves when they're in one section, and **Close 3 on GitHub** when each can be closed. One Undo takes back all of a Done, Snooze or move. A plain click, Esc, a right-click on an unpicked row or leaving the page drops the picks.
+On the Inbox, Blocked and the Archive, and in their list beside a review, shift-click picks the PRs and issues from the selected row (beside a review, the open one) to the one you click, and ⌘-click (Ctrl-click off the Mac) adds or drops one. Right-click a picked row for what all of them allow, done to each: **Done with 3** (or **Back on the desk: 3**), **Snooze** with the options they share, the moves when they're in one section, and **Close 3 on GitHub** when each can be closed. One Undo takes back all of a Done, Snooze or move. A plain click, Esc, a right-click on an unpicked row or leaving the page drops the picks.
 
 ### Agents' questions
 
@@ -433,7 +433,7 @@ What you do on a row takes it off. It comes back when the PR it waits on merges.
 - All ink and pencil, problems included: your agent has it.
 - A stack's rows sit together under "Stack on main · 6 open" when two or more are here.
 - The selected row moves its phrase to a line underneath.
-- Click opens the review; right-click: **Back to the desk**, **Copy link**, **Copy GitHub link**.
+- Click opens the review; right-click: **Back to the desk**, **Show log**, **Copy link**, **Copy GitHub link**.
 
 **Merged**: PRs merged or closed in the last 3 days, as pencil rows.
 
