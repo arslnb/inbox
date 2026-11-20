@@ -2,7 +2,7 @@
 
 One local process owns everything: the **desk**. It reads GitHub, keeps a SQLite cache and your triage state, places items with rules, your agent and urgency criteria, and serves the web UI, a JSON API and MCP on `127.0.0.1:47823`.
 
-Everything else is a client of that API: the desktop window, the CLI (`desk …`), `inbox mcp`, and agents over `/mcp`.
+Everything else is a client of that API: the desktop window, the CLI (`inbox …`), `inbox mcp`, and agents over `/mcp`.
 
 - [AGENTS.md](../AGENTS.md) is the map: where each kind of change goes.
 - [api.md](api.md) is the reference for routes, types, MCP tools and behaviour.
@@ -266,26 +266,7 @@ Tool results mark PR titles and bodies as untrusted; the config comes fenced. No
 
 ## CLI (`src/cli.ts`)
 
-`bin/inbox` runs `node src/cli.ts`. Most commands talk to the running desk (`render` and `config` work without one); with none running they say `desk is not running — start it with: inbox serve`. `inbox help` prints the full usage.
-
-```
-inbox serve [--port N] [--open] [--tailscale]   run the desk in the foreground
-inbox open | status [--short] | sync
-inbox ls [board|focus] [--all] [--json]          list cards (default: focus)
-inbox show <ref> [--json]                        one item: why, facts, rule trace
-inbox add <ref> [why]                            put a PR or issue on your desk
-inbox done|mute|unmute|pin|unpin|restore <ref>
-inbox snooze <ref> [until] | undo [seq]
-inbox prompt <ref> | brief <ref> [--force]       hand-off prompt; the PR's AI review
-inbox render <doc.json> [-o out.html]            a review document as HTML, no desk needed
-inbox config [path|check|edit] | settings [set|reset] | fields
-inbox mcp [--url <address>]                      MCP on stdio
-inbox connect [claude|codex|opencode] [--apply]  connect your agent
-inbox connect <address> --code <code> | pair      use a desk on another machine
-inbox install | uninstall                        launchd job for the headless desk (macOS)
-```
-
-A ref is `owner/repo#123`, `repo#123` when unique, a GitHub URL, or an `inbox://item/…` link. Snooze takes a duration (`1h`, `2d`), `tomorrow`, `monday`, `activity`, a date or ISO time, or an event: `ci`, `push`, `approved`, `ready`, `conflict`.
+`bin/inbox` runs `node src/cli.ts`. Most commands talk to the running desk (`render` and `config` work without one); with none running they say `desk is not running — start it with: inbox serve`. `inbox help` prints every command (`USAGE`); [README → The CLI](../README.md#the-cli) shows the common ones.
 
 `inbox install` writes `~/Library/LaunchAgents/dev.inbox.desk.plist`, logging to `~/.inbox/desk.log`. It also removes the old `dev.review-desk.desk` job and settles the home first (`settleHome()`).
 
@@ -337,4 +318,4 @@ With `app.source` (or `DESK_SOURCE`) set, the app runs the desk from that checko
 
 - `npm run release <x.y.z>` (`scripts/release.ts`) tags; `npm run release:publish v<x.y.z>` (`scripts/release-publish.sh`) builds every platform on a Mac and publishes the GitHub Release.
 - `Updates` in `src/updates.ts` compares the packaged app's version with the latest release every 6 hours, read with your GitHub token (the repo is private). It reaches the UI as `Overview.update`; the sidebar's footer shows the line.
-- `POST /api/update` installs it where electron-updater can (`installUpdate()` in `electron/main.ts`): an AppImage on Linux, an installed build on Windows (`selfUpdates()` in `electron/lib.ts`). Elsewhere, including macOS, the line links to the release's download.
+- `POST /api/update` installs it where the app can (`installUpdate()` in `electron/main.ts`, `selfUpdates()` in `electron/lib.ts`): an AppImage on Linux and an installed build on Windows through electron-updater, an installed app on macOS by swapping in the release's `.dmg` itself (`electron/mac-update.ts`). Elsewhere the line links to the release's download.

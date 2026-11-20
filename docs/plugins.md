@@ -257,7 +257,7 @@ Required: `id`, `look`, `resolved`, `row`. The rest are optional; GitHub uses th
 
 **Deterministic first.** From data to placement:
 
-1. `look` turns snapshots into facts in code: waits, the blocker, needs, what's yours. GitHub's `author.engaged_90d` and `me.my_area` are deterministic. A model-made fact (the AI review's verdict) is cached per commit, and rules can read it.
+1. `look` turns snapshots into facts in code: waits, the blocker, needs, what's yours. GitHub's `author.engaged_90d` and `pr.my_area` are deterministic. A model-made fact (the AI review's verdict) is cached per commit, and rules can read it.
 2. Rules (config.toml, plus the source's built-ins) map fields to a bucket, each with a weight for the judge. First match places it, `hard` sets a floor, `final` keeps the judge out, and only rules fill Blocked.
 3. The judge (your agent) weighs every matching rule by its weight and decides, with the first rule's bucket as a hint. It never goes below a floor, never answers Blocked, and reads the plugin's `brief`. No `brief`, never judged.
 4. The plugin's own prefilter holds an item (`arrive: "held"`) while it works (GitHub's AI review), then feeds `weight`.
