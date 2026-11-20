@@ -1667,9 +1667,9 @@ export class Desk {
   dropStaleSorts(): void {
     if (!this.loaded) return;
     const snap = this.snapshot();
-    for (const [id, s] of this.store.prefixed("sorted:", Schema.NullOr(SortedSchema))) {
+    for (const [id, s] of this.store.prefixed("sorted:", SortedSchema)) {
       const e = snap.entries.get(id);
-      if (s && e && s.key !== sortKeyOf(e, snap.pins.get(id))) this.store.set(`sorted:${id}`, null);
+      if (e && s.key !== sortKeyOf(e, snap.pins.get(id))) this.store.unset(`sorted:${id}`);
     }
   }
 
@@ -1866,7 +1866,7 @@ export class Desk {
     const answers = this.judge.offReason() ? null : this.store.prefixed("judge:", JudgeAnswerSchema);
     // An automation's sort is a signal for the judge, and stands in for its answer until the judge has weighed it: while
     // the item is what it sorted, and while the automation is on and may still sort there.
-    const sorts = this.store.prefixed("sorted:", Schema.NullOr(SortedSchema));
+    const sorts = this.store.prefixed("sorted:", SortedSchema);
     const keyOf = (e: Entry) =>
       judgeKey(e.item, e.analysis.activity_at, reviews.get(e.item.id), pins.get(e.item.id), e.analysis.signals.pr.blocker);
     const automations = new Map(this.automations.all().map((a) => [a.id, a]));
@@ -1881,8 +1881,8 @@ export class Desk {
     const holding = new Map<string, Sorted>();
     for (const [id, s] of sorts) {
       const e = entries.get(id);
-      const a = s && automations.get(s.automation);
-      if (s && e && a?.on && canOf(a).some((v) => v === s.bucket) && s.key === sortKeyOf(e, pins.get(id)) && still(a, e.analysis.signals))
+      const a = automations.get(s.automation);
+      if (e && a?.on && canOf(a).some((v) => v === s.bucket) && s.key === sortKeyOf(e, pins.get(id)) && still(a, e.analysis.signals))
         holding.set(id, s);
     }
     const bySort = (s: Sorted): JudgeStep => ({ bucket: s.bucket, why: s.why, pending: false, by: s.name });
@@ -1900,9 +1900,9 @@ export class Desk {
     const judge = answers ? claude : holding.size ? asSorted : undefined;
     // What an automation snoozed, marked done or muted says why, while that's still the last thing done to it.
     const acted = new Map<string, string>();
-    for (const [id, a] of this.store.prefixed("acted:", Schema.NullOr(ActedSchema))) {
+    for (const [id, a] of this.store.prefixed("acted:", ActedSchema)) {
       const e = entries.get(id);
-      if (a && e && e.status !== "active" && this.store.lastActionFor(id)?.seq === a.seq) acted.set(id, `${a.name}: ${a.why}`);
+      if (e && e.status !== "active" && this.store.lastActionFor(id)?.seq === a.seq) acted.set(id, `${a.name}: ${a.why}`);
     }
     for (const board of boardsOf(loaded)) {
       const scope = loaded.config.spaces.find((s) => s.id === board.config.space)?.scope ?? "";
@@ -3238,7 +3238,7 @@ export class Desk {
         Effect.tap((r) =>
           Effect.sync(() => {
             this.store.set(`issue_ai:${id}`, r);
-            this.store.set(`issue_fail:${id}`, null);
+            this.store.unset(`issue_fail:${id}`);
             if (r.injection) this.log(`issue ${id}: possible prompt injection from @${r.injection.who}; stood down`);
           }),
         ),
@@ -3588,7 +3588,7 @@ export class Desk {
           s.inflight_at = now.toISOString();
           // Merging has it now, so it isn't done, snoozed or muted in the queue any more (undo brings that back).
           Object.assign(s, ACTIVE);
-          this.store.set(`sitter:${id}`, null); // a fresh start: no hand-back or note from last time
+          this.store.unset(`sitter:${id}`); // a fresh start: no hand-back or note from last time
           break;
         case "takeback":
           if (!s.inflight_at) return yield* new Conflict({ message: `${id} isn't in Merging` });
@@ -3607,7 +3607,7 @@ export class Desk {
       const auto = agent?.startsWith("automation:") ? agent : undefined;
       const seq = action === "seen" ? 0 : this.store.logAction(id, action, before, now.toISOString(), auto);
       // An automation's sort was its opinion too, and its why for what it did: what you do with the item ends both.
-      if (action !== "seen" && !auto) for (const k of [`sorted:${id}`, `acted:${id}`]) if (this.store.get(k)) this.store.set(k, null);
+      if (action !== "seen" && !auto) for (const k of [`sorted:${id}`, `acted:${id}`]) this.store.unset(k);
       this.changed();
       if (action === "inflight") this.coordinator.wake(id, "handed off");
       const { snoozed_at: _, acked_at: __, ...state } = s;
@@ -4047,7 +4047,7 @@ export class Desk {
       if (m?.rebase) {
         if (on && it.state === "open" && it.mergeable !== "clean") continue;
         if (e.state.inflight_at) this.store.putState({ ...e.state, inflight_at: null });
-        this.store.set(`sitter:${it.id}`, null);
+        this.store.unset(`sitter:${it.id}`);
         moved = true;
       } else if (
         on &&
