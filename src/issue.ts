@@ -11,7 +11,7 @@ import type { DriverId } from "./agents.ts";
 import { ClaudeBadOutput, CommandBadOutput, type ClaudeError, type CommandError } from "./errors.ts";
 import { GH_MISSING } from "./github/client.ts";
 import { field, isRecord, oneOf } from "./narrow.ts";
-import { askAgent, askClaudeIn, runCommand } from "./review.ts";
+import { askAgent, runCommand } from "./review.ts";
 import type { IssueReview, Item } from "./types.ts";
 
 const MAX_BODY = 6_000;
@@ -371,9 +371,12 @@ export const generateIssueReview = Effect.fn("generateIssueReview")(function* (
   }
   const code = o.agent === "claude-code" && o.clone !== null;
   const prompt = buildIssuePrompt(item, t, o.me, code, o.own);
-  const { answer, model } = code
-    ? yield* askClaudeIn(prompt, o.clone!, ISSUE_SCHEMA).pipe(as("issue"))
-    : yield* askAgent(prompt, { dir: o.dir, agent: o.agent, schema: ISSUE_SCHEMA }).pipe(as("issue"));
+  const { answer, model } = yield* askAgent(prompt, {
+    dir: code ? o.clone! : o.dir,
+    agent: o.agent,
+    schema: ISSUE_SCHEMA,
+    read: code,
+  }).pipe(as("issue"));
   const r = parseIssueReview(answer, code ? o.clone : null);
   if (!r.summary) return yield* new ClaudeBadOutput({ message: "the agent returned no summary" });
   return { ...stamp, model, injection: null, ...r, code, ...(code && { repo_dir: o.clone! }), ...(t.base && { base: t.base }) };
